@@ -24,6 +24,7 @@ endif()
 
 add_library(bareoslmdb SHARED mdb.c midl.c)
 target_compile_options(bareoslmdb PRIVATE -Wno-missing-braces)
+target_compile_definitions(bareoslmdb PRIVATE MDB_MAXKEYSIZE=1023)
 
 # set target_link_options so lto doesn't complain either
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
