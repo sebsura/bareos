@@ -51,6 +51,7 @@ BareosAccurateFilelistLmdb::BareosAccurateFilelistLmdb(JobControlRecord* jcr,
   db_rw_txn_ = NULL;
   db_dbi_ = 0;
   number_of_previous_files_ = number_of_files;
+  jcr_ = jcr;
 }
 
 bool BareosAccurateFilelistLmdb::init()
@@ -208,8 +209,9 @@ retry:
       }
       break;
     default:
-      Jmsg1(jcr_, M_FATAL, 0, _("Unable insert new data: %s\n"),
-            mdb_strerror(result));
+      Jmsg1(jcr_, M_FATAL, 0,
+            _("Unable insert new data: %s when adding file %s\n"),
+            mdb_strerror(result), fname);
       break;
   }
 
