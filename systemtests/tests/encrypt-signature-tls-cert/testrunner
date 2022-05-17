@@ -51,7 +51,11 @@ quit
 END_OF_DATA
 
 run_bareos "$@"
+
+wait_for_jobs_to_terminate 30
+
 check_for_zombie_jobs storage=File
+
 stop_bareos
 
 check_two_logs
