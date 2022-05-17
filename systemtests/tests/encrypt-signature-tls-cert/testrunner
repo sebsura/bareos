@@ -52,7 +52,7 @@ END_OF_DATA
 
 run_bareos "$@"
 
-wait_for_jobs_to_terminate 30
+wait_for_jobs_to_terminate client=bareos-fd 30
 
 check_for_zombie_jobs storage=File
 
