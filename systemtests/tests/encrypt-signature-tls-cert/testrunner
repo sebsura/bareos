@@ -45,6 +45,13 @@ messages
 wait
 restore client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores select all done
 yes
+status director
+status client
+status storage=File
+@sleep 10
+status director
+status client
+status storage=File
 wait
 messages
 quit
