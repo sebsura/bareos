@@ -124,6 +124,9 @@ bool BareosAccurateFilelistLmdb::init()
     }
 
     db_env_ = env;
+    Jmsg(jcr_, M_INFO, 0,
+         _("accurate_lmdb: max keysize of environment is %d\n"),
+         mdb_env_get_maxkeysize(env));
   }
 
   return true;
