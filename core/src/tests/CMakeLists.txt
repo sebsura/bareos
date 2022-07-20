@@ -367,6 +367,10 @@ bareos_add_test(
                                        GTest::gtest_main
 )
 
+bareos_add_test(
+  test_accurate LINK_LIBRARIES fd_objects bareos bareosfind GTest::gtest_main
+)
+
 bareos_add_test(test_edit LINK_LIBRARIES bareos GTest::gtest_main)
 
 bareos_add_test(
