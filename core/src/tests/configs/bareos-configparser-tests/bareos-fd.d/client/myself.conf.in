@@ -13,7 +13,7 @@ Client {
   # if set to no, new bareos features are enabled which is the default
   # compatible = yes
 
-  Working Directory =  "/tmp/tests/backup-bareos-test/working"
+  Working Directory =  "@CMAKE_CURRENT_BINARY_DIR@"
   FD Port = 42002
 
 }

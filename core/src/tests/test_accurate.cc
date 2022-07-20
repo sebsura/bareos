@@ -46,6 +46,7 @@ static JobControlRecord* NewFiledJcr()
 
 TEST(accurate, accurate_lmdb)
 {
+  debug_level = 100;
   OSDependentInit();
 
   std::string path_to_config_file = std::string(
@@ -53,11 +54,13 @@ TEST(accurate, accurate_lmdb)
   my_config = InitFdConfig(path_to_config_file.c_str(), M_ERROR_TERM);
 
   ASSERT_TRUE(my_config->ParseConfig());
+  me = (ClientResource*)my_config->GetNextRes(R_CLIENT, NULL);
+  EXPECT_STREQ("backup-bareos-test-fd", me->resource_name_);
 
   JobControlRecord* jcr = NewFiledJcr();
   uint32_t number_of_previous_files = 100;
 
-  my_config->DumpResources(PrintMessage, NULL);
+  // my_config->DumpResources(PrintMessage, NULL);
   BareosAccurateFilelist* my_filelist
       = new BareosAccurateFilelistLmdb(jcr, number_of_previous_files);
 
