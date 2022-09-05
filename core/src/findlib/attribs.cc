@@ -68,7 +68,7 @@ void WinError(JobControlRecord* jcr, const char* prefix, POOLMEM* ofile);
 /*=============================================================*/
 
 // Return the data stream that will be used
-int SelectDataStream(FindFilesPacket* ff_pkt, bool compatible)
+int SelectDataStream(FindFilesPacket* ff_pkt)
 {
   int stream;
 
@@ -109,44 +109,23 @@ int SelectDataStream(FindFilesPacket* ff_pkt, bool compatible)
 
   // Handle compression and encryption options
   if (BitIsSet(FO_COMPRESS, ff_pkt->flags)) {
-    if (compatible && ff_pkt->Compress_algo == COMPRESS_GZIP) {
-      switch (stream) {
-        case STREAM_WIN32_DATA:
-          stream = STREAM_WIN32_GZIP_DATA;
-          break;
-        case STREAM_SPARSE_DATA:
-          stream = STREAM_SPARSE_GZIP_DATA;
-          break;
-        case STREAM_FILE_DATA:
-          stream = STREAM_GZIP_DATA;
-          break;
-        default:
-          /**
-           * All stream types that do not support compression should clear out
-           * FO_COMPRESS above, and this code block should be unreachable.
-           */
-          ASSERT(!BitIsSet(FO_COMPRESS, ff_pkt->flags));
-          return STREAM_NONE;
-      }
-    } else {
-      switch (stream) {
-        case STREAM_WIN32_DATA:
-          stream = STREAM_WIN32_COMPRESSED_DATA;
-          break;
-        case STREAM_SPARSE_DATA:
-          stream = STREAM_SPARSE_COMPRESSED_DATA;
-          break;
-        case STREAM_FILE_DATA:
-          stream = STREAM_COMPRESSED_DATA;
-          break;
-        default:
-          /*
-           * All stream types that do not support compression should clear out
-           * FO_COMPRESS above, and this code block should be unreachable.
-           */
-          ASSERT(!BitIsSet(FO_COMPRESS, ff_pkt->flags));
-          return STREAM_NONE;
-      }
+    switch (stream) {
+      case STREAM_WIN32_DATA:
+        stream = STREAM_WIN32_COMPRESSED_DATA;
+        break;
+      case STREAM_SPARSE_DATA:
+        stream = STREAM_SPARSE_COMPRESSED_DATA;
+        break;
+      case STREAM_FILE_DATA:
+        stream = STREAM_COMPRESSED_DATA;
+        break;
+      default:
+        /*
+         * All stream types that do not support compression should clear out
+         * FO_COMPRESS above, and this code block should be unreachable.
+         */
+        ASSERT(!BitIsSet(FO_COMPRESS, ff_pkt->flags));
+        return STREAM_NONE;
     }
   }
 
@@ -599,11 +578,7 @@ int encode_attribsEx(JobControlRecord* jcr,
 #    define plug(st, val) st = (typeof st)val
 #  else
 // Use templates to do the casting
-template <class T>
-void plug(T& st, uint64_t val)
-{
-  st = static_cast<T>(val);
-}
+template <class T> void plug(T& st, uint64_t val) { st = static_cast<T>(val); }
 #  endif
 
 /**

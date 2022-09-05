@@ -57,7 +57,7 @@ bool AdjustCompressionBuffers(JobControlRecord* jcr)
       for (j = 0; j < incexe->opts_list.size(); j++) {
         findFOPTS* fo = (findFOPTS*)incexe->opts_list.get(j);
 
-        if (!SetupCompressionBuffers(jcr, me->compatible, fo->Compress_algo,
+        if (!SetupCompressionBuffers(jcr, fo->Compress_algo,
                                      &compress_buf_size)) {
           return false;
         }
@@ -94,7 +94,7 @@ bool SetupCompressionContext(b_ctx& bctx)
 
   if (BitIsSet(FO_COMPRESS, bctx.ff_pkt->flags)) {
     // See if we need to be compatible with the old GZIP stream encoding.
-    if (!me->compatible || bctx.ff_pkt->Compress_algo != COMPRESS_GZIP) {
+    if (bctx.ff_pkt->Compress_algo != COMPRESS_GZIP) {
       memset(&bctx.ch, 0, sizeof(comp_stream_header));
 
       // Calculate buffer offsets.

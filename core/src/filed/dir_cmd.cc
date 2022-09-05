@@ -952,11 +952,6 @@ static bool RunbeforeCmd(JobControlRecord* jcr)
   RunScript* script;
   BareosSocket* dir = jcr->dir_bsock;
 
-  if (!me->compatible) {
-    dir->fsend(BadRunBeforeJob);
-    return false;
-  }
-
   Dmsg1(100, "RunbeforeCmd: %s", dir->msg);
   cmd = GetMemory(dir->message_length + 1);
   if (sscanf(dir->msg, runbeforecmd, cmd) != 1) {
@@ -1014,11 +1009,6 @@ static bool RunafterCmd(JobControlRecord* jcr)
   BareosSocket* dir = jcr->dir_bsock;
   POOLMEM* cmd;
   RunScript* script;
-
-  if (!me->compatible) {
-    dir->fsend(BadRunAfterJob);
-    return false;
-  }
 
   Dmsg1(100, "RunafterCmd: %s", dir->msg);
   cmd = GetMemory(dir->message_length + 1);
@@ -1787,11 +1777,6 @@ static inline bool GetWantedCryptoCipher(JobControlRecord* jcr,
   // See if fileset forced a certain cipher.
   if (wanted_cipher == CRYPTO_CIPHER_NONE) { wanted_cipher = me->pki_cipher; }
 
-  /*
-   * See if we are in compatible mode then we are hardcoded to
-   * CRYPTO_CIPHER_AES_128_CBC.
-   */
-  if (me->compatible) { wanted_cipher = CRYPTO_CIPHER_AES_128_CBC; }
 
   /*
    * See if FO_FORCE_ENCRYPT is set and encryption is not configured for the

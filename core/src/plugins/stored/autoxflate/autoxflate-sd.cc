@@ -448,8 +448,7 @@ static bool SetupAutoDeflation(PluginContext* ctx, DeviceControlRecord* dcr)
 
   if (jcr->buf_size == 0) { jcr->buf_size = DEFAULT_NETWORK_BUFFER_SIZE; }
 
-  if (!SetupCompressionBuffers(jcr, sd_enabled_compatible,
-                               dcr->device_resource->autodeflate_algorithm,
+  if (!SetupCompressionBuffers(jcr, dcr->device_resource->autodeflate_algorithm,
                                &compress_buf_size)) {
     goto bail_out;
   }
