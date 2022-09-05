@@ -102,15 +102,6 @@ static inline void UnknownCompressionAlgorithm(JobControlRecord* jcr,
        cmprs_algo_to_text(compression_algorithm));
 }
 
-static inline void NonCompatibleCompressionAlgorithm(
-    JobControlRecord* jcr,
-    uint32_t compression_algorithm)
-{
-  Jmsg(jcr, M_FATAL, 0,
-       _("Illegal compression algorithm %s for compatible mode\n"),
-       cmprs_algo_to_text(compression_algorithm));
-}
-
 bool SetupCompressionBuffers(JobControlRecord* jcr,
                              uint32_t compression_algorithm,
                              uint32_t* compress_buf_size)
