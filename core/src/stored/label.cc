@@ -536,13 +536,8 @@ void CreateVolumeLabel(Device* dev, const char* VolName, const char* PoolName)
 
   dev->ClearVolhdr(); /* clear any old volume info */
 
-  if (me->compatible) {
-    bstrncpy(dev->VolHdr.Id, OldBaculaId, sizeof(dev->VolHdr.Id));
-    dev->VolHdr.VerNum = OldCompatibleBareosTapeVersion1;
-  } else {
-    bstrncpy(dev->VolHdr.Id, BareosId, sizeof(dev->VolHdr.Id));
-    dev->VolHdr.VerNum = BareosTapeVersion;
-  }
+  bstrncpy(dev->VolHdr.Id, BareosId, sizeof(dev->VolHdr.Id));
+  dev->VolHdr.VerNum = BareosTapeVersion;
   dev->VolHdr.LabelType = PRE_LABEL; /* Mark tape as unused */
   bstrncpy(dev->VolHdr.VolumeName, VolName, sizeof(dev->VolHdr.VolumeName));
   bstrncpy(dev->VolHdr.PoolName, PoolName, sizeof(dev->VolHdr.PoolName));
@@ -586,13 +581,8 @@ static void CreateSessionLabel(DeviceControlRecord* dcr,
 
   rec->data = CheckPoolMemorySize(rec->data, SER_LENGTH_Session_Label);
   SerBegin(rec->data, SER_LENGTH_Session_Label);
-  if (me->compatible) {
-    SerString(OldBaculaId);
-    ser_uint32(OldCompatibleBareosTapeVersion1);
-  } else {
-    SerString(BareosId);
-    ser_uint32(BareosTapeVersion);
-  }
+  SerString(BareosId);
+  ser_uint32(BareosTapeVersion);
 
   ser_uint32(jcr->JobId);
 
