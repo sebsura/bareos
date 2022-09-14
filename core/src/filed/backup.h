@@ -65,7 +65,7 @@ struct b_ctx {
 bool BlastDataToStorageDaemon(JobControlRecord* jcr,
                               char* addr,
                               crypto_cipher_t cipher,
-                              ConfigurationParser* config,
+                              uint32_t buf_size,
                               int callback(JobControlRecord* jcr,
                                           FindFilesPacket* ff_pkt,
                                           bool top_level));

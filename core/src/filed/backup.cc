@@ -108,17 +108,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr,
   jcr->setJobStatusWithPriorityCheck(JS_Running);
 
   Dmsg1(300, "filed: opened data connection %d to stored\n", sd->fd_);
-  ClientResource* client = nullptr;
-  {
-    ResLocker _{my_config};
-    client = (ClientResource*)my_config->GetNextRes(R_CLIENT, NULL);
-  }
-  uint32_t buf_size;
-  if (client) {
-    buf_size = client->max_network_buffer_size;
-  } else {
-    buf_size = 0; /* use default */
-  }
+
   if (!sd->SetBufferSize(buf_size, BNET_SETBUF_WRITE)) {
     jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
     Jmsg(jcr, M_FATAL, 0, _("Cannot set buffer size FD->SD.\n"));
