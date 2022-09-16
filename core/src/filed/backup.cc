@@ -125,7 +125,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr,
     return false;
   }
 
-  jcr->buf_size = sd->message_length;
+  if (sd != nullptr) { jcr->buf_size = sd->message_length; }
 
   if (!AdjustCompressionBuffers(jcr)) { return false; }
 

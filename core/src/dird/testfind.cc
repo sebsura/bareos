@@ -40,7 +40,7 @@
 #include "findlib/attribs.h"
 #include "filed/fileset.h"
 #include "lib/util.h"
-#include "lib/tree.h"
+#include "filed/backup.h"
 
 #if defined(HAVE_WIN32)
 #  define isatty(fd) (fd == 0)
@@ -183,7 +183,16 @@ int main(int argc, char* const* argv)
 
   CopyFileset(ff, jcr);
 
+  crypto_cipher_t cipher = CRYPTO_CIPHER_NONE;
+
+  jcr->impl->ff = ff;
+
+
+  filedaemon::BlastDataToStorageDaemon(jcr, NULL, cipher, my_config);
+
+
   FindFiles(jcr, ff, PrintFile, NULL);
+
 
   FreeJcr(jcr);
   if (my_config) {
