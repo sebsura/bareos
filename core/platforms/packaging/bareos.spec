@@ -995,6 +995,7 @@ cmake  .. \
   %if !0%{python2_available}
   -DENABLE_PYTHON2=no \
   %endif
+  -DENABLE_SANITIZERS=yes\
 
 %if 0%{?make_build:1}
 %make_build
