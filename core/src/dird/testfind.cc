@@ -41,6 +41,7 @@
 #include "filed/fileset.h"
 #include "lib/util.h"
 #include "filed/backup.h"
+#include "dird/testfind_jcr.h"
 
 #if defined(HAVE_WIN32)
 #  define isatty(fd) (fd == 0)
@@ -185,13 +186,10 @@ int main(int argc, char* const* argv)
 
   crypto_cipher_t cipher = CRYPTO_CIPHER_NONE;
 
-  jcr->impl->ff = ff;
+  filedaemon::BlastDataToStorageDaemon(SetupTestfindJcr(ff), NULL, cipher,
+                                       my_config, PrintFile);
 
-
-  filedaemon::BlastDataToStorageDaemon(jcr, NULL, cipher, my_config);
-
-
-  FindFiles(jcr, ff, PrintFile, NULL);
+  //  FindFiles(jcr, ff, PrintFile, NULL);
 
 
   FreeJcr(jcr);

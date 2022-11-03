@@ -55,6 +55,7 @@
 #include "lib/bnet_network_dump.h"
 #include "lib/watchdog.h"
 #include "lib/util.h"
+#include "filed/backup.h"
 
 #if defined(WIN32_VSS)
 #  include "win32/findlib/win32.h"
@@ -377,7 +378,7 @@ static inline bool AreMaxConcurrentJobsExceeded()
   return (cnt >= me->MaxConcurrentJobs) ? true : false;
 }
 
-static JobControlRecord* NewFiledJcr()
+JobControlRecord* NewFiledJcr()
 {
   JobControlRecord* jcr = new_jcr(FiledFreeJcr);
   jcr->fd_impl = new FiledJcrImpl;
@@ -1984,7 +1985,7 @@ static bool BackupCmd(JobControlRecord* jcr)
 
   // Send Files to Storage daemon
   Dmsg1(110, "begin blast ff=%p\n", (FindFilesPacket*)jcr->fd_impl->ff);
-  if (!BlastDataToStorageDaemon(jcr, nullptr, cipher, my_config)) {
+  if (!BlastDataToStorageDaemon(jcr, nullptr, cipher, my_config, SaveFile)) {
     jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
     BnetSuppressErrorMessages(sd, 1);
     Dmsg0(110, "Error in blast_data.\n");

@@ -32,6 +32,7 @@ void* process_director_commands(JobControlRecord* jcr, BareosSocket* dir);
 void* handle_director_connection(BareosSocket* dir);
 bool StartConnectToDirectorThreads();
 bool StopConnectToDirectorThreads(bool wait = false);
+JobControlRecord* NewFiledJcr();
 } /* namespace filedaemon */
 
 #endif  // BAREOS_FILED_DIR_CMD_H_

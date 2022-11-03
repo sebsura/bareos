@@ -57,7 +57,7 @@ bool AdjustCompressionBuffers(JobControlRecord* jcr)
       for (j = 0; j < incexe->opts_list.size(); j++) {
         findFOPTS* fo = (findFOPTS*)incexe->opts_list.get(j);
 
-        if (!SetupCompressionBuffers(jcr, me->compatible, fo->Compress_algo,
+        if (!SetupCompressionBuffers(jcr, false, fo->Compress_algo,
                                      &compress_buf_size)) {
           return false;
         }
