@@ -79,7 +79,7 @@ static int attrs = 0;
 
 static int PrintFile(JobControlRecord* jcr, FindFilesPacket* ff, bool);
 static void CountFiles(FindFilesPacket* ff);
-static bool CopyFileset(FindFilesPacket* ff, JobControlRecord* jcr);
+static bool setupFileset(FindFilesPacket* ff, JobControlRecord* jcr);
 static void SetOptions(findFOPTS* fo, const char* opts);
 
 static void usage()
@@ -184,13 +184,14 @@ int main(int argc, char* const* argv)
 
   ff = init_find_files();
 
-  CopyFileset(ff, jcr);
+  setupFileset(ff, jcr);
 
+  const char* filename
+      = jcr->impl->res.fileset->include_items[0]->name_list.get(0);
 
-  filedaemon::no_signals = true;
+  filedaemon::AddFileToFileset(jcr, filename, true, ff->fileset);
 
   SetupTestfindJcr(ff, configfile);
-
 
   FindFiles(jcr, ff, PrintFile, NULL);
 
@@ -440,7 +441,7 @@ static void CountFiles(FindFilesPacket* ar)
   }
 }
 
-static bool CopyFileset(FindFilesPacket* ff, JobControlRecord* jcr)
+static bool setupFileset(FindFilesPacket* ff, JobControlRecord* jcr)
 {
   FilesetResource* jcr_fileset = jcr->dir_impl->res.fileset;
   int num;
@@ -466,7 +467,7 @@ static bool CopyFileset(FindFilesPacket* ff, JobControlRecord* jcr)
     for (int i = 0; i < num; i++) {
       IncludeExcludeItem* ie;
       ;
-      int j, k;
+      int k;
 
       if (include) {
         ie = jcr_fileset->include_items[i];
@@ -529,11 +530,6 @@ static bool CopyFileset(FindFilesPacket* ff, JobControlRecord* jcr)
           current_opts->Drivetype.append(
               strdup((const char*)fo->Drivetype.get(k)));
         }
-      }
-
-      for (j = 0; j < ie->name_list.size(); j++) {
-        fileset->incexe->name_list.append(
-            new_dlistString(ie->name_list.get(j)));
       }
     }
 

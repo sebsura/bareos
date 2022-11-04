@@ -116,7 +116,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr,
     return false;
   }
 
-  if (sd != nullptr) { jcr->buf_size = sd->message_length; }
+  jcr->buf_size = sd->message_length;
 
   if (!AdjustCompressionBuffers(jcr)) { return false; }
 
@@ -131,7 +131,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr,
                            AccurateCheckFile);
   }
 
-  //  StartHeartbeatMonitor(jcr);
+  StartHeartbeatMonitor(jcr);
 
   if (have_acl) {
     jcr->fd_impl->acl_data = std::make_unique<AclData>();
@@ -173,7 +173,9 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr,
 
   AccurateFinish(jcr); /* send deleted or base file list to SD */
 
-  //  StopHeartbeatMonitor(jcr);
+  StopHeartbeatMonitor(jcr);
+
+  sd->signal(BNET_EOD); /* end of sending data */
 
   if (sd != nullptr) { sd->signal(BNET_EOD); /* end of sending data */ }
 
@@ -491,7 +493,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   bool do_read = false;
   bool plugin_started = false;
   bool do_plugin_set = false;
-  int status, data_stream = 0;
+  int status, data_stream;
   int rtnstat = 0;
   b_save_ctx bsctx;
   bool has_file_data = false;

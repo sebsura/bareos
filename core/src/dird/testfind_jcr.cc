@@ -40,13 +40,12 @@ void SetupTestfindJcr(FindFilesPacket* ff, const char* configfile)
 {
   crypto_cipher_t cipher = CRYPTO_CIPHER_NONE;
 
-  filedaemon::my_config = InitFdConfig(configfile, M_ERROR_TERM);
-  filedaemon::my_config->ParseConfig();
-  ClientResource* cl
-      = static_cast<ClientResource*>(my_config->GetNextRes(R_CLIENT, nullptr));
-  filedaemon::me
-      = static_cast<ClientResource*>(my_config->GetNextRes(R_CLIENT, nullptr));
+  my_config = InitFdConfig(configfile, M_ERROR_TERM);
+  my_config->ParseConfig();
 
+  me = static_cast<ClientResource*>(my_config->GetNextRes(R_CLIENT, nullptr));
+  no_signals = true;
+  me->compatible = true;
 
   if (CheckResources()) {
     BareosSocketTestfind* sock = new BareosSocketTestfind;
@@ -62,5 +61,5 @@ void SetupTestfindJcr(FindFilesPacket* ff, const char* configfile)
 
     BlastDataToStorageDaemon(jcr, NULL, cipher, DEFAULT_NETWORK_BUFFER_SIZE);
   }
-  if (cl->secure_erase_cmdline) { FreePoolMemory(cl->secure_erase_cmdline); }
+  if (me->secure_erase_cmdline) { FreePoolMemory(me->secure_erase_cmdline); }
 }
