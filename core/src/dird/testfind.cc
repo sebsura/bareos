@@ -190,7 +190,10 @@ int main(int argc, char* const* argv)
   filedaemon::no_signals = true;
 
   filedaemon::BlastDataToStorageDaemon(SetupTestfindJcr(ff), NULL, cipher,
-                                       DEFAULT_NETWORK_BUFFER_SIZE, PrintFile);
+                                       DEFAULT_NETWORK_BUFFER_SIZE);
+
+
+  FindFiles(jcr, ff, PrintFile, NULL);
 
   FreeJcr(jcr);
   if (my_config) {

@@ -97,8 +97,9 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  * except echo the heartbeat to the Director).
  */
 bool BlastDataToStorageDaemon(JobControlRecord* jcr,
-                              char*,
-                              crypto_cipher_t cipher)
+                              char* addr,
+                              crypto_cipher_t cipher,
+                              uint32_t buf_size)
 {
   BareosSocket* sd;
   bool ok = true;
@@ -490,7 +491,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   bool do_read = false;
   bool plugin_started = false;
   bool do_plugin_set = false;
-  int status, data_stream;
+  int status, data_stream = 0;
   int rtnstat = 0;
   b_save_ctx bsctx;
   bool has_file_data = false;

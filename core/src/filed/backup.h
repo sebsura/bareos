@@ -65,10 +65,7 @@ struct b_ctx {
 bool BlastDataToStorageDaemon(JobControlRecord* jcr,
                               char* addr,
                               crypto_cipher_t cipher,
-                              uint32_t buf_size,
-                              int callback(JobControlRecord* jcr,
-                                          FindFilesPacket* ff_pkt,
-                                          bool top_level));
+                              uint32_t buf_size);
 bool EncodeAndSendAttributes(JobControlRecord* jcr,
                              FindFilesPacket* ff_pkt,
                              int& data_stream);
