@@ -282,35 +282,35 @@ static inline bool PySavePacketToNative(
   if (!is_options_plugin) {
     // Only copy back the arguments that are allowed to change.
     if (pSavePkt->fname) {
-      /*
-       * As this has to linger as long as the backup is running we save it in
-       * our plugin context.
-       */
-      if (PyUnicode_Check(pSavePkt->fname)) {
-        if (plugin_priv_ctx->fname) { free(plugin_priv_ctx->fname); }
-
-        const char* fileName_AsUTF8 = PyUnicode_AsUTF8(pSavePkt->fname);
-        if (!fileName_AsUTF8) return false;
-
-        plugin_priv_ctx->fname = strdup(fileName_AsUTF8);
-        sp->fname = plugin_priv_ctx->fname;
+      /* As this has to linger as long as the backup is running we save it in
+         our plugin context.  */
+      if (plugin_priv_ctx->fname) { free(plugin_priv_ctx->fname); }
+      PyObject* fname_bytes;
+#if PY_VERSION_HEX > VERSION_HEX(3, 0, 0)
+      if (!PyUnicode_FSConverter(pSavePkt->fname, &fname_bytes)) {
+        return NULL;
       }
+#endif
+      const char* filename = PyBytes_AsString(fname_bytes);
+      plugin_priv_ctx->fname = strdup(filename);
+      sp->fname = plugin_priv_ctx->fname;
     } else {
       goto bail_out;
     }
 
     // Optional field.
     if (pSavePkt->link) {
-      /*
-       * As this has to linger as long as the backup is running we save it in
-       * our plugin context.
-       */
-      if (PyUnicode_Check(pSavePkt->link)) {
-        if (plugin_priv_ctx->link) { free(plugin_priv_ctx->link); }
-        plugin_priv_ctx->link = strdup(PyUnicode_AsUTF8(pSavePkt->link));
-        sp->link = plugin_priv_ctx->link;
-      }
-    }
+      /* As this has to linger as long as the backup is running we save it in
+         our plugin context.  */
+      if (plugin_priv_ctx->link) { free(plugin_priv_ctx->link); }
+      PyObject* link_bytes;
+#if PY_VERSION_HEX > VERSION_HEX(3, 0, 0)
+      if (!PyUnicode_FSConverter(pSavePkt->link, &link_bytes)) { return NULL; }
+#endif
+      const char* filename = PyBytes_AsString(link_bytes);
+      plugin_priv_ctx->link = strdup(filename);
+      sp->link = plugin_priv_ctx->link;
+    }  // link
 
     // Handle the stat structure.
     if (pSavePkt->statp) {
@@ -1365,19 +1365,27 @@ bail_out:
  */
 static PyObject* PyBareosDebugMessage(PyObject*, PyObject* args)
 {
-  int level;
-  char* dbgmsg = NULL;
   PluginContext* plugin_ctx = plugin_context;
-  /* plugin_private_context* ppc = */
-  /*     (plugin_private_context*)plugin_ctx->plugin_private_context;
-   */
+  RETURN_RUNTIME_ERROR_IF_BAREOS_PLUGIN_CTX_UNSET()
+  int level;
+  PyObject* debugmessage_obj = Py_None;
+  PyObject* debugmessage_bytes = nullptr;
+  char* debugmessage = nullptr;
 
-  if (!PyArg_ParseTuple(args, "i|z:BareosDebugMessage", &level, &dbgmsg)) {
+  if (!PyArg_ParseTuple(args, "i|O:BareosDebugMessage", &level,
+                        &debugmessage_obj)) {
     return NULL;
   }
-  RETURN_RUNTIME_ERROR_IF_BAREOS_PLUGIN_CTX_UNSET()
-
-  if (dbgmsg) { Dmsg(plugin_ctx, level, LOGPREFIX "%s", dbgmsg); }
+  if (debugmessage_obj != Py_None) {
+#if PY_VERSION_HEX > VERSION_HEX(3, 0, 0)
+    if (!PyUnicode_FSConverter(debugmessage_obj, &debugmessage_bytes)) {
+      Dmsg(plugin_ctx, level, LOGPREFIX "PyUnicode_FSConverter failed");
+      return NULL;
+    }
+#endif
+    debugmessage = PyBytes_AsString(debugmessage_bytes);
+  }
+  Dmsg(plugin_ctx, level, LOGPREFIX "%s", debugmessage);
 
   Py_RETURN_NONE;
 }
@@ -1680,11 +1688,8 @@ static PyObject* PyBareosCheckChanges(PyObject*, PyObject* args)
   }
   RETURN_RUNTIME_ERROR_IF_BFUNC_OR_BAREOS_PLUGIN_CTX_UNSET()
 
-
-  /*
-   * CheckFile only has a need for a limited version of the PySavePacket so we
-   * handle that here separately and don't call PySavePacketToNative().
-   */
+  /* CheckFile only has a need for a limited version of the PySavePacket so we
+     handle that here separately and don't call PySavePacketToNative().  */
   sp.type = pSavePkt->type;
   if (pSavePkt->fname) {
     if (PyUnicode_Check(pSavePkt->fname)) {
@@ -1731,10 +1736,8 @@ static PyObject* PyBareosAcceptFile(PyObject*, PyObject* args)
   }
   RETURN_RUNTIME_ERROR_IF_BFUNC_OR_BAREOS_PLUGIN_CTX_UNSET()
 
-  /*
-   * Acceptfile only needs fname and statp from PySavePacket so we handle
-   * that here separately and don't call PySavePacketToNative().
-   */
+  /* Acceptfile only needs fname and statp from PySavePacket so we handle
+     that here separately and don't call PySavePacketToNative().  */
   if (pSavePkt->fname) {
     if (PyUnicode_Check(pSavePkt->fname)) {
       sp.fname = const_cast<char*>(PyUnicode_AsUTF8(pSavePkt->fname));
