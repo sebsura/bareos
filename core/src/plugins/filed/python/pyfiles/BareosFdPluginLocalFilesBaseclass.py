@@ -77,7 +77,8 @@ class BareosFdPluginLocalFilesBaseclass(BareosFdPluginBaseclass):  # noqa
             return bareosfd.bRC_Skip
 
         self.file_to_backup = self.files_to_backup.pop()
-        bareosfd.DebugMessage(100, "file: " + self.file_to_backup + "\n")
+        # bareosfd.DebugMessage(100, "file: " + self.file_to_backup + "\n")
+        bareosfd.DebugMessage(100, self.file_to_backup )
 
         mystatp = bareosfd.StatPacket()
         try:

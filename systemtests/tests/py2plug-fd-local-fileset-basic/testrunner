@@ -36,6 +36,8 @@ setup_data
 # using Python3
 find ${tmp}/data/weird-files -type l -exec rm {} \;
 find tmp/data/weird-files -links +1 -type f -exec rm {} \;
+#rm tmp/data/weird-files/*
+#cp filename-with-non-utf8-bytestring-* tmp/data/weird-files
 
 print_debug "$(locale)"
 

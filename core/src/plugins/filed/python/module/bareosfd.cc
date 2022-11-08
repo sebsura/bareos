@@ -282,35 +282,60 @@ static inline bool PySavePacketToNative(
   if (!is_options_plugin) {
     // Only copy back the arguments that are allowed to change.
     if (pSavePkt->fname) {
+#if PY_VERSION_HEX > VERSION_HEX(3, 0, 0)
       /* As this has to linger as long as the backup is running we save it in
          our plugin context.  */
       if (plugin_priv_ctx->fname) { free(plugin_priv_ctx->fname); }
       PyObject* fname_bytes;
-#if PY_VERSION_HEX > VERSION_HEX(3, 0, 0)
       if (!PyUnicode_FSConverter(pSavePkt->fname, &fname_bytes)) {
         return NULL;
       }
-#endif
       const char* filename = PyBytes_AsString(fname_bytes);
       plugin_priv_ctx->fname = strdup(filename);
       sp->fname = plugin_priv_ctx->fname;
+#else
+      /*
+       * As this has to linger as long as the backup is running we save it in
+       * our plugin context.
+       */
+      if (PyUnicode_Check(pSavePkt->fname)) {
+        if (plugin_priv_ctx->fname) { free(plugin_priv_ctx->fname); }
+
+        const char* fileName_AsUTF8 = PyUnicode_AsUTF8(pSavePkt->fname);
+        if (!fileName_AsUTF8) return false;
+
+        plugin_priv_ctx->fname = strdup(fileName_AsUTF8);
+        sp->fname = plugin_priv_ctx->fname;
+      }
+#endif
     } else {
       goto bail_out;
     }
 
     // Optional field.
     if (pSavePkt->link) {
+#if PY_VERSION_HEX > VERSION_HEX(3, 0, 0)
       /* As this has to linger as long as the backup is running we save it in
          our plugin context.  */
       if (plugin_priv_ctx->link) { free(plugin_priv_ctx->link); }
       PyObject* link_bytes;
-#if PY_VERSION_HEX > VERSION_HEX(3, 0, 0)
       if (!PyUnicode_FSConverter(pSavePkt->link, &link_bytes)) { return NULL; }
-#endif
       const char* filename = PyBytes_AsString(link_bytes);
       plugin_priv_ctx->link = strdup(filename);
       sp->link = plugin_priv_ctx->link;
     }  // link
+#else
+      /*
+       * As this has to linger as long as the backup is running we save it in
+       * our plugin context.
+       */
+      if (PyUnicode_Check(pSavePkt->link)) {
+        if (plugin_priv_ctx->link) { free(plugin_priv_ctx->link); }
+        plugin_priv_ctx->link = strdup(PyUnicode_AsUTF8(pSavePkt->link));
+        sp->link = plugin_priv_ctx->link;
+      }
+    }
+#endif
 
     // Handle the stat structure.
     if (pSavePkt->statp) {
@@ -1368,6 +1393,8 @@ static PyObject* PyBareosDebugMessage(PyObject*, PyObject* args)
   PluginContext* plugin_ctx = plugin_context;
   RETURN_RUNTIME_ERROR_IF_BAREOS_PLUGIN_CTX_UNSET()
   int level;
+
+#if PY_VERSION_HEX > VERSION_HEX(3, 0, 0)
   PyObject* debugmessage_obj = Py_None;
   PyObject* debugmessage_bytes = nullptr;
   char* debugmessage = nullptr;
@@ -1377,16 +1404,20 @@ static PyObject* PyBareosDebugMessage(PyObject*, PyObject* args)
     return NULL;
   }
   if (debugmessage_obj != Py_None) {
-#if PY_VERSION_HEX > VERSION_HEX(3, 0, 0)
     if (!PyUnicode_FSConverter(debugmessage_obj, &debugmessage_bytes)) {
       Dmsg(plugin_ctx, level, LOGPREFIX "PyUnicode_FSConverter failed");
       return NULL;
     }
-#endif
     debugmessage = PyBytes_AsString(debugmessage_bytes);
   }
   Dmsg(plugin_ctx, level, LOGPREFIX "%s", debugmessage);
-
+#else
+  char* dbgmsg = NULL;
+  if (!PyArg_ParseTuple(args, "i|z:BareosDebugMessage", &level, &dbgmsg)) {
+    return NULL;
+  }
+  if (dbgmsg) { Dmsg(plugin_ctx, level, LOGPREFIX "%s", dbgmsg); }
+#endif
   Py_RETURN_NONE;
 }
 
