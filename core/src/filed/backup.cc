@@ -72,7 +72,7 @@ const bool have_xattr = false;
 #endif
 
 /* Forward referenced functions */
-int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool top_level);
+
 static int send_data(JobControlRecord* jcr,
                      int stream,
                      FindFilesPacket* ff_pkt,
@@ -98,7 +98,10 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  */
 bool BlastDataToStorageDaemon(JobControlRecord* jcr,
                               crypto_cipher_t cipher,
-                              uint32_t buf_size)
+                              uint32_t buf_size,
+                              int callback(JobControlRecord* jcr,
+                                           FindFilesPacket* ff_pkt,
+                                           bool top_level))
 {
   BareosSocket* sd;
   bool ok = true;
@@ -149,7 +152,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr,
   }
 
   // Subroutine SaveFile() is called for each file
-  if (!FindFiles(jcr, (FindFilesPacket*)jcr->fd_impl->ff, SaveFile,
+  if (!FindFiles(jcr, (FindFilesPacket*)jcr->fd_impl->ff, callback,
                  PluginSave)) {
     ok = false; /* error */
     jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);

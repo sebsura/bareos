@@ -1,4 +1,4 @@
-/*
+﻿/*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2022-2022 Bareos GmbH & Co. KG
@@ -25,6 +25,7 @@
 #include "filed/filed_jcr_impl.h"
 #include "filed/filed_globals.h"
 #include "filed/dir_cmd.h"
+#include "filed/fileset.h"
 
 #include "dird/dird_conf.h"
 
@@ -36,9 +37,18 @@
 
 using namespace filedaemon;
 
+static int num_files = 0;
+static int max_file_len = 0;
+static int max_path_len = 0;
+static int trunc_fname = 0;
+static int trunc_path = 0;
+static int local_attrs = 0;
+
 void SetupTestfindJcr(directordaemon::FilesetResource* jcr_fileset,
-                      const char* configfile)
+                      const char* configfile,
+                      int attrs)
 {
+  local_attrs = attrs;
   crypto_cipher_t cipher = CRYPTO_CIPHER_NONE;
 
   my_config = InitFdConfig(configfile, M_ERROR_TERM);
@@ -61,12 +71,35 @@ void SetupTestfindJcr(directordaemon::FilesetResource* jcr_fileset,
 
     GetWantedCryptoCipher(jcr, &cipher);
 
-    BlastDataToStorageDaemon(jcr, cipher, DEFAULT_NETWORK_BUFFER_SIZE);
+    const char* filename = jcr_fileset->include_items[0]->name_list.get(0);
+
+    AddFileToFileset(jcr, filename, true, jcr->fd_impl->ff->fileset);
+
+    BlastDataToStorageDaemon(jcr, cipher, DEFAULT_NETWORK_BUFFER_SIZE,
+                             testfindLogic);
+
+    printf(_("\n"
+             "Total files    : %d\n"
+             "Max file length: %d\n"
+             "Max path length: %d\n"
+             "Files truncated: %d\n"
+             "Paths truncated: %d\n"),
+           num_files, max_file_len, max_path_len, trunc_fname, trunc_path);
 
     CleanupFileset(jcr);
     FreeJcr(jcr);
   }
   if (me->secure_erase_cmdline) { FreePoolMemory(me->secure_erase_cmdline); }
+}
+
+
+int testfindLogic(JobControlRecord* jcr,
+                  FindFilesPacket* ff_pkt,
+                  bool top_level)
+{
+  if (!SaveFile(jcr, ff_pkt, top_level)) { return 0; }
+  if (!PrintFile(jcr, ff_pkt, top_level)) { return 0; }
+  return 1;
 }
 
 
@@ -290,5 +323,171 @@ void SetOptions(findFOPTS* fo, const char* opts)
         Emsg1(M_ERROR, 0, _("Unknown include/exclude option: %c\n"), *p);
         break;
     }
+  }
+}
+
+
+int PrintFile(JobControlRecord*, FindFilesPacket* ff, bool)
+{
+  switch (ff->type) {
+    case FT_LNKSAVED:
+      if (debug_level == 1) {
+        printf("%s\n", ff->fname);
+      } else if (debug_level > 1) {
+        printf("Lnka: %s -> %s\n", ff->fname, ff->link);
+      }
+      break;
+    case FT_REGE:
+      if (debug_level == 1) {
+        printf("%s\n", ff->fname);
+      } else if (debug_level > 1) {
+        printf("Empty: %s\n", ff->fname);
+      }
+      CountFiles(ff);
+      break;
+    case FT_REG:
+      if (debug_level == 1) {
+        printf("%s\n", ff->fname);
+      } else if (debug_level > 1) {
+        printf(_("Reg: %s\n"), ff->fname);
+      }
+      CountFiles(ff);
+      break;
+    case FT_LNK:
+      if (debug_level == 1) {
+        printf("%s\n", ff->fname);
+      } else if (debug_level > 1) {
+        printf("Lnk: %s -> %s\n", ff->fname, ff->link);
+      }
+      CountFiles(ff);
+      break;
+    case FT_DIRBEGIN:
+      return 1;
+    case FT_NORECURSE:
+    case FT_NOFSCHG:
+    case FT_INVALIDFS:
+    case FT_INVALIDDT:
+    case FT_DIREND:
+      if (debug_level) {
+        char errmsg[100] = "";
+        if (ff->type == FT_NORECURSE) {
+          bstrncpy(errmsg, _("\t[will not descend: recursion turned off]"),
+                   sizeof(errmsg));
+        } else if (ff->type == FT_NOFSCHG) {
+          bstrncpy(errmsg,
+                   _("\t[will not descend: file system change not allowed]"),
+                   sizeof(errmsg));
+        } else if (ff->type == FT_INVALIDFS) {
+          bstrncpy(errmsg, _("\t[will not descend: disallowed file system]"),
+                   sizeof(errmsg));
+        } else if (ff->type == FT_INVALIDDT) {
+          bstrncpy(errmsg, _("\t[will not descend: disallowed drive type]"),
+                   sizeof(errmsg));
+        }
+        printf("%s%s%s\n", (debug_level > 1 ? "Dir: " : ""), ff->fname, errmsg);
+      }
+      ff->type = FT_DIREND;
+      CountFiles(ff);
+      break;
+    case FT_SPEC:
+      if (debug_level == 1) {
+        printf("%s\n", ff->fname);
+      } else if (debug_level > 1) {
+        printf("Spec: %s\n", ff->fname);
+      }
+      CountFiles(ff);
+      break;
+    case FT_NOACCESS:
+      printf(_("Err: Could not access %s: %s\n"), ff->fname, strerror(errno));
+      break;
+    case FT_NOFOLLOW:
+      printf(_("Err: Could not follow ff->link %s: %s\n"), ff->fname,
+             strerror(errno));
+      break;
+    case FT_NOSTAT:
+      printf(_("Err: Could not stat %s: %s\n"), ff->fname, strerror(errno));
+      break;
+    case FT_NOCHG:
+      printf(_("Skip: File not saved. No change. %s\n"), ff->fname);
+      break;
+    case FT_ISARCH:
+      printf(_("Err: Attempt to backup archive. Not saved. %s\n"), ff->fname);
+      break;
+    case FT_NOOPEN:
+      printf(_("Err: Could not open directory %s: %s\n"), ff->fname,
+             strerror(errno));
+      break;
+    default:
+      printf(_("Err: Unknown file ff->type %d: %s\n"), ff->type, ff->fname);
+      break;
+  }
+  if (local_attrs) {
+    char attr[200];
+    //    encode_attribsEx(NULL, attr, ff);
+    if (*attr != 0) { printf("AttrEx=%s\n", attr); }
+    //    set_attribsEx(NULL, ff->fname, NULL, NULL, ff->type, attr);
+  }
+  return 1;
+}
+
+void CountFiles(FindFilesPacket* ar)
+{
+  int fnl, pnl;
+  char *l, *p;
+  PoolMem file(PM_FNAME);
+  PoolMem spath(PM_FNAME);
+
+  num_files++;
+
+  /* Find path without the filename.
+   * I.e. everything after the last / is a "filename".
+   * OK, maybe it is a directory name, but we treat it like
+   * a filename. If we don't find a / then the whole name
+   * must be a path name (e.g. c:).
+   */
+  for (p = l = ar->fname; *p; p++) {
+    if (IsPathSeparator(*p)) { l = p; /* set pos of last slash */ }
+  }
+  if (IsPathSeparator(*l)) { /* did we find a slash? */
+    l++;                     /* yes, point to filename */
+  } else {                   /* no, whole thing must be path name */
+    l = p;
+  }
+
+  /* If filename doesn't exist (i.e. root directory), we
+   * simply create a blank name consisting of a single
+   * space. This makes handling zero length filenames
+   * easier.
+   */
+  fnl = p - l;
+  if (fnl > max_file_len) { max_file_len = fnl; }
+  if (fnl > 255) {
+    printf(_("===== Filename truncated to 255 chars: %s\n"), l);
+    fnl = 255;
+    trunc_fname++;
+  }
+
+  if (fnl > 0) {
+    PmStrcpy(file, l); /* copy filename */
+  } else {
+    PmStrcpy(file, " "); /* blank filename */
+  }
+
+  pnl = l - ar->fname;
+  if (pnl > max_path_len) { max_path_len = pnl; }
+  if (pnl > 255) {
+    printf(_("========== Path name truncated to 255 chars: %s\n"), ar->fname);
+    pnl = 255;
+    trunc_path++;
+  }
+
+  PmStrcpy(spath, ar->fname);
+  if (pnl == 0) {
+    PmStrcpy(spath, " ");
+    printf(_("========== Path length is zero. File=%s\n"), ar->fname);
+  }
+  if (debug_level >= 10) {
+    printf(_("Path: %s\n"), spath.c_str());
+    printf(_("File: %s\n"), file.c_str());
   }
 }
