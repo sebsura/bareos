@@ -20,25 +20,47 @@
 */
 
 #include "include/bareos.h"
+#include "filed/filed_utils.h"
 #include "filed/filed.h"
 #include "filed/jcr_private.h"
 #include "filed/dir_cmd.h"
 #include "lib/crypto.h"
 #include "lib/bsock_testfind.h"
 #include "lib/mem_pool.h"
+#include "filed/filed_conf.h"
+#include "lib/parse_conf.h"
+#include "filed/filed_globals.h"
+#include "filed/dir_cmd.h"
+#include "lib/crypto_openssl.h"
 
 
 using namespace filedaemon;
 
-JobControlRecord* SetupTestfindJcr(FindFilesPacket* ff)
+void SetupTestfindJcr(FindFilesPacket* ff, const char* configfile)
 {
-  BareosSocketTestfind* sock = new BareosSocketTestfind;
-  sock->message_length = 0;
-  JobControlRecord* jcr;
-  jcr = NewFiledJcr();
-  jcr->store_bsock = sock;
-  jcr->impl->ff = ff;
-  jcr->impl->last_fname = GetPoolMemory(PM_FNAME);
-  FreePoolMemory(jcr->impl->last_fname);
-  return jcr;
+  crypto_cipher_t cipher = CRYPTO_CIPHER_NONE;
+
+  filedaemon::my_config = InitFdConfig(configfile, M_ERROR_TERM);
+  filedaemon::my_config->ParseConfig();
+  ClientResource* cl
+      = static_cast<ClientResource*>(my_config->GetNextRes(R_CLIENT, nullptr));
+  filedaemon::me
+      = static_cast<ClientResource*>(my_config->GetNextRes(R_CLIENT, nullptr));
+
+
+  if (CheckResources()) {
+    BareosSocketTestfind* sock = new BareosSocketTestfind;
+    sock->message_length = 0;
+    JobControlRecord* jcr;
+    jcr = create_new_director_session(sock);
+
+    jcr->store_bsock = sock;
+    jcr->impl->ff = ff;
+    jcr->impl->last_fname = GetPoolMemory(PM_FNAME);
+
+    GetWantedCryptoCipher(jcr, &cipher);
+
+    BlastDataToStorageDaemon(jcr, NULL, cipher, DEFAULT_NETWORK_BUFFER_SIZE);
+  }
+  if (cl->secure_erase_cmdline) { FreePoolMemory(cl->secure_erase_cmdline); }
 }

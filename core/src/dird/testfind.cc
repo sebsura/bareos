@@ -76,7 +76,6 @@ static int trunc_fname = 0;
 static int trunc_path = 0;
 static int attrs = 0;
 
-static JobControlRecord* jcr;
 
 static int PrintFile(JobControlRecord* jcr, FindFilesPacket* ff, bool);
 static void CountFiles(FindFilesPacket* ff);
@@ -154,8 +153,9 @@ int main(int argc, char* const* argv)
   argc -= optind;
   argv += optind;
 
-  my_config = InitDirConfig(configfile, M_ERROR_TERM);
-  my_config->ParseConfig();
+  directordaemon::my_config = InitDirConfig(configfile, M_ERROR_TERM);
+  directordaemon::my_config->ParseConfig();
+
 
   MessagesResource* msg;
 
@@ -163,6 +163,7 @@ int main(int argc, char* const* argv)
     InitMsg(NULL, msg);
   }
 
+  JobControlRecord* jcr;
   jcr = NewDirectorJcr(TestfindFreeJcr);
   jcr->dir_impl->res.fileset
       = (FilesetResource*)my_config->GetResWithName(R_FILESET, fileset_name);
@@ -185,12 +186,10 @@ int main(int argc, char* const* argv)
 
   CopyFileset(ff, jcr);
 
-  crypto_cipher_t cipher = CRYPTO_CIPHER_NONE;
 
   filedaemon::no_signals = true;
 
-  filedaemon::BlastDataToStorageDaemon(SetupTestfindJcr(ff), NULL, cipher,
-                                       DEFAULT_NETWORK_BUFFER_SIZE);
+  SetupTestfindJcr(ff, configfile);
 
 
   FindFiles(jcr, ff, PrintFile, NULL);

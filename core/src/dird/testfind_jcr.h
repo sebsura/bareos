@@ -4,6 +4,6 @@
 #include "include/jcr.h"
 #include "findlib/find.h"
 
-JobControlRecord* SetupTestfindJcr(FindFilesPacket* ff);
+void SetupTestfindJcr(FindFilesPacket* ff,const char* configfile);
 
 #endif // TESTFIND_JCR_H

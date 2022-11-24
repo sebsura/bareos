@@ -22,6 +22,8 @@
 #ifndef BAREOS_FILED_DIR_CMD_H_
 #define BAREOS_FILED_DIR_CMD_H_
 
+#include "lib/crypto.h"
+
 class JobControlRecord;
 class BareosSocket;
 
@@ -33,6 +35,8 @@ void* handle_director_connection(BareosSocket* dir);
 bool StartConnectToDirectorThreads();
 bool StopConnectToDirectorThreads(bool wait = false);
 JobControlRecord* NewFiledJcr();
+bool GetWantedCryptoCipher(JobControlRecord* jcr,
+                                  crypto_cipher_t* cipher);
 } /* namespace filedaemon */
 
 #endif  // BAREOS_FILED_DIR_CMD_H_
