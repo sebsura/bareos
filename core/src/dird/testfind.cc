@@ -172,7 +172,7 @@ int main(int argc, char* const* argv)
     exit(1);
   }
 
-  SetupTestfindJcr(dir_fileset, configfile, attrs);
+  launchFileDaemonLogic(dir_fileset, configfile, attrs);
 
   FreeJcr(jcr);
   if (my_config) {

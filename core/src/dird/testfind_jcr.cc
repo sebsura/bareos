@@ -44,9 +44,19 @@ static int trunc_fname = 0;
 static int trunc_path = 0;
 static int local_attrs = 0;
 
-void SetupTestfindJcr(directordaemon::FilesetResource* jcr_fileset,
-                      const char* configfile,
-                      int attrs)
+static int handleFile(JobControlRecord* jcr,
+                      FindFilesPacket* ff_pkt,
+                      bool top_level)
+{
+  if (!SaveFile(jcr, ff_pkt, top_level)) { return 0; }
+  if (!PrintFile(jcr, ff_pkt, top_level)) { return 0; }
+  return 1;
+}
+
+
+void launchFileDaemonLogic(directordaemon::FilesetResource* jcr_fileset,
+                           const char* configfile,
+                           int attrs)
 {
   local_attrs = attrs;
   crypto_cipher_t cipher = CRYPTO_CIPHER_NONE;
@@ -61,22 +71,20 @@ void SetupTestfindJcr(directordaemon::FilesetResource* jcr_fileset,
   if (CheckResources()) {
     BareosSocketTestfind* dird_sock = new BareosSocketTestfind;
     BareosSocketTestfind* stored_sock = new BareosSocketTestfind;
-    stored_sock->message_length = 0;
     JobControlRecord* jcr;
+
     jcr = create_new_director_session(dird_sock);
-
-    setupFileset(jcr->fd_impl->ff, jcr_fileset);
-
     jcr->store_bsock = stored_sock;
+    stored_sock->message_length = 0;
 
     GetWantedCryptoCipher(jcr, &cipher);
 
+    setupFileset(jcr->fd_impl->ff, jcr_fileset);
     const char* filename = jcr_fileset->include_items[0]->name_list.get(0);
-
     AddFileToFileset(jcr, filename, true, jcr->fd_impl->ff->fileset);
 
     BlastDataToStorageDaemon(jcr, cipher, DEFAULT_NETWORK_BUFFER_SIZE,
-                             testfindLogic);
+                             handleFile);
 
     printf(_("\n"
              "Total files    : %d\n"
@@ -93,16 +101,6 @@ void SetupTestfindJcr(directordaemon::FilesetResource* jcr_fileset,
 }
 
 
-int testfindLogic(JobControlRecord* jcr,
-                  FindFilesPacket* ff_pkt,
-                  bool top_level)
-{
-  if (!SaveFile(jcr, ff_pkt, top_level)) { return 0; }
-  if (!PrintFile(jcr, ff_pkt, top_level)) { return 0; }
-  return 1;
-}
-
-
 bool setupFileset(FindFilesPacket* ff,
                   directordaemon::FilesetResource* jcr_fileset)
 {
@@ -110,7 +108,7 @@ bool setupFileset(FindFilesPacket* ff,
   bool include = true;
 
   findFILESET* fileset;
-  findFOPTS* current_opts;
+
 
   findFILESET* fileset_allocation = (findFILESET*)malloc(sizeof(findFILESET));
   fileset = new (fileset_allocation)(findFILESET);
@@ -127,71 +125,18 @@ bool setupFileset(FindFilesPacket* ff,
       num = jcr_fileset->exclude_items.size();
     }
     for (int i = 0; i < num; i++) {
-      directordaemon::IncludeExcludeItem* ie;
-      ;
-      int k;
-
       if (include) {
-        ie = jcr_fileset->include_items[i];
         /* New include */
         findIncludeExcludeItem* incexe_allocation
             = (findIncludeExcludeItem*)malloc(sizeof(findIncludeExcludeItem));
         fileset->incexe = new (incexe_allocation)(findIncludeExcludeItem);
         fileset->include_list.append(fileset->incexe);
       } else {
-        ie = jcr_fileset->exclude_items[i];
-
         /* New exclude */
         findIncludeExcludeItem* incexe_allocation
             = (findIncludeExcludeItem*)malloc(sizeof(findIncludeExcludeItem));
         fileset->incexe = new (incexe_allocation)(findIncludeExcludeItem);
         fileset->exclude_list.append(fileset->incexe);
-      }
-
-      for (std::size_t j = 0; j < ie->file_options_list.size(); j++) {
-        directordaemon::FileOptions* fo = ie->file_options_list[j];
-
-        findFOPTS* current_opts_allocation
-            = (findFOPTS*)malloc(sizeof(findFOPTS));
-        current_opts = new (current_opts_allocation)(findFOPTS);
-
-        fileset->incexe->current_opts = current_opts;
-        fileset->incexe->opts_list.append(current_opts);
-
-        SetOptions(current_opts, fo->opts);
-
-        for (k = 0; k < fo->regex.size(); k++) {
-          current_opts->regex.append(StringToRegex(fo->regex.get(k)));
-        }
-        for (k = 0; k < fo->regexdir.size(); k++) {
-          // fd->fsend("RD %s\n", fo->regexdir.get(k));
-          current_opts->regexdir.append(StringToRegex(fo->regexdir.get(k)));
-        }
-        for (k = 0; k < fo->regexfile.size(); k++) {
-          // fd->fsend("RF %s\n", fo->regexfile.get(k));
-          current_opts->regexfile.append(StringToRegex(fo->regexfile.get(k)));
-        }
-        for (k = 0; k < fo->wild.size(); k++) {
-          current_opts->wild.append(strdup((const char*)fo->wild.get(k)));
-        }
-        for (k = 0; k < fo->wilddir.size(); k++) {
-          current_opts->wilddir.append(strdup((const char*)fo->wilddir.get(k)));
-        }
-        for (k = 0; k < fo->wildfile.size(); k++) {
-          current_opts->wildfile.append(
-              strdup((const char*)fo->wildfile.get(k)));
-        }
-        for (k = 0; k < fo->wildbase.size(); k++) {
-          current_opts->wildbase.append(
-              strdup((const char*)fo->wildbase.get(k)));
-        }
-        for (k = 0; k < fo->fstype.size(); k++) {
-          current_opts->fstype.append(strdup((const char*)fo->fstype.get(k)));
-        }
-        for (k = 0; k < fo->Drivetype.size(); k++) {
-          current_opts->Drivetype.append(
-              strdup((const char*)fo->Drivetype.get(k)));
-        }
       }
     }
 

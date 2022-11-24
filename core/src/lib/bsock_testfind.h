@@ -25,13 +25,11 @@
 #include "lib/bsock_tcp.h"
 
 class BareosSocketTestfind : public BareosSocketTCP {
-
  public:
   BareosSocketTestfind();
   ~BareosSocketTestfind();
 
   bool send() override;
-
 };
 
-#endif  // BAREOS_LIB_BSOCK_TCP_H_
+#endif  // BAREOS_LIB_BSOCK_TESTFIND_H_
