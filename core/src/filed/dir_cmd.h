@@ -37,6 +37,7 @@ bool StopConnectToDirectorThreads(bool wait = false);
 JobControlRecord* NewFiledJcr();
 bool GetWantedCryptoCipher(JobControlRecord* jcr,
                                   crypto_cipher_t* cipher);
+void CleanupFileset(JobControlRecord* jcr);
 } /* namespace filedaemon */
 
 #endif  // BAREOS_FILED_DIR_CMD_H_

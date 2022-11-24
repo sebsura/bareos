@@ -97,7 +97,6 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  * except echo the heartbeat to the Director).
  */
 bool BlastDataToStorageDaemon(JobControlRecord* jcr,
-                              char* addr,
                               crypto_cipher_t cipher,
                               uint32_t buf_size)
 {

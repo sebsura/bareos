@@ -25,24 +25,26 @@
  * Test program for find files
  */
 
+
 #include "include/bareos.h"
-#include "dird/dird_conf.h"
-#include "findlib/find.h"
-#include "lib/mntent_cache.h"
 #include "include/ch.h"
-#include "filed/fd_plugins.h"
+
+#include "dird/dird_conf.h"
+#include "dird/dird_globals.h"
+#include "dird/jcr_util.h"
+#include "dird/testfind_jcr.h"
+#include "filed/fileset.h"
+
+#include "lib/mntent_cache.h"
 #include "lib/parse_conf.h"
 #include "dird/jcr_util.h"
 #include "dird/dird_globals.h"
 #include "dird/dird_conf.h"
 #include "dird/director_jcr_impl.h"
 #include "lib/recent_job_results_list.h"
+#include "lib/tree.h"
+#include "findlib/find.h"
 #include "findlib/attribs.h"
-#include "filed/fileset.h"
-#include "lib/util.h"
-#include "filed/backup.h"
-#include "dird/testfind_jcr.h"
-#include "filed/filed_globals.h"
 
 #if defined(HAVE_WIN32)
 #  define isatty(fd) (fd == 0)
@@ -64,8 +66,6 @@ void TestfindFreeJcr(JobControlRecord* jcr)
 }
 
 
-/* Dummy functions */
-void GeneratePluginEvent(JobControlRecord*, filedaemon::bEventType, void*) {}
 extern bool ParseDirConfig(const char* configfile, int exit_code);
 
 /* Global variables */
@@ -79,9 +79,6 @@ static int attrs = 0;
 
 static int PrintFile(JobControlRecord* jcr, FindFilesPacket* ff, bool);
 static void CountFiles(FindFilesPacket* ff);
-static bool setupFileset(FindFilesPacket* ff, JobControlRecord* jcr);
-static void SetOptions(findFOPTS* fo, const char* opts);
-
 static void usage()
 {
   fprintf(
@@ -109,7 +106,6 @@ static void usage()
 
 int main(int argc, char* const* argv)
 {
-  FindFilesPacket* ff;
   const char* configfile = ConfigurationParser::GetDefaultConfigDir();
   const char* fileset_name = "SelfTest";
   int ch, hard_links;
@@ -165,10 +161,12 @@ int main(int argc, char* const* argv)
 
   JobControlRecord* jcr;
   jcr = NewDirectorJcr(TestfindFreeJcr);
-  jcr->dir_impl->res.fileset
+
+  FilesetResource* dir_fileset
       = (FilesetResource*)my_config->GetResWithName(R_FILESET, fileset_name);
 
-  if (jcr->dir_impl->res.fileset == NULL) {
+
+  if (dir_fileset == NULL) {
     fprintf(stderr, "%s: Fileset not found\n", fileset_name);
 
     FilesetResource* var;
@@ -182,16 +180,16 @@ int main(int argc, char* const* argv)
     exit(1);
   }
 
+  FindFilesPacket* ff;
   ff = init_find_files();
 
-  setupFileset(ff, jcr);
+  setupFileset(ff, dir_fileset);
 
-  const char* filename
-      = jcr->impl->res.fileset->include_items[0]->name_list.get(0);
+  //  const char* filename = dir_fileset->include_items[0]->name_list.get(0);
 
-  filedaemon::AddFileToFileset(jcr, filename, true, ff->fileset);
+  //  filedaemon::AddFileToFileset(jcr, filename, true, ff->fileset);
 
-  SetupTestfindJcr(ff, configfile);
+  SetupTestfindJcr(dir_fileset, configfile);
 
   FindFiles(jcr, ff, PrintFile, NULL);
 
@@ -438,228 +436,5 @@ static void CountFiles(FindFilesPacket* ar)
   if (debug_level >= 10) {
     printf(_("Path: %s\n"), spath.c_str());
     printf(_("File: %s\n"), file.c_str());
-  }
-}
-
-static bool setupFileset(FindFilesPacket* ff, JobControlRecord* jcr)
-{
-  FilesetResource* jcr_fileset = jcr->dir_impl->res.fileset;
-  int num;
-  bool include = true;
-
-  findFILESET* fileset;
-  findFOPTS* current_opts;
-
-  findFILESET* fileset_allocation = (findFILESET*)malloc(sizeof(findFILESET));
-  fileset = new (fileset_allocation)(findFILESET);
-  ff->fileset = fileset;
-
-  fileset->state = state_none;
-  fileset->include_list.init(1, true);
-  fileset->exclude_list.init(1, true);
-
-  for (;;) {
-    if (include) {
-      num = jcr_fileset->include_items.size();
-    } else {
-      num = jcr_fileset->exclude_items.size();
-    }
-    for (int i = 0; i < num; i++) {
-      IncludeExcludeItem* ie;
-      ;
-      int k;
-
-      if (include) {
-        ie = jcr_fileset->include_items[i];
-        /* New include */
-        findIncludeExcludeItem* incexe_allocation
-            = (findIncludeExcludeItem*)malloc(sizeof(findIncludeExcludeItem));
-        fileset->incexe = new (incexe_allocation)(findIncludeExcludeItem);
-        fileset->include_list.append(fileset->incexe);
-      } else {
-        ie = jcr_fileset->exclude_items[i];
-
-        /* New exclude */
-        findIncludeExcludeItem* incexe_allocation
-            = (findIncludeExcludeItem*)malloc(sizeof(findIncludeExcludeItem));
-        fileset->incexe = new (incexe_allocation)(findIncludeExcludeItem);
-        fileset->exclude_list.append(fileset->incexe);
-      }
-
-      for (std::size_t j = 0; j < ie->file_options_list.size(); j++) {
-        FileOptions* fo = ie->file_options_list[j];
-
-        findFOPTS* current_opts_allocation
-            = (findFOPTS*)malloc(sizeof(findFOPTS));
-        current_opts = new (current_opts_allocation)(findFOPTS);
-
-        fileset->incexe->current_opts = current_opts;
-        fileset->incexe->opts_list.append(current_opts);
-
-        SetOptions(current_opts, fo->opts);
-
-        for (k = 0; k < fo->regex.size(); k++) {
-          current_opts->regex.append(StringToRegex(fo->regex.get(k)));
-        }
-        for (k = 0; k < fo->regexdir.size(); k++) {
-          // fd->fsend("RD %s\n", fo->regexdir.get(k));
-          current_opts->regexdir.append(StringToRegex(fo->regexdir.get(k)));
-        }
-        for (k = 0; k < fo->regexfile.size(); k++) {
-          // fd->fsend("RF %s\n", fo->regexfile.get(k));
-          current_opts->regexfile.append(StringToRegex(fo->regexfile.get(k)));
-        }
-        for (k = 0; k < fo->wild.size(); k++) {
-          current_opts->wild.append(strdup((const char*)fo->wild.get(k)));
-        }
-        for (k = 0; k < fo->wilddir.size(); k++) {
-          current_opts->wilddir.append(strdup((const char*)fo->wilddir.get(k)));
-        }
-        for (k = 0; k < fo->wildfile.size(); k++) {
-          current_opts->wildfile.append(
-              strdup((const char*)fo->wildfile.get(k)));
-        }
-        for (k = 0; k < fo->wildbase.size(); k++) {
-          current_opts->wildbase.append(
-              strdup((const char*)fo->wildbase.get(k)));
-        }
-        for (k = 0; k < fo->fstype.size(); k++) {
-          current_opts->fstype.append(strdup((const char*)fo->fstype.get(k)));
-        }
-        for (k = 0; k < fo->Drivetype.size(); k++) {
-          current_opts->Drivetype.append(
-              strdup((const char*)fo->Drivetype.get(k)));
-        }
-      }
-    }
-
-    if (!include) { /* If we just did excludes */
-      break;        /*   all done */
-    }
-
-    include = false; /* Now do excludes */
-  }
-
-  return true;
-}
-
-static void SetOptions(findFOPTS* fo, const char* opts)
-{
-  int j;
-  const char* p;
-
-  for (p = opts; *p; p++) {
-    switch (*p) {
-      case 'a': /* alway replace */
-      case '0': /* no option */
-        break;
-      case 'e':
-        SetBit(FO_EXCLUDE, fo->flags);
-        break;
-      case 'f':
-        SetBit(FO_MULTIFS, fo->flags);
-        break;
-      case 'h': /* no recursion */
-        SetBit(FO_NO_RECURSION, fo->flags);
-        break;
-      case 'H': /* no hard link handling */
-        SetBit(FO_NO_HARDLINK, fo->flags);
-        break;
-      case 'i':
-        SetBit(FO_IGNORECASE, fo->flags);
-        break;
-      case 'M': /* MD5 */
-        SetBit(FO_MD5, fo->flags);
-        break;
-      case 'n':
-        SetBit(FO_NOREPLACE, fo->flags);
-        break;
-      case 'p': /* use portable data format */
-        SetBit(FO_PORTABLE, fo->flags);
-        break;
-      case 'R': /* Resource forks and Finder Info */
-        SetBit(FO_HFSPLUS, fo->flags);
-        [[fallthrough]];
-      case 'r': /* read fifo */
-        SetBit(FO_READFIFO, fo->flags);
-        break;
-      case 'S':
-        switch (*(p + 1)) {
-          case ' ':
-            /* Old director did not specify SHA variant */
-            SetBit(FO_SHA1, fo->flags);
-            break;
-          case '1':
-            SetBit(FO_SHA1, fo->flags);
-            p++;
-            break;
-#ifdef HAVE_SHA2
-          case '2':
-            SetBit(FO_SHA256, fo->flags);
-            p++;
-            break;
-          case '3':
-            SetBit(FO_SHA512, fo->flags);
-            p++;
-            break;
-#endif
-          default:
-            /* Automatically downgrade to SHA-1 if an unsupported
-             * SHA variant is specified */
-            SetBit(FO_SHA1, fo->flags);
-            p++;
-            break;
-        }
-        break;
-      case 's':
-        SetBit(FO_SPARSE, fo->flags);
-        break;
-      case 'm':
-        SetBit(FO_MTIMEONLY, fo->flags);
-        break;
-      case 'k':
-        SetBit(FO_KEEPATIME, fo->flags);
-        break;
-      case 'A':
-        SetBit(FO_ACL, fo->flags);
-        break;
-      case 'V': /* verify options */
-        /* Copy Verify Options */
-        for (j = 0; *p && *p != ':'; p++) {
-          fo->VerifyOpts[j] = *p;
-          if (j < (int)sizeof(fo->VerifyOpts) - 1) { j++; }
-        }
-        fo->VerifyOpts[j] = 0;
-        break;
-      case 'w':
-        SetBit(FO_IF_NEWER, fo->flags);
-        break;
-      case 'W':
-        SetBit(FO_ENHANCEDWILD, fo->flags);
-        break;
-      case 'Z': /* compression */
-        p++;    /* skip Z */
-        if (*p >= '0' && *p <= '9') {
-          SetBit(FO_COMPRESS, fo->flags);
-          fo->Compress_algo = COMPRESS_GZIP;
-          fo->Compress_level = *p - '0';
-        } else if (*p == 'o') {
-          SetBit(FO_COMPRESS, fo->flags);
-          fo->Compress_algo = COMPRESS_LZO1X;
-          fo->Compress_level = 1; /* not used with LZO */
-        }
-        Dmsg2(200, "Compression alg=%d level=%d\n", fo->Compress_algo,
-              fo->Compress_level);
-        break;
-      case 'x':
-        SetBit(FO_NO_AUTOEXCL, fo->flags);
-        break;
-      case 'X':
-        SetBit(FO_XATTR, fo->flags);
-        break;
-      default:
-        Emsg1(M_ERROR, 0, _("Unknown include/exclude option: %c\n"), *p);
-        break;
-    }
   }
 }
