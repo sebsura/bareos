@@ -17,6 +17,8 @@ and since Bareos version 20 this project adheres to [Semantic Versioning](https:
 - Previously deprecated rados/ceph backend and cephfs plugin have been removed. Use the droplet backend to store into ceph via S3, and backup cephfs filesystems by backing up a mount point.
     - packages bareos-storage-ceph and bareos-filedaemon-ceph-plugin if previously installed need to be removed manually.
 - Bareos 22 removes bareos-webui support for RHEL 7 and CentOS 7
+- Bareos 22 uses the VMware VDDK 8.0.0 for the VMware Plugin. [PR #1295]. VDDK 8.0.0 supports vSphere 8 and is backward compatible with vSphere 6.7 and 7. **vSphere 6.5 is not supported anymore**.
+- Bareos 22 bareos-webui now uses php_fpm instead of mod_php. [PR #1287]. Update should run smoothly, for details check the "Installing Bareos Webui" chapter in the docs.
 
 ### Added
 - dird: add command line feature to print specific resources [PR #1153]
@@ -131,6 +133,23 @@ and since Bareos version 20 this project adheres to [Semantic Versioning](https:
 - tests: remove unused config files [PR #1247]
 - dird: fix config reload and unit tests dependency issue [PR #1161]
 - pruning: `prune jobs` doesn't ask for jobtypes anymore, and prunes all jobtypes except Archives (`A`) [PR #1215] 
+- pruning: `prune jobs` doesn't ask for jobtypes anymore, and prunes all jobtypes except Archives (`A`) [PR #1215]
+- dird: cats: remove copy and migration jobs with no data from catalog [PR #1262]
+- build: enable compiling on ARM [PR #1270]
+- core and webui: adapt binary info messages to new wording [PR #1298]
+- build: enable -Wextra warning level and apply required changes [PR #1261]
+- lib: make foreach_res() reload-safe [PR #1279]
+- Prepare Bareos for an upgrade to the C++20 standard [PR #1271]
+- stored: refactor the SD's backend interface [PR #1272]
+- core: use distinct names for JobControlRecordPrivate [PR #1307]
+- webui-selenium-test: use options instead of chrome_options [PR #1306]
+- systemtests: improve webui testing [PR #1313]
+- dird: prohibit PAM usage with user ACL and Profiles in consoles [PR #1318]
+- webui: cleanup webui source tree [PR #1314]
+- dird: do device reservation as late as possible, i.e. after run before job scripts [PR #1273]
+- ndmp_tape.cc: do not log current rctx->rec in joblog [PR #1324]
+- dird: stored: set statistics collection as deprecated [PR #1320]
+- webui: switch from mod_php to php-fpm [PR #1287]
 
 ### Deprecated
 - make_catalog_backup.pl is now a shell wrapper script which will be removed in version 23.
