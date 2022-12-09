@@ -150,6 +150,12 @@ and since Bareos version 20 this project adheres to [Semantic Versioning](https:
 - ndmp_tape.cc: do not log current rctx->rec in joblog [PR #1324]
 - dird: stored: set statistics collection as deprecated [PR #1320]
 - webui: switch from mod_php to php-fpm [PR #1287]
+- bareos-fd-postgres: properly close database connection [PR #1326]
+- filed: fix handling of `STREAM_ACL_PLUGIN` during restore [PR #1308]
+- dird: fix tls protocol shown and document TLS Protocol & ciphers restriction [PR #1319]
+- status subscription: extend output [PR #1312]
+- dird: fix for crash when starting rescheduled jobs [PR #1327]
+- unify and merge builds where possible [PR #1309]
 
 ### Deprecated
 - make_catalog_backup.pl is now a shell wrapper script which will be removed in version 23.
@@ -329,4 +335,33 @@ and since Bareos version 20 this project adheres to [Semantic Versioning](https:
 [PR #1266]: https://github.com/bareos/bareos/pull/1266
 [PR #1267]: https://github.com/bareos/bareos/pull/1267
 [PR #1268]: https://github.com/bareos/bareos/pull/1268
+[PR #1270]: https://github.com/bareos/bareos/pull/1270
+[PR #1271]: https://github.com/bareos/bareos/pull/1271
+[PR #1275]: https://github.com/bareos/bareos/pull/1275
+[PR #1277]: https://github.com/bareos/bareos/pull/1277
+[PR #1278]: https://github.com/bareos/bareos/pull/1278
+[PR #1279]: https://github.com/bareos/bareos/pull/1279
+[PR #1284]: https://github.com/bareos/bareos/pull/1284
+[PR #1285]: https://github.com/bareos/bareos/pull/1285
+[PR #1288]: https://github.com/bareos/bareos/pull/1288
+[PR #1296]: https://github.com/bareos/bareos/pull/1296
+[PR #1298]: https://github.com/bareos/bareos/pull/1298
+[PR #1300]: https://github.com/bareos/bareos/pull/1300
+[PR #1303]: https://github.com/bareos/bareos/pull/1303
+[PR #1305]: https://github.com/bareos/bareos/pull/1305
+[PR #1306]: https://github.com/bareos/bareos/pull/1306
+[PR #1307]: https://github.com/bareos/bareos/pull/1307
+[PR #1308]: https://github.com/bareos/bareos/pull/1308
+[PR #1309]: https://github.com/bareos/bareos/pull/1309
+[PR #1312]: https://github.com/bareos/bareos/pull/1312
+[PR #1313]: https://github.com/bareos/bareos/pull/1313
+[PR #1314]: https://github.com/bareos/bareos/pull/1314
+[PR #1315]: https://github.com/bareos/bareos/pull/1315
+[PR #1317]: https://github.com/bareos/bareos/pull/1317
+[PR #1318]: https://github.com/bareos/bareos/pull/1318
+[PR #1319]: https://github.com/bareos/bareos/pull/1319
+[PR #1320]: https://github.com/bareos/bareos/pull/1320
+[PR #1324]: https://github.com/bareos/bareos/pull/1324
+[PR #1326]: https://github.com/bareos/bareos/pull/1326
+[PR #1327]: https://github.com/bareos/bareos/pull/1327
 [unreleased]: https://github.com/bareos/bareos/tree/master
