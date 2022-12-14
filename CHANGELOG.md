@@ -163,6 +163,7 @@ and since Bareos version 20 this project adheres to [Semantic Versioning](https:
 - status subscription: extend output [PR #1312]
 - dird: fix for crash when starting rescheduled jobs [PR #1327]
 - unify and merge builds where possible [PR #1309]
+- python plugins: give python3 plugins priority over python2 plugins in packages [PR #1332]
 
 ### Deprecated
 - make_catalog_backup.pl is now a shell wrapper script which will be removed in version 23.
@@ -387,4 +388,6 @@ and since Bareos version 20 this project adheres to [Semantic Versioning](https:
 [PR #1324]: https://github.com/bareos/bareos/pull/1324
 [PR #1326]: https://github.com/bareos/bareos/pull/1326
 [PR #1327]: https://github.com/bareos/bareos/pull/1327
+[PR #1331]: https://github.com/bareos/bareos/pull/1331
+[PR #1332]: https://github.com/bareos/bareos/pull/1332
 [unreleased]: https://github.com/bareos/bareos/tree/master
