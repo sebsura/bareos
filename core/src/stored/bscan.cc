@@ -3,7 +3,7 @@
 
    Copyright (C) 2001-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -305,6 +305,13 @@ int main(int argc, char* argv[])
                   true);
   if (!bjcr) { exit(1); }
   dev = bjcr->sd_impl->read_dcr->dev;
+
+  // Let SD plugins setup the record translation
+  if (GeneratePluginEvent(bjcr, bSdEventSetupRecordTranslation, dcr)
+      != bRC_OK) {
+    Jmsg(bjcr, M_FATAL, 0, _("bSdEventSetupRecordTranslation call failed!\n"));
+  }
+
 
   if (showProgress) {
     char ed1[50];
