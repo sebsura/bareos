@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -598,9 +598,17 @@ static bool AutoDeflateRecord(PluginContext* ctx, DeviceControlRecord* dcr)
   nrec = bareos_core_functions->new_record(/* with_data = */ false);
   bareos_core_functions->CopyRecordState(nrec, rec);
 
+  if (!dcr->jcr->compress.deflate_buffer) {
+    Jmsg(ctx, M_FATAL,
+         _("autoxflate-sd: compress.deflate_buffer was not setup "
+           "missing bSdEventSetupRecordTranslation call?\n"));
+    goto bail_out;
+  }
   // Setup the converted DeviceRecord to point with its data buffer to the
   // compression buffer.
   nrec->data = dcr->jcr->compress.deflate_buffer;
+
+
   switch (rec->maskedStream) {
     case STREAM_FILE_DATA:
     case STREAM_WIN32_DATA:
