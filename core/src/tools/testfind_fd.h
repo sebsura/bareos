@@ -19,17 +19,17 @@
    02110-1301, USA.
 */
 
-#ifndef BAREOS_LIB_BSOCK_TESTFIND_H_
-#define BAREOS_LIB_BSOCK_TESTFIND_H_
+#ifndef TESTFIND_JCR_H
+#define TESTFIND_JCR_H
 
-#include "lib/bsock_tcp.h"
+#include "include/jcr.h"
+#include "dird/dird_conf.h"
+#include "findlib/find.h"
 
-class BareosSocketTestfind : public BareosSocketTCP {
- public:
-  BareosSocketTestfind();
-  ~BareosSocketTestfind();
+void ProcessFileset(directordaemon::FilesetResource* director_fileset,
+                    const char* configfile,
+                    bool print_attrs);
+void UpdateFilestats(FindFilesPacket* ffp);
+int PrintFile(JobControlRecord*, FindFilesPacket* ff, bool);
 
-  bool send() override;
-};
-
-#endif  // BAREOS_LIB_BSOCK_TESTFIND_H_
+#endif  // TESTFIND_JCR_H
