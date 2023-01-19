@@ -22,6 +22,7 @@
 #include "auth_pam.h"
 
 #include <cstring>
+#include <mutex>
 #include <security/pam_appl.h>
 
 #include "include/bareos.h"
@@ -30,6 +31,7 @@
 static const int debuglevel = 200;
 
 static const std::string service_name("bareos");
+std::mutex pam_mutex;
 
 struct PamData {
   BareosSocket* UA_sock_;
@@ -209,6 +211,7 @@ bool PamAuthenticateUser(BareosSocket* UA_sock,
                          const std::string& password_in,
                          std::string& authenticated_username)
 {
+  std::lock_guard pam_lock(pam_mutex);
   std::unique_ptr<PamData> pam_callback_data(new PamData(UA_sock, password_in));
   std::unique_ptr<struct pam_conv> pam_conversation_container(
       new struct pam_conv);
