@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2021-2021 Bareos GmbH & Co. KG
+#   Copyright (C) 2021-2023 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -28,4 +28,16 @@ set_tests_properties(
   system:bareos:status-subscriptions
   PROPERTIES FIXTURES_REQUIRED
              "system:bareos:backup-job-fixture;system:bareos-fixture"
+)
+set_tests_properties(
+  system:bareos:bls-autoxflate PROPERTIES FIXTURES_REQUIRED
+                                          "system:bareos:backup-job-fixture"
+)
+set_tests_properties(
+  system:bareos:bextract-autoxflate
+  PROPERTIES FIXTURES_REQUIRED "system:bareos:backup-job-fixture"
+)
+set_tests_properties(
+  system:bareos:bscan-autoxflate PROPERTIES FIXTURES_REQUIRED
+                                            "system:bareos:backup-job-fixture"
 )
