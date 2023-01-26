@@ -47,3 +47,9 @@ set_tests_properties(
     FIXTURES_REQUIRED
     "system:bareos:backup-job-fixture;system:bareos:simple-backup-and-restore"
 )
+set_tests_properties(
+  system:bareos:bcopy-autoxflate
+  PROPERTIES
+    FIXTURES_REQUIRED
+    "system:bareos:backup-job-fixture;system:bareos:simple-backup-and-restore"
+)
