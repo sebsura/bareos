@@ -259,6 +259,10 @@ int main(int argc, char* argv[])
   delete in_dev;
   delete out_dev;
 
+  CleanupCompression(in_jcr);
+  FreePlugins(in_jcr);
+  UnloadSdPlugins();
+
   return 0;
 }
 
