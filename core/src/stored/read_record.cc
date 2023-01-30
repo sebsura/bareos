@@ -444,8 +444,6 @@ bool ReadRecords(DeviceControlRecord* dcr,
          *  check the match_stat in the record */
         ok = RecordCb(dcr, rctx->rec);
       } else {
-        DeviceRecord* rec;
-
         Dmsg6(debuglevel,
               "OK callback. recno=%d state_bits=%s blk=%d SI=%d ST=%d FI=%d\n",
               rctx->records_processed, rec_state_bits_to_str(rctx->rec),
@@ -473,8 +471,13 @@ bool ReadRecords(DeviceControlRecord* dcr,
          * translation has taken place we just point the rec pointer to same
          * DeviceRecord as in the before_rec pointer.
          */
-        rec = (dcr->after_rec) ? dcr->after_rec : dcr->before_rec;
-        ok = RecordCb(dcr, rec);
+        if (dcr->after_rec) {
+          ok = RecordCb(dcr, dcr->after_rec);
+          FreeRecord(dcr->after_rec);
+          dcr->after_rec = nullptr;
+        } else {
+          ok = RecordCb(dcr, dcr->before_rec);
+        }
       }
     }
     Dmsg2(debuglevel, "After end recs in block. pos=%u:%u\n", dcr->dev->file,
