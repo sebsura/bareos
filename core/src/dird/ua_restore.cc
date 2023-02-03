@@ -144,6 +144,13 @@ bool RestoreCmd(UaContext* ua, const char*)
   i = FindArgWithValue(ua, "regexwhere");
   if (i >= 0) { rx.RegexWhere = ua->argv[i]; }
 
+  i = FindArg(ua, "archive");
+  if (i >= 0) {
+    rx.job_filter = RestoreContext::JobTypeFilter::Archives;
+  } else {
+    rx.job_filter = RestoreContext::JobTypeFilter::Backups;
+  }
+
   if (strip_prefix || add_suffix || add_prefix) {
     int len = BregexpGetBuildWhereSize(strip_prefix, add_prefix, add_suffix);
     regexp = (char*)malloc(len * sizeof(char));
@@ -498,6 +505,7 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
                       "restorejob",    /* 22 */
                       "replace",       /* 23 */
                       "pluginoptions", /* 24 */
+                      "archive",       /* 25 */
                       NULL};
 
   rx->JobIds[0] = 0;
@@ -582,6 +590,8 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
           "select which files from those JobIds are to be restored.\n\n"));
   }
 
+  char filter_name = RestoreContext::FilterIdentifier(rx->job_filter);
+
   /* If choice not already made above, prompt */
   for (; !done;) {
     char* fname;
@@ -597,17 +607,20 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
       case -1: /* error or cancel */
         return 0;
       case 0: /* list last 20 Jobs run */
+      {
+        PoolMem query;
+        ua->db->FillQuery(query, BareosDb::SQL_QUERY::uar_list_jobs,
+                          filter_name);
         if (!ua->AclAccessOk(Command_ACL, NT_("sqlquery"), true)) {
           ua->ErrorMsg(_("SQL query not authorized.\n"));
           return 0;
         }
         gui_save = ua->jcr->gui;
         ua->jcr->gui = true;
-        ua->db->ListSqlQuery(ua->jcr, BareosDb::SQL_QUERY::uar_list_jobs,
-                             ua->send, HORZ_LIST, true);
+        ua->db->ListSqlQuery(ua->jcr, query.c_str(), ua->send, HORZ_LIST, true);
         ua->jcr->gui = gui_save;
         done = false;
-        break;
+      } break;
       case 1: /* list where a file is saved */
         if (!GetClientName(ua, rx)) { return 0; }
         if (!GetCmd(ua, _("Enter Filename (no path):"))) { return 0; }
@@ -929,12 +942,14 @@ static bool InsertFileIntoFindexList(UaContext* ua,
   StripTrailingNewline(file);
   SplitPathAndFilename(ua, rx, file);
 
+  char filter_name = RestoreContext::FilterIdentifier(rx->job_filter);
   if (*rx->JobIds == 0) {
     ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_jobid_fileindex, date,
-                      rx->path, rx->fname, rx->ClientName);
+                      rx->path, rx->fname, rx->ClientName, filter_name);
   } else {
     ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_jobids_fileindex,
-                      rx->JobIds, date, rx->path, rx->fname, rx->ClientName);
+                      rx->JobIds, date, rx->path, rx->fname, rx->ClientName,
+                      filter_name);
   }
 
   // Find and insert jobid and File Index
@@ -1236,6 +1251,8 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   char ed1[50], ed2[50];
   char pool_select[MAX_NAME_LENGTH];
   char fileset_name[MAX_NAME_LENGTH];
+  PoolMem FullQuery;
+  char filter_name = RestoreContext::FilterIdentifier(rx->job_filter);
 
   // Create temp tables
   ua->db->SqlQuery(BareosDb::SQL_QUERY::uar_del_temp);
@@ -1306,8 +1323,8 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   // Find JobId of last Full backup for this client, fileset
   if (pool_select[0]) {
     ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_last_full,
-                      edit_int64(cr.ClientId, ed1), date, fsr.FileSet,
-                      pool_select);
+                      edit_int64(cr.ClientId, ed1), date, filter_name,
+                      fsr.FileSet, pool_select);
 
     if (!ua->db->SqlQuery(rx->query)) {
       ua->ErrorMsg("%s\n", ua->db->strerror());
@@ -1315,7 +1332,8 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
     }
   } else {
     ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_last_full_no_pool,
-                      edit_int64(cr.ClientId, ed1), date, fsr.FileSet);
+                      edit_int64(cr.ClientId, ed1), date, filter_name,
+                      fsr.FileSet);
 
     if (!ua->db->SqlQuery(rx->query)) {
       ua->ErrorMsg("%s\n", ua->db->strerror());
@@ -1324,13 +1342,16 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   }
 
   // Find all Volumes used by that JobId
-  if (!ua->db->SqlQuery(BareosDb::SQL_QUERY::uar_full)) {
+  ua->db->FillQuery(FullQuery, BareosDb::SQL_QUERY::uar_full, filter_name);
+  if (!ua->db->SqlQuery(FullQuery.c_str())) {
     ua->ErrorMsg("%s\n", ua->db->strerror());
     goto bail_out;
   }
 
   /* Note, this is needed because I don't seem to get the callback from the call
    * just above. */
+  // TODO: if no full backup is found and we are searching for backups:
+  // suggest using restore archive if there is a valid archive instead
   rx->JobTDate = 0;
   ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_sel_all_temp1);
   if (!ua->db->SqlQuery(rx->query, LastFullHandler, (void*)rx)) {
@@ -1344,7 +1365,8 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   // Now find most recent Differential Job after Full save, if any
   ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_dif,
                     edit_uint64(rx->JobTDate, ed1), date,
-                    edit_int64(cr.ClientId, ed2), fsr.FileSet, pool_select);
+                    edit_int64(cr.ClientId, ed2), filter_name, fsr.FileSet,
+                    pool_select);
   if (!ua->db->SqlQuery(rx->query)) {
     ua->WarningMsg("%s\n", ua->db->strerror());
   }
@@ -1363,7 +1385,8 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   // Now find all Incremental Jobs after Full/dif save
   ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_inc,
                     edit_uint64(rx->JobTDate, ed1), date,
-                    edit_int64(cr.ClientId, ed2), fsr.FileSet, pool_select);
+                    edit_int64(cr.ClientId, ed2), filter_name, fsr.FileSet,
+                    pool_select);
   if (!ua->db->SqlQuery(rx->query)) {
     ua->WarningMsg("%s\n", ua->db->strerror());
   }

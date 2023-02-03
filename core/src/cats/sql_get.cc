@@ -1347,7 +1347,8 @@ bool BareosDb::AccurateGetJobids(JobControlRecord* jcr,
   // First, find the last good Full backup for this job/client/fileset
   FillQuery(query, SQL_QUERY::create_temp_accurate_jobids,
             edit_uint64(jcr->JobId, jobid), edit_uint64(jr->ClientId, clientid),
-            date, edit_uint64(jr->FileSetId, filesetid));
+            jcr->getJobType() == JT_ARCHIVE ? 'A' : 'B', date,
+            edit_uint64(jr->FileSetId, filesetid));
 
   if (!SqlQuery(query.c_str())) { goto bail_out; }
 
