@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -110,5 +110,20 @@ RunContext::RunContext() { store = new UnifiedStorageResource; }
 RunContext::~RunContext()
 {
   if (store) { delete store; }
+}
+
+char RestoreContext::FilterIdentifier(RestoreContext::JobTypeFilter filter)
+{
+  switch (filter) {
+    case RestoreContext::JobTypeFilter::Archives: {
+      return 'A';
+    } break;
+    case RestoreContext::JobTypeFilter::Backups: {
+      return 'B';
+    } break;
+    default: {
+      throw std::invalid_argument{"Invalid job type filter."};
+    }
+  }
 }
 } /* namespace directordaemon */
