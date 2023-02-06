@@ -1372,14 +1372,9 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   }
 
   // Now update JobTDate to look into Differential, if any
-  rx->JobTDate = 0;
   ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_sel_all_temp);
   if (!ua->db->SqlQuery(rx->query, LastFullHandler, (void*)rx)) {
     ua->WarningMsg("%s\n", ua->db->strerror());
-  }
-  if (rx->JobTDate == 0) {
-    ua->ErrorMsg(_("No Full backup before %s found.\n"), date);
-    goto bail_out;
   }
 
   // Now find all Incremental Jobs after Full/dif save
