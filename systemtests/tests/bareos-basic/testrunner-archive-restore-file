@@ -39,14 +39,34 @@ restore archive client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores \
 	file=$(pwd)/tmp/data/build/src/tests/Makefile \
 	done yes
 update jobid=1 jobtype=A
-@$out $tmp/should-work.out
 wait
 messages
+@$out $tmp/should-work.out
 restore archive client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores \
 	file=$(pwd)/tmp/data/build/src/tests/Makefile \
 	done yes
 wait
 messages
+@$out $tmp/restore-from-selected-job.out
+restore archive
+12
+1
+mark $(pwd)/tmp/data/build/src/tests/Makefile.in
+done
+yes
+wait
+messages
+@$out $tmp/restore-from-list-and-time.out
+restore archive
+8
+$(( $(date +%Y) + 1))
+2025
+$(pwd)/tmp/data/build/src/tests/bbatch.c
+
+yes
+wait
+messages
+wait
 quit
 END_OF_DATA
 
@@ -72,5 +92,14 @@ if ! cmp -s "$tmp/bareos-restores/$(pwd)/tmp/data/build/src/tests/Makefile" \
     exit 2
 fi
 
+if ! cmp -s "$tmp/bareos-restores/$(pwd)/tmp/data/build/src/tests/Makefile.in" \
+     "$(pwd)/tmp/data/build/src/tests/Makefile.in"; then
+    exit 3
+fi
+
+if ! cmp -s "$tmp/bareos-restores/$(pwd)/tmp/data/build/src/tests/bbatch.c" \
+     "$(pwd)/tmp/data/build/src/tests/bbatch.c"; then
+    exit 4
+fi
 #check_restore_diff "${BackupDirectory}"
 end_test
