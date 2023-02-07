@@ -1237,6 +1237,49 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
 }
 
 /**
+ * This routine is used to insert the current full backup into the temporary
+ * table temp using another temporary table temp1.
+ * Returns wether the operations succeeded without errors regardless of
+ * wether a row was inserted or not!
+ */
+static bool InsertLastFullBackupOfType(UaContext* ua,
+                                       RestoreContext* rx,
+                                       RestoreContext::JobTypeFilter filter,
+                                       char* client_id,
+                                       char* date,
+                                       char* file_set,
+                                       char* pool_select)
+{
+  char filter_name = RestoreContext::FilterIdentifier(filter);
+  // Find JobId of last Full backup for this client, fileset
+  if (pool_select && pool_select[0]) {
+    ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_last_full, client_id,
+                      date, filter_name, file_set, pool_select);
+
+    if (!ua->db->SqlQuery(rx->query)) {
+      ua->ErrorMsg("%s\n", ua->db->strerror());
+      return false;
+    }
+  } else {
+    ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_last_full_no_pool,
+                      client_id, date, filter_name, file_set);
+    if (!ua->db->SqlQuery(rx->query)) {
+      ua->ErrorMsg("%s\n", ua->db->strerror());
+      return false;
+    }
+  }
+
+  // Find all Volumes used by that JobId
+  ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_full, filter_name);
+  if (!ua->db->SqlQuery(rx->query)) {
+    ua->ErrorMsg("%s\n", ua->db->strerror());
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * This routine is used to get the current backup or a backup before the
  * specified date.
  */
@@ -1251,7 +1294,6 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   char ed1[50], ed2[50];
   char pool_select[MAX_NAME_LENGTH];
   char fileset_name[MAX_NAME_LENGTH];
-  PoolMem FullQuery;
   char filter_name = RestoreContext::FilterIdentifier(rx->job_filter);
 
   // Create temp tables
@@ -1320,45 +1362,60 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
     }
   }
 
-  // Find JobId of last Full backup for this client, fileset
-  if (pool_select[0]) {
-    ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_last_full,
-                      edit_int64(cr.ClientId, ed1), date, filter_name,
-                      fsr.FileSet, pool_select);
 
-    if (!ua->db->SqlQuery(rx->query)) {
-      ua->ErrorMsg("%s\n", ua->db->strerror());
-      goto bail_out;
-    }
-  } else {
-    ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_last_full_no_pool,
-                      edit_int64(cr.ClientId, ed1), date, filter_name,
-                      fsr.FileSet);
-
-    if (!ua->db->SqlQuery(rx->query)) {
-      ua->ErrorMsg("%s\n", ua->db->strerror());
-      goto bail_out;
-    }
-  }
-
-  // Find all Volumes used by that JobId
-  ua->db->FillQuery(FullQuery, BareosDb::SQL_QUERY::uar_full, filter_name);
-  if (!ua->db->SqlQuery(FullQuery.c_str())) {
-    ua->ErrorMsg("%s\n", ua->db->strerror());
+  if (!InsertLastFullBackupOfType(ua, rx, rx->job_filter,
+                                  edit_int64(cr.ClientId, ed1), date,
+                                  fsr.FileSet, pool_select)) {
     goto bail_out;
   }
 
   /* Note, this is needed because I don't seem to get the callback from the call
    * just above. */
-  // TODO: if no full backup is found and we are searching for backups:
-  // suggest using restore archive if there is a valid archive instead
   rx->JobTDate = 0;
   ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_sel_all_temp1);
   if (!ua->db->SqlQuery(rx->query, LastFullHandler, (void*)rx)) {
     ua->WarningMsg("%s\n", ua->db->strerror());
   }
   if (rx->JobTDate == 0) {
-    ua->ErrorMsg(_("No Full backup before %s found.\n"), date);
+    ua->ErrorMsg(_("No Full backup%s before %s found.\n"),
+                 (rx->job_filter == RestoreContext::JobTypeFilter::Backups)
+                     ? ""
+                     : " archive",
+                 date);
+
+    // if no full backups were found while searching for archives/backups
+    // try to see if there are any valid full backups using the opposite filter.
+    // if there are send a message to the user that he can try restoring those.
+    RestoreContext::JobTypeFilter opposite
+        = RestoreContext::JobTypeFilter::Backups;
+    switch (rx->job_filter) {
+      case RestoreContext::JobTypeFilter::Archives: {
+        opposite = RestoreContext::JobTypeFilter::Backups;
+      } break;
+      case RestoreContext::JobTypeFilter::Backups: {
+        opposite = RestoreContext::JobTypeFilter::Archives;
+      } break;
+    }
+    if (InsertLastFullBackupOfType(ua, rx, opposite,
+                                   edit_int64(cr.ClientId, ed1), date,
+                                   fsr.FileSet, pool_select)) {
+      ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_sel_all_temp1);
+      if (!ua->db->SqlQuery(rx->query, LastFullHandler, (void*)rx)) {
+        // ignore warnings here, since they would not make any sense
+        // to the end user
+        goto bail_out;
+      }
+      if (rx->JobTDate != 0) {
+        const char* filter_string
+            = (opposite == RestoreContext::JobTypeFilter::Backups) ? ""
+                                                                   : " archive";
+        ua->SendMsg(
+            "A suitable full backup%s was found. Try restore%s <...> "
+            "instead.\n",
+            filter_string, filter_string);
+      }
+    }
+
     goto bail_out;
   }
 
