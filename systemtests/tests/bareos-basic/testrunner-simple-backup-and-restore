@@ -4,7 +4,8 @@ set -o pipefail
 set -u
 #
 # Run a simple backup
-#   then restore it.
+#   then restore it,
+#   then restore an archive
 #
 TestName="$(basename "$(pwd)")"
 export TestName
@@ -41,11 +42,33 @@ messages
 restore client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores select all done yes
 wait
 messages
+@$out $tmp/should-hint.out
+update jobid=1 jobtype=A
+restore client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores select all done yes
+wait
+messages
+@$out $tmp/should-work.out
+restore archive client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores select all done yes
+wait
+messages
+update jobid=1 jobtype=B
 quit
 END_OF_DATA
 
 run_bconsole
 check_for_zombie_jobs storage=File
+
+expect_grep "Try" \
+	    "$tmp/should-hint.out" \
+	    "Expected hint to restore from archive not issued."
+
+expect_grep "No Full backup" \
+	    "$tmp/should-hint.out" \
+	    "Restore should not be able to restore archives."
+
+expect_grep "Start Restore Job" \
+	    "$tmp/should-work.out" \
+	    "Required restore job was not started."
 
 check_two_logs
 check_restore_diff "${BackupDirectory}"
