@@ -54,3 +54,9 @@ set_tests_properties(
     FIXTURES_REQUIRED
     "system:bareos-basic:backup-job-fixture;system:bareos-basic-fixture"
 )
+set_tests_properties(
+  system:bareos-basic:archive-restore-file
+  PROPERTIES
+    FIXTURES_REQUIRED
+    "system:bareos-basic:backup-job-fixture;system:bareos-basic-fixture"
+)

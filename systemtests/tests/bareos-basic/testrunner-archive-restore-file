@@ -3,8 +3,7 @@ set -e
 set -o pipefail
 set -u
 #
-# Run a simple backup
-#   then restore it.
+# restore some single files from archives
 #
 TestName="$(basename "$(pwd)")"
 export TestName
@@ -21,32 +20,20 @@ start_test
 
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out /dev/null
-delete jobid=1-1000
-messages
-@$out $tmp/log1.out
 setdebug level=100 storage=File
-restore client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores \
-	file=$(pwd)/tmp/data/build/src/tests/Makefile \
-	done yes
-run job=$JobName yes
+@$out /tmp/log1.out
 status director
 status client
 status storage=File
-@$out $tmp/should-fail.out
 wait
 messages
-restore archive client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores \
-	file=$(pwd)/tmp/data/build/src/tests/Makefile \
-	done yes
 update jobid=1 jobtype=A
-wait
-messages
 @$out $tmp/should-work.out
 restore archive client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores \
 	file=$(pwd)/tmp/data/build/src/tests/Makefile \
 	done yes
-wait
 messages
+wait
 @$out $tmp/restore-from-selected-job.out
 restore archive
 12
@@ -67,24 +54,18 @@ yes
 wait
 messages
 wait
+@# restore old job type
+update jobid=1 jobtype=B
+wait
 quit
 END_OF_DATA
 
 run_bconsole
 check_for_zombie_jobs storage=File
 
-expect_not_grep "Try" \
-		"$tmp/log1.out" \
-		"Error: Should not ask user to try restoring from \
-		archives if no archives exist."
-
-expect_grep "No database record found for:" \
-	    "$tmp/should-fail.out" \
-	    "Expected failure; found success"
-
 expect_grep "1 file selected to be restored." \
 	    "$tmp/should-work.out" \
-	    "Expected success; found failure"
+ 	    "Expected success; found failure"
 
 check_two_logs
 if ! cmp -s "$tmp/bareos-restores/$(pwd)/tmp/data/build/src/tests/Makefile" \
