@@ -53,6 +53,10 @@ END_OF_DATA
 run_bconsole
 check_for_zombie_jobs storage=File
 
+expect_grep "Try" \
+	    "$tmp/wrong-restore.out" \
+	    "Expected hint to restore from archive not issued."
+
 expect_grep "No Full backup" \
 	    "$tmp/wrong-restore.out" \
 	    "Restore should not be able to restore archives."
