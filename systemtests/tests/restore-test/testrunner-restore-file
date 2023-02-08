@@ -21,6 +21,11 @@ start_test
 file1="$(pwd)/tmp/data/weird-files/socket.pl"
 file2="$(pwd)/tmp/data/weird-files/softlinkee"
 file3="$(pwd)/tmp/data/weird-files/softlink-to-softlinkee"
+for f in "$file1" "$file2" "$file3" ; do
+    if [[ -f "$tmp/bareos-restores/$f" ]]; then
+	rm "$tmp/bareos-restores/$f"
+    fi;
+done
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out /dev/null
 setdebug level=100 storage=File
