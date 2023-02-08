@@ -29,13 +29,9 @@ status client
 status storage=File
 wait
 messages
-@# switch the backup job to be an archive
-@# then do restore tests
-@$out $tmp/should-hint.out
-restore archive client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores select all done yes
-wait
-messages
-@$out $tmp/should-work.out
+@$out $tmp/jobs.out
+list jobs
+@$out $tmp/backup-full.out
 restore client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores select all done yes
 wait
 messages
@@ -45,13 +41,12 @@ END_OF_DATA
 run_bconsole
 check_for_zombie_jobs storage=File
 
-expect_grep "Try" \
-	    "$tmp/should-hint.out" \
-	    "Expected hint to restore from archive not issued."
-
-expect_grep "No Full backup" \
-	    "$tmp/should-hint.out" \
-	    "Restore should not be able to restore archives."
+# check the most current jobs list form $tmp/jobs.out and check that it is
+# indeed a backup
+if ! grep "1 | backup-bareos-fd" "$tmp/jobs.out" | tail -n 1 | grep "| B" > /dev/null; then
+    echo "Job 1 has to always be a backup job at the start of a test."
+    exit 5
+fi
 
 expect_grep "Start Restore Job" \
 	    "$tmp/should-work.out" \
