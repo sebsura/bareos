@@ -1,0 +1,64 @@
+#!/bin/bash
+set -e
+set -o pipefail
+set -u
+#
+# Do a full restore from an archive job.
+#
+
+TestName="$(basename "$(pwd)")"
+export TestName
+
+JobName=backup-bareos-fd
+
+#shellcheck source=../environment.in
+. ./environment
+
+#shellcheck source=../scripts/functions
+. "${rscripts}"/functions
+
+start_test
+
+cat <<END_OF_DATA >"$tmp/bconcmds"
+@$out /dev/null
+messages
+@$out $tmp/setup.out
+setdebug level=100 storage=File
+status director
+status client
+status storage=File
+update jobid=1 jobtype=A
+wait
+messages
+@# switch the backup job to be an archive
+@# then do restore tests
+@$out $tmp/should-hint.out
+update jobid=1 jobtype=A
+restore client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores select all done yes
+wait
+messages
+@$out $tmp/should-work.out
+restore archive client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores select all done yes
+wait
+messages
+update jobid=1 jobtype=B
+quit
+END_OF_DATA
+
+run_bconsole
+check_for_zombie_jobs storage=File
+
+expect_grep "Try" \
+	    "$tmp/should-hint.out" \
+	    "Expected hint to restore from archive not issued."
+
+expect_grep "No Full backup" \
+	    "$tmp/should-hint.out" \
+	    "Restore should not be able to restore archives."
+
+expect_grep "Start Restore Job" \
+	    "$tmp/should-work.out" \
+	    "Required restore job was not started."
+
+check_restore_diff "${BackupDirectory}"
+end_test

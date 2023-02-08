@@ -18,9 +18,12 @@ JobName=backup-bareos-fd
 
 start_test
 
+file1="$(pwd)/tmp/data/weird-files/socket.pl"
+file2="$(pwd)/tmp/data/weird-files/softlinkee"
+file3="$(pwd)/tmp/data/weird-files/softlink-to-softlinkee"
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out /dev/null
-setdebug level=100 storage=File
+setdebug level=10 storage=File
 @$out /tmp/log1.out
 status director
 status client
@@ -30,15 +33,15 @@ messages
 update jobid=1 jobtype=A
 @$out $tmp/should-work.out
 restore archive client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores \
-	file=$(pwd)/tmp/data/build/src/tests/Makefile \
+	file=$file1 \
 	done yes
-messages
 wait
+messages
 @$out $tmp/restore-from-selected-job.out
 restore archive
 12
 1
-mark $(pwd)/tmp/data/build/src/tests/Makefile.in
+mark $file2
 done
 yes
 wait
@@ -48,7 +51,7 @@ restore archive
 8
 $(( $(date +%Y) + 1))
 2025
-$(pwd)/tmp/data/build/src/tests/bbatch.c
+$file3
 
 yes
 wait
@@ -67,20 +70,16 @@ expect_grep "1 file selected to be restored." \
 	    "$tmp/should-work.out" \
  	    "Expected success; found failure"
 
-check_two_logs
-if ! cmp -s "$tmp/bareos-restores/$(pwd)/tmp/data/build/src/tests/Makefile" \
-     "$(pwd)/tmp/data/build/src/tests/Makefile"; then
+if ! cmp -s "$tmp/bareos-restores/$file1" "$file1"; then
     exit 2
 fi
 
-if ! cmp -s "$tmp/bareos-restores/$(pwd)/tmp/data/build/src/tests/Makefile.in" \
-     "$(pwd)/tmp/data/build/src/tests/Makefile.in"; then
+if ! cmp -s "$tmp/bareos-restores/$file2" "$file2"; then
     exit 3
 fi
 
-if ! cmp -s "$tmp/bareos-restores/$(pwd)/tmp/data/build/src/tests/bbatch.c" \
-     "$(pwd)/tmp/data/build/src/tests/bbatch.c"; then
+if ! cmp -s "$tmp/bareos-restores/$file3" "$file3"; then
     exit 4
 fi
-#check_restore_diff "${BackupDirectory}"
+
 end_test
