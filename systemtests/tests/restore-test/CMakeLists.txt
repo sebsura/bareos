@@ -21,36 +21,42 @@ get_filename_component(BASENAME ${CMAKE_CURRENT_BINARY_DIR} NAME)
 create_systemtest(${SYSTEMTEST_PREFIX} ${BASENAME})
 
 set_tests_properties(
-  system:bareos-basic:simple-backup-and-restore
-  PROPERTIES FIXTURES_SETUP "system:bareos-basic:backup-job-fixture"
+  system:restore-test:create-backup
+  PROPERTIES FIXTURES_SETUP "system:restore-test:backup-job-fixture"
 )
 set_tests_properties(
-  system:bareos-basic:status-subscriptions
+  system:restore-test:archive-restore-file
   PROPERTIES
     FIXTURES_REQUIRED
-    "system:bareos-basic:backup-job-fixture;system:bareos-basic-fixture"
+    "system:restore-test:backup-job-fixture;system:restore-test-fixture"
 )
 set_tests_properties(
-  system:bareos-basic:bls-autoxflate
+  system:restore-test:archive-restore-dir
   PROPERTIES
     FIXTURES_REQUIRED
-    "system:bareos-basic:backup-job-fixture;system:bareos-basic-fixture"
+    "system:restore-test:backup-job-fixture;system:restore-test-fixture"
 )
 set_tests_properties(
-  system:bareos-basic:bextract-autoxflate
+  system:restore-test:archive-full-restore
   PROPERTIES
     FIXTURES_REQUIRED
-    "system:bareos-basic:backup-job-fixture;system:bareos-basic-fixture"
+    "system:restore-test:backup-job-fixture;system:restore-test-fixture"
 )
 set_tests_properties(
-  system:bareos-basic:bscan-autoxflate
+  system:restore-test:restore-file
   PROPERTIES
     FIXTURES_REQUIRED
-    "system:bareos-basic:backup-job-fixture;system:bareos-basic-fixture"
+    "system:restore-test:backup-job-fixture;system:restore-test-fixture"
 )
 set_tests_properties(
-  system:bareos-basic:bcopy-autoxflate
+  system:restore-test:restore-dir
   PROPERTIES
     FIXTURES_REQUIRED
-    "system:bareos-basic:backup-job-fixture;system:bareos-basic-fixture"
+    "system:restore-test:backup-job-fixture;system:restore-test-fixture"
+)
+set_tests_properties(
+  system:restore-test:full-restore
+  PROPERTIES
+    FIXTURES_REQUIRED
+    "system:restore-test:backup-job-fixture;system:restore-test-fixture"
 )

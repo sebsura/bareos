@@ -4,8 +4,6 @@ set -o pipefail
 set -u
 #
 # Run a simple backup
-#   then restore it,
-#   then restore an archive
 #
 TestName="$(basename "$(pwd)")"
 export TestName
@@ -33,21 +31,18 @@ status client
 status storage=File
 wait
 messages
-@#
-@# now do a restore
-@#
-@$out $tmp/log2.out
-wait
-messages
-restore client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores select all done yes
-wait
-messages
 quit
 END_OF_DATA
 
 run_bconsole
 check_for_zombie_jobs storage=File
 
-check_two_logs
-check_restore_diff "${BackupDirectory}"
+expect_grep "No prior Full backup Job record found." \
+	    "$tmp/log1.out" \
+	    "Bad initial state. No backup should exist yet."
+
+expect_grep "Backup OK" \
+	    "$tmp/log1.out" \
+	    "Backup was not created correctly."
+
 end_test
