@@ -35,6 +35,8 @@ status client
 status storage=File
 wait
 messages
+@$out $tmp/jobs.out
+list jobs
 @$out $tmp/should-work.out
 restore client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores \
 	file=$file1 \
@@ -65,6 +67,13 @@ END_OF_DATA
 
 run_bconsole
 check_for_zombie_jobs storage=File
+
+# check the most current jobs list form $tmp/jobs.out and check that it is
+# indeed a backup
+if ! grep "1 | backup-bareos-fd" "$tmp/jobs.out" | tail -n 1 | grep "| B" > /dev/null; then
+    echo "Job 1 has to always be a backup job at the start of a test."
+    exit 5
+fi
 
 expect_grep "Start Restore Job" \
 	    "$tmp/should-work.out" \

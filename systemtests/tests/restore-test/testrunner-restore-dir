@@ -29,6 +29,8 @@ setdebug level=100 storage=File
 status director
 status client
 status storage=File
+@$out $tmp/jobs.out
+list jobs
 @$out $tmp/restore-dir.out
 restore where=$tmp/bareos-restores/
 11
@@ -43,6 +45,13 @@ END_OF_DATA
 
 run_bconsole
 check_for_zombie_jobs storage=File
+
+# check the most current jobs list form $tmp/jobs.out and check that it is
+# indeed a backup
+if ! grep "1 | backup-bareos-fd" "$tmp/jobs.out" | tail -n 1 | grep "| B" > /dev/null; then
+    echo "Job 1 has to always be a backup job at the start of a test."
+    exit 5
+fi
 
 expect_grep "Start Restore Job" \
 	    "$tmp/restore-dir.out" \
