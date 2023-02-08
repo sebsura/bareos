@@ -72,6 +72,18 @@ END_OF_DATA
 run_bconsole
 check_for_zombie_jobs storage=File
 
+expect_grep "Start Restore Job" \
+	    "$tmp/should-work.out" \
+	    "The first restore job was not started."
+
+expect_grep "Start Restore Job" \
+	    "$tmp/restore-from-selected-job.out" \
+	    "The second restore job was not started."
+
+expect_grep "Start Restore Job" \
+	    "$tmp/restore-from-list-and-time.out" \
+	    "The third restore job was not started."
+
 expect_grep "1 file selected to be restored." \
 	    "$tmp/should-work.out" \
  	    "Expected success; found failure"

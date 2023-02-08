@@ -30,7 +30,7 @@ status director
 status client
 status storage=File
 update jobid=1 jobtype=A
-@$out $tmp/restore-from-selected-job.out
+@$out $tmp/restore-dir-from-archive.out
 restore archive
 11
 1
@@ -45,6 +45,10 @@ END_OF_DATA
 
 run_bconsole
 check_for_zombie_jobs storage=File
+
+expect_grep "Start Restore Job" \
+	    "$tmp/restore-dir-from-archive.out" \
+	    "The restore job was not started."
 
 check_restore_diff "$dir"
 end_test

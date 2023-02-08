@@ -44,5 +44,9 @@ END_OF_DATA
 run_bconsole
 check_for_zombie_jobs storage=File
 
+expect_grep "Start Restore Job" \
+	    "$tmp/restore-dir.out" \
+	    "The restore job was not started."
+
 check_restore_diff "$dir"
 end_test
