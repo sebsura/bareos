@@ -716,6 +716,7 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
         } else if (GetCmd(ua,
                           _("Enter JobId(s), comma separated, to restore: "))) {
           if (*rx->JobIds != 0 && *ua->cmd) { PmStrcat(rx->JobIds, ","); }
+          bstrncpy(rx->last_jobid, ua->cmd, sizeof(rx->last_jobid));
           PmStrcat(rx->JobIds, ua->cmd);
         }
         if (*rx->JobIds == 0 || *rx->JobIds == '.') {
