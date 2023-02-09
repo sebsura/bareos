@@ -122,7 +122,7 @@ char RestoreContext::FilterIdentifier(RestoreContext::JobTypeFilter filter)
       return 'B';
     } break;
     default: {
-      throw std::invalid_argument{"Invalid job type filter."};
+      ASSERT(!"Invalid job type filter.");
     }
   }
 }
