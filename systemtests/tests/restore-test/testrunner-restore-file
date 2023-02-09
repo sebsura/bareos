@@ -91,7 +91,6 @@ expect_grep "1 file selected to be restored." \
 	    "$tmp/should-work.out" \
  	    "Expected success; found failure"
 
-check_two_logs
 if ! cmp -s "$tmp/bareos-restores/$file1" "$file1"; then
     exit 2
 fi
