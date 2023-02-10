@@ -47,7 +47,7 @@ END_OF_DATA
 
 run_bconsole
 # find the new job id
-backupid=$(grep "Job queued" "$tmp/create-newer-backup.out" | gawk 'match($0, /JobId=(.+)/, a) { print a[1] }')
+backupid=$(grep 'Job queued. JobId=' "$tmp/create-newer-backup.out" | sed -n -e 's/^.*JobId=//p')
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out /dev/null
 setdebug level=100 storage=File
