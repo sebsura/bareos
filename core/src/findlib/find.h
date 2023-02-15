@@ -194,6 +194,8 @@ struct FindFilesPacket;
 struct saved_ffp
 {
 	bool plugin;
+	bool has_file_data;
+	bool top_level;
 	FindFilesPacket* copy;
 };
 /**
