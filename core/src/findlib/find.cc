@@ -65,6 +65,8 @@ FindFilesPacket* init_find_files()
 
   ff->sys_fname = GetPoolMemory(PM_FNAME);
 
+  new (&ff->Links) std::shared_ptr<hardlink_table>(new hardlink_table{});
+
   /* Get system path and filename maximum lengths */
   path_max = pathconf(".", _PC_PATH_MAX);
   if (path_max < 2048) { path_max = 2048; }

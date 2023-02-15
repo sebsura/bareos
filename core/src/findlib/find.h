@@ -168,27 +168,47 @@ struct HfsPlusInfo {
   off_t rsrclength{0};     /**< Size of resource fork */
 };
 
-/**
- * Structure for keeping track of hard linked files, we
- * keep an entry for each hardlinked file that we save,
- * which is the first one found. For all the other files that
- * are linked to this one, we save only the directory
- * entry so we can link it.
- */
-struct CurLink {
-  struct hlink link;
-  dev_t dev;             /**< Device */
-  ino_t ino;             /**< Inode with device is unique */
-  uint32_t FileIndex;    /**< Bareos FileIndex of this file */
-  int32_t digest_stream; /**< Digest type if needed */
-  uint32_t digest_len;   /**< Digest len if needed */
-  char* digest;          /**< Checksum of the file if needed */
-  char name[1];          /**< The name */
+struct hardlink_id
+{
+	ino_t inode;
+	dev_t device; // disk, tape, etc.
+
+	bool operator==(const hardlink_id& link) const
+	{
+		return inode == link.inode && device == link.device;
+	}
 };
 
-using LinkHash
-    = htable<htable_binary_key, CurLink, MonotonicBuffer::Size::Medium>;
+namespace std
+{
+	template<>
+	struct hash<hardlink_id>
+	{
+		std::size_t operator()(const hardlink_id& link) const
+		{
+			return std::hash<std::int64_t>{}(link.inode) ^
+								std::hash<std::int64_t>{}(link.device);
+		}
+	};
+}
 
+struct digest_data
+{
+	std::string data;
+	int stream;
+};
+struct hardlink_info
+{
+	struct
+	{
+		std::string name;
+		std::int32_t bareosidx;
+	} main_file;
+
+	std::unique_ptr<digest_data> digest;
+};
+
+using hardlink_table = std::unordered_map<hardlink_id, hardlink_info>;
 
 struct FindFilesPacket;
 struct saved_ffp
@@ -205,6 +225,8 @@ struct saved_ffp
 /* clang-format off */
 struct FindFilesPacket {
 	    std::vector<saved_ffp>* file_list;
+	std::shared_ptr<hardlink_table> Links;
+	std::optional<hardlink_info*> link_info;
   char* top_fname{nullptr};          /**< Full filename before descending */
   char* fname{nullptr};              /**< Full filename */
   char* link{nullptr};               /**< Link if file linked */
@@ -215,12 +237,8 @@ struct FindFilesPacket {
   POOLMEM* fname_save{nullptr};      /**< Save when stripping path */
   POOLMEM* link_save{nullptr};       /**< Save when stripping path */
   POOLMEM* ignoredir_fname{nullptr}; /**< Used to ignore directories */
-  char* digest{nullptr};  /**< Set to file digest when the file is a hardlink */
   struct stat statp{};    /**< Stat packet */
-  uint32_t digest_len{0}; /**< Set to the digest len when the file is a hardlink*/
-  int32_t digest_stream{0}; /**< Set to digest type when the file is hardlink */
   int32_t FileIndex{0};     /**< FileIndex of this file */
-  int32_t LinkFI{0};        /**< FileIndex of main hard linked file */
   int32_t delta_seq{0};     /**< Delta Sequence number */
   int32_t object_index{0};  /**< Object index */
   int32_t object_len{0};    /**< Object length */
@@ -263,10 +281,6 @@ struct FindFilesPacket {
   alist<const char*> fstypes;          /**< Allowed file system types */
   alist<const char*> drivetypes;       /**< Allowed drive types */
 
-  // List of all hard linked files found
-  LinkHash* linkhash{nullptr};       /**< Hard linked files */
-  struct CurLink* linked{nullptr}; /**< Set if this file is hard linked */
-
   /*
    * Darwin specific things.
    * To avoid clutter, we always include rsrc_bfd and volhas_attrlist.
@@ -274,6 +288,16 @@ struct FindFilesPacket {
   BareosFilePacket rsrc_bfd; /**< Fd for resource forks */
   bool volhas_attrlist{false};  /**< Volume supports getattrlist() */
   HfsPlusInfo hfsinfo;          /**< Finder Info and resource fork size */
+
+	std::int32_t LinkFI() const
+		{
+			std::int32_t fileidx = 0;
+			if (link_info)
+			{
+				fileidx = link_info.value()->main_file.bareosidx;
+			}
+			return fileidx;
+		}
 };
 /* clang-format on */
 

@@ -192,7 +192,7 @@ static int VerifyFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 
   /* Encode attributes and possibly extend them */
   EncodeStat(attribs.c_str(), &ff_pkt->statp, sizeof(ff_pkt->statp),
-             ff_pkt->LinkFI, 0);
+             ff_pkt->LinkFI(), 0);
   encode_attribsEx(jcr, attribsEx.c_str(), ff_pkt);
 
   jcr->lock();

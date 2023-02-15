@@ -67,10 +67,10 @@ static inline FindFilesPacket* new_dir_ff_pkt(FindFilesPacket* ff_pkt)
   dir_ff_pkt->included_files_list = NULL;
   dir_ff_pkt->excluded_files_list = NULL;
   dir_ff_pkt->excluded_paths_list = NULL;
-  dir_ff_pkt->linkhash = NULL;
   dir_ff_pkt->fname_save = NULL;
   dir_ff_pkt->link_save = NULL;
   dir_ff_pkt->ignoredir_fname = NULL;
+  dir_ff_pkt->Links = std::make_shared<hardlink_table>();
 
   return dir_ff_pkt;
 }
@@ -430,41 +430,50 @@ static inline int process_hardlink(JobControlRecord* jcr,
                                    bool top_level,
                                    bool* done)
 {
-  int rtn_stat = 0;
-  CurLink* hl;
+	int rtn_stat = 0;
+	hardlink_id HId = hardlink_id{ff_pkt->statp.st_ino, ff_pkt->statp.st_dev};
+	if (hardlink_table::iterator hl = ff_pkt->Links->find(HId);
+	    hl != ff_pkt->Links->end())
+	{
 
-  hl = lookup_hardlink(jcr, ff_pkt, ff_pkt->statp.st_ino, ff_pkt->statp.st_dev);
-  if (hl) {
-    // If we have already backed up the hard linked file don't do it again
-    if (bstrcmp(hl->name, fname)) {
-      Dmsg2(400, "== Name identical skip FI=%d file=%s\n", hl->FileIndex,
-            fname);
-      *done = true;
-      return 1; /* ignore */
-    }
 
-    ff_pkt->link = hl->name;
-    ff_pkt->type = FT_LNKSAVED; /* Handle link, file already saved */
-    ff_pkt->LinkFI = hl->FileIndex;
-    ff_pkt->linked = NULL;
-    ff_pkt->digest = hl->digest;
-    ff_pkt->digest_stream = hl->digest_stream;
-    ff_pkt->digest_len = hl->digest_len;
+		hardlink_info* info = &hl->second;
+		ff_pkt->link_info = info;
+		// If we have already backed up the hard linked file don't do it again
+		#pragma message "ff_pkt->FileIndex might not be set here! be careful to check"
+		if (bstrcmp(info->main_file.name.c_str(), fname)) {
+			Dmsg2(400, "== Name identical skip FI=%d file=%s\n", info->main_file.bareosidx,
+			      fname);
+			*done = true;
+			return 1; /* ignore */
+		}
 
-    rtn_stat = HandleFile(jcr, ff_pkt, top_level);
-    Dmsg3(400, "FT_LNKSAVED FI=%d LinkFI=%d file=%s\n", ff_pkt->FileIndex,
-          hl->FileIndex, hl->name);
-    *done = true;
-  } else {
-    // File not previously dumped. Chain it into our list.
-    hl = new_hardlink(jcr, ff_pkt, fname, ff_pkt->statp.st_ino,
-                      ff_pkt->statp.st_dev);
-    ff_pkt->linked = hl; /* Mark saved link */
-    Dmsg2(400, "Added to hash FI=%d file=%s\n", ff_pkt->FileIndex, hl->name);
-    *done = false;
-  }
+		ff_pkt->type = FT_LNKSAVED; /* Handle link, file already saved */
 
-  return rtn_stat;
+		rtn_stat = HandleFile(jcr, ff_pkt, top_level);
+		Dmsg3(400, "FT_LNKSAVED FI=%d LinkFI=%d file=%s\n", ff_pkt->FileIndex,
+		      info->main_file.bareosidx, info->main_file.name.c_str());
+		*done = true;
+	} else {
+		// File not previously dumped. Chain it into our list.
+			  auto [hl2, added] = ff_pkt->Links->emplace(HId, hardlink_info{{ff_pkt->fname,
+						  ff_pkt->FileIndex}, {}});
+			  if (!added)
+			  {
+				  Dmsg2(400, "Could not add hardlink_info. FI=%d file=%s\n",
+					ff_pkt->FileIndex, ff_pkt->fname);
+			  }
+			  else
+			  {
+				  hardlink_info* info = &hl2->second;
+				  ff_pkt->link_info = info;
+				  Dmsg2(400, "Added to hash FI=%d file=%s\n", ff_pkt->FileIndex,
+					info->main_file.name.c_str());
+			  }
+		*done = false;
+	}
+
+	return rtn_stat;
 }
 
 // Handling of a regular file.
@@ -493,10 +502,15 @@ static inline int process_regular_file(JobControlRecord* jcr,
   }
 
   rtn_stat = HandleFile(jcr, ff_pkt, top_level);
-  if (ff_pkt->linked) { ff_pkt->linked->FileIndex = ff_pkt->FileIndex; }
+  #pragma message "check this out!"
+  if (ff_pkt->link_info && bstrcmp(ff_pkt->link_info.value()->main_file.name.c_str(), ff_pkt->fname))
+  {
+	  ff_pkt->link_info.value()->main_file.bareosidx = ff_pkt->FileIndex;
+  }
+  //if (ff_pkt->linked) { ff_pkt->linked->FileIndex = ff_pkt->FileIndex; }
 
-  Dmsg3(400, "FT_REG FI=%d linked=%d file=%s\n", ff_pkt->FileIndex,
-        ff_pkt->linked ? 1 : 0, fname);
+  // Dmsg3(400, "FT_REG FI=%d linked=%d file=%s\n", ff_pkt->FileIndex,
+  //       ff_pkt->linked ? 1 : 0, fname);
 
   if (BitIsSet(FO_KEEPATIME, ff_pkt->flags)) {
     RestoreFileTimes(ff_pkt, fname);
@@ -524,7 +538,11 @@ static inline int process_symlink(JobControlRecord* jcr,
     ff_pkt->type = FT_NOFOLLOW;
     ff_pkt->ff_errno = errno;
     rtn_stat = HandleFile(jcr, ff_pkt, top_level);
-    if (ff_pkt->linked) { ff_pkt->linked->FileIndex = ff_pkt->FileIndex; }
+  #pragma message "check this out!"
+    if (ff_pkt->link_info && bstrcmp(ff_pkt->link_info.value()->main_file.name.c_str(), ff_pkt->fname))
+  {
+	  ff_pkt->link_info.value()->main_file.bareosidx = ff_pkt->FileIndex;
+  }
     return rtn_stat;
   }
 
@@ -533,7 +551,11 @@ static inline int process_symlink(JobControlRecord* jcr,
   ff_pkt->type = FT_LNK; /* got a real link */
 
   rtn_stat = HandleFile(jcr, ff_pkt, top_level);
-  if (ff_pkt->linked) { ff_pkt->linked->FileIndex = ff_pkt->FileIndex; }
+  #pragma message "check this out!"
+  if (ff_pkt->link_info && bstrcmp(ff_pkt->link_info.value()->main_file.name.c_str(), ff_pkt->fname))
+  {
+	  ff_pkt->link_info.value()->main_file.bareosidx = ff_pkt->FileIndex;
+  }
 
   return rtn_stat;
 }
@@ -657,7 +679,11 @@ static inline int process_directory(JobControlRecord* jcr,
   // If not recursing, just backup dir and return
   if (!recurse) {
     rtn_stat = HandleFile(jcr, ff_pkt, top_level);
-    if (ff_pkt->linked) { ff_pkt->linked->FileIndex = ff_pkt->FileIndex; }
+  #pragma message "check this out!"
+    if (ff_pkt->link_info && bstrcmp(ff_pkt->link_info.value()->main_file.name.c_str(), ff_pkt->fname))
+  {
+	  ff_pkt->link_info.value()->main_file.bareosidx = ff_pkt->FileIndex;
+  }
     free(link);
     FreeDirFfPkt(dir_ff_pkt);
     ff_pkt->link = ff_pkt->fname; /* reset "link" */
@@ -675,7 +701,11 @@ static inline int process_directory(JobControlRecord* jcr,
     ff_pkt->type = FT_NOOPEN;
     ff_pkt->ff_errno = errno;
     rtn_stat = HandleFile(jcr, ff_pkt, top_level);
-    if (ff_pkt->linked) { ff_pkt->linked->FileIndex = ff_pkt->FileIndex; }
+  #pragma message "check this out!"
+    if (ff_pkt->link_info && bstrcmp(ff_pkt->link_info.value()->main_file.name.c_str(), ff_pkt->fname))
+  {
+	  ff_pkt->link_info.value()->main_file.bareosidx = ff_pkt->FileIndex;
+  }
     free(link);
     FreeDirFfPkt(dir_ff_pkt);
     return rtn_stat;
@@ -780,7 +810,11 @@ static inline int process_directory(JobControlRecord* jcr,
 
     if (!FileIsExcluded(ff_pkt, link)) {
       rtn_stat = FindOneFile(jcr, ff_pkt, HandleFile, link, our_device, false);
-      if (ff_pkt->linked) { ff_pkt->linked->FileIndex = ff_pkt->FileIndex; }
+  #pragma message "check this out!"
+      if (ff_pkt->link_info && bstrcmp(ff_pkt->link_info.value()->main_file.name.c_str(), ff_pkt->fname))
+  {
+	  ff_pkt->link_info.value()->main_file.bareosidx = ff_pkt->FileIndex;
+  }
     }
   }
 
@@ -795,7 +829,11 @@ static inline int process_directory(JobControlRecord* jcr,
    * were used without this record.
    */
   HandleFile(jcr, dir_ff_pkt, top_level); /* handle directory entry */
-  if (ff_pkt->linked) { ff_pkt->linked->FileIndex = dir_ff_pkt->FileIndex; }
+  #pragma message "check this out!"
+  if (ff_pkt->link_info && bstrcmp(ff_pkt->link_info.value()->main_file.name.c_str(), ff_pkt->fname))
+  {
+	  ff_pkt->link_info.value()->main_file.bareosidx = ff_pkt->FileIndex;
+  }
   FreeDirFfPkt(dir_ff_pkt);
 
   if (BitIsSet(FO_KEEPATIME, ff_pkt->flags)) {
@@ -847,7 +885,11 @@ static inline int process_special_file(JobControlRecord* jcr,
   }
 
   rtn_stat = HandleFile(jcr, ff_pkt, top_level);
-  if (ff_pkt->linked) { ff_pkt->linked->FileIndex = ff_pkt->FileIndex; }
+#pragma message "check this out!"
+  if (ff_pkt->link_info && bstrcmp(ff_pkt->link_info.value()->main_file.name.c_str(), ff_pkt->fname))
+  {
+	  ff_pkt->link_info.value()->main_file.bareosidx = ff_pkt->FileIndex;
+  }
 
   return rtn_stat;
 }
@@ -980,7 +1022,6 @@ int FindOneFile(JobControlRecord* jcr,
   }
 #endif
 
-  ff_pkt->LinkFI = 0;
   /*
    * Handle hard linked files
    *
@@ -1007,11 +1048,11 @@ int FindOneFile(JobControlRecord* jcr,
         if (done) { return rtn_stat; }
         break;
       default:
-        ff_pkt->linked = NULL;
+	      ff_pkt->link_info = std::nullopt;
         break;
     }
   } else {
-    ff_pkt->linked = NULL;
+	      ff_pkt->link_info = std::nullopt;
   }
 
   /*
@@ -1035,13 +1076,9 @@ int FindOneFile(JobControlRecord* jcr,
 
 int TermFindOne(FindFilesPacket* ff)
 {
-  int count;
-
-  if (ff->linkhash == NULL) { return 0; }
-
-  count = ff->linkhash->size();
-  delete ff->linkhash;
-  ff->linkhash = NULL;
+  int count = ff->Links->size();
+  ff->Links = std::make_shared<hardlink_table>();
+  #pragma message "apparently we should free links here!"
 
   return count;
 }

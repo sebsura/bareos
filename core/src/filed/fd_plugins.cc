@@ -785,11 +785,8 @@ int PluginSave(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
        * Maintain a list of hard linked files already backed up. This allows
        * us to ensure that the data of each file gets backed up only once.
        */
-      ff_pkt->LinkFI = 0;
       if (!BitIsSet(FO_NO_HARDLINK, ff_pkt->flags)
           && ff_pkt->statp.st_nlink > 1) {
-        CurLink* hl;
-
         switch (ff_pkt->statp.st_mode & S_IFMT) {
           case S_IFREG:
           case S_IFCHR:
@@ -798,47 +795,58 @@ int PluginSave(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 #ifdef S_IFSOCK
           case S_IFSOCK:
 #endif
-            hl = lookup_hardlink(jcr, ff_pkt, ff_pkt->statp.st_ino,
-                                 ff_pkt->statp.st_dev);
-            if (hl) {
+	  {
+
+		  hardlink_id HId = hardlink_id{ff_pkt->statp.st_ino, ff_pkt->statp.st_dev};
+		  if (hardlink_table::iterator hl = ff_pkt->Links->find(HId);
+			  hl != ff_pkt->Links->end())
+		  {
+
+
+			  hardlink_info* info = &hl->second;
+			  ff_pkt->link_info = info;
               /*
                * If we have already backed up the hard linked file don't do it
                * again
                */
-              if (bstrcmp(hl->name, sp.fname)) {
-                Dmsg2(400, "== Name identical skip FI=%d file=%s\n",
-                      hl->FileIndex, fname.c_str());
-                ff_pkt->no_read = true;
+			  if (bstrcmp(info->main_file.name.c_str(), sp.fname)) {
+				  Dmsg2(400, "== Name identical skip FI=%d file=%s\n",
+					info->main_file.bareosidx, fname.c_str());
+				  ff_pkt->no_read = true;
               } else {
-                ff_pkt->link = hl->name;
                 ff_pkt->type
                     = FT_LNKSAVED; /* Handle link, file already saved */
-                ff_pkt->LinkFI = hl->FileIndex;
-                ff_pkt->linked = NULL;
-                ff_pkt->digest = hl->digest;
-                ff_pkt->digest_stream = hl->digest_stream;
-                ff_pkt->digest_len = hl->digest_len;
 
                 Dmsg3(400, "FT_LNKSAVED FI=%d LinkFI=%d file=%s\n",
-                      ff_pkt->FileIndex, hl->FileIndex, hl->name);
+                      ff_pkt->FileIndex,
+		      info->main_file.bareosidx,
+		      info->main_file.name.c_str());
 
                 ff_pkt->no_read = true;
               }
             } else {
-              // File not previously dumped. Chain it into our list.
-              hl = new_hardlink(jcr, ff_pkt, sp.fname, ff_pkt->statp.st_ino,
-                                ff_pkt->statp.st_dev);
-              ff_pkt->linked = hl; /* Mark saved link */
-              Dmsg2(400, "Added to hash FI=%d file=%s\n", ff_pkt->FileIndex,
-                    hl->name);
-            }
-            break;
+			  auto [hl2, added] = ff_pkt->Links->emplace(HId, hardlink_info{{ff_pkt->fname,
+						  ff_pkt->FileIndex}, {}});
+			  if (!added)
+			  {
+				  Dmsg2(400, "Could not add hardlink_info. FI=%d file=%s\n",
+					ff_pkt->FileIndex, ff_pkt->fname);
+			  }
+			  else
+			  {
+				  hardlink_info* info = &hl2->second;
+				  ff_pkt->link_info = info;
+				  Dmsg2(400, "Added to hash FI=%d file=%s\n", ff_pkt->FileIndex,
+					info->main_file.name.c_str());
+			  }
+		  }
+	  } break;
           default:
-            ff_pkt->linked = NULL;
+		  ff_pkt->link_info = std::nullopt;
             break;
         }
       } else {
-        ff_pkt->linked = NULL;
+		  ff_pkt->link_info = std::nullopt;
       }
 
       // Call Bareos core code to backup the plugin's file

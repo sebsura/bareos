@@ -95,7 +95,6 @@ FindFilesPacket* DeepCopyImportant(FindFilesPacket* ff_pkt)
 	if (ff_pkt->top_fname) packet->top_fname = strdup(ff_pkt->top_fname);
 	if (ff_pkt->fname)     packet->fname = strdup(ff_pkt->fname);
 	if (ff_pkt->link)      packet->link = strdup(ff_pkt->link);
-	if (ff_pkt->digest)    packet->digest = strdup(ff_pkt->digest);
 	if (ff_pkt->object_name) packet->object_name = strdup(ff_pkt->object_name);
 	if (ff_pkt->object) packet->object = strdup(ff_pkt->object);
 
@@ -454,8 +453,11 @@ static inline bool TerminateDigest(b_save_ctx& bsctx)
   }
 
   // Keep the checksum if this file is a hardlink
-  if (bsctx.ff_pkt->linked) {
-    FfPktSetLinkDigest(bsctx.ff_pkt, bsctx.digest_stream, sd->msg, size);
+  if (bsctx.ff_pkt->link_info && !bsctx.ff_pkt->link_info.value()->digest) {
+	  digest_data digest;
+	  digest.data = std::string{sd->msg, size};
+	  digest.stream = bsctx.digest_stream;
+	  bsctx.ff_pkt->link_info.value()->digest = std::make_unique<digest_data>(digest);
   }
 
   sd->message_length = size;
@@ -705,17 +707,17 @@ int SaveFile2(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool,
   }
 
   // Check if original file has a digest, and send it
-  if (ff_pkt->type == FT_LNKSAVED && ff_pkt->linkhash) {
-	  CurLink* hl = lookup_hardlink(jcr, ff_pkt, ff_pkt->statp.st_ino,
-				      ff_pkt->statp.st_dev);
-	  if (hl && !bstrcmp(ff_pkt->fname, hl->name))
+  if (ff_pkt->type == FT_LNKSAVED && ff_pkt->link_info
+      && ff_pkt->link_info.value()->digest) {
+	  hardlink_info* hl = ff_pkt->link_info.value();
+	  if (hl && !bstrcmp(ff_pkt->fname, hl->main_file.name.c_str()))
 	  {
-		  Dmsg2(300, "Link %s digest %d\n", ff_pkt->fname, hl->digest_len);
-		  sd->fsend("%ld %d 0", jcr->JobFiles, hl->digest_stream);
+		  Dmsg2(300, "Link %s digest %d\n", ff_pkt->fname, hl->digest->data.size());
+		  sd->fsend("%ld %d 0", jcr->JobFiles, hl->digest->stream);
 
-		  sd->msg = CheckPoolMemorySize(sd->msg, hl->digest_len);
-		  memcpy(sd->msg, hl->digest, hl->digest_len);
-		  sd->message_length = hl->digest_len;
+		  sd->msg = CheckPoolMemorySize(sd->msg, hl->digest->data.size());
+		  memcpy(sd->msg, hl->digest->data.c_str(), hl->digest->data.size());
+		  sd->message_length = hl->digest->data.size();
 		  sd->send();
 
 		  sd->signal(BNET_EOD); /* end of hardlink record */
@@ -1056,16 +1058,21 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   }
 
   // Check if original file has a digest, and send it
-  if (ff_pkt->type == FT_LNKSAVED && ff_pkt->digest) {
-    Dmsg2(300, "Link %s digest %d\n", ff_pkt->fname, ff_pkt->digest_len);
-    sd->fsend("%ld %d 0", jcr->JobFiles, ff_pkt->digest_stream);
+  if (ff_pkt->type == FT_LNKSAVED && ff_pkt->link_info
+      && ff_pkt->link_info.value()->digest) {
+	  hardlink_info* hl = ff_pkt->link_info.value();
+	  if (hl && !bstrcmp(ff_pkt->fname, hl->main_file.name.c_str()))
+	  {
+		  Dmsg2(300, "Link %s digest %d\n", ff_pkt->fname, hl->digest->data.size());
+		  sd->fsend("%ld %d 0", jcr->JobFiles, hl->digest->stream);
 
-    sd->msg = CheckPoolMemorySize(sd->msg, ff_pkt->digest_len);
-    memcpy(sd->msg, ff_pkt->digest, ff_pkt->digest_len);
-    sd->message_length = ff_pkt->digest_len;
-    sd->send();
+		  sd->msg = CheckPoolMemorySize(sd->msg, hl->digest->data.size());
+		  memcpy(sd->msg, hl->digest->data.c_str(), hl->digest->data.size());
+		  sd->message_length = hl->digest->data.size();
+		  sd->send();
 
-    sd->signal(BNET_EOD); /* end of hardlink record */
+		  sd->signal(BNET_EOD); /* end of hardlink record */
+	  }
   }
 
 good_rtn:
@@ -1589,7 +1596,7 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
     return false;
   }
   EncodeStat(attribs.c_str(), &ff_pkt->statp, sizeof(ff_pkt->statp),
-             ff_pkt->LinkFI, data_stream);
+             ff_pkt->LinkFI(), data_stream);
 
   /** Now possibly extend the attributes */
   if (IS_FT_OBJECT(ff_pkt->type)) {
