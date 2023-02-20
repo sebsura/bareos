@@ -1407,13 +1407,16 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
         goto bail_out;
       }
       if (rx->JobTDate != 0) {
-        const char* filter_string
+        const char* filter_addition
             = (opposite == RestoreContext::JobTypeFilter::Backups) ? ""
                                                                    : " archive";
+        const char* alternative_command
+            = (opposite == RestoreContext::JobTypeFilter::Backups)
+                  ? "normal restore"
+                  : "restore archive";
         ua->SendMsg(
-            "A suitable full backup%s was found. Try restore%s <...> "
-            "instead.\n",
-            filter_string, filter_string);
+            "A suitable full backup%s was found. Try %s <...> instead.\n",
+            filter_addition, alternative_command);
       }
     }
 
