@@ -192,7 +192,6 @@ struct NameList {
 
 // Context for restore job.
 struct RestoreContext {
-  // todo: rename to jobtypefilter
   enum class JobTypeFilter
   {
     Backups,
