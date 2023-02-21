@@ -9,8 +9,6 @@ set -u
 TestName="$(basename "$(pwd)")"
 export TestName
 
-JobName=backup-bareos-fd
-
 #shellcheck source=../environment.in
 . ./environment
 
@@ -49,7 +47,7 @@ if ! grep "1 | backup-bareos-fd" "$tmp/jobs.out" | tail -n 1 | grep "| B" > /dev
 fi
 
 expect_grep "Start Restore Job" \
-	    "$tmp/should-work.out" \
+	    "$tmp/backup-full.out" \
 	    "Required restore job was not started."
 
 check_restore_diff "${BackupDirectory}"
