@@ -56,7 +56,6 @@ messages
 restore
 8
 $(( $(date +%Y) + 1))
-2025
 $file3
 
 yes
