@@ -60,3 +60,15 @@ set_tests_properties(
     FIXTURES_REQUIRED
     "system:restore-test:backup-job-fixture;system:restore-test-fixture"
 )
+set_tests_properties(
+  system:restore-test:check-hints
+  PROPERTIES
+    FIXTURES_REQUIRED
+    "system:restore-test:backup-job-fixture;system:restore-test-fixture"
+)
+set_tests_properties(
+  system:restore-test:restore-old-archive
+  PROPERTIES
+    FIXTURES_REQUIRED
+    "system:restore-test:backup-job-fixture;system:restore-test-fixture"
+)
