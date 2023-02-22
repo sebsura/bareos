@@ -146,9 +146,9 @@ bool RestoreCmd(UaContext* ua, const char*)
 
   i = FindArg(ua, "archive");
   if (i >= 0) {
-    rx.job_filter = RestoreContext::JobTypeFilter::Archives;
+    rx.job_filter = RestoreContext::JobTypeFilter::Archive;
   } else {
-    rx.job_filter = RestoreContext::JobTypeFilter::Backups;
+    rx.job_filter = RestoreContext::JobTypeFilter::Backup;
   }
 
   if (strip_prefix || add_suffix || add_prefix) {
@@ -1379,7 +1379,7 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   }
   if (rx->JobTDate == 0) {
     ua->ErrorMsg(_("No Full backup%s before %s found.\n"),
-                 (rx->job_filter == RestoreContext::JobTypeFilter::Backups)
+                 (rx->job_filter == RestoreContext::JobTypeFilter::Backup)
                      ? ""
                      : " archive",
                  date);
@@ -1388,13 +1388,13 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
     // try to see if there are any valid full backups using the opposite filter.
     // if there are send a message to the user that he can try restoring those.
     RestoreContext::JobTypeFilter opposite
-        = RestoreContext::JobTypeFilter::Backups;
+        = RestoreContext::JobTypeFilter::Backup;
     switch (rx->job_filter) {
-      case RestoreContext::JobTypeFilter::Archives: {
-        opposite = RestoreContext::JobTypeFilter::Backups;
+      case RestoreContext::JobTypeFilter::Archive: {
+        opposite = RestoreContext::JobTypeFilter::Backup;
       } break;
-      case RestoreContext::JobTypeFilter::Backups: {
-        opposite = RestoreContext::JobTypeFilter::Archives;
+      case RestoreContext::JobTypeFilter::Backup: {
+        opposite = RestoreContext::JobTypeFilter::Archive;
       } break;
     }
     if (InsertLastFullBackupOfType(ua, rx, opposite,
@@ -1408,10 +1408,10 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
       }
       if (rx->JobTDate != 0) {
         const char* filter_addition
-            = (opposite == RestoreContext::JobTypeFilter::Backups) ? ""
-                                                                   : " archive";
+            = (opposite == RestoreContext::JobTypeFilter::Backup) ? ""
+                                                                  : " archive";
         const char* alternative_command
-            = (opposite == RestoreContext::JobTypeFilter::Backups)
+            = (opposite == RestoreContext::JobTypeFilter::Backup)
                   ? "normal restore"
                   : "restore archive";
         ua->SendMsg(
