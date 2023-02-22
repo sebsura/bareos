@@ -1343,6 +1343,7 @@ bool BareosDb::AccurateGetJobids(JobControlRecord* jcr,
   jobids->clear();
 
   char job_type = jr->JobType == JT_ARCHIVE ? 'A' : 'B';
+  Dmsg1(300, "AccurateGetJobids: Looking for jobs of type '%c'.\n", job_type);
   // First, find the last good Full backup for this job/client/fileset
   FillQuery(query, SQL_QUERY::create_temp_accurate_jobids,
             edit_uint64(jcr->JobId, jobid), edit_uint64(jr->ClientId, clientid),
