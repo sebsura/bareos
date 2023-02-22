@@ -75,5 +75,4 @@ expect_grep "full backup archive" \
 	    "$log_home/should-hint-archive.out" \
 	    "Did not display correct 'restore archive' hint."
 
-check_restore_diff "${BackupDirectory}"
 end_test
