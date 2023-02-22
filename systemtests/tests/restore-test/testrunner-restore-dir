@@ -13,6 +13,7 @@ export TestName
 
 #shellcheck source=../scripts/functions
 . "${rscripts}"/functions
+. functions
 
 start_test
 
@@ -23,13 +24,13 @@ fi
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out /dev/null
 setdebug level=100 storage=File
-@$out /tmp/log1.out
+@$out $log_home/log1.out
 status director
 status client
 status storage=File
-@$out $tmp/jobs.out
+@$out $log_home/jobs.out
 list jobs
-@$out $tmp/restore-dir.out
+@$out $log_home/restore-dir.out
 restore where=$tmp/bareos-restores/
 11
 1
@@ -44,15 +45,10 @@ END_OF_DATA
 run_bconsole
 check_for_zombie_jobs storage=File
 
-# check the most current jobs list form $tmp/jobs.out and check that it is
-# indeed a backup
-if ! grep "1 | backup-bareos-fd" "$tmp/jobs.out" | tail -n 1 | grep "| B" > /dev/null; then
-    echo "Job 1 has to always be a backup job at the start of a test."
-    exit 5
-fi
+check_preconditions
 
 expect_grep "Start Restore Job" \
-	    "$tmp/restore-dir.out" \
+	    "$log_home/restore-dir.out" \
 	    "The restore job was not started."
 
 check_restore_diff "$dir"
