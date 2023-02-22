@@ -9,8 +9,6 @@ set -u
 TestName="$(basename "$(pwd)")"
 export TestName
 
-JobName=backup-bareos-fd
-
 #shellcheck source=../environment.in
 . ./environment
 
