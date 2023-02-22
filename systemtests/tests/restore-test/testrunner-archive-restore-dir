@@ -13,6 +13,7 @@ export TestName
 
 #shellcheck source=../scripts/functions
 . "${rscripts}"/functions
+#shellcheck source=functions
 . functions
 
 start_test
