@@ -13,6 +13,7 @@ export TestName
 
 #shellcheck source=../scripts/functions
 . "${rscripts}"/functions
+. functions
 
 start_test
 
@@ -28,20 +29,22 @@ done
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out /dev/null
 setdebug level=10 storage=File
-@$out /tmp/log1.out
+@$out $log_home/log1.out
 status director
 status client
 status storage=File
 wait
 messages
+@$out $log_home/jobs.out
+list jobs
+@$out $log_home/should-work.out
 update jobid=1 jobtype=A
-@$out $tmp/should-work.out
 restore archive client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores \
 	file=$file1 \
 	done yes
 wait
 messages
-@$out $tmp/restore-from-selected-job.out
+@$out $log_home/restore-from-selected-job.out
 restore archive
 12
 1
@@ -50,7 +53,7 @@ done
 yes
 wait
 messages
-@$out $tmp/restore-from-list-and-time.out
+@$out $log_home/restore-from-list-and-time.out
 restore archive
 8
 $(( $(date +%Y) + 1))
@@ -70,27 +73,22 @@ END_OF_DATA
 run_bconsole
 check_for_zombie_jobs storage=File
 
-# check the most current jobs list form $tmp/jobs.out and check that it is
-# indeed a backup
-if ! grep "1 | backup-bareos-fd" "$tmp/jobs.out" | tail -n 1 | grep "| B" > /dev/null; then
-    echo "Job 1 has to always be a backup job at the start of a test."
-    exit 5
-fi
+check_preconditions
 
 expect_grep "Start Restore Job" \
-	    "$tmp/should-work.out" \
+	    "$log_home/should-work.out" \
 	    "The first restore job was not started."
 
 expect_grep "Start Restore Job" \
-	    "$tmp/restore-from-selected-job.out" \
+	    "$log_home/restore-from-selected-job.out" \
 	    "The second restore job was not started."
 
 expect_grep "Start Restore Job" \
-	    "$tmp/restore-from-list-and-time.out" \
+	    "$log_home/restore-from-list-and-time.out" \
 	    "The third restore job was not started."
 
 expect_grep "1 file selected to be restored." \
-	    "$tmp/should-work.out" \
+	    "$log_home/should-work.out" \
  	    "Expected success; found failure"
 
 if ! cmp -s "$tmp/bareos-restores/$file1" "$file1"; then

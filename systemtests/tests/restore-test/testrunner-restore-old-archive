@@ -17,6 +17,7 @@ JobName=backup-bareos-fd
 
 #shellcheck source=../scripts/functions
 . "${rscripts}"/functions
+. functions
 
 start_test
 
@@ -28,15 +29,15 @@ echo "i overwrite the file" > "$file"
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out /dev/null
 setdebug level=100 storage=File
-@$out /tmp/log1.out
+@$out $log_home/log1.out
 status director
 status client
 status storage=File
 wait
 messages
-@$out $tmp/jobs.out
+@$out $log_home/jobs.out
 list jobs
-@$out $tmp/create-newer-backup.out
+@$out $log_home/create-newer-backup.out
 update jobid=1 jobtype=A
 run job=$JobName
 yes
@@ -47,16 +48,16 @@ END_OF_DATA
 
 run_bconsole
 # find the new job id
-backupid=$(grep 'Job queued. JobId=' "$tmp/create-newer-backup.out" | sed -n -e 's/^.*JobId=//p')
+backupid=$(grep 'Job queued. JobId=' "$log_home/create-newer-backup.out" | sed -n -e 's/^.*JobId=//p')
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out /dev/null
 setdebug level=100 storage=File
-@$out /tmp/log1.out
+@$out $log_home/log1.out
 status director
 status client
 status storage=File
 wait
-@$out $tmp/restore-archive.out
+@$out $log_home/restore-archive.out
 restore archive
 5
 mark $file
@@ -71,8 +72,10 @@ run_bconsole
 
 check_for_zombie_jobs storage=File
 
+check_preconditions
+
 # since we changed the file they cannot be the same!
-if cmp -s "$tmp/bareos-restores/$file" "$file"; then
+if cmp -s "$log_home/bareos-restores/$file" "$file"; then
     exit 2
 fi
 

@@ -1,0 +1,19 @@
+runner_name=$(basename $0)
+log_home="$tmp/$runner_name"
+mkdir -p $log_home
+default_joblist="$log_home/jobs.out"
+check_preconditions ()
+{
+	joblist="${1:-$default_joblist}"
+	# check that job with jobid=1 is a backuvp
+	if ! grep "1 | backup-bareos-fd" "$joblist" | tail -n 1 | grep "| B" > /dev/null; then
+	   echo "Job 1 has to always be a backup job at the start of a test."
+	   exit 5
+	fi
+	# check that only one backup exists
+	if [ $(grep "| B" "$joblist" | wc -l) -ne	                   \
+	     $(grep "| B" "$joblist" | grep "1 | backup-bareos-fd"| wc -l) ]; then
+	   echo "There should only be one backup job."
+	   exit 6
+	fi
+}
