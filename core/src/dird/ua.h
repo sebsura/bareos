@@ -194,10 +194,10 @@ struct NameList {
 struct RestoreContext {
   enum class JobTypeFilter
   {
-    Backups,
-    Archives,
+    Backup,
+    Archive,
   };
-  JobTypeFilter job_filter = JobTypeFilter::Backups;
+  JobTypeFilter job_filter = JobTypeFilter::Backup;
 
   utime_t JobTDate = {0};
   uint32_t TotalFiles = 0;

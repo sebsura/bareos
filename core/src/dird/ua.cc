@@ -115,10 +115,10 @@ RunContext::~RunContext()
 char RestoreContext::FilterIdentifier(RestoreContext::JobTypeFilter filter)
 {
   switch (filter) {
-    case RestoreContext::JobTypeFilter::Archives: {
+    case RestoreContext::JobTypeFilter::Archive: {
       return 'A';
     } break;
-    case RestoreContext::JobTypeFilter::Backups: {
+    case RestoreContext::JobTypeFilter::Backup: {
       return 'B';
     } break;
     default: {
