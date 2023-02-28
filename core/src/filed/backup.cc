@@ -185,8 +185,8 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr,
     jcr->fd_impl->xattr_data->u.build->content = GetPoolMemory(PM_MESSAGE);
   }
 
-  std::optional FileLists = ListFiles(jcr, jcr->fd_impl->ff);
-  jcr->fd_impl->ff->linkhash = NULL;
+  std::optional FileLists = ListFiles(jcr, jcr->fd_impl->ff->fileset,
+				      jcr->fd_impl->ff->incremental);
   if (!FileLists || !SendFiles(jcr, jcr->fd_impl->ff, std::move(*FileLists),
 			       SaveFile, PluginSave))
   {
