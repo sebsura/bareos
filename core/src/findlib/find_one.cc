@@ -68,8 +68,6 @@ static inline FindFilesPacket* new_dir_ff_pkt(FindFilesPacket* ff_pkt)
   dir_ff_pkt->excluded_files_list = NULL;
   dir_ff_pkt->excluded_paths_list = NULL;
   dir_ff_pkt->linkhash = NULL;
-  dir_ff_pkt->fname_save = NULL;
-  dir_ff_pkt->link_save = NULL;
   dir_ff_pkt->ignoredir_fname = NULL;
 
   return dir_ff_pkt;
@@ -81,8 +79,6 @@ static void FreeDirFfPkt(FindFilesPacket* dir_ff_pkt)
   free(dir_ff_pkt->fname);
   free(dir_ff_pkt->link);
   FreePoolMemory(dir_ff_pkt->sys_fname);
-  if (dir_ff_pkt->fname_save) { FreePoolMemory(dir_ff_pkt->fname_save); }
-  if (dir_ff_pkt->link_save) { FreePoolMemory(dir_ff_pkt->link_save); }
   if (dir_ff_pkt->ignoredir_fname) {
     FreePoolMemory(dir_ff_pkt->ignoredir_fname);
   }

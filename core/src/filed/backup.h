@@ -68,8 +68,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr,
 bool EncodeAndSendAttributes(JobControlRecord* jcr,
                              FindFilesPacket* ff_pkt,
                              int& data_stream);
-void StripPath(FindFilesPacket* ff_pkt);
-void UnstripPath(FindFilesPacket* ff_pkt);
 
+PoolMem GetStrippedCanonicalName(const FindFilesPacket* ff_pkt);
 } /* namespace filedaemon */
 #endif  // BAREOS_FILED_BACKUP_H_
