@@ -203,11 +203,12 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr,
     jcr->fd_impl->xattr_data->u.build->content = GetPoolMemory(PM_MESSAGE);
   }
 
+  bool list_ok = true;
+  bool send_ok = true;
+  try {
   // buffer size chosen at random
   // todo: is there a better buffer size maybe ?
   auto [ins, outs] = CreateNecessaryChannels(jcr->fd_impl->ff->fileset, 50);
-  bool list_ok = true;
-  bool send_ok = true;
   std::thread list_thread{
       [](JobControlRecord* jcr, findFILESET* ff, bool incremental,
 	 time_t save_time,
@@ -228,6 +229,12 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr,
   }
 
   list_thread.join();
+  } catch (const std::exception& ex)
+  {
+	  send_ok = false;
+	  list_ok = false;
+	  Dmsg1(500, "Uncaught exception! Aborting. %s\n", ex.what());
+  }
 
   // join synchronizes threads, so its safe to read from list_ok now!
   if (!list_ok || !send_ok) {
