@@ -38,6 +38,7 @@
 #include "findlib/find_one.h"
 #include "lib/util.h"
 #include "lib/berrno.h"
+#include "hardlink.h"
 
 #include <memory>  // unique_ptr
 
@@ -680,7 +681,8 @@ auto SaveInList(channel::in<stated_file>& in, std::atomic<std::size_t>& num_skip
     }
 
     try {
-	    in.put({ff_pkt->fname, ff_pkt->statp});
+	    in.put({ff_pkt->fname, ff_pkt->statp, ff_pkt->delta_seq, ff_pkt->type,
+			    ff_pkt->volhas_attrlist ? std::make_optional(ff_pkt->hfsinfo) : std::nullopt});
     } catch (...) {
       num_skipped++;
       return 0;
@@ -816,6 +818,130 @@ int SendPluginInfo(JobControlRecord* jcr,
     return 1;
 }
 
+static bool CanBeHardLinked(struct stat& statp)
+{
+	bool hardlinked = false;
+	switch (statp.st_mode & S_IFMT)
+	{
+		case S_IFREG:
+		case S_IFCHR:
+		case S_IFBLK:
+		case S_IFIFO:
+#ifdef S_IFSOCK
+		case S_IFSOCK:
+#endif
+		{
+			hardlinked = true;
+		} break;
+	}
+	return hardlinked;
+}
+
+static bool SetupLink(FindFilesPacket* ff)
+{
+	switch (ff->statp.st_mode & S_IFMT)
+	{
+	case S_IFDIR: {
+		std::size_t len = strlen(ff->fname);
+		std::size_t max_len = len + 2; // for trailing / and 0
+		ff->link = (char*) malloc(max_len);
+		if (!ff->link) return false;
+		bstrncpy(ff->link, ff->fname, max_len);
+
+		// strip all trailing slashes and then add one
+		while (len >= 1 && IsPathSeparator(ff->link[len - 1])) { len--; }
+		ff->link[len++] = '/'; /* add back one */
+		ff->link[len] = '\0';
+	} break;
+	case S_IFLNK: {
+		ff->link = (char*)malloc(path_max + name_max + 102);
+		if (!ff->link) return false;
+		int size = readlink(ff->fname, ff->link, path_max + name_max + 101);
+		if (size < 0) {
+			free(ff->link);
+			return false;
+		}
+		ff->link[size] = 0;
+	} break;
+	}
+	return true;
+}
+
+static void CleanupLink(FindFilesPacket* ff)
+{
+	switch (ff->statp.st_mode & S_IFMT)
+	{
+	case S_IFDIR:
+	case S_IFLNK: {
+		free(ff->link);
+	} break;
+	}
+}
+
+static bool SetupFFPkt(FindFilesPacket* ff,
+                       char* fname,
+                       struct stat& statp,
+                       int delta_seq,
+                       int type,
+                       std::optional<HfsPlusInfo> hfsinfo)
+{
+  ff->fname     = fname;
+  ff->statp     = statp;
+  ff->delta_seq = delta_seq;
+  ff->type      = type;
+
+  ff->LinkFI = 0;
+  ff->no_read = false;
+  ff->linked = nullptr;
+  ff->link = nullptr;  // we may need to allocate memory here instead
+  if (!BitIsSet(FO_NO_HARDLINK, ff->flags) && statp.st_nlink > 1
+      && CanBeHardLinked(statp)) {
+    auto*& table = ff->linkhash;
+
+    if (!table) { table = new LinkHash(10000); }
+
+    auto [iter, _] = table->try_emplace(
+        Hardlink{ff->statp.st_dev, ff->statp.st_ino}, fname);
+    auto& hl = iter->second;
+    if (hl.FileIndex == 0) {
+      if (ff->type == FT_LNKSAVED) {
+        // this should only happen if something went wrong.
+        // we cannot base our hardlink on FT_LNKSAVED
+        // as that will not send any data.  We just have to
+        // throw an error here
+        return false;
+      }
+      ff->linked = &hl;
+      Dmsg2(400, "Added to hash FI=%d file=%s\n", ff->FileIndex,
+            hl.name.c_str());
+    } else if (bstrcmp(hl.name.c_str(), fname)) {
+      Dmsg2(400, "== Name identical skip FI=%d file=%s\n", hl.FileIndex, fname);
+      return false;
+    } else {
+      ff->link = hl.name.data();
+      ff->type = FT_LNKSAVED; /* Handle link, file already saved */
+      ff->LinkFI = hl.FileIndex;
+      ff->digest = hl.digest.data();
+      ff->digest_stream = hl.digest_stream;
+      ff->digest_len = hl.digest.size();
+
+      Dmsg3(400, "FT_LNKSAVED FI=%d LinkFI=%d file=%s\n", ff->FileIndex,
+            hl.FileIndex, hl.name.c_str());
+    }
+  }
+
+  if (!SetupLink(ff)) return false;
+
+  if (hfsinfo) {
+    ff->volhas_attrlist = true;
+    ff->hfsinfo = hfsinfo.value();
+  } else {
+    ff->volhas_attrlist = false;
+  }
+
+  return true;
+}
+
 int SendFiles(JobControlRecord* jcr,
               FindFilesPacket* ff,
               std::vector<channel::out<stated_file>> outs,
@@ -860,21 +986,25 @@ int SendFiles(JobControlRecord* jcr,
 			  ff->VerifyOpts, ff->AccurateOpts, ff->BaseJobOpts, ff->flags);
 		    // we only send the files that were supplied to us.
 		    // for this reason we disable recursion here!
-		    SetBit(FO_NO_RECURSION, ff->flags);
 
 		    std::optional<stated_file> file;
 		    while ((file = list.try_get())) {
-			    // ff->top_fname is const in everything but type
-			    // adding const there would change a lot of function signatures
-			    char* fname = file->first.data();
+			    char* fname = file->name.data();
 			    Dmsg1(debuglevel, "F %s\n", fname);
-			    ff->top_fname = (char*)fname;
-			    ff->statp = file->second;
-			    ff->has_stats = true;
-			    if (FindOneFile(jcr, ff, CreateCallback(FileSave), ff->top_fname,
-					    (dev_t)-1, false)
-				== 0) {
-				    return 0; /* error return */
+			    if(!SetupFFPkt(ff, fname, file->statp, file->delta_seq,
+					   file->type, file->hfsinfo))
+			    {
+				    return 0;
+			    }
+			    if (!FileSave(jcr, ff, false))
+			    {
+				    CleanupLink(ff);
+				    return 0;
+			    }
+			    else
+			    {
+				    CleanupLink(ff);
+				    if (ff->linked) { ff->linked->FileIndex = ff->FileIndex; }
 			    }
 			    if (jcr->IsJobCanceled()) { return 0; }
 		    }
