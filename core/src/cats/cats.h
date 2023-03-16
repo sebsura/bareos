@@ -890,9 +890,9 @@ class BareosDb : public BareosDbQueryEnum {
   void FillQuery(POOLMEM*& query, SQL_QUERY predefined_query, ...);
   void FillQuery(PoolMem& query, SQL_QUERY predefined_query, ...);
 
-  bool SqlQuery(SQL_QUERY query, ...);
-  bool SqlQuery(const char* query, int flags = 0);
-  bool SqlQuery(const char* query, DB_RESULT_HANDLER* ResultHandler, void* ctx);
+  [[nodiscard]] bool SqlQuery(SQL_QUERY query, ...);
+  [[nodiscard]] bool SqlQuery(const char* query, int flags = 0);
+  [[nodiscard]] bool SqlQuery(const char* query, DB_RESULT_HANDLER* ResultHandler, void* ctx);
 
   /* sql_update.c */
   bool UpdateJobStartRecord(JobControlRecord* jcr, JobDbRecord* jr);
