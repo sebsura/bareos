@@ -157,21 +157,33 @@ static int DoMediaPurge(BareosDb* mdb, MediaDbRecord* mr)
   }
   del.JobId = (JobId_t*)malloc(sizeof(JobId_t) * del.max_ids);
 
-  mdb->SqlQuery(query.c_str(), DeleteHandler, (void*)&del);
+  if (!mdb->SqlQuery(query.c_str(), DeleteHandler, (void*)&del)) {
+    Dmsg2(300, "Error while retrieving jod ids: %s (Num retrieved: %d)\n",
+	  mdb->strerror(), del.num_ids);
+  }
 
   for (i = 0; i < del.num_ids; i++) {
     Dmsg1(400, "Delete JobId=%d\n", del.JobId[i]);
     Mmsg(query, "DELETE FROM Job WHERE JobId=%s",
          edit_int64(del.JobId[i], ed1));
-    mdb->SqlQuery(query.c_str());
+    if (!mdb->SqlQuery(query.c_str())) {
+      Dmsg2(300, "Error while deleting jobs with jod id %d: %s\n",
+	    del.JobId[i], mdb->strerror());
+    }
 
     Mmsg(query, "DELETE FROM File WHERE JobId=%s",
          edit_int64(del.JobId[i], ed1));
-    mdb->SqlQuery(query.c_str());
+    if (!mdb->SqlQuery(query.c_str())) {
+      Dmsg2(300, "Error while deleting files with jod id %d: %s\n",
+	    del.JobId[i], mdb->strerror());
+    }
 
     Mmsg(query, "DELETE FROM JobMedia WHERE JobId=%s",
          edit_int64(del.JobId[i], ed1));
-    mdb->SqlQuery(query.c_str());
+    if (!mdb->SqlQuery(query.c_str())) {
+      Dmsg2(300, "Error while deleting jobmedias with jod id %d: %s\n",
+	    del.JobId[i], mdb->strerror());
+    }
   }
 
   free(del.JobId);
@@ -195,9 +207,7 @@ bool BareosDb::DeleteMediaRecord(JobControlRecord* jcr, MediaDbRecord* mr)
   }
 
   Mmsg(cmd, "DELETE FROM Media WHERE MediaId=%d", mr->MediaId);
-  SqlQuery(cmd);
-
-  return true;
+  return SqlQuery(cmd);
 }
 
 /**
@@ -221,16 +231,30 @@ bool BareosDb::PurgeMediaRecord(JobControlRecord* jcr, MediaDbRecord* mr)
 
 void BareosDb::PurgeFiles(const char* jobids)
 {
+  if (jobids == nullptr || *jobids == 0) {
+    Dmsg0(300, "Tried to purge empty jobid list.\n");
+    return;
+  }
+
   PoolMem query(PM_MESSAGE);
 
   Mmsg(query, "DELETE FROM File WHERE JobId IN (%s)", jobids);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error deleting files from jobids (%s): %s", jobids,
+	  strerror());
+  }
 
   Mmsg(query, "DELETE FROM BaseFiles WHERE JobId IN (%s)", jobids);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error deleting basefiles from jobids (%s): %s", jobids,
+	 strerror());
+  }
 
   Mmsg(query, "UPDATE Job SET PurgedFiles=1 WHERE JobId IN (%s)", jobids);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error updating job purged status for jobs with jobids (%s): %s", jobids,
+	 strerror());
+  }
 }
 
 void BareosDb::PurgeJobs(const char* jobids)
@@ -241,27 +265,48 @@ void BareosDb::PurgeJobs(const char* jobids)
   PurgeFiles(jobids);
 
   Mmsg(query, "DELETE FROM JobMedia WHERE JobId IN (%s)", jobids);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error while deleting job media for jobs with jobids (%s): %s", jobids,
+	 strerror());
+  }
 
   Mmsg(query, "DELETE FROM Log WHERE JobId IN (%s)", jobids);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error while deleting logs for jobs with jobids (%s): %s", jobids,
+	 strerror());
+  }
 
   Mmsg(query, "DELETE FROM RestoreObject WHERE JobId IN (%s)", jobids);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error while deleting restore objects for jobs with jobids (%s): %s", jobids,
+	 strerror());
+  }
 
   Mmsg(query, "DELETE FROM PathVisibility WHERE JobId IN (%s)", jobids);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error while deleting path visibility for jobs with jobids (%s): %s", jobids,
+	 strerror());
+  }
 
   Mmsg(query, "DELETE FROM NDMPJobEnvironment WHERE JobId IN (%s)", jobids);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error while deleting ndmp job environments for jobs with jobids (%s): %s", jobids,
+	 strerror());
+  }
 
   Mmsg(query, "DELETE FROM JobStats WHERE JobId IN (%s)", jobids);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error while deleting job status for jobs with jobids (%s): %s", jobids,
+	 strerror());
+  }
 
   UpgradeCopies(jobids);
 
   /* Now remove the Job record itself */
   Mmsg(query, "DELETE FROM Job WHERE JobId IN (%s)", jobids);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error while deleting jobs with jobids (%s): %s", jobids,
+	 strerror());
+  }
 }
 #endif /* HAVE_POSTGRESQL */
