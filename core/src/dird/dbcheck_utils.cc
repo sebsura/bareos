@@ -259,12 +259,14 @@ std::vector<std::string> get_orphaned_storages_names(BareosDb* db)
   return orphaned_storage_names_list;
 }
 
-void delete_storages(BareosDb* db, std::vector<int> storages_to_be_deleted)
+void delete_storages(BareosDb* db, const std::vector<int>& storages_to_be_deleted)
 {
-  for (auto const& storageid : storages_to_be_deleted) {
+  for (int storageid : storages_to_be_deleted) {
     std::string delete_query
         = "DELETE FROM storage WHERE storageid=" + std::to_string(storageid);
 
-    db->SqlQuery(delete_query.c_str(), nullptr, nullptr);
+    if (!db->SqlQuery(delete_query.c_str(), nullptr, nullptr)) {
+      Dmsg2("Could not delete storage %d: %s\n", storageid, db->strerror());
+    }
   }
 }
