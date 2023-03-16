@@ -546,6 +546,10 @@ bool BareosDb::UpdateNdmpLevelMapping(JobControlRecord* jcr,
  */
 void BareosDb::UpgradeCopies(const char* jobids)
 {
+  if (jobids == nullptr || *jobids == 0) {
+    Dmsg0(300, "Tried to upgrade copies, but given no jobids.\n");
+    return;
+  }
   PoolMem query(PM_MESSAGE);
 
   DbLocker _{this};
@@ -554,14 +558,19 @@ void BareosDb::UpgradeCopies(const char* jobids)
   FillQuery(query, BareosDb::SQL_QUERY::uap_upgrade_copies_oldest_job,
             JT_JOB_COPY, jobids, jobids);
 
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error while trying to upgrade oldest job from jobids (%s): %s\n",
+	 jobids, strerror());
+  }
 
   /* Now upgrade first copy to Backup */
   Mmsg(query,
        "UPDATE Job SET Type='B' " /* JT_JOB_COPY => JT_BACKUP  */
        "WHERE JobId IN ( SELECT JobId FROM cpy_tmp )");
-
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error while updating job type for copy jobs (jobids=%s): %s\n",
+	 jobids, strerror());
+  }
 
   // remove the worker job that copied it
   Mmsg(query,
@@ -569,8 +578,14 @@ void BareosDb::UpgradeCopies(const char* jobids)
        "WHERE Type='%c' "
        "AND priorjobid IN ( SELECT JobId FROM cpy_tmp )",
        JT_COPY);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(300, "Error while trying to delete copy job (jobids=%s): %s\n",
+	 jobids, strerror());
+  }
 
-  SqlQuery("DROP TABLE cpy_tmp");
+  if (!SqlQuery("DROP TABLE cpy_tmp")) {
+    Dmsg2(300, "Error while trying to drop temporary table (jobids=%s): %s\n",
+	 jobids, strerror());
+  }
 }
 #endif /* HAVE_POSTGRESQL */
