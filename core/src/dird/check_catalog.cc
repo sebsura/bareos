@@ -192,8 +192,12 @@ bool CheckCatalog(cat_op mode)
     }
     /* cleanup old job records */
     if (mode == UPDATE_AND_FIX) {
-      db->SqlQuery(BareosDb::SQL_QUERY::cleanup_created_job);
-      db->SqlQuery(BareosDb::SQL_QUERY::cleanup_running_job);
+      if (!db->SqlQuery(BareosDb::SQL_QUERY::cleanup_created_job) |
+	  !db->SqlQuery(BareosDb::SQL_QUERY::cleanup_running_job)) {
+	// use bitwise or since we do want to execute both even if one fails
+	// do not go to bail_out; just return false to signal an error
+	OK = false;
+      }
     }
 
     /* Set type in global for debugging */
