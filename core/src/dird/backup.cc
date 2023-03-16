@@ -330,7 +330,11 @@ bool SendAccurateCurrentFiles(JobControlRecord* jcr)
   // To be able to allocate the right size for htable
   Mmsg(buf, "SELECT sum(JobFiles) FROM Job WHERE JobId IN (%s)",
        jobids.GetAsString().c_str());
-  jcr->db->SqlQuery(buf.c_str(), DbListHandler, &nb);
+  if (!jcr->db->SqlQuery(buf.c_str(), DbListHandler, &nb)) {
+    Dmsg2(200, "Error on query: jobids=%s nb=%s\n", jobids.GetAsString().c_str(),
+	  nb.GetAsString().c_str());
+    return false;
+  }
   Dmsg2(200, "jobids=%s nb=%s\n", jobids.GetAsString().c_str(),
         nb.GetAsString().c_str());
   jcr->file_bsock->fsend("accurate files=%s\n", nb.GetAsString().c_str());
