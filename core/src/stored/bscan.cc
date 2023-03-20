@@ -650,7 +650,11 @@ static bool RecordCb(DeviceControlRecord* dcr, DeviceRecord* rec)
            * has already been bscan'd */
           Mmsg(sql_buffer, "SELECT count(*) from JobMedia where JobId=%d",
                jr.JobId);
-          db->SqlQuery(sql_buffer.c_str(), db_int64_handler, &jmr_count);
+          if (!db->SqlQuery(sql_buffer.c_str(), db_int64_handler, &jmr_count)) {
+	    Dmsg1(400, "sql error while trying to count job media entries"
+		  " of job %lld: %s\n",
+		  jr.JobId, db->strerror());
+	  }
           if (jmr_count.value > 0) {
             mjcr->sd_impl->insert_jobmedia_records = false;
           } else {

@@ -2758,7 +2758,11 @@ static bool wait_cmd(UaContext* ua, const char*)
   // We have to get JobStatus
   Mmsg(temp, "SELECT JobStatus FROM Job WHERE JobId='%s'",
        edit_int64(JobId, ed1));
-  ua->db->SqlQuery(temp.c_str(), StatusHandler, (void*)&jobstatus);
+  if (!ua->db->SqlQuery(temp.c_str(), StatusHandler, (void*)&jobstatus)) {
+    ua->ErrorMsg("%s", ua->db->strerror());
+    Dmsg1(400, "sql error while getting the job status: %s\n",
+	  ua->db->strerror());
+  }
 
   switch (jobstatus) {
     case JS_Error:

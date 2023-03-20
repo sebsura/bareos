@@ -1035,7 +1035,10 @@ static void UpdateSlots(UaContext* ua)
   }
 
   // First zap out any InChanger with StorageId=0
-  ua->db->SqlQuery("UPDATE Media SET InChanger=0 WHERE StorageId=0");
+  if (!ua->db->SqlQuery("UPDATE Media SET InChanger=0 WHERE StorageId=0")) {
+    Dmsg1(400, "sql error while trying to update InChanger: %s\n",
+	  ua->db->strerror());
+  }
 
   // Walk through the list updating the media records
   foreach_dlist (vl, vol_list->contents) {

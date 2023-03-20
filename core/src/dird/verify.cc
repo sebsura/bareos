@@ -820,7 +820,10 @@ void GetAttributesAndCompareToCatalog(JobControlRecord* jcr, JobId_t JobId)
        "AND File.MarkId!=%d AND File.PathId=Path.PathId ",
        JobId, jcr->JobId);
   /* MissingHandler is called for each file found */
-  jcr->db->SqlQuery(buf.c_str(), MissingHandler, (void*)jcr);
+  if (!jcr->db->SqlQuery(buf.c_str(), MissingHandler, (void*)jcr)) {
+    Dmsg2(200, "sql error with query '%s': %s\n",
+	  buf.c_str(), jcr->db->strerror());
+  }
   if (jcr->dir_impl->fn_printed) {
     jcr->setJobStatusWithPriorityCheck(JS_Differences);
   }

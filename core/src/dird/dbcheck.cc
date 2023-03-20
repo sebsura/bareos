@@ -215,7 +215,10 @@ static int DeleteIdList(const char* query, ID_LIST* id_list)
   for (int i = 0; i < id_list->num_ids; i++) {
     Bsnprintf(buf, sizeof(buf), query, edit_int64(id_list->Id[i], ed1));
     if (verbose) { printf(_("Deleting: %s\n"), buf); }
-    db->SqlQuery(buf, nullptr, nullptr);
+    if (!db->SqlQuery(buf, nullptr, nullptr)) {
+      Dmsg1(400, "sql error while deleting an id list: %s\n",
+	    db->strerror());
+    }
   }
   return 1;
 }
@@ -260,10 +263,16 @@ static void eliminate_duplicate_paths()
                   edit_int64(id_list.Id[0], ed1),
                   edit_int64(id_list.Id[j], ed2));
         if (verbose > 1) { printf("%s\n", buf); }
-        db->SqlQuery(buf, nullptr, nullptr);
+	if (!db->SqlQuery(buf)) {
+	  Dmsg1(400, "sql error while updating path id from %s to %s: %s\n",
+		ed1, ed2, db->strerror());
+	}
         Bsnprintf(buf, sizeof(buf), "DELETE FROM Path WHERE PathId=%s", ed2);
         if (verbose > 2) { printf("%s\n", buf); }
-        db->SqlQuery(buf, nullptr, nullptr);
+	if (!db->SqlQuery(buf)) {
+	  Dmsg1(400, "sql error while deleting paths with id %s: %s\n",
+		ed2, db->strerror());
+	}
       }
     }
     fflush(stdout);
@@ -374,7 +383,10 @@ static void eliminate_orphaned_path_records()
         char ed1[50];
         Bsnprintf(buf, sizeof(buf), "SELECT Path FROM Path WHERE PathId=%s",
                   edit_int64(id_list.Id[i], ed1));
-        db->SqlQuery(buf, PrintNameHandler, nullptr);
+        if (!db->SqlQuery(buf, PrintNameHandler, nullptr)) {
+	  Dmsg2(400, "sql error while fetching paths with id %s: %s\n",
+		ed1, db->strerror());
+	}
       }
       fflush(stdout);
     }
@@ -663,7 +675,10 @@ static void repair_bad_filenames()
       Bsnprintf(buf, sizeof(buf), "UPDATE File SET Name='%s' WHERE FileId=%s",
                 esc_name, edit_int64(id_list.Id[i], ed1));
       if (verbose > 1) { printf("%s\n", buf); }
-      db->SqlQuery(buf, nullptr, nullptr);
+      if (!db->SqlQuery(buf, nullptr, nullptr)) {
+	Dmsg1(400, "sql error while updating name: %s\n",
+	      db->strerror());
+      }
     }
     FreePoolMemory(name);
   }
@@ -717,7 +732,10 @@ static void repair_bad_paths()
       Bsnprintf(buf, sizeof(buf), "UPDATE Path SET Path='%s' WHERE PathId=%s",
                 esc_name, edit_int64(id_list.Id[i], ed1));
       if (verbose > 1) { printf("%s\n", buf); }
-      db->SqlQuery(buf, nullptr, nullptr);
+      if (!db->SqlQuery(buf, nullptr, nullptr)) {
+	Dmsg1(400, "sql error while updating paths: %s\n",
+	      db->strerror());
+      }
     }
     fflush(stdout);
     FreePoolMemory(name);

@@ -1709,7 +1709,11 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
     // track of it
     Mmsg(query, "UPDATE Job SET priorjobid='%s' WHERE JobId=%d", new_jobid,
          jcr->JobId);
-    jcr->db->SqlQuery(query.c_str());
+    if (!jcr->db->SqlQuery(query.c_str())) {
+      Jmsg(jcr, M_WARNING, 0,
+           "Error updating priorjobid: ERR=%s\n",
+           jcr->db->strerror());
+    }
 
     /*
      * See if we used a remote SD if so the mig_jcr contains
@@ -1742,7 +1746,10 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
          jcr->dir_impl->previous_jr.cStartTime,
          jcr->dir_impl->previous_jr.cEndTime,
          edit_uint64(jcr->dir_impl->previous_jr.JobTDate, ec1), new_jobid);
-    jcr->db->SqlQuery(query.c_str());
+    if (!jcr->db->SqlQuery(query.c_str())) {
+      Dmsg1(400 ,"sql error while updating the job time: %s\n",
+	    jcr->db->strerror());
+    }
 
     if (jcr->IsTerminatedOk()) {
       UaContext* ua;
@@ -1758,12 +1765,18 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
            */
           Mmsg(query, "UPDATE Job SET Type='%c' WHERE JobId=%s",
                (char)JT_MIGRATED_JOB, old_jobid);
-          mig_jcr->db->SqlQuery(query.c_str());
+          if (!mig_jcr->db->SqlQuery(query.c_str())) {
+	    Dmsg1(400, "sql error while updating job type: %s\n",
+		 mig_jcr->db->strerror());
+	  }
 
           // Move JobLog to new JobId
           Mmsg(query, "UPDATE Log SET JobId=%s WHERE JobId=%s", new_jobid,
                old_jobid);
-          mig_jcr->db->SqlQuery(query.c_str());
+          if (!mig_jcr->db->SqlQuery(query.c_str())) {
+	    Dmsg1(400, "sql error while updating job id: %s\n",
+		  mig_jcr->db->strerror());
+	  }
 
           /*
            * If we just migrated a NDMP job, we need to move the file MetaData
@@ -1773,13 +1786,17 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
            * via the FHDB interface here.
            */
           switch (jcr->dir_impl->res.client->Protocol) {
-            case APT_NDMPV2:
-            case APT_NDMPV3:
-            case APT_NDMPV4:
-              Mmsg(query, sql_migrate_ndmp_metadata, new_jobid, old_jobid,
-                   new_jobid);
-              mig_jcr->db->SqlQuery(query.c_str());
-              break;
+	  case APT_NDMPV2:
+	  case APT_NDMPV3:
+	  case APT_NDMPV4: {
+	    Mmsg(query, sql_migrate_ndmp_metadata, new_jobid, old_jobid,
+		 new_jobid);
+	    if (!mig_jcr->db->SqlQuery(query.c_str())) {
+	      Dmsg1(400, "sql error while migrating ndmp metadata: %s\n",
+		    mig_jcr->db->strerror());
+	    }
+
+	    } break;
             default:
               break;
           }
@@ -1795,44 +1812,55 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
 
           FreeUaContext(ua);
           break;
-        case JT_COPY:
-          /*
-           * If we terminated a Copy Job successfully we should:
-           * - Copy any Log records to the new JobId
-           * - Copy any MetaData of a NDMP backup
-           * - Set type="Job Copy" for the new job
-           */
-          Mmsg(query,
-               "INSERT INTO Log (JobId, Time, LogText ) "
-               "SELECT %s, Time, LogText FROM Log WHERE JobId=%s",
-               new_jobid, old_jobid);
-          mig_jcr->db->SqlQuery(query.c_str());
+      case JT_COPY: {
+	/*
+	 * If we terminated a Copy Job successfully we should:
+	 * - Copy any Log records to the new JobId
+	 * - Copy any MetaData of a NDMP backup
+	 * - Set type="Job Copy" for the new job
+	 */
+	Mmsg(query,
+	     "INSERT INTO Log (JobId, Time, LogText ) "
+	     "SELECT %s, Time, LogText FROM Log WHERE JobId=%s",
+	     new_jobid, old_jobid);
+	if (!mig_jcr->db->SqlQuery(query.c_str())) {
+	  Dmsg1(400, "sql error while updating log: %s\n",
+		mig_jcr->db->strerror());
+	}
 
-          /*
-           * If we just copied a NDMP job, we need to copy the file MetaData
-           * to the new job. The file MetaData is stored as hardlinks to the
-           * NDMP archive itself. And as we only clone the actual data in the
-           * storage daemon we need to add data normally send to the director
-           * via the FHDB interface here.
-           */
-          switch (jcr->dir_impl->res.client->Protocol) {
-            case APT_NDMPV2:
-            case APT_NDMPV3:
-            case APT_NDMPV4:
-              Mmsg(query, sql_copy_ndmp_metadata, new_jobid, old_jobid,
-                   new_jobid);
-              mig_jcr->db->SqlQuery(query.c_str());
-              break;
-            default:
-              break;
-          }
+	/*
+	 * If we just copied a NDMP job, we need to copy the file MetaData
+	 * to the new job. The file MetaData is stored as hardlinks to the
+	 * NDMP archive itself. And as we only clone the actual data in the
+	 * storage daemon we need to add data normally send to the director
+	 * via the FHDB interface here.
+	 */
+	switch (jcr->dir_impl->res.client->Protocol) {
+	case APT_NDMPV2:
+	case APT_NDMPV3:
+	case APT_NDMPV4: {
+	  Mmsg(query, sql_copy_ndmp_metadata, new_jobid, old_jobid,
+	       new_jobid);
+	  if (!mig_jcr->db->SqlQuery(query.c_str())) {
+	    Dmsg1(400, "sql error while copying ndmp metadata: %s\n",
+		  mig_jcr->db->strerror());
+	  }
 
-          Mmsg(query, "UPDATE Job SET Type='%c' WHERE JobId=%s",
-               (char)JT_JOB_COPY, new_jobid);
-          mig_jcr->db->SqlQuery(query.c_str());
-          break;
-        default:
-          break;
+	} break;
+	default:
+	  break;
+	}
+
+
+	Mmsg(query, "UPDATE Job SET Type='%c' WHERE JobId=%s",
+	     (char)JT_JOB_COPY, new_jobid);
+	if (!mig_jcr->db->SqlQuery(query.c_str())) {
+	  Dmsg1(400, "sql error while updating type: %s\n",
+		mig_jcr->db->strerror());
+	}
+      } break;
+      default:
+	break;
       }
     }
 
@@ -1923,7 +1951,10 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
     }
   } else if (jcr->dir_impl->HasSelectedJobs) {
     Mmsg(query, "DELETE FROM job WHERE JobId=%d", jcr->JobId);
-    jcr->db->SqlQuery(query.c_str());
+    if (!jcr->db->SqlQuery(query.c_str())) {
+      Dmsg1(400, "sql error while deleting job with id %lld: %s\n",
+	    jcr->JobId, jcr->db->strerror());
+    }
 
     switch (jcr->getJobStatus()) {
       case JS_Terminated:
@@ -1946,7 +1977,10 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
     }
   } else {
     Mmsg(query, "DELETE FROM job WHERE JobId=%d", jcr->JobId);
-    jcr->db->SqlQuery(query.c_str());
+    if (!jcr->db->SqlQuery(query.c_str())) {
+      Dmsg1(400, "sql error while deleting job with id %lld: %s\n",
+	    jcr->JobId, jcr->db->strerror());
+    }
     TermMsg = _("%s -- no files to %s");
   }
 

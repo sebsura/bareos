@@ -759,16 +759,25 @@ static void SendGlobalRestoreObjects(JobControlRecord* jcr,
   // Send restore objects for all jobs involved
   jcr->db->FillQuery(query, BareosDb::SQL_QUERY::get_restore_objects,
                      jcr->JobIds, FT_RESTORE_FIRST);
-  jcr->db->SqlQuery(query.c_str(), RestoreObjectHandler, (void*)octx);
+  if (!jcr->db->SqlQuery(query.c_str(), RestoreObjectHandler, (void*)octx)) {
+    Dmsg1(300, "Error while retrieving restore objects (FT_RESTORE_FIRST): %s\n",
+	  jcr->db->strerror());
+  }
 
   jcr->db->FillQuery(query, BareosDb::SQL_QUERY::get_restore_objects,
                      jcr->JobIds, FT_PLUGIN_CONFIG);
-  jcr->db->SqlQuery(query.c_str(), RestoreObjectHandler, (void*)octx);
+  if (!jcr->db->SqlQuery(query.c_str(), RestoreObjectHandler, (void*)octx)) {
+    Dmsg1(300, "Error while retrieving restore objects (FT_PLUGIN_CONFIG): %s\n",
+	  jcr->db->strerror());
+  }
 
   // Send config objects for the current restore job
   jcr->db->FillQuery(query, BareosDb::SQL_QUERY::get_restore_objects,
                      edit_uint64(jcr->JobId, ed1), FT_PLUGIN_CONFIG_FILLED);
-  jcr->db->SqlQuery(query.c_str(), RestoreObjectHandler, (void*)octx);
+  if (!jcr->db->SqlQuery(query.c_str(), RestoreObjectHandler, (void*)octx)) {
+    Dmsg1(300, "Error while retrieving restore objects (FT_PLUGIN_CONFIG_FILLED): %s\n",
+	  jcr->db->strerror());
+  }
 }
 
 static void SendJobSpecificRestoreObjects(JobControlRecord* jcr,
@@ -781,11 +790,17 @@ static void SendJobSpecificRestoreObjects(JobControlRecord* jcr,
   // Send restore objects for specific JobId.
   jcr->db->FillQuery(query, BareosDb::SQL_QUERY::get_restore_objects,
                      edit_uint64(JobId, ed1), FT_RESTORE_FIRST);
-  jcr->db->SqlQuery(query.c_str(), RestoreObjectHandler, (void*)octx);
+  if (!jcr->db->SqlQuery(query.c_str(), RestoreObjectHandler, (void*)octx)) {
+    Dmsg1(300, "Error while retrieving restore objects (FT_RESTORE_FIRST): %s\n",
+	  jcr->db->strerror());
+  }
 
   jcr->db->FillQuery(query, BareosDb::SQL_QUERY::get_restore_objects,
                      edit_uint64(JobId, ed1), FT_PLUGIN_CONFIG);
-  jcr->db->SqlQuery(query.c_str(), RestoreObjectHandler, (void*)octx);
+  if (!jcr->db->SqlQuery(query.c_str(), RestoreObjectHandler, (void*)octx)) {
+    Dmsg1(300, "Error while retrieving restore objects (FT_PLUGIN_CONFIG): %s\n",
+	  jcr->db->strerror());
+  }
 }
 
 bool SendRestoreObjects(JobControlRecord* jcr, JobId_t JobId, bool send_global)

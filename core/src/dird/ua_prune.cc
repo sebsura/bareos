@@ -366,7 +366,11 @@ static bool PruneDirectory(UaContext* ua, ClientResource* client)
   }
 
   DbLock(ua->db);
-  ua->db->SqlQuery(query.c_str());
+  if (!ua->db->SqlQuery(query.c_str())) {
+    Dmsg1(200, "sql error: %s\n", ua->db->strerror());
+    DbUnlock(ua->db);
+    goto bail_out;
+  }
   DbUnlock(ua->db);
 
   /* If we removed the entries from the file table without limiting it to a
@@ -392,7 +396,11 @@ static bool PruneDirectory(UaContext* ua, ClientResource* client)
     }
 
     DbLock(ua->db);
-    ua->db->SqlQuery(query.c_str());
+    if (!ua->db->SqlQuery(query.c_str())) {
+      Dmsg1(200, "sql error: %s\n", ua->db->strerror());
+      DbUnlock(ua->db);
+      goto bail_out;
+    }
     DbUnlock(ua->db);
   }
 
@@ -415,7 +423,9 @@ static bool PruneStats(UaContext* ua, utime_t retention)
   DbLock(ua->db);
   Mmsg(query, "DELETE FROM JobHisto WHERE JobTDate < %s",
        edit_int64(now - retention, ed1));
-  ua->db->SqlQuery(query.c_str());
+  if (!ua->db->SqlQuery(query.c_str())) {
+    Dmsg1(200, "sql error: %s\n", ua->db->strerror());
+  }
   DbUnlock(ua->db);
 
   ua->InfoMsg(_("Pruned Jobs from JobHisto in catalog.\n"));
@@ -424,14 +434,18 @@ static bool PruneStats(UaContext* ua, utime_t retention)
 
   DbLock(ua->db);
   Mmsg(query, "DELETE FROM DeviceStats WHERE SampleTime < '%s'", dt);
-  ua->db->SqlQuery(query.c_str());
+  if (!ua->db->SqlQuery(query.c_str())) {
+    Dmsg1(200, "sql error: %s\n", ua->db->strerror());
+  }
   DbUnlock(ua->db);
 
   ua->InfoMsg(_("Pruned Statistics from DeviceStats in catalog.\n"));
 
   DbLock(ua->db);
   Mmsg(query, "DELETE FROM JobStats WHERE SampleTime < '%s'", dt);
-  ua->db->SqlQuery(query.c_str());
+  if (!ua->db->SqlQuery(query.c_str())) {
+    Dmsg1(200, "sql error: %s\n", ua->db->strerror());
+  }
   DbUnlock(ua->db);
 
   ua->InfoMsg(_("Pruned Statistics from JobStats in catalog.\n"));
@@ -544,8 +558,11 @@ bool PruneFiles(UaContext* ua, ClientResource* client, PoolResource* pool)
   Mmsg(query, "SELECT JobId FROM Job %s WHERE PurgedFiles=0 %s ORDER BY JobId",
        sql_from.c_str(), sql_where.c_str());
   Dmsg1(050, "select sql=%s\n", query.c_str());
-  ua->db->SqlQuery(query.c_str(), FileDeleteHandler,
-                   static_cast<void*>(&prune_list));
+  if (!ua->db->SqlQuery(query.c_str(), FileDeleteHandler,
+			static_cast<void*>(&prune_list))) {
+    Dmsg1(400, "sql error while fetching files to purge: %s\n",
+	  ua->db->strerror());
+  }
 
   PurgeFilesFromJobList(ua, prune_list);
 
@@ -558,7 +575,11 @@ bool PruneFiles(UaContext* ua, ClientResource* client, PoolResource* pool)
 
 static void DropTempTables(UaContext* ua)
 {
-  ua->db->SqlQuery(BareosDb::SQL_QUERY::drop_deltabs);
+  if (!ua->db->SqlQuery(BareosDb::SQL_QUERY::drop_deltabs)) {
+    ua->ErrorMsg("%s", ua->db->strerror());
+    Dmsg1(400, "sql error while trying to drop temp tables: %s\n",
+	  ua->db->strerror());
+  }
 }
 
 static bool CreateTempTables(UaContext* ua)

@@ -257,7 +257,9 @@ bool DoNativeVbackup(JobControlRecord* jcr)
   std::string query = "SELECT JobId, Type, ClientId, FilesetId, PurgedFiles "s
                       + "FROM Job WHERE JobId IN ("s + jobids + ")"s;
 
-  jcr->db->SqlQuery(query.c_str(), ObjectHandler<decltype(cc)>, &cc);
+  if (!jcr->db->SqlQuery(query.c_str(), ObjectHandler<decltype(cc)>, &cc)) {
+    Dmsg1(200, "sql error: %s\n", jcr->db->strerror());
+  }
 
   if (!cc.CheckNumJobs(jobid_list.size())) {
     for (auto& missing_job : cc.JobListDiff(jobid_list)) {
@@ -442,7 +444,11 @@ void NativeVbackupCleanup(JobControlRecord* jcr, int TermCode, int JobLevel)
        jcr->dir_impl->previous_jr.cEndTime,
        edit_uint64(jcr->dir_impl->previous_jr.JobTDate, ec1),
        edit_uint64(jcr->JobId, ec2));
-  jcr->db->SqlQuery(query.c_str());
+
+  if (!jcr->db->SqlQuery(query.c_str())) {
+    Jmsg(jcr, M_WARNING, 0,
+	 "Error updating job time: ERR=%s\n", jcr->db->strerror());
+  }
 
   // Get the fully updated job record
   if (!jcr->db->GetJobRecord(jcr, &jcr->dir_impl->jr)) {

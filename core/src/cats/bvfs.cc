@@ -268,7 +268,10 @@ void BareosDb::BvfsUpdateCache(JobControlRecord* jcr)
        "WHERE HasCache = 0 "
        "AND Type IN ('B','A','a') AND JobStatus IN ('T', 'W', 'f', 'A') "
        "ORDER BY JobId");
-  SqlQuery(cmd, DbListHandler, &jobids_list);
+  if (!SqlQuery(cmd, DbListHandler, &jobids_list)) {
+    Dmsg1(200, "sql error: %s\n",
+	  strerror());
+  }
 
   BvfsUpdatePathHierarchyCache(jcr, jobids_list.GetAsString().c_str());
 
@@ -321,7 +324,11 @@ int BareosDb::BvfsLsDirs(PoolMem& query, void* ctx)
 
   DbLocker _{this};
 
-  SqlQuery(query.c_str(), PathHandler, ctx);
+  if (!SqlQuery(query.c_str(), PathHandler, ctx)) {
+    Dmsg0(200, "sql error with query '%s': %s\n",
+	  query.c_str(),
+	  strerror());
+  }
   // FIXME: SqlNumRows() is always 0 after SqlQuery.
   // nb_record = SqlNumRows();
 
@@ -337,7 +344,11 @@ int BareosDb::BvfsBuildLsFileQuery(PoolMem& query,
   Dmsg1(dbglevel_sql, "q=%s\n", query.c_str());
 
   DbLocker _{this};
-  SqlQuery(query.c_str(), ResultHandler, ctx);
+  if (!SqlQuery(query.c_str(), ResultHandler, ctx)) {
+    Dmsg0(200, "sql error with query '%s': %s\n",
+	  query.c_str(),
+	  strerror());
+  }
   // FIXME: SqlNumRows() is always 0 after SqlQuery.
   // nb_record = SqlNumRows();
 
@@ -520,7 +531,10 @@ void Bvfs::GetAllFileVersions(DBId_t pathid,
   db->FillQuery(query, BareosDb::SQL_QUERY::bvfs_versions_6, fname_esc,
                 edit_uint64(pathid, ed1), client_esc, filter.c_str(), limit,
                 offset);
-  db->SqlQuery(query.c_str(), list_entries, user_data);
+  if (!db->SqlQuery(query.c_str(), list_entries, user_data)) {
+    Dmsg3(200, "sql error: %s\n",
+	  db->strerror());
+  }
 }
 
 DBId_t Bvfs::get_root()
@@ -672,18 +686,24 @@ static bool CheckTemp(char* output_table)
 
 void Bvfs::clear_cache()
 {
-  db->SqlQuery(BareosDb::SQL_QUERY::bvfs_clear_cache_0);
+  if (!db->SqlQuery(BareosDb::SQL_QUERY::bvfs_clear_cache_0)) {
+    Dmsg0(200, "sql error: %s\n", db->strerror());
+  }
 }
 
 bool Bvfs::DropRestoreList(char* output_table)
 {
   PoolMem query(PM_MESSAGE);
-  if (CheckTemp(output_table)) {
-    Mmsg(query, "DROP TABLE %s", output_table);
-    db->SqlQuery(query.c_str());
-    return true;
+  if (!CheckTemp(output_table)) {
+    Dmsg0(200, "warning: trying to drop bad restore list %s\n", output_table);
+    return false;
   }
-  return false;
+  Mmsg(query, "DROP TABLE %s", output_table);
+  if (!db->SqlQuery(query.c_str())) {
+    Dmsg0(200, "sql error: %s\n", db->strerror());
+    return false;
+  }
+  return true;
 }
 
 bool Bvfs::compute_restore_list(char* fileid,
@@ -710,10 +730,18 @@ bool Bvfs::compute_restore_list(char* fileid,
 
   /* Cleanup old tables first */
   Mmsg(query, "DROP TABLE btemp%s", output_table);
-  db->SqlQuery(query.c_str());
+  if (!db->SqlQuery(query.c_str())) {
+    Dmsg2(200, "sql error while dropping temp table btemp%s: %s\n",
+	  output_table,
+	  db->strerror());
+  }
 
   Mmsg(query, "DROP TABLE %s", output_table);
-  db->SqlQuery(query.c_str());
+  if (!db->SqlQuery(query.c_str())) {
+    Dmsg2(200, "sql error while dropping table %s: %s\n",
+	  output_table,
+	  db->strerror());
+  }
 
   Mmsg(query, "CREATE TABLE btemp%s AS ", output_table);
 
@@ -840,7 +868,11 @@ bool Bvfs::compute_restore_list(char* fileid,
 
 bail_out:
   Mmsg(query, "DROP TABLE btemp%s", output_table);
-  db->SqlQuery(query.c_str());
+  if (!db->SqlQuery(query.c_str())) {
+    Dmsg2(200, "sql error while dropping temp table btemp%s: %s\n",
+	  output_table,
+	  db->strerror());
+  }
   return retval;
 }
 

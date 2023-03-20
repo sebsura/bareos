@@ -74,7 +74,7 @@ std::vector<int> get_deletable_storageids(
     BareosDb* db,
     std::vector<std::string> orphaned_storage_names_list);
 std::vector<std::string> get_orphaned_storages_names(BareosDb* db);
-void delete_storages(BareosDb* db, std::vector<int> storages_to_be_deleted);
+void delete_storages(BareosDb* db, const std::vector<int>& storages_to_be_deleted);
 
 
 #endif  // BAREOS_DIRD_DBCHECK_UTILS_H_

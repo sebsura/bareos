@@ -242,7 +242,11 @@ static bool PurgeFilesFromClient(UaContext* ua, ClientResource* client)
 
   Mmsg(query, select_jobIds_from_client.c_str(), edit_int64(cr.ClientId, ed1));
   Dmsg1(050, "select sql=%s\n", query.c_str());
-  ua->db->SqlQuery(query.c_str(), FileDeleteHandler, static_cast<void*>(&del));
+  if (!ua->db->SqlQuery(query.c_str(), FileDeleteHandler, static_cast<void*>(&del))) {
+    Dmsg1(400, "sql error while fetching jobids to purge: %s\n",
+	  ua->db->strerror());
+    return false;
+  }
 
   if (del.empty()) {
     ua->WarningMsg(
@@ -290,7 +294,11 @@ static bool PurgeJobsFromClient(UaContext* ua, ClientResource* client)
 
   Mmsg(query, select_jobs_from_client.c_str(), edit_int64(cr.ClientId, ed1));
   Dmsg1(150, "select sql=%s\n", query.c_str());
-  ua->db->SqlQuery(query.c_str(), JobDeleteHandler, static_cast<void*>(&del));
+  if (!ua->db->SqlQuery(query.c_str(), JobDeleteHandler, static_cast<void*>(&del))) {
+    Dmsg1(400, "sql error while fetching jobs to purge: %s\n",
+	  ua->db->strerror());
+    return false;
+  }
 
   if (del.empty()) {
     ua->WarningMsg(_("No Jobs found for client %s to purge from %s catalog.\n"),

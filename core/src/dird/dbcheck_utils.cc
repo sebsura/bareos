@@ -266,7 +266,7 @@ void delete_storages(BareosDb* db, const std::vector<int>& storages_to_be_delete
         = "DELETE FROM storage WHERE storageid=" + std::to_string(storageid);
 
     if (!db->SqlQuery(delete_query.c_str(), nullptr, nullptr)) {
-      Dmsg2("Could not delete storage %d: %s\n", storageid, db->strerror());
+      Dmsg2(200, "Could not delete storage %d: %s\n", storageid, db->strerror());
     }
   }
 }

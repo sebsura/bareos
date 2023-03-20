@@ -796,7 +796,9 @@ bool BareosDb::WriteBatchFileRecords(JobControlRecord* jcr)
 
   if (!jcr->db_batch->SqlQuery(SQL_QUERY::batch_fill_path_query)) {
     Jmsg1(jcr, M_FATAL, 0, "Fill Path table %s\n", errmsg);
-    jcr->db_batch->SqlQuery(SQL_QUERY::batch_unlock_tables_query);
+    if (!jcr->db_batch->SqlQuery(SQL_QUERY::batch_unlock_tables_query)) {
+      Jmsg1(jcr, M_FATAL, 0, "Unlock Path table %s\n", errmsg);
+    }
     goto bail_out;
   }
 
@@ -823,7 +825,9 @@ bool BareosDb::WriteBatchFileRecords(JobControlRecord* jcr)
 
 
 bail_out:
-  SqlQuery("DROP TABLE batch");
+  if (!SqlQuery("DROP TABLE batch")) {
+    Dmsg0(200, "sql error while dropping table batch: %s\n", strerror());
+  }
   jcr->batch_started = false;
   changes = 0;
 
@@ -1022,11 +1026,19 @@ bool BareosDb::CreateBaseFileAttributesRecord(JobControlRecord* jcr,
 void BareosDb::CleanupBaseFile(JobControlRecord* jcr)
 {
   PoolMem buf(PM_MESSAGE);
-  Mmsg(buf, "DROP TABLE new_basefile%lld", (uint64_t)jcr->JobId);
-  SqlQuery(buf.c_str());
+  Mmsg(buf, "DROP TABLE new_basefile%llu", (uint64_t)jcr->JobId);
+  if (SqlQuery(buf.c_str())) {
+    Dmsg2(200, "sql error while trying to drop table new_basefile%llu: %s\n",
+	  (uint64_t)jcr->JobId,
+	  strerror());
+  }
 
-  Mmsg(buf, "DROP TABLE basefile%lld", (uint64_t)jcr->JobId);
-  SqlQuery(buf.c_str());
+  Mmsg(buf, "DROP TABLE basefile%llu", (uint64_t)jcr->JobId);
+  if (!SqlQuery(buf.c_str())) {
+    Dmsg2(200, "sql error while trying to drop table basefile%llu: %s\n",
+	  (uint64_t)jcr->JobId,
+	  strerror());
+  }
 }
 
 /**

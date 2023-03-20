@@ -1407,7 +1407,10 @@ bool BareosDb::AccurateGetJobids(JobControlRecord* jcr,
 
 bail_out:
   Mmsg(query, "DROP TABLE btemp3%s", jobid);
-  SqlQuery(query.c_str());
+  if (!SqlQuery(query.c_str())) {
+    Dmsg2(200, "sql error while dropping temp table 'btemp3%s': %s\n",
+	  jobid, strerror());
+  }
   return retval;
 }
 

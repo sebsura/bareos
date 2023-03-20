@@ -1298,8 +1298,10 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   char filter_name = RestoreContext::FilterIdentifier(rx->job_filter);
 
   // Create temp tables
-  ua->db->SqlQuery(BareosDb::SQL_QUERY::uar_del_temp);
-  ua->db->SqlQuery(BareosDb::SQL_QUERY::uar_del_temp1);
+  // these might not exist yet; if they dont this will throw an error
+  // TODO: update the query to handle the case where the table does not exist
+  (void)ua->db->SqlQuery(BareosDb::SQL_QUERY::uar_del_temp);
+  (void)ua->db->SqlQuery(BareosDb::SQL_QUERY::uar_del_temp1);
 
   if (!ua->db->SqlQuery(BareosDb::SQL_QUERY::uar_create_temp)) {
     ua->ErrorMsg("%s\n", ua->db->strerror());
@@ -1493,8 +1495,14 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   }
 
 bail_out:
-  ua->db->SqlQuery(BareosDb::SQL_QUERY::drop_deltabs);
-  ua->db->SqlQuery(BareosDb::SQL_QUERY::uar_del_temp1);
+  if (!ua->db->SqlQuery(BareosDb::SQL_QUERY::drop_deltabs)) {
+    Dmsg1(400, "sql error while dropping deltabs: %s\n",
+	  ua->db->strerror());
+  }
+  if (!ua->db->SqlQuery(BareosDb::SQL_QUERY::uar_del_temp1)) {
+    Dmsg1(400, "sql error while deleting temp1 tables: %s\n",
+	  ua->db->strerror());
+  }
 
   return ok;
 }
