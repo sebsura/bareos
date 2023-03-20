@@ -239,24 +239,31 @@ bool IsInFileset(FindFilesPacket* ff)
 bool AcceptFile(FindFilesPacket* ff)
 {
   struct accept_file_timing {
-    accept_file_timing(FindFilesPacket* ff_pkt) : start(std::chrono::steady_clock::now())
-					      , ff_pkt(ff_pkt)
+    accept_file_timing(FindFilesPacket* ff_pkt,
+		       bool& result) : start(std::chrono::steady_clock::now())
+				     , ff_pkt(ff_pkt)
+				     , result(result)
     {}
 
     ~accept_file_timing() {
       std::chrono::time_point<std::chrono::steady_clock> end = std::chrono::steady_clock::now();
       std::chrono::nanoseconds diff = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
       Dmsg2(400,
-	    "AcceptFile took %lldns (%s)\n",
+	    "AcceptFile %s\n"
+	    "  -Time: %lldns\n"
+	    "  -Result: %s\n",
+	    ff_pkt->fname,
 	    diff.count(),
-	    ff_pkt->fname);
+	    result ? "accept" : "reject");
       ff_pkt->accept_total += diff;
     }
 
     std::chrono::time_point<std::chrono::steady_clock> start;
     FindFilesPacket* ff_pkt;
+    bool& result;
   };
-  accept_file_timing timing{ff};
+  bool rtn = false;
+  accept_file_timing timing{ff, rtn};
   int i, j, k;
   int fnm_flags;
   const char* basename;
@@ -296,9 +303,9 @@ bool AcceptFile(FindFilesPacket* ff)
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             Dmsg2(debuglevel, "Exclude wilddir: %s file=%s\n",
                   (char*)fo->wilddir.get(k), ff->fname);
-            return false; /* reject dir */
+            return (rtn = false); /* reject dir */
           }
-          return true; /* accept dir */
+          return (rtn = true); /* accept dir */
         }
       }
     } else {
@@ -309,9 +316,9 @@ bool AcceptFile(FindFilesPacket* ff)
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             Dmsg2(debuglevel, "Exclude wildfile: %s file=%s\n",
                   (char*)fo->wildfile.get(k), ff->fname);
-            return false; /* reject file */
+            return (rtn = false); /* reject file */
           }
-          return true; /* accept file */
+          return (rtn = true); /* accept file */
         }
       }
 
@@ -321,9 +328,9 @@ bool AcceptFile(FindFilesPacket* ff)
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             Dmsg2(debuglevel, "Exclude wildbase: %s file=%s\n",
                   (char*)fo->wildbase.get(k), basename);
-            return false; /* reject file */
+            return (rtn = false); /* reject file */
           }
-          return true; /* accept file */
+          return (rtn = true); /* accept file */
         }
       }
     }
@@ -334,9 +341,9 @@ bool AcceptFile(FindFilesPacket* ff)
         if (BitIsSet(FO_EXCLUDE, ff->flags)) {
           Dmsg2(debuglevel, "Exclude wild: %s file=%s\n",
                 (char*)fo->wild.get(k), ff->fname);
-          return false; /* reject file */
+          return (rtn = false); /* reject file */
         }
-        return true; /* accept file */
+        return (rtn = true); /* accept file */
       }
     }
 
@@ -345,9 +352,9 @@ bool AcceptFile(FindFilesPacket* ff)
         if (regexec((regex_t*)fo->regexdir.get(k), ff->fname, 0, NULL, 0)
             == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
-            return false; /* reject file */
+            return (rtn = false); /* reject file */
           }
-          return true; /* accept file */
+          return (rtn = true); /* accept file */
         }
       }
     } else {
@@ -355,17 +362,17 @@ bool AcceptFile(FindFilesPacket* ff)
         if (regexec((regex_t*)fo->regexfile.get(k), ff->fname, 0, NULL, 0)
             == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
-            return false; /* reject file */
+            return (rtn = false); /* reject file */
           }
-          return true; /* accept file */
+          return (rtn = true); /* accept file */
         }
       }
     }
 
     for (k = 0; k < fo->regex.size(); k++) {
       if (regexec((regex_t*)fo->regex.get(k), ff->fname, 0, NULL, 0) == 0) {
-        if (BitIsSet(FO_EXCLUDE, ff->flags)) { return false; /* reject file */ }
-        return true; /* accept file */
+        if (BitIsSet(FO_EXCLUDE, ff->flags)) { return (rtn = false); /* reject file */ }
+        return (rtn = true); /* accept file */
       }
     }
 
@@ -375,7 +382,7 @@ bool AcceptFile(FindFilesPacket* ff)
         && fo->wilddir.size() == 0 && fo->regexfile.size() == 0
         && fo->wildfile.size() == 0 && fo->wildbase.size() == 0) {
       Dmsg1(debuglevel, "Empty options, rejecting: %s\n", ff->fname);
-      return false; /* reject file */
+      return (rtn = false); /* reject file */
     }
   }
 
@@ -392,7 +399,7 @@ bool AcceptFile(FindFilesPacket* ff)
         if (fnmatch((char*)fo->wild.get(k), ff->fname, fnmode | fnm_flags)
             == 0) {
           Dmsg1(debuglevel, "Reject wild1: %s\n", ff->fname);
-          return false; /* reject file */
+          return (rtn = false); /* reject file */
         }
       }
     }
@@ -405,12 +412,12 @@ bool AcceptFile(FindFilesPacket* ff)
 
       if (fnmatch(fname, ff->fname, fnmode | fnm_flags) == 0) {
         Dmsg1(debuglevel, "Reject wild2: %s\n", ff->fname);
-        return false; /* reject file */
+        return (rtn = false); /* reject file */
       }
     }
   }
 
-  return true;
+  return (rtn = true);
 }
 
 /**
