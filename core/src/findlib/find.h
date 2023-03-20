@@ -260,6 +260,9 @@ struct FindFilesPacket {
    * To avoid clutter, we always include rsrc_bfd and volhas_attrlist. */
   bool volhas_attrlist{false};  /**< Volume supports getattrlist() */
   HfsPlusInfo hfsinfo;          /**< Finder Info and resource fork size */
+
+  std::chrono::nanoseconds accept_total{0};
+  std::chrono::nanoseconds send_total{0};
 };
 /* clang-format on */
 
