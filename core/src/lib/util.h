@@ -90,4 +90,28 @@ std::string TPAsString(const std::chrono::system_clock::time_point& tp);
 regex_t* StringToRegex(const char* input);
 void to_lower(std::string& s);
 
+struct SplitDuration {
+  std::chrono::hours h;
+  std::chrono::minutes m;
+  std::chrono::seconds s;
+  std::chrono::milliseconds ms;
+  std::chrono::microseconds us;
+  std::chrono::nanoseconds ns;
+
+  template <typename Duration> SplitDuration(Duration d)
+  {
+    using namespace std::chrono;
+    h = duration_cast<hours>(d);
+    d -= h;
+    m = duration_cast<minutes>(d);
+    d -= m;
+    s = duration_cast<seconds>(d);
+    d -= s;
+    ms = duration_cast<milliseconds>(d);
+    d -= ms;
+    us = duration_cast<microseconds>(d);
+    d -= us;
+    ns = duration_cast<nanoseconds>(d);
+  }
+};
 #endif  // BAREOS_LIB_UTIL_H_
