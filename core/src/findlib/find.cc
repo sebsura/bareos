@@ -239,23 +239,27 @@ bool IsInFileset(FindFilesPacket* ff)
 bool AcceptFile(FindFilesPacket* ff)
 {
   struct accept_file_timing {
-    accept_file_timing(FindFilesPacket* ff_pkt,
-		       bool& result) : start(std::chrono::steady_clock::now())
-				     , ff_pkt(ff_pkt)
-				     , result(result)
-    {}
+    accept_file_timing(FindFilesPacket* ff_pkt, bool& result)
+        : start(std::chrono::steady_clock::now())
+        , ff_pkt(ff_pkt)
+        , result(result)
+    {
+    }
 
-    ~accept_file_timing() {
-      std::chrono::time_point<std::chrono::steady_clock> end = std::chrono::steady_clock::now();
-      std::chrono::nanoseconds diff = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    ~accept_file_timing()
+    {
+      std::chrono::time_point<std::chrono::steady_clock> end
+          = std::chrono::steady_clock::now();
+      std::chrono::nanoseconds diff
+          = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
       using seconds_double = std::chrono::duration<double>;
       Dmsg2(400,
-	    "AcceptFile %s\n"
-	    "  -Time: %.2lfs\n"
-	    "  -Result: %s\n",
-	    ff_pkt->fname,
-	    std::chrono::duration_cast<seconds_double>(diff).count(),
-	    result ? "accept" : "reject");
+            "AcceptFile %s\n"
+            "  -Time: %.2lfs\n"
+            "  -Result: %s\n",
+            ff_pkt->fname,
+            std::chrono::duration_cast<seconds_double>(diff).count(),
+            result ? "accept" : "reject");
       ff_pkt->accept_total += diff;
     }
 
@@ -372,7 +376,9 @@ bool AcceptFile(FindFilesPacket* ff)
 
     for (k = 0; k < fo->regex.size(); k++) {
       if (regexec((regex_t*)fo->regex.get(k), ff->fname, 0, NULL, 0) == 0) {
-        if (BitIsSet(FO_EXCLUDE, ff->flags)) { return (rtn = false); /* reject file */ }
+        if (BitIsSet(FO_EXCLUDE, ff->flags)) {
+          return (rtn = false); /* reject file */
+        }
         return (rtn = true); /* accept file */
       }
     }
