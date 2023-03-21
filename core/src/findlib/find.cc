@@ -350,11 +350,8 @@ bool AcceptFile(FindFilesPacket* ff)
     FindFilesPacket* ff_pkt;
     bool& result;
   };
-  accept_file_timing timing{ff, rtn};
-  accept_file_timing timing{ff};
   bool rtn = false;
-  int i, j, k;
-  int fnm_flags;
+  accept_file_timing timing{ff, rtn};
   const char* basename;
   findFILESET* fileset = ff->fileset;
   findIncludeExcludeItem* incexe = fileset->incexe;
