@@ -94,6 +94,7 @@ struct save_file_timing {
       , reading(0)
       , acling{0}
       , xattring{0}
+      , sending_sd{0}
   {
   }
 
@@ -119,6 +120,7 @@ struct save_file_timing {
 
     std::string checksum_str{};
     std::string signing_str{};
+    std::string sending_str{};
     std::string read_str{};
     std::string throughput_str{};
 
@@ -133,6 +135,12 @@ struct save_file_timing {
       signing_str = fmt::format("     -computing signage: {} ({:6.2f}%)\n",
                                 FormatDuration(signing).c_str(),
                                 signing.count() / (double)ns);
+    }
+
+    if (sending_sd.count()) {
+      sending_str = fmt::format("     -sending to sd: {} ({:6.2f}%)\n",
+                                FormatDuration(sending_sd).c_str(),
+                                sending_sd.count() / (double)ns);
     }
 
     if (sending.count()) {
@@ -162,6 +170,7 @@ struct save_file_timing {
     ff_pkt->sending_total += sending;
     ff_pkt->xattr_total += xattring;
     ff_pkt->acl_total += acling;
+    ff_pkt->sd_total += sending_sd;
   }
 
   std::optional<std::chrono::time_point<std::chrono::steady_clock>> start;
@@ -172,6 +181,7 @@ struct save_file_timing {
   std::chrono::nanoseconds reading;
   std::chrono::nanoseconds acling;
   std::chrono::nanoseconds xattring;
+  std::chrono::nanoseconds sending_sd;
 };
 
 /* Forward referenced functions */
@@ -362,6 +372,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 
   auto saving_total = jcr->fd_impl->ff->saving_total;
   auto sending_total = jcr->fd_impl->ff->sending_total;
+  auto sd_total = jcr->fd_impl->ff->sd_total;
   auto xattr_total = jcr->fd_impl->ff->xattr_total;
   auto acl_total = jcr->fd_impl->ff->acl_total;
   auto accept_total = jcr->fd_impl->ff->accept_total;
@@ -376,6 +387,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   auto signing_ns = signing_total.count();
   auto reading_ns = reading_total.count();
   auto sending_ns = sending_total.count();
+  auto sd_ns = sd_total.count();
   auto xattr_ns = xattr_total.count();
   auto acl_ns = acl_total.count();
 
@@ -385,6 +397,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   double signing_pc = (double)signing_ns / (double)saving_ns;
   double reading_pc = (double)reading_ns / (double)saving_ns;
   double sending_pc = (double)sending_ns / (double)saving_ns;
+  double sd_pc = (double)sd_ns / (double)sending_ns;
   double xattr_pc = (double)xattr_ns / (double)saving_ns;
   double acl_pc = (double)acl_ns / (double)saving_ns;
 
@@ -400,6 +413,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
         "  *Time spent    %s\n"
         "    -Saving:     %s (%6.2lf%%)\n"
         "      -Sending:  %s (%6.2lf%%)\n"
+        "        -To Sd:  %s (%6.2lf%%)\n"
         "      -Checksum: %s (%6.2lf%%)\n"
         "      -Signing:  %s (%6.2lf%%)\n"
         "      -Reading:  %s (%6.2lf%%)\n"
@@ -412,6 +426,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
         jcr->JobId, FormatDuration(total_time).c_str(),
         FormatDuration(saving_total).c_str(), 100 * saving_pc,
         FormatDuration(sending_total).c_str(), 100 * sending_pc,
+        FormatDuration(sd_total).c_str(), 100 * sd_pc,
         FormatDuration(checksum_total).c_str(), 100 * checksum_pc,
         FormatDuration(signing_total).c_str(), 100 * signing_pc,
         FormatDuration(reading_total).c_str(), 100 * reading_pc,
@@ -425,6 +440,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
         "  *Time spent    %s\n"
         "    -Saving:     %s (%6.2lf%%)\n"
         "      -Sending:  %s (%6.2lf%%)\n"
+        "        -To Sd:  %s (%6.2lf%%)\n"
         "      -Checksum: %s (%6.2lf%%)\n"
         "      -Signing:  %s (%6.2lf%%)\n"
         "      -Reading:  %s (%6.2lf%%)\n"
@@ -437,6 +453,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
         jcr->JobId, FormatDuration(total_time).c_str(),
         FormatDuration(saving_total).c_str(), 100 * saving_pc,
         FormatDuration(sending_total).c_str(), 100 * sending_pc,
+        FormatDuration(sd_total).c_str(), 100 * sd_pc,
         FormatDuration(checksum_total).c_str(), 100 * checksum_pc,
         FormatDuration(signing_total).c_str(), 100 * signing_pc,
         FormatDuration(reading_total).c_str(), 100 * reading_pc,
@@ -1212,7 +1229,6 @@ static inline bool SendDataToSd(b_ctx* bctx)
     std::chrono::time_point<std::chrono::steady_clock> end
         = std::chrono::steady_clock::now();
     if (bctx->timing) bctx->timing.value()->check(end - start);
-    // bctx->ff_pkt->checksum_total += end - start;
   }
 
   // Update signing digest if requested
@@ -1372,6 +1388,7 @@ static inline bool SendPlainData(b_ctx& bctx)
     if (bctx.timing) bctx.timing.value()->reading += (read_end - read_start);
     if (!SendDataToSd(&bctx)) { goto bail_out; }
     read_start = std::chrono::steady_clock::now();
+    if (bctx.timing) bctx.timing.value()->sending_sd += (read_start - read_end);
   }
   retval = true;
 
