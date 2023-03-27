@@ -1023,6 +1023,7 @@ struct stated_opened_file
   stated_file f;
   std::optional<BareosFilePacket> bfd;
   int fileset;
+  std::optional<std::vector<std::pair<std::string, int>>> acl;
 };
 
 void PrepareFileForSending(JobControlRecord* jcr,
@@ -1030,6 +1031,11 @@ void PrepareFileForSending(JobControlRecord* jcr,
 			   channel::in<stated_opened_file> in)
 {
   std::size_t closed_channels = 0;
+  acl_build_data_t build;
+  build.content = GetPoolMemory(PM_MESSAGE);
+  AclData acl;
+  acl.u.build = &build;
+  FindFilesPacket ff;
   while (closed_channels != outs.size()) {
     for (int i = 0; i < (int)outs.size(); ++i) {
       auto& out = outs[i];
@@ -1037,6 +1043,10 @@ void PrepareFileForSending(JobControlRecord* jcr,
       std::optional<stated_file> file;
       while ((file = out.try_get())) {
 	stated_file& f = file.value();
+	acl.last_fname = f.name.data();
+	acl.filetype   = f.type;
+	ff.statp       = f.statp;
+	auto acl_data = BuildAclStreams(jcr, &acl, &ff);
 	BareosFilePacket bfd;
 	binit(&bfd);
 	// if (BitIsSet(FO_PORTABLE, f.flags)) {
@@ -1074,12 +1084,14 @@ void PrepareFileForSending(JobControlRecord* jcr,
 		 f.name.c_str(), be.bstrerror());
 	    jcr->JobErrors++;
 	  } else {
-	    if (!in.put({f, std::make_optional(bfd), i})) {
+	    if (!in.put({f, std::make_optional(bfd), i, std::move(acl_data)})) {
+	      FreePoolMemory(build.content);
 	      return;
 	    }
 	  }
 	} else {
-	  if (!in.put({f, std::nullopt, i})) {
+	  if (!in.put({f, std::nullopt, i, std::move(acl_data)})) {
+	    FreePoolMemory(build.content);
 	    return;
 	  }
 	}
@@ -1089,6 +1101,7 @@ void PrepareFileForSending(JobControlRecord* jcr,
       }
     }
   }
+  FreePoolMemory(build.content);
 }
 
 int SendFiles(JobControlRecord* jcr,
@@ -1114,7 +1127,7 @@ int SendFiles(JobControlRecord* jcr,
 
     while (1) {
       if (std::optional opened_file = out.get(); opened_file) {
-	auto& [file, bfd, fileset_idx] = opened_file.value();
+	auto& [file, bfd, fileset_idx, acl_data] = opened_file.value();
 	fileset->incexe = fileset->include_list.get(fileset_idx);
 	char* fname = file.name.data();
 	SetupLastOptionBlock(ff, fileset->incexe);
@@ -1125,6 +1138,7 @@ int SendFiles(JobControlRecord* jcr,
 	  ret_val = 0;
 	  break;
 	}
+	ff->acl = acl_data;
 	if (!AcceptFile(ff)) {
 	  Dmsg1(debuglevel, "Did not accept file '%s'; skipping.\n",
 		ff->fname);

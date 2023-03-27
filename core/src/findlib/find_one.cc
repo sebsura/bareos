@@ -59,8 +59,9 @@ static inline FindFilesPacket* new_dir_ff_pkt(FindFilesPacket* ff_pkt)
   FindFilesPacket* dir_ff_pkt;
 
   dir_ff_pkt = (FindFilesPacket*)malloc(sizeof(FindFilesPacket));
+  new (dir_ff_pkt) FindFilesPacket{*ff_pkt};
 
-  *dir_ff_pkt = *ff_pkt;
+  // *dir_ff_pkt = *ff_pkt;
   dir_ff_pkt->fname = strdup(ff_pkt->fname);
   dir_ff_pkt->link = strdup(ff_pkt->link);
   dir_ff_pkt->sys_fname = GetPoolMemory(PM_FNAME);
