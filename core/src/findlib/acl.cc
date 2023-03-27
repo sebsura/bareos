@@ -1241,33 +1241,31 @@ static int os_access_acl_streams[1] = {STREAM_ACL_HURD_ACCESS_ACL};
 static int os_default_acl_streams[1] = {STREAM_ACL_HURD_DEFAULT_ACL};
 #        endif
 
-static bacl_exit_code generic_build_acl_streams(JobControlRecord* jcr,
-                                                AclData* acl_data,
-                                                FindFilesPacket*)
+static std::optional<std::vector<std::pair<std::string, int>>>
+generic_build_acl_streams(JobControlRecord* jcr,
+			  AclData* acl_data,
+			  FindFilesPacket*)
 {
+  std::vector<std::pair<std::string, int>> v{};
   // Read access ACLs for files, dirs and links
   if (generic_get_acl_from_os(jcr, acl_data, BACL_TYPE_ACCESS)
       == bacl_exit_fatal)
-    return bacl_exit_fatal;
+    return std::nullopt;
 
   if (acl_data->u.build->content_length > 0) {
-    if (SendAclStream(jcr, acl_data, os_access_acl_streams[0])
-        == bacl_exit_fatal)
-      return bacl_exit_fatal;
+    v.emplace_back(std::string{acl_data->u.build->content, acl_data->u.build->content_length}, os_access_acl_streams[0]);
   }
 
   // Directories can have default ACLs too
   if (acl_data->filetype == FT_DIREND) {
     if (generic_get_acl_from_os(jcr, acl_data, BACL_TYPE_DEFAULT)
         == bacl_exit_fatal)
-      return bacl_exit_fatal;
+      return std::nullopt;
     if (acl_data->u.build->content_length > 0) {
-      if (SendAclStream(jcr, acl_data, os_default_acl_streams[0])
-          == bacl_exit_fatal)
-        return bacl_exit_fatal;
+      v.emplace_back(std::string{acl_data->u.build->content, acl_data->u.build->content_length}, os_access_acl_streams[0]);
     }
   }
-  return bacl_exit_ok;
+  return v;
 }
 
 static bacl_exit_code generic_parse_acl_streams(JobControlRecord* jcr,
@@ -1308,10 +1306,10 @@ static bacl_exit_code generic_parse_acl_streams(JobControlRecord* jcr,
  * For this OSes setup the build and parse function pointer to the OS specific
  * functions.
  */
-static bacl_exit_code (*os_build_acl_streams)(JobControlRecord* jcr,
-                                              AclData* acl_data,
-                                              FindFilesPacket* ff_pkt)
-    = generic_build_acl_streams;
+static std::optional<std::vector<std::pair<std::string, int>>> (*os_build_acl_streams)(JobControlRecord* jcr,
+										       AclData* acl_data,
+										       FindFilesPacket* ff_pkt)
+= generic_build_acl_streams;
 static bacl_exit_code (*os_parse_acl_streams)(JobControlRecord* jcr,
                                               AclData* acl_data,
                                               int stream,
@@ -2101,9 +2099,9 @@ static bacl_exit_code afs_parse_acl_stream(JobControlRecord* jcr,
 // Entry points when compiled with support for ACLs on a supported platform.
 
 // Read and send an ACL for the last encountered file.
-bacl_exit_code BuildAclStreams(JobControlRecord* jcr,
-                               AclData* acl_data,
-                               FindFilesPacket* ff_pkt)
+std::optional<std::vector<std::pair<std::string, int>>> BuildAclStreams(JobControlRecord* jcr,
+									AclData* acl_data,
+									FindFilesPacket* ff_pkt)
 {
   /*
    * See if we are changing from one device to another.
@@ -2154,10 +2152,10 @@ bacl_exit_code BuildAclStreams(JobControlRecord* jcr,
       return os_build_acl_streams(jcr, acl_data, ff_pkt);
     }
   } else {
-    return bacl_exit_ok;
+    return std::vector<std::pair<std::string, int>>{};
   }
 #  endif
-  return bacl_exit_error;
+  return std::nullopt;
 }
 
 bacl_exit_code parse_acl_streams(JobControlRecord* jcr,

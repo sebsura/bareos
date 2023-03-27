@@ -102,9 +102,9 @@ struct AclData {
 bacl_exit_code SendAclStream(JobControlRecord* jcr,
                              AclData* acl_data,
                              int stream);
-bacl_exit_code BuildAclStreams(JobControlRecord* jcr,
-                               AclData* acl_data,
-                               FindFilesPacket* ff_pkt);
+std::optional<std::vector<std::pair<std::string, int>>> BuildAclStreams(JobControlRecord* jcr,
+									AclData* acl_data,
+									FindFilesPacket* ff_pkt);
 bacl_exit_code parse_acl_streams(JobControlRecord* jcr,
                                  AclData* acl_data,
                                  int stream,

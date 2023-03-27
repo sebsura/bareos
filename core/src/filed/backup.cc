@@ -742,8 +742,28 @@ static inline bool DoBackupAcl(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
 
   if (jcr->IsPlugin()) {
     retval = PluginBuildAclStreams(jcr, jcr->fd_impl->acl_data.get(), ff_pkt);
+  } else if (ff_pkt->acl) {
+    retval = bacl_exit_ok;
+    AclData* acl = jcr->fd_impl->acl_data.get();
+    for (auto& [data, stream] : *ff_pkt->acl) {
+      acl->u.build->content_length = data.size();
+      PmMemcpy(acl->u.build->content, data.data(), data.size() + 1);
+      retval = SendAclStream(jcr, acl, stream);
+      if (retval != bacl_exit_ok) break;
+    }
   } else {
-    retval = BuildAclStreams(jcr, jcr->fd_impl->acl_data.get(), ff_pkt);
+     auto vec = BuildAclStreams(jcr, jcr->fd_impl->acl_data.get(), ff_pkt);
+     if (vec) {
+       AclData* acl = jcr->fd_impl->acl_data.get();
+       for (auto& [data, stream] : *vec) {
+	 acl->u.build->content_length = data.size();
+	 PmMemcpy(acl->u.build->content, data.data(), data.size() + 1);
+	 retval = SendAclStream(jcr, acl, stream);
+	 if (retval != bacl_exit_ok) break;
+       }
+     } else {
+       retval = bacl_exit_error;
+     }
   }
 
   switch (retval) {

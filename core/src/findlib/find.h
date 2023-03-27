@@ -196,6 +196,8 @@ using LinkHash
  * first argument to the FindFiles callback subroutine.
  */
 /* clang-format off */
+struct FindFilesPacket;
+#include "acl.h"
 struct FindFilesPacket {
   char* top_fname{nullptr};          /**< Full filename before descending */
   char* fname{nullptr};              /**< Full filename */
@@ -265,6 +267,8 @@ struct FindFilesPacket {
   std::chrono::nanoseconds xattr_total{0}; /**< total amount of time spent reading files */
   std::chrono::nanoseconds acl_total{0};
   std::chrono::nanoseconds sd_total{0};
+
+  std::optional<std::vector<std::pair<std::string, int>>> acl{std::nullopt};
 };
 /* clang-format on */
 
