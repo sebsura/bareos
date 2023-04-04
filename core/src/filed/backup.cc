@@ -92,6 +92,91 @@ struct buffer {
   }
 };
 
+struct read_input {
+  channel::in<std::shared_ptr<const buffer>> data;
+  BareosFilePacket* bfd;
+  std::size_t buflen;
+};
+static void ReadData(channel::in<std::shared_ptr<const buffer>> data,
+		     BareosFilePacket* bfd,
+		     std::size_t buflen);
+void WaitForRead(channel::out<read_input> to_read) {
+  for (std::optional chan = to_read.get(); chan; chan = to_read.get()) {
+    ReadData(std::move(chan->data), chan->bfd, chan->buflen);
+  }
+}
+
+struct digest_input {
+  channel::out<std::shared_ptr<const buffer>> data;
+  DIGEST* digest;
+  DIGEST* signing_digest;
+};
+static void DigestData(channel::out<std::shared_ptr<const buffer>> out,
+		       DIGEST* digest, DIGEST* signing_digest);
+void WaitForDigest(channel::out<digest_input> to_read) {
+  for (std::optional chan = to_read.get(); chan; chan = to_read.get()) {
+    DigestData(std::move(chan->data), chan->digest, chan->signing_digest);
+  }
+}
+
+struct compress_input {
+  channel::out<std::shared_ptr<const buffer>> out;
+  channel::in<std::pair<std::shared_ptr<const buffer>, buffer>> in;
+  JobControlRecord* jcr;
+  std::size_t max_compress_len;
+  uint32_t compression;
+};
+static void Compress(channel::out<std::shared_ptr<const buffer>> out,
+		     channel::in<std::pair<std::shared_ptr<const buffer>, buffer>> in,
+		     JobControlRecord* jcr,
+		     std::size_t max_compress_len,
+		     uint32_t compression);
+void WaitForCompress(channel::out<compress_input> to_read) {
+  for (std::optional chan = to_read.get(); chan; chan = to_read.get()) {
+    Compress(std::move(chan->out),
+	     std::move(chan->in),
+	     chan->jcr,
+	     chan->max_compress_len,
+	     chan->compression);
+  }
+}
+
+struct useful_data {
+  std::thread reader;
+  std::thread digester;
+  std::thread compressor;
+
+  channel::in<read_input> to_read;
+  channel::in<digest_input> to_digest;
+  channel::in<compress_input> to_compress;
+
+
+  useful_data() {
+    auto [rin, rout] = channel::CreateBufferedChannel<read_input>(1);
+    auto [din, dout] = channel::CreateBufferedChannel<digest_input>(1);
+    auto [cin, cout] = channel::CreateBufferedChannel<compress_input>(1);
+
+    reader = std::thread{WaitForRead, std::move(rout)};
+    digester = std::thread{WaitForDigest, std::move(dout)};
+    compressor = std::thread{WaitForCompress, std::move(cout)};
+
+    to_read = std::move(rin);
+    to_digest = std::move(din);
+    to_compress = std::move(cin);
+  }
+
+  ~useful_data() {
+    // we have to join the threads before we can destruct them;
+    // we have to close the channels before we can join them
+    to_read.close();
+    to_digest.close();
+    to_compress.close();
+    reader.join();
+    digester.join();
+    compressor.join();
+  }
+};
+
 #ifdef HAVE_DARWIN_OS
 const bool have_darwin_os = true;
 #else
@@ -211,6 +296,9 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
     jcr->fd_impl->xattr_data->u.build->content = GetPoolMemory(PM_MESSAGE);
   }
 #if 1 && !defined(SEND_SERIAL)
+  useful_data data;
+
+  jcr->fd_impl->internal = &data;
   // jcr->fd_impl->ff is only used by the sending thread
   // since it should just send the files it was given, we set
   // incremental & accurate to false so it does not double check them
@@ -270,6 +358,8 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   {
 	  jcr->fd_impl->num_files_examined += list_ok.value();
   }
+
+  jcr->fd_impl->internal = nullptr;
 
   // join synchronizes threads, so its safe to read from list_ok now!
   if (!list_ok || !send_ok) {
@@ -1144,7 +1234,8 @@ bail_out:
 }
 #endif
 
-static void ReadData(channel::in<std::shared_ptr<const buffer>> data, BareosFilePacket* bfd,
+static void ReadData(channel::in<std::shared_ptr<const buffer>> data,
+		     BareosFilePacket* bfd,
 		     std::size_t buflen)
 {
   while (1) {
@@ -1246,24 +1337,32 @@ static inline bool SendCompressedData(b_ctx& bctx)
 
 
   auto [in, out] = channel::CreateBufferedChannel<sbuf>(actual_buf_count);
+  if (!((useful_data *)bctx.jcr->fd_impl->internal)->to_read.put({std::move(in), &bctx.ff_pkt->bfd,
+	(std::size_t)bctx.rsize})) {
+    return false;
+  }
   auto [cin, cout] = channel::CreateBufferedChannel<std::pair<sbuf, buffer>>(actual_buf_count);
-  std::thread compressor{Compress, std::move(out), std::move(cin),
+  if (!((useful_data *)bctx.jcr->fd_impl->internal)->to_compress.put({std::move(out), std::move(cin),
 			 bctx.jcr, bctx.max_compress_len,
-			 bctx.ff_pkt->Compress_algo};
-  auto [din, dout] = channel::CreateBufferedChannel<sbuf>(num_buffers);
+			 bctx.ff_pkt->Compress_algo})) {
+    return false;
+  }
 
-  std::thread reader(ReadData, std::move(in), &bctx.ff_pkt->bfd,
-		     bctx.rsize);
+  // std::thread reader(ReadData, std::move(in), &bctx.ff_pkt->bfd,
+  // 		     bctx.rsize);
 
   DIGEST* digest = nullptr;
   DIGEST* signing = nullptr;
 
+  auto [din, dout] = channel::CreateBufferedChannel<sbuf>(num_buffers);
+  if (!((useful_data *)bctx.jcr->fd_impl->internal)->to_digest.put({std::move(dout),
+	bctx.digest, bctx.signing_digest})) {
+    return false;
+  }
+
   // disable digesting inside SendDataToSd
   std::swap(digest, bctx.digest);
   std::swap(signing, bctx.signing_digest);
-
-  std::thread digester(DigestData, std::move(dout),
-		       digest, signing);
 
   for (std::optional bufs = cout.get(); bufs; bufs = cout.get()) {
     din.put(bufs->first);
@@ -1276,9 +1375,7 @@ static inline bool SendCompressedData(b_ctx& bctx)
   }
   cout.close();
   din.close();
-  digester.join();
-  compressor.join();
-  reader.join();
+  din.wait_till_empty();
   std::swap(digest, bctx.digest);
   std::swap(signing, bctx.signing_digest);
 
@@ -1324,20 +1421,23 @@ static inline bool SendPlainData(b_ctx& bctx)
   std::optional<std::thread> compressor;
 
   auto [in, out] = channel::CreateBufferedChannel<sbuf>(actual_buf_count);
-  auto [din, dout] = channel::CreateBufferedChannel<sbuf>(num_buffers);
-
-  std::thread reader(ReadData, std::move(in), &bctx.ff_pkt->bfd,
-		     bctx.rsize);
+  if (!((useful_data *)bctx.jcr->fd_impl->internal)->to_read.put({std::move(in), &bctx.ff_pkt->bfd,
+	(std::size_t)bctx.rsize})) {
+    return false;
+  }
 
   DIGEST* digest = nullptr;
   DIGEST* signing = nullptr;
 
+  auto [din, dout] = channel::CreateBufferedChannel<sbuf>(num_buffers);
+  if (!((useful_data *)bctx.jcr->fd_impl->internal)->to_digest.put({std::move(dout),
+	bctx.digest, bctx.signing_digest})) {
+    return false;
+  }
   // disable digesting inside SendDataToSd
   std::swap(digest, bctx.digest);
   std::swap(signing, bctx.signing_digest);
 
-  std::thread digester(DigestData, std::move(dout),
-		       digest, signing);
 
   for (std::optional buf = out.get(); buf; buf = out.get()) {
     din.put(*buf);
@@ -1350,8 +1450,7 @@ static inline bool SendPlainData(b_ctx& bctx)
   }
   out.close();
   din.close();
-  digester.join();
-  reader.join();
+  din.wait_till_empty();
   std::swap(digest, bctx.digest);
   std::swap(signing, bctx.signing_digest);
 
