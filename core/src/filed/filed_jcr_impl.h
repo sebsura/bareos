@@ -33,6 +33,7 @@ struct XattrData;
 
 namespace filedaemon {
 class BareosAccurateFilelist;
+struct SendContext;
 }
 
 /* clang-format off */
@@ -86,8 +87,7 @@ struct FiledJcrImpl {
 #ifdef HAVE_WIN32
   VSSClient* pVSSClient{};        /**< VSS Client Instance */
 #endif
-  // todo: type safety
-  void* internal{nullptr};
+  filedaemon::SendContext* send_ctx{nullptr};
 };
 /* clang-format on */
 
