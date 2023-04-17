@@ -191,7 +191,7 @@ static void CompressionWorker(channel::out<std::shared_ptr<compress_worker_input
 	     args->algorithm);
     // we need to explicitly drop the references to the channels
     // here since otherwise that will only happen once we receive the next
-    // input packet; this leads to a deadlock since we only get a next packet
+    // input packet; this leads to a deadlock since we only get the next packet
     // once this finishes!
     chan.reset();
   }
