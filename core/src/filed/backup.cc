@@ -188,12 +188,12 @@ static void SdSender(BareosSocket* sd, channel::out<std::variant<sd_data, int>> 
       sd->msg = to_send->data.addr();
       sd->message_length = to_send->size;
       sd->send();
+      sd->msg = save;
     } else {
       int signal = std::get<int>(*opt);
       sd->signal(signal);
     }
   }
-  sd->msg = save;
 }
 
 struct SendContext {
@@ -209,6 +209,7 @@ struct SendContext {
   channel::in<std::variant<sd_data, int>> to_sd;
 
   BareosSocket* sd_socket;
+  std::mutex sd_lock{};
 
   SendContext(JobControlRecord* jcr,
 	      std::size_t num_compress_workers,
@@ -230,7 +231,7 @@ struct SendContext {
     auto [sin, sout] = channel::CreateBufferedChannel<send_input>(1);
     auto [din, dout] = channel::CreateBufferedChannel<digest_input>(1);
     auto [cin, cout] = channel::CreateBufferedChannel<compress_input>(1);
-    auto [sdin, sdout] = channel::CreateBufferedChannel<std::variant<sd_data, int>>(100);
+    auto [sdin, sdout] = channel::CreateBufferedChannel<std::variant<sd_data, int>>(10000);
 
     sender = std::thread{WaitForSend, std::move(sout)};
     digester = std::thread{WaitForDigest, std::move(dout)};
@@ -267,12 +268,14 @@ static void SendMsgToSd(JobControlRecord* jcr, PoolMem m, std::size_t size) {
   // sd->message_length = size;
   // sd->send();
   // sd->msg = save;
+  std::unique_lock l(jcr->fd_impl->send_ctx->sd_lock);
   jcr->fd_impl->send_ctx->to_sd.put(sd_data{std::move(m), size});
 }
 
 static void SendSignalToSd(JobControlRecord* jcr, int signal) {
   // BareosSocket* sd = jcr->fd_impl->send_ctx->sd_socket;
   // sd->signal(signal);
+  std::unique_lock l(jcr->fd_impl->send_ctx->sd_lock);
   jcr->fd_impl->send_ctx->to_sd.put(signal);
 }
 
@@ -828,18 +831,18 @@ static bool TerminateSaveFile(b_save_ctx& bsctx)
   }
 
   // Save ACLs when requested and available for anything not being a symlink.
-  if (have_acl) {
-    if (BitIsSet(FO_ACL, ff_pkt->flags) && ff_pkt->type != FT_LNK) {
-      if (!DoBackupAcl(jcr, ff_pkt)) { return false; }
-    }
-  }
+  // if (have_acl) {
+  //   if (BitIsSet(FO_ACL, ff_pkt->flags) && ff_pkt->type != FT_LNK) {
+  //     if (!DoBackupAcl(jcr, ff_pkt)) { return false; }
+  //   }
+  // }
 
-  // Save Extended Attributes when requested and available for all files.
-  if (have_xattr) {
-    if (BitIsSet(FO_XATTR, ff_pkt->flags)) {
-      if (!DoBackupXattr(jcr, ff_pkt)) { return false; }
-    }
-  }
+  // // Save Extended Attributes when requested and available for all files.
+  // if (have_xattr) {
+  //   if (BitIsSet(FO_XATTR, ff_pkt->flags)) {
+  //     if (!DoBackupXattr(jcr, ff_pkt)) { return false; }
+  //   }
+  // }
 
   // Terminate the signing digest and send it to the Storage daemon
   if (bsctx.signing_digest) {
