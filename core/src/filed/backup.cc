@@ -261,19 +261,19 @@ struct SendContext {
 };
 
 static void SendMsgToSd(JobControlRecord* jcr, PoolMem m, std::size_t size) {
-  BareosSocket* sd = jcr->fd_impl->send_ctx->sd_socket;
-  POOLMEM* save = sd->msg;
-  sd->msg = m.addr();
-  sd->message_length = size;
-  sd->send();
-  sd->msg = save;
-  //jcr->fd_impl->send_ctx->to_sd.put(sd_data{std::move(m), size});
+  // BareosSocket* sd = jcr->fd_impl->send_ctx->sd_socket;
+  // POOLMEM* save = sd->msg;
+  // sd->msg = m.addr();
+  // sd->message_length = size;
+  // sd->send();
+  // sd->msg = save;
+  jcr->fd_impl->send_ctx->to_sd.put(sd_data{std::move(m), size});
 }
 
 static void SendSignalToSd(JobControlRecord* jcr, int signal) {
-  BareosSocket* sd = jcr->fd_impl->send_ctx->sd_socket;
-  sd->signal(signal);
-  //jcr->fd_impl->send_ctx->to_sd.put(signal);
+  // BareosSocket* sd = jcr->fd_impl->send_ctx->sd_socket;
+  // sd->signal(signal);
+  jcr->fd_impl->send_ctx->to_sd.put(signal);
 }
 
 #ifdef HAVE_DARWIN_OS
@@ -502,11 +502,10 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 
     AccurateFinish(jcr); /* send deleted or base file list to SD */
 
-    StopHeartbeatMonitor(jcr);
-
     jcr->fd_impl->send_ctx = nullptr;
   }
 
+  StopHeartbeatMonitor(jcr);
 
   sd->signal(BNET_EOD); /* end of sending data */
 
