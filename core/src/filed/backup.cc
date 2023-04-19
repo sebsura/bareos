@@ -49,6 +49,7 @@
 
 #include <thread>
 #include <future>
+#include <variant>
 
 namespace filedaemon {
 
@@ -175,19 +176,43 @@ static void CompressionWorker(channel::out<std::shared_ptr<compress_worker_input
   }
 }
 
+struct sd_data {
+  PoolMem data;
+  std::size_t size;
+};
+
+static void SdSender(BareosSocket* sd, channel::out<std::variant<sd_data, int>> chan) {
+  POOLMEM* save = sd->msg;
+  for (std::optional opt = chan.get(); opt; opt = chan.get()) {
+    if (sd_data* to_send = std::get_if<sd_data>(&*opt)) {
+      sd->msg = to_send->data.addr();
+      sd->message_length = to_send->size;
+      sd->send();
+    } else {
+      int signal = std::get<int>(*opt);
+      sd->signal(signal);
+    }
+  }
+  sd->msg = save;
+}
+
 struct SendContext {
   std::thread sender;
   std::thread digester;
   std::thread compressor;
-  std::vector<std::thread> compress_workers;
+  std::thread sd;
+  std::vector<std::thread> compress_workers{};
 
   channel::in<send_input> to_send;
   channel::in<digest_input> to_digest;
   channel::in<compress_input> to_compress;
+  channel::in<std::variant<sd_data, int>> to_sd;
 
+  BareosSocket* sd_socket;
 
   SendContext(JobControlRecord* jcr,
-	      std::size_t num_compress_workers) : compress_workers{} {
+	      std::size_t num_compress_workers,
+	      BareosSocket* sd_socket) : sd_socket{sd_socket} {
     if (num_compress_workers == 0) {
       // todo: warning message to jcr
       num_compress_workers = 1;
@@ -205,14 +230,17 @@ struct SendContext {
     auto [sin, sout] = channel::CreateBufferedChannel<send_input>(1);
     auto [din, dout] = channel::CreateBufferedChannel<digest_input>(1);
     auto [cin, cout] = channel::CreateBufferedChannel<compress_input>(1);
+    auto [sdin, sdout] = channel::CreateBufferedChannel<std::variant<sd_data, int>>(100);
 
     sender = std::thread{WaitForSend, std::move(sout)};
     digester = std::thread{WaitForDigest, std::move(dout)};
     compressor = std::thread{WaitForCompress, std::move(cout), std::move(compress_inputs)};
+    sd = std::thread{SdSender, sd_socket, std::move(sdout)};
 
     to_send = std::move(sin);
     to_digest = std::move(din);
     to_compress = std::move(cin);
+    to_sd = std::move(sdin);
   }
 
   ~SendContext() {
@@ -221,14 +249,32 @@ struct SendContext {
     to_send.close();
     to_digest.close();
     to_compress.close();
+    to_sd.close();
     sender.join();
     digester.join();
     compressor.join();
+    sd.join();
     for (auto& worker : compress_workers) {
       worker.join();
     }
   }
 };
+
+static void SendMsgToSd(JobControlRecord* jcr, PoolMem m, std::size_t size) {
+  BareosSocket* sd = jcr->fd_impl->send_ctx->sd_socket;
+  POOLMEM* save = sd->msg;
+  sd->msg = m.addr();
+  sd->message_length = size;
+  sd->send();
+  sd->msg = save;
+  //jcr->fd_impl->send_ctx->to_sd.put(sd_data{std::move(m), size});
+}
+
+static void SendSignalToSd(JobControlRecord* jcr, int signal) {
+  BareosSocket* sd = jcr->fd_impl->send_ctx->sd_socket;
+  sd->signal(signal);
+  //jcr->fd_impl->send_ctx->to_sd.put(signal);
+}
 
 #ifdef HAVE_DARWIN_OS
 const bool have_darwin_os = true;
@@ -351,7 +397,8 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 
   {
     // setup sending threads
-    SendContext data(jcr, 8);
+    constexpr std::size_t num_compression_threads = 8;
+    SendContext data(jcr, num_compression_threads, sd);
     jcr->fd_impl->send_ctx = &data;
 
 #if 1 && !defined(SEND_SERIAL)
