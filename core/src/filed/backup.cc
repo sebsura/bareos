@@ -536,8 +536,6 @@ static inline bool SaveRsrcAndFinder(b_save_ctx& bsctx)
 {
   char flags[FOPTS_BYTES];
   int rsrc_stream;
-  BareosSocket* sd = bsctx.jcr->store_bsock;
-  bool retval = false;
 
   if (bsctx.ff_pkt->hfsinfo.rsrclength > 0) {
     if (BopenRsrc(&bsctx.ff_pkt->bfd, bsctx.ff_pkt->fname, O_RDONLY | O_BINARY,
@@ -566,29 +564,30 @@ static inline bool SaveRsrcAndFinder(b_save_ctx& bsctx)
 
       memcpy(bsctx.ff_pkt->flags, flags, sizeof(flags));
       bclose(&bsctx.ff_pkt->bfd);
-      if (!status) { goto bail_out; }
+      if (!status) { return false; }
     }
   }
 
   Dmsg1(300, "Saving Finder Info for \"%s\"\n", bsctx.ff_pkt->fname);
-  sd->fsend("%ld %d 0", bsctx.jcr->JobFiles, STREAM_HFSPLUS_ATTRIBUTES);
-  Dmsg1(300, "filed>stored:header %s", sd->msg);
-  PmMemcpy(sd->msg, bsctx.ff_pkt->hfsinfo.fndrinfo, 32);
-  sd->message_length = 32;
+  PoolMem stream_header(PM_MESSAGE);
+  std::size_t size = Mmsg(stream_header, "%ld %d 0", bsctx.jcr->JobFiles, STREAM_HFSPLUS_ATTRIBUTES);
+  Dmsg1(300, "filed>stored:header %s", stream_header.c_str());
+  SendMsgToSd(bsctx.jcr, std::move(stream_header), size);
+  PoolMem FinderInfo(PM_MESSAGE);
+  PmMemcpy(FinderInfo, bsctx.ff_pkt->hfsinfo.fndrinfo, 32);
+  std::size_t finder_size = 32;
   if (bsctx.digest) {
-    CryptoDigestUpdate(bsctx.digest, (uint8_t*)sd->msg, sd->message_length);
+    CryptoDigestUpdate(bsctx.digest, (uint8_t*)FinderInfo.addr(), finder_size);
   }
   if (bsctx.signing_digest) {
-    CryptoDigestUpdate(bsctx.signing_digest, (uint8_t*)sd->msg,
-                       sd->message_length);
+    CryptoDigestUpdate(bsctx.signing_digest, (uint8_t*)FinderInfo.addr(),
+                       finder_size);
   }
-  sd->send();
-  sd->signal(BNET_EOD);
 
-  retval = true;
+  SendMsgToSd(bsctx.jcr, std::move(FinderInfo), finder_size);
+  SendSignalToSd(bsctx.jcr, BNET_EOD);
 
-bail_out:
-  return retval;
+  return true;
 }
 
 /**
@@ -669,7 +668,6 @@ static inline bool TerminateSigningDigest(b_save_ctx& bsctx)
   uint32_t size = 0;
   bool retval = false;
   SIGNATURE* signature = NULL;
-  BareosSocket* sd = bsctx.jcr->store_bsock;
 
   if ((signature = crypto_sign_new(bsctx.jcr)) == NULL) {
     Jmsg(bsctx.jcr, M_FATAL, 0,
@@ -691,25 +689,29 @@ static inline bool TerminateSigningDigest(b_save_ctx& bsctx)
     goto bail_out;
   }
 
-  // Grow the bsock buffer to fit our message if necessary
-  if (SizeofPoolMemory(sd->msg) < (int32_t)size) {
-    sd->msg = ReallocPoolMemory(sd->msg, size);
+  {
+    // Send our header
+    PoolMem header(PM_MESSAGE);
+    std::size_t header_size = Mmsg(header, "%ld %ld 0", bsctx.jcr->JobFiles,
+				   STREAM_SIGNED_DIGEST);
+    Dmsg1(300, "filed>stored:header %s", header.c_str());
+    SendMsgToSd(bsctx.jcr, std::move(header), header_size);
   }
 
-  // Send our header
-  sd->fsend("%ld %ld 0", bsctx.jcr->JobFiles, STREAM_SIGNED_DIGEST);
-  Dmsg1(300, "filed>stored:header %s", sd->msg);
-
-  // Encode signature data
-  if (!CryptoSignEncode(signature, (uint8_t*)sd->msg, &size)) {
-    Jmsg(bsctx.jcr, M_FATAL, 0,
-         _("An error occurred while signing the stream.\n"));
-    goto bail_out;
+  {
+    PoolMem digest(PM_MESSAGE);
+    // Grow the bsock buffer to fit our message
+    digest.ReallocPm(size);
+    // Encode signature data
+    if (!CryptoSignEncode(signature, (uint8_t*)digest.addr(), &size)) {
+      Jmsg(bsctx.jcr, M_FATAL, 0,
+	   _("An error occurred while signing the stream.\n"));
+      goto bail_out;
+    }
+    SendMsgToSd(bsctx.jcr, std::move(digest), size);
+    SendSignalToSd(bsctx.jcr, BNET_EOD);
   }
 
-  sd->message_length = size;
-  sd->send();
-  sd->signal(BNET_EOD); /* end of checksum */
   retval = true;
 
 bail_out:
@@ -720,34 +722,33 @@ bail_out:
 // Terminate any digest and send it to Storage daemon
 static inline bool TerminateDigest(b_save_ctx& bsctx)
 {
-  uint32_t size;
+  uint32_t size = CRYPTO_DIGEST_MAX_SIZE;
   bool retval = false;
-  BareosSocket* sd = bsctx.jcr->store_bsock;
 
-  sd->fsend("%ld %d 0", bsctx.jcr->JobFiles, bsctx.digest_stream);
-  Dmsg1(300, "filed>stored:header %s", sd->msg);
+  // Send our header
+  PoolMem header(PM_MESSAGE);
+  std::size_t header_size = Mmsg(header, "%ld %ld 0", bsctx.jcr->JobFiles,
+				 bsctx.digest_stream);
+  Dmsg1(300, "filed>stored:header %s", header.c_str());
+  SendMsgToSd(bsctx.jcr, std::move(header), header_size);
 
-  size = CRYPTO_DIGEST_MAX_SIZE;
-
-  // Grow the bsock buffer to fit our message if necessary
-  if (SizeofPoolMemory(sd->msg) < (int32_t)size) {
-    sd->msg = ReallocPoolMemory(sd->msg, size);
-  }
-
-  if (!CryptoDigestFinalize(bsctx.digest, (uint8_t*)sd->msg, &size)) {
+  PoolMem digest(PM_MESSAGE);
+  // Grow the bsock buffer to fit our message
+  digest.ReallocPm(size);
+  // Encode signature data
+  if (!CryptoDigestFinalize(bsctx.digest, (uint8_t*)digest.addr(), &size)) {
     Jmsg(bsctx.jcr, M_FATAL, 0,
-         _("An error occurred finalizing signing the stream.\n"));
+	 _("An error occurred while finalizing signing the stream.\n"));
     goto bail_out;
   }
-
   // Keep the checksum if this file is a hardlink
   if (bsctx.ff_pkt->linked) {
-    FfPktSetLinkDigest(bsctx.ff_pkt, bsctx.digest_stream, sd->msg, size);
+    FfPktSetLinkDigest(bsctx.ff_pkt, bsctx.digest_stream, digest.addr(), size);
   }
+  SendMsgToSd(bsctx.jcr, std::move(digest), size);
+  SendSignalToSd(bsctx.jcr, BNET_EOD);
 
-  sd->message_length = size;
-  sd->send();
-  sd->signal(BNET_EOD); /* end of checksum */
+
   retval = true;
 
 bail_out:
@@ -756,6 +757,7 @@ bail_out:
 
 static inline bool DoBackupAcl(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
 {
+  // todo: BuildAclStream also sends it to the sd here
   bacl_exit_code retval;
 
   jcr->fd_impl->acl_data->filetype = ff_pkt->type;
@@ -783,6 +785,7 @@ static inline bool DoBackupAcl(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
 
 static inline bool DoBackupXattr(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
 {
+  // todo: BuildXattrStream also sends it to the sd here
   BxattrExitCode retval;
 
   jcr->fd_impl->xattr_data->last_fname = jcr->fd_impl->last_fname;
@@ -815,7 +818,6 @@ static bool TerminateSaveFile(b_save_ctx& bsctx)
 {
   FindFilesPacket* ff_pkt = bsctx.ff_pkt;
   JobControlRecord* jcr = bsctx.jcr;
-  BareosSocket* sd = jcr->store_bsock;
   if (have_darwin_os) {
     // Regular files can have resource forks and Finder Info
     if (ff_pkt->type != FT_LNKSAVED
@@ -852,16 +854,81 @@ static bool TerminateSaveFile(b_save_ctx& bsctx)
   // Check if original file has a digest, and send it
   if (ff_pkt->type == FT_LNKSAVED && ff_pkt->digest) {
     Dmsg2(300, "Link %s digest %d\n", ff_pkt->fname, ff_pkt->digest_len);
-    sd->fsend("%ld %d 0", jcr->JobFiles, ff_pkt->digest_stream);
+    {
+      // Send our header
+      PoolMem header(PM_MESSAGE);
+      std::size_t header_size = Mmsg(header, "%ld %ld 0", jcr->JobFiles,
+				     ff_pkt->digest_stream);
+      SendMsgToSd(bsctx.jcr, std::move(header), header_size);
+    }
 
-    sd->msg = CheckPoolMemorySize(sd->msg, ff_pkt->digest_len);
-    memcpy(sd->msg, ff_pkt->digest, ff_pkt->digest_len);
-    sd->message_length = ff_pkt->digest_len;
-    sd->send();
-
-    sd->signal(BNET_EOD); /* end of hardlink record */
+    {
+      PoolMem digest(PM_MESSAGE);
+      PmMemcpy(digest, ff_pkt->digest, ff_pkt->digest_len);
+      SendMsgToSd(bsctx.jcr, std::move(digest), ff_pkt->digest_len);
+      SendSignalToSd(bsctx.jcr, BNET_EOD); /* end of hardlink record */
+    }
   }
 
+  return true;
+}
+
+// Send plugin name start/end record to SD
+static bool SendPluginName(JobControlRecord* jcr, bool start)
+{
+  int index = jcr->JobFiles;
+  save_pkt* sp = (save_pkt*)jcr->fd_impl->plugin_sp;
+
+  if (!sp) {
+    Jmsg0(jcr, M_FATAL, 0, _("Plugin save packet not found.\n"));
+    return false;
+  }
+  if (jcr->IsJobCanceled()) { return false; }
+
+  if (start) { index++; /* JobFiles not incremented yet */ }
+  Dmsg1(debug_level, "SendPluginName=%s\n", sp->cmd);
+
+  // Send stream header
+  PoolMem header(PM_MESSAGE);
+  std::size_t size = Mmsg(header, "%ld %d 0", index, STREAM_PLUGIN_NAME);
+  Dmsg1(debug_level, "send plugin name hdr: %s\n", header.c_str());
+  SendMsgToSd(jcr, std::move(header), size);
+
+  PoolMem data(PM_MESSAGE);
+  std::size_t data_size;
+  if (start) {
+    // Send data -- not much
+    data_size = Mmsg(data, "%ld 1 %d %s%c", index, sp->portable, sp->cmd, 0);
+  } else {
+    // Send end of data
+    data_size = Mmsg(data, "%ld 0", index);
+  }
+  Dmsg1(debug_level, "send plugin start/end: %s\n", data.c_str());
+  SendMsgToSd(jcr, std::move(data), data_size);
+  SendSignalToSd(jcr, BNET_EOD); /* indicate end of plugin name data */
+
+  return true;
+}
+
+bool CryptoSessionSend(JobControlRecord* jcr)
+{
+  /** Send our header */
+  Dmsg2(100, "Send hdr fi=%ld stream=%d\n", jcr->JobFiles,
+        STREAM_ENCRYPTED_SESSION_DATA);
+  PoolMem header(PM_MESSAGE);
+  std::size_t s = Mmsg(header, "%ld %d 0", jcr->JobFiles, STREAM_ENCRYPTED_SESSION_DATA);
+  SendMsgToSd(jcr, std::move(header), s);
+
+  CryptoContext& crypto = jcr->fd_impl->crypto;
+  PoolMem session(PM_MESSAGE);
+  PmMemcpy(session, crypto.pki_session_encoded,
+	   crypto.pki_session_encoded_size);
+  SendMsgToSd(jcr, std::move(session), crypto.pki_session_encoded_size);
+  SendSignalToSd(jcr, BNET_EOD);
+
+  jcr->JobBytes += crypto.pki_session_encoded_size;
+
+  Dmsg1(100, "Send data len=%d\n", crypto.pki_session_encoded_size);
   return true;
 }
 
@@ -885,7 +952,6 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   b_save_ctx bsctx;
   bool has_file_data = false;
   save_pkt sp; /* use by option plugin */
-  BareosSocket* sd = jcr->store_bsock;
 
   if (jcr->IsCanceled() || jcr->IsIncomplete()) { return 0; }
 
@@ -1063,7 +1129,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   if (do_plugin_set) {
     // Tell bfile that it needs to call plugin
     if (!SetCmdPlugin(&ff_pkt->bfd, jcr)) { goto bail_out; }
-    SendPluginName(jcr, sd, true); /* signal start of plugin data */
+    SendPluginName(jcr, true); /* signal start of plugin data */
     plugin_started = true;
   }
 
@@ -1078,7 +1144,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 
   // Set up the encryption context and send the session data to the SD
   if (has_file_data && jcr->fd_impl->crypto.pki_encrypt) {
-    if (!CryptoSessionSend(jcr, sd)) { goto bail_out; }
+    if (!CryptoSessionSend(jcr)) { goto bail_out; }
   }
 
   /* For a command plugin use the setting from the plugins savepkt no_read field
@@ -1159,7 +1225,7 @@ good_rtn:
 bail_out:
   if (jcr->IsIncomplete() || jcr->IsCanceled()) { rtnstat = 0; }
   if (plugin_started) {
-    SendPluginName(jcr, sd, false); /* signal end of plugin data */
+    SendPluginName(jcr, false); /* signal end of plugin data */
   }
   if (ff_pkt->opt_plugin) {
     jcr->fd_impl->plugin_sp = NULL; /* sp is local to this function */
