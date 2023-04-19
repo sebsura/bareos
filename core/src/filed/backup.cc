@@ -1243,9 +1243,10 @@ bail_out:
  * Handle the data just read and send it to the SD after doing any
  * postprocessing needed.
  */
-static inline bool SendDataToSd(b_ctx* bctx, std::optional<shared_buffer> precompressed = std::nullopt)
+static inline bool SendDataToSd(b_ctx* bctx,
+				shared_buffer data,
+				std::optional<shared_buffer> precompressed = std::nullopt)
 {
-  BareosSocket* sd = bctx->jcr->store_bsock;
   bool need_more_data;
 
   // Check for sparse blocks
@@ -1254,12 +1255,12 @@ static inline bool SendDataToSd(b_ctx* bctx, std::optional<shared_buffer> precom
     ser_declare;
 
     allZeros = false;
-    if ((sd->message_length == bctx->rsize
-         && (bctx->fileAddr + sd->message_length
+    if ((data.size == (std::size_t)bctx->rsize
+         && (bctx->fileAddr + data.size
              < (uint64_t)bctx->ff_pkt->statp.st_size))
         || ((bctx->ff_pkt->type == FT_RAW || bctx->ff_pkt->type == FT_FIFO)
             && ((uint64_t)bctx->ff_pkt->statp.st_size == 0))) {
-      allZeros = IsBufZero(bctx->rbuf, bctx->rsize);
+      allZeros = IsBufZero(data.data.get(), data.size);
     }
 
     if (!allZeros) {
@@ -1268,7 +1269,7 @@ static inline bool SendDataToSd(b_ctx* bctx, std::optional<shared_buffer> precom
       ser_uint64(bctx->fileAddr); /* store fileAddr in begin of buffer */
     }
 
-    bctx->fileAddr += sd->message_length; /* update file address */
+    bctx->fileAddr += data.size; /* update file address */
 
     // Skip block of all zeros
     if (allZeros) { return true; }
@@ -1278,20 +1279,22 @@ static inline bool SendDataToSd(b_ctx* bctx, std::optional<shared_buffer> precom
     ser_uint64(bctx->ff_pkt->bfd.offset); /* store offset in begin of buffer */
   }
 
-  bctx->jcr->ReadBytes += sd->message_length; /* count bytes read */
+  bctx->jcr->ReadBytes += data.size; /* count bytes read */
 
   // Uncompressed cipher input length
-  bctx->cipher_input_len = sd->message_length;
+  bctx->cipher_input_len = data.size;
+  memcpy(bctx->rbuf, data.data.get(), data.size);
+  std::size_t data_size = data.size;
 
   // Update checksum if requested
   if (bctx->digest) {
-    CryptoDigestUpdate(bctx->digest, (uint8_t*)bctx->rbuf, sd->message_length);
+    CryptoDigestUpdate(bctx->digest, (uint8_t*)bctx->rbuf, data_size);
   }
 
   // Update signing digest if requested
   if (bctx->signing_digest) {
     CryptoDigestUpdate(bctx->signing_digest, (uint8_t*)bctx->rbuf,
-                       sd->message_length);
+                       data_size);
   }
 
   // Compress the data.
@@ -1321,15 +1324,16 @@ static inline bool SendDataToSd(b_ctx* bctx, std::optional<shared_buffer> precom
       bctx->compress_len += sizeof(comp_stream_header); /* add size of header */
     }
 
-    bctx->jcr->store_bsock->message_length
+    data_size
         = bctx->compress_len; /* set compressed length */
     bctx->cipher_input_len = bctx->compress_len;
   }
 
   // Encrypt the data.
   need_more_data = false;
+  // todo: look into this
   if (BitIsSet(FO_ENCRYPT, bctx->ff_pkt->flags)
-      && !EncryptData(bctx, &need_more_data)) {
+      && !(data_size = EncryptData(bctx, &need_more_data))) {
     if (need_more_data) { return true; }
     return false;
   }
@@ -1337,22 +1341,15 @@ static inline bool SendDataToSd(b_ctx* bctx, std::optional<shared_buffer> precom
   // Send the buffer to the Storage daemon
   if (BitIsSet(FO_SPARSE, bctx->ff_pkt->flags)
       || BitIsSet(FO_OFFSETS, bctx->ff_pkt->flags)) {
-    sd->message_length += OFFSET_FADDR_SIZE; /* include fileAddr in size */
+    data_size += OFFSET_FADDR_SIZE; /* include fileAddr in size */
   }
-  sd->msg = bctx->wbuf; /* set correct write buffer */
+  PoolMem to_send(PM_MESSAGE);
+  PmMemcpy(to_send, bctx->wbuf, data_size);
+  SendMsgToSd(bctx->jcr, std::move(to_send), data_size);
 
-  if (!sd->send()) {
-    if (!bctx->jcr->IsJobCanceled()) {
-      Jmsg1(bctx->jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-            sd->bstrerror());
-    }
-    return false;
-  }
-
-  Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
-  bctx->jcr->JobBytes += sd->message_length; /* count bytes saved possibly
-                                                compressed/encrypted */
-  sd->msg = bctx->msgsave;                   /* restore read buffer */
+  Dmsg1(130, "Send data to SD len=%d\n", data_size);
+  bctx->jcr->JobBytes += data_size; /* count bytes saved possibly
+				       compressed/encrypted */
 
   return true;
 }
@@ -1371,20 +1368,17 @@ static DWORD WINAPI send_efs_data(PBYTE pbData,
   /* See if we can fit the data into the current bctx->rbuf which can hold
    * bctx->rsize bytes. */
   if (ulLength <= (ULONG)bctx->rsize) {
-    sd->message_length = ulLength;
-    memcpy(bctx->rbuf, pbData, ulLength);
-    if (!SendDataToSd(bctx)) { return ERROR_NET_WRITE_FAULT; }
+    shared_buffer buffer(ulLength);
+    memcpy(buffer.data.get(), pbData, ulLength);
+    if (!SendDataToSd(bctx, std::move(buffer))) { return ERROR_NET_WRITE_FAULT; }
   } else {
     // Need to chunk the data into pieces.
-    ULONG offset = 0;
-
-    while (ulLength > 0) {
-      sd->message_length = MIN((ULONG)bctx->rsize, ulLength);
-      memcpy(bctx->rbuf, pbData + offset, sd->message_length);
-      if (!SendDataToSd(bctx)) { return ERROR_NET_WRITE_FAULT; }
-
-      offset += sd->message_length;
-      ulLength -= sd->message_length;
+    std::shared_ptr<char> buffer{new char[ulLength], std::default_delete<char[]>{}};
+    memcpy(buffer.get(), pbData, ulLength);
+    for (ULONG offset = 0; offset < ulLength; offset += (ULONG)bctx->rsize) {
+      auto length = MIN((ULONG)bctx->rsize, ulLength - offset);
+      shared_buffer buf{buffer, length, buffer.get() + offset};
+      if (!SendDataToSd(bctx, std::move(buf))) { return ERROR_NET_WRITE_FAULT; }
     }
   }
 
@@ -1554,10 +1548,7 @@ static void SendData(channel::out<shared_buffer> block,
 
   passer p{std::move(barrier)};
 
-  BareosSocket* sd = bctx->jcr->store_bsock;
   for (std::optional buf = block.get(); buf; buf = block.get()) {
-    memcpy(bctx->rbuf, buf->data.get(), buf->size);
-    sd->message_length = buf->size;
     std::optional<shared_buffer> comp = std::nullopt;
     if (compressed) {
       if (comp = compressed->get(); !comp) {
@@ -1566,7 +1557,7 @@ static void SendData(channel::out<shared_buffer> block,
 	break;
       }
     }
-    if (!SendDataToSd(bctx, std::move(comp))) {
+    if (!SendDataToSd(bctx, std::move(*buf), std::move(comp))) {
       Jmsg(bctx->jcr, M_FATAL, 0, "Error while sending data to storage daemon.\n");
       break;
     }
@@ -1683,18 +1674,18 @@ static int send_data(JobControlRecord* jcr,
                      DIGEST* signing_digest)
 {
   b_ctx bctx;
-  BareosSocket* sd = jcr->store_bsock;
 #ifdef FD_NO_SEND_TEST
   return 1;
 #endif
 
+  POOLMEM* pool_buf = CheckPoolMemorySize(GetPoolMemory(PM_MESSAGE), jcr->buf_size);
   // Setup backup context.
   memset(&bctx, 0, sizeof(b_ctx));
   bctx.jcr = jcr;
   bctx.ff_pkt = ff_pkt;
-  bctx.msgsave = sd->msg;                  /* save the original sd buffer */
-  bctx.rbuf = sd->msg;                     /* read buffer */
-  bctx.wbuf = sd->msg;                     /* write buffer */
+  bctx.msgsave = nullptr;                  /* save the original sd buffer */
+  bctx.rbuf = pool_buf;                    /* read buffer */
+  bctx.wbuf = pool_buf;                    /* write buffer */
   bctx.rsize = jcr->buf_size;              /* read buffer size */
   bctx.cipher_input = (uint8_t*)bctx.rbuf; /* encrypt uncompressed data */
   bctx.digest = digest;                    /* encryption digest */
@@ -1708,15 +1699,12 @@ static int send_data(JobControlRecord* jcr,
 
   /* Send Data header to Storage daemon
    *    <file-index> <stream> <info> */
-  if (!sd->fsend("%ld %d 0", jcr->JobFiles, stream)) {
-    if (!jcr->IsJobCanceled()) {
-      Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-            sd->bstrerror());
-    }
-    goto bail_out;
+  {
+    PoolMem header(PM_MESSAGE);
+    std::size_t size = Mmsg(header, "%ld %d 0", jcr->JobFiles, stream);
+    Dmsg1(300, ">stored: datahdr %s", header.c_str());
+    SendMsgToSd(jcr, std::move(header), size);
   }
-  Dmsg1(300, ">stored: datahdr %s", sd->msg);
-
   /* Make space at beginning of buffer for fileAddr because this
    *   same buffer will be used for writing if compression is off. */
   if (BitIsSet(FO_SPARSE, ff_pkt->flags)
@@ -1742,15 +1730,7 @@ static int send_data(JobControlRecord* jcr,
   if (!SendPlainData(bctx)) { goto bail_out; }
 #endif
 
-  if (sd->message_length < 0) { /* error */
-    BErrNo be;
-    Jmsg(jcr, M_ERROR, 0, _("Read error on file %s. ERR=%s\n"), ff_pkt->fname,
-         be.bstrerror(ff_pkt->bfd.BErrNo));
-    if (jcr->JobErrors++ > 1000) { /* insanity check */
-      Jmsg(jcr, M_FATAL, 0, _("Too many errors. JobErrors=%d.\n"),
-           jcr->JobErrors);
-    }
-  } else if (BitIsSet(FO_ENCRYPT, ff_pkt->flags)) {
+  if (BitIsSet(FO_ENCRYPT, ff_pkt->flags)) {
     // For encryption, we must call finalize to push out any buffered data.
     if (!CryptoCipherFinalize(bctx.cipher_ctx,
                               (uint8_t*)jcr->fd_impl->crypto.crypto_buf,
@@ -1762,29 +1742,16 @@ static int send_data(JobControlRecord* jcr,
 
     // Note, on SSL pre-0.9.7, there is always some output
     if (bctx.encrypted_len > 0) {
-      sd->message_length = bctx.encrypted_len;   /* set encrypted length */
-      sd->msg = jcr->fd_impl->crypto.crypto_buf; /* set correct write buffer */
-      if (!sd->send()) {
-        if (!jcr->IsJobCanceled()) {
-          Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-                sd->bstrerror());
-        }
-        goto bail_out;
-      }
-      Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
-      jcr->JobBytes += sd->message_length; /* count bytes saved possibly
+      PoolMem crypto(PM_MESSAGE);
+      PmMemcpy(crypto, jcr->fd_impl->crypto.crypto_buf, bctx.encrypted_len);
+      SendMsgToSd(jcr, std::move(crypto), bctx.encrypted_len);
+      Dmsg1(130, "Send data to SD len=%d\n", bctx.encrypted_len);
+      jcr->JobBytes += bctx.encrypted_len; /* count bytes saved possibly
                                               compressed/encrypted */
-      sd->msg = bctx.msgsave;              /* restore bnet buffer */
     }
   }
 
-  if (!sd->signal(BNET_EOD)) { /* indicate end of file data */
-    if (!jcr->IsJobCanceled()) {
-      Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-            sd->bstrerror());
-    }
-    goto bail_out;
-  }
+  SendSignalToSd(jcr, BNET_EOD);
 
   // Free the cipher context
   if (bctx.cipher_ctx) { CryptoCipherFree(bctx.cipher_ctx); }
@@ -1795,8 +1762,7 @@ bail_out:
   // Free the cipher context
   if (bctx.cipher_ctx) { CryptoCipherFree(bctx.cipher_ctx); }
 
-  sd->msg = bctx.msgsave; /* restore bnet buffer */
-  sd->message_length = 0;
+  FreePoolMemory(pool_buf);
 
   return 0;
 }

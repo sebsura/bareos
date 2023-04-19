@@ -41,7 +41,7 @@ void DeallocateCipher(r_ctx& rctx);
 void DeallocateForkCipher(r_ctx& rctx);
 bool SetupEncryptionContext(b_ctx& bctx);
 bool SetupDecryptionContext(r_ctx& rctx, RestoreCipherContext& rcctx);
-bool EncryptData(b_ctx* bctx, bool* need_more_data);
+std::size_t EncryptData(b_ctx* bctx, bool* need_more_data);
 bool DecryptData(JobControlRecord* jcr,
                  char** data,
                  uint32_t* length,

@@ -452,9 +452,8 @@ bool SetupDecryptionContext(r_ctx& rctx, RestoreCipherContext& rcctx)
   return true;
 }
 
-bool EncryptData(b_ctx* bctx, bool* need_more_data)
+std::size_t EncryptData(b_ctx* bctx, bool* need_more_data)
 {
-  bool retval = false;
   uint32_t initial_len = 0;
 
   /*
@@ -489,7 +488,7 @@ bool EncryptData(b_ctx* bctx, bool* need_more_data)
                           &initial_len)) {
     // Encryption failed. Shouldn't happen.
     Jmsg(bctx->jcr, M_FATAL, 0, _("Encryption error\n"));
-    goto bail_out;
+    return 0;
   }
 
   // Encrypt the input block
@@ -500,24 +499,18 @@ bool EncryptData(b_ctx* bctx, bool* need_more_data)
     if ((initial_len + bctx->encrypted_len) == 0) {
       // No full block of data available, read more data
       *need_more_data = true;
-      goto bail_out;
+      return 0;
     }
 
     Dmsg2(400, "encrypted len=%d unencrypted len=%d\n", bctx->encrypted_len,
           bctx->jcr->store_bsock->message_length);
 
-    bctx->jcr->store_bsock->message_length
-        = initial_len + bctx->encrypted_len; /* set encrypted length */
+    return initial_len + bctx->encrypted_len; /* set encrypted length */
   } else {
     // Encryption failed. Shouldn't happen.
     Jmsg(bctx->jcr, M_FATAL, 0, _("Encryption error\n"));
-    goto bail_out;
+    return 0;
   }
-
-  retval = true;
-
-bail_out:
-  return retval;
 }
 
 bool DecryptData(JobControlRecord* jcr,
