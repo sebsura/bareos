@@ -485,27 +485,28 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
     }
 #endif
 
+    if (have_acl && jcr->fd_impl->acl_data->u.build->nr_errors > 0) {
+      Jmsg(jcr, M_WARNING, 0,
+	   _("Encountered %ld acl errors while doing backup\n"),
+	   jcr->fd_impl->acl_data->u.build->nr_errors);
+    }
+    if (have_xattr && jcr->fd_impl->xattr_data->u.build->nr_errors > 0) {
+      Jmsg(jcr, M_WARNING, 0,
+	   _("Encountered %ld xattr errors while doing backup\n"),
+	   jcr->fd_impl->xattr_data->u.build->nr_errors);
+    }
+
+#if defined(WIN32_VSS)
+    CloseVssBackupSession(jcr);
+#endif
+
+    AccurateFinish(jcr); /* send deleted or base file list to SD */
+
+    StopHeartbeatMonitor(jcr);
+
     jcr->fd_impl->send_ctx = nullptr;
   }
 
-  if (have_acl && jcr->fd_impl->acl_data->u.build->nr_errors > 0) {
-    Jmsg(jcr, M_WARNING, 0,
-         _("Encountered %ld acl errors while doing backup\n"),
-         jcr->fd_impl->acl_data->u.build->nr_errors);
-  }
-  if (have_xattr && jcr->fd_impl->xattr_data->u.build->nr_errors > 0) {
-    Jmsg(jcr, M_WARNING, 0,
-         _("Encountered %ld xattr errors while doing backup\n"),
-         jcr->fd_impl->xattr_data->u.build->nr_errors);
-  }
-
-#if defined(WIN32_VSS)
-  CloseVssBackupSession(jcr);
-#endif
-
-  AccurateFinish(jcr); /* send deleted or base file list to SD */
-
-  StopHeartbeatMonitor(jcr);
 
   sd->signal(BNET_EOD); /* end of sending data */
 
@@ -1768,7 +1769,7 @@ bail_out:
 }
 
 static bool SendFileHeader(
-    BareosSocket* sd,
+			   JobControlRecord* jcr,
     int32_t file_index,  // attention: is 32bit, gets send with %ld
     int type,
     const char* canonical_name,
@@ -1784,13 +1785,17 @@ static bool SendFileHeader(
   if (!encoded_attributes) encoded_attributes = "";
   if (!link_name) link_name = "";
   if (!encoded_ex_attributes) encoded_ex_attributes = "";
-  bool status = sd->fsend("%ld %d %s%c%s%c%s%c%s%c%u%c", file_index, type,
-                          canonical_name, 0, encoded_attributes, 0, link_name,
-                          0, encoded_ex_attributes, 0, delta_seq, 0);
-  return status;
+
+  PoolMem header(PM_MESSAGE);
+  std::size_t size = Mmsg(header, "%ld %d %s%c%s%c%s%c%s%c%u%c", file_index, type,
+			  canonical_name, 0, encoded_attributes, 0, link_name,
+			  0, encoded_ex_attributes, 0, delta_seq, 0);
+
+  SendMsgToSd(jcr, std::move(header), size);
+  return true;
 }
 
-static bool SendRestoreObject(BareosSocket* sd,
+static bool SendRestoreObject(JobControlRecord* jcr,
                               int32_t file_index,
                               int file_type,
                               const char* file_name,
@@ -1820,15 +1825,17 @@ static bool SendRestoreObject(BareosSocket* sd,
     }
   }
 
-  sd->message_length = Mmsg(sd->msg, "%d %d %d %d %d %d %s%c%s%c", file_index,
-                            file_type, object_index, comp_len, object_len,
-                            object_compression, file_name, 0, object_name, 0);
-  sd->msg = CheckPoolMemorySize(sd->msg, sd->message_length + comp_len + 2);
-  memcpy(sd->msg + sd->message_length, send_data, comp_len);
+  PoolMem data(PM_MESSAGE);
+  std::size_t size = Mmsg(data, "%d %d %d %d %d %d %s%c%s%c", file_index,
+			  file_type, object_index, comp_len, object_len,
+			  object_compression, file_name, 0, object_name, 0);
+  data.check_size(size + comp_len + 2);
+  memcpy(data.addr() + size, send_data, comp_len);
 
   // Note we send one extra byte so Dir can store zero after object
-  sd->message_length += comp_len + 1;
-  return sd->send();
+  size += comp_len + 1;
+  SendMsgToSd(jcr, std::move(data), size);
+  return true;
 }
 
 static const char* GetCanonicalName(const struct stat& statp,
@@ -1869,7 +1876,6 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
                              FindFilesPacket* ff_pkt,
                              int& data_stream)
 {
-  BareosSocket* sd = jcr->store_bsock;
   PoolMem attribs(PM_NAME), attribsExBuf(PM_NAME);
   char* attribsEx = NULL;
   int attr_stream;
@@ -1916,14 +1922,12 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
 
   /* Send Attributes header to Storage daemon
    *    <file-index> <stream> <info> */
-  if (!sd->fsend("%ld %d 0", ff_pkt->FileIndex, attr_stream)) {
-    if (!jcr->IsCanceled() && !jcr->IsIncomplete()) {
-      Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-            sd->bstrerror());
-    }
-    return false;
+  {
+    PoolMem stream(PM_MESSAGE);
+    std::size_t size = Mmsg(stream, "%ld %d 0", ff_pkt->FileIndex, attr_stream);
+    Dmsg1(300, ">stored: attrhdr %s", stream.c_str());
+    SendMsgToSd(jcr, std::move(stream), size);
   }
-  Dmsg1(300, ">stored: attrhdr %s", sd->msg);
 
   /* Send file attributes to Storage daemon
    *   File_index
@@ -1999,11 +2003,11 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
 
   if ((ff_pkt->type == FT_PLUGIN_CONFIG)
       || (ff_pkt->type == FT_RESTORE_FIRST)) {
-    status = SendRestoreObject(sd, ff_pkt->FileIndex, ff_pkt->type, file_name,
+    status = SendRestoreObject(jcr, ff_pkt->FileIndex, ff_pkt->type, file_name,
                                ff_pkt->object_name, ff_pkt->object_index,
                                ff_pkt->object_len, ff_pkt->object);
   } else {
-    status = SendFileHeader(sd, ff_pkt->FileIndex, ff_pkt->type, file_name,
+    status = SendFileHeader(jcr, ff_pkt->FileIndex, ff_pkt->type, file_name,
                             attribs.c_str(), link_name, attribsEx,
                             ff_pkt->delta_seq);
   }
@@ -2016,13 +2020,13 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
     } break;
   }
 
-  Dmsg2(300, ">stored: attr len=%d: %s\n", sd->message_length, sd->msg);
-  if (!status && !jcr->IsJobCanceled()) {
-    Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-          sd->bstrerror());
-  }
+  // Dmsg2(300, ">stored: attr len=%d: %s\n", sd->message_length, sd->msg);
+  // if (!status && !jcr->IsJobCanceled()) {
+  //   Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+  //         sd->bstrerror());
+  // }
 
-  sd->signal(BNET_EOD); /* indicate end of attributes data */
+  SendSignalToSd(jcr, BNET_EOD); /* indicate end of attributes data */
 
   return status;
 }
