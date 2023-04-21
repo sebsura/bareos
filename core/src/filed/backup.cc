@@ -46,6 +46,7 @@
 #include "lib/parse_conf.h"
 #include "lib/util.h"
 #include "lib/channel.h"
+#include "lib/thread_specific_data.h"
 
 #include <thread>
 #include <future>
@@ -80,7 +81,8 @@ static void SendData(channel::out<shared_buffer> block,
 		     std::optional<channel::out<shared_buffer>> compressed,
 		     b_ctx* bctx,
 		     std::promise<void> barrier);
-void WaitForSend(channel::out<send_input> to_send) {
+void WaitForSend(JobControlRecord* jcr, channel::out<send_input> to_send) {
+  SetJcrInThreadSpecificData(jcr);
   for (std::optional chan = to_send.get(); chan; chan = to_send.get()) {
     SendData(std::move(chan->block), std::move(chan->compressed),
 	     chan->bctx, std::move(chan->barrier));
@@ -96,7 +98,8 @@ struct digest_input {
 static void DigestData(channel::out<shared_buffer> out,
 		       DIGEST* digest, DIGEST* signing_digest,
 		       std::promise<void> barrier);
-void WaitForDigest(channel::out<digest_input> to_read) {
+void WaitForDigest(JobControlRecord* jcr, channel::out<digest_input> to_read) {
+  SetJcrInThreadSpecificData(jcr);
   for (std::optional chan = to_read.get(); chan; chan = to_read.get()) {
     DigestData(std::move(chan->data), chan->digest, chan->signing_digest,
 	       std::move(chan->barrier));
@@ -135,8 +138,9 @@ static void Compress(CompressionContext& ctx,
 		     JobControlRecord* jcr,
 		     std::size_t max_compress_len,
 		     uint32_t compression);
-void WaitForCompress(channel::out<compress_input> to_read,
+void WaitForCompress(JobControlRecord* jcr, channel::out<compress_input> to_read,
 		     std::vector<channel::in<std::shared_ptr<compress_worker_input>>> pool) {
+  SetJcrInThreadSpecificData(jcr);
   for (std::optional chan = to_read.get(); chan; chan = to_read.get()) {
     auto args = std::make_shared<compress_worker_input>(std::move(chan.value()));
     for (auto& worker : pool) {
@@ -144,8 +148,10 @@ void WaitForCompress(channel::out<compress_input> to_read,
     }
   }
 }
-static void CompressionWorker(channel::out<std::shared_ptr<compress_worker_input>> to_read,
+static void CompressionWorker(JobControlRecord* jcr,
+				channel::out<std::shared_ptr<compress_worker_input>> to_read,
 			      std::unique_ptr<CompressionContext> ctx) {
+  SetJcrInThreadSpecificData(jcr);
   for (std::optional chan = to_read.get(); chan; chan = to_read.get()) {
     compress_input* args = &chan.value()->args;
     std::mutex& input = chan.value()->input;
@@ -181,7 +187,9 @@ struct sd_data {
   std::size_t size;
 };
 
-static void SdSender(BareosSocket* sd, channel::out<std::variant<sd_data, int>> chan) {
+static void SdSender(JobControlRecord* jcr,
+		     BareosSocket* sd, channel::out<std::variant<sd_data, int>> chan) {
+  SetJcrInThreadSpecificData(jcr);
   POOLMEM* save = sd->msg;
   for (std::optional opt = chan.get(); opt; opt = chan.get()) {
     if (sd_data* to_send = std::get_if<sd_data>(&*opt)) {
@@ -225,7 +233,7 @@ struct SendContext {
       auto [in, out] = channel::CreateBufferedChannel<std::shared_ptr<compress_worker_input>>(1);
       compress_inputs.emplace_back(std::move(in));
       AdjustCompressionBuffers(jcr, *ctx);
-      compress_workers.emplace_back(CompressionWorker, std::move(out), std::move(ctx));
+      compress_workers.emplace_back(CompressionWorker, jcr, std::move(out), std::move(ctx));
     }
 
     auto [sin, sout] = channel::CreateBufferedChannel<send_input>(1);
@@ -233,10 +241,10 @@ struct SendContext {
     auto [cin, cout] = channel::CreateBufferedChannel<compress_input>(1);
     auto [sdin, sdout] = channel::CreateBufferedChannel<std::variant<sd_data, int>>(10000);
 
-    sender = std::thread{WaitForSend, std::move(sout)};
-    digester = std::thread{WaitForDigest, std::move(dout)};
-    compressor = std::thread{WaitForCompress, std::move(cout), std::move(compress_inputs)};
-    sd = std::thread{SdSender, sd_socket, std::move(sdout)};
+    sender = std::thread{WaitForSend, jcr, std::move(sout)};
+    digester = std::thread{WaitForDigest, jcr, std::move(dout)};
+    compressor = std::thread{WaitForCompress, jcr, std::move(cout), std::move(compress_inputs)};
+    sd = std::thread{SdSender, jcr, sd_socket, std::move(sdout)};
 
     to_send = std::move(sin);
     to_digest = std::move(din);
@@ -1364,7 +1372,6 @@ static DWORD WINAPI send_efs_data(PBYTE pbData,
                                   ULONG ulLength)
 {
   b_ctx* bctx = (b_ctx*)pvCallbackContext;
-  BareosSocket* sd = bctx->jcr->store_bsock;
 
   if (ulLength == 0) { return ERROR_SUCCESS; }
 
