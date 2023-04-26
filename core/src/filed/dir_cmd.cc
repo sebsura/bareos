@@ -56,6 +56,9 @@
 #include "lib/watchdog.h"
 #include "lib/util.h"
 
+#include <locale>
+#include <codecvt>
+
 #if defined(WIN32_VSS)
 #  include "win32/findlib/win32.h"
 #  include "vss.h"
@@ -1930,7 +1933,16 @@ static bool BackupCmd(JobControlRecord* jcr)
              jcr->fd_impl->pVSSClient->GetDriverName(),
              (drive_count) ? szWinDriveLetters : "None");
 
-        if (!jcr->fd_impl->pVSSClient->CreateSnapshots(szWinDriveLetters,
+	std::vector<std::wstring> volumes{};
+	volumes.reserve(drive_count);
+	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter{};
+	for (int i = 0; i < drive_count; ++i) {
+	  char drive[4] = "_:\\";
+	  drive[0] = szWinDriveLetters[i];
+	  std::wstring drive_w = converter.from_bytes(drive);
+	  volumes.emplace_back(std::move(drive_w));
+	}
+        if (!jcr->fd_impl->pVSSClient->CreateSnapshots(volumes,
                                                        onefs_disabled)) {
           BErrNo be;
           Jmsg(jcr, M_FATAL, 0,
