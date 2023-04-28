@@ -480,7 +480,7 @@ bool ConfigurationParser::FindConfigPath(PoolMem& full_path)
             cf_.c_str(), full_path.c_str());
     }
   } else {
-    Jmsg1(nullptr, M_ERROR, 0, _("Failed to read config file \"%s\"\n"),
+    Jmsg1(nullptr, M_ERROR, 0, _("Failed to find config file in \"%s\"\n"),
           cf_.c_str());
   }
 
