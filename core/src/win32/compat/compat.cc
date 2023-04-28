@@ -2021,7 +2021,7 @@ DIR* opendir(const char* path)
 
   std::string dir_path(path);
   // Add slash only if there is none yet (think of c:/)
-  if (dir_path.back() != '/') {
+  if (!IsPathSeparator(dir_path.back())) {
     dir_path.append("/*");
   } else {
     dir_path.append("*");
