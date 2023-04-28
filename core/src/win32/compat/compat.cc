@@ -2019,12 +2019,12 @@ DIR* opendir(const char* path)
   memset(rval, 0, sizeof(_dir));
 
 
-  PoolMem dir_path(path);
+  std::string dir_path(path);
   // Add slash only if there is none yet (think of c:/)
-  if (dir_path.addr()[strlen(dir_path.addr()) - 1] != '/') {
-    PmStrcat(dir_path, "/*");
+  if (dir_path.back() != '/') {
+    dir_path.append("/*");
   } else {
-    PmStrcat(dir_path, "*");
+    dir_path.append("*");
   }
 
   win32_path = GetPoolMemory(PM_FNAME);
