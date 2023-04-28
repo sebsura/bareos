@@ -2002,17 +2002,18 @@ DIR* opendir(const char* path)
   rval = (_dir*)malloc(sizeof(_dir));
   memset(rval, 0, sizeof(_dir));
 
-  win32_path = GetPoolMemory(PM_FNAME);
-  unix_name_to_win32(win32_path, path);
-  Dmsg1(debuglevel, "win32 path=%s\n", win32_path);
 
-  // Add backslash only if there is none yet (think of c:\)
-  if (win32_path[strlen(win32_path) - 1] != '\\') {
-    PmStrcat(win32_path, "\\*");
+  PoolMem dir_path(path);
+  // Add slash only if there is none yet (think of c:/)
+  if (dir_path.addr()[strlen(dir_path.addr()) - 1] != '/') {
+    PmStrcat(dir_path, "/*");
   } else {
-    PmStrcat(win32_path, "*");
+    PmStrcat(dir_path, "*");
   }
 
+  win32_path = GetPoolMemory(PM_FNAME);
+  unix_name_to_win32(win32_path, dir_path.c_str());
+  Dmsg1(debuglevel, "win32 path=%s\n", win32_path);
   rval->spec = win32_path;
 
   // convert to wchar_t
@@ -2020,7 +2021,7 @@ DIR* opendir(const char* path)
     POOLMEM* pwcBuf;
 
     pwcBuf = GetPoolMemory(PM_FNAME);
-    make_win32_path_UTF8_2_wchar(pwcBuf, rval->spec);
+    make_win32_path_UTF8_2_wchar(pwcBuf, dir_path.c_str());
     rval->dirh = p_FindFirstFileW((LPCWSTR)pwcBuf, &rval->data_w);
     if (rval->dirh != INVALID_HANDLE_VALUE) { rval->valid_w = 1; }
     FreePoolMemory(pwcBuf);
