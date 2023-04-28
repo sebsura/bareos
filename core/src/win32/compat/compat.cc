@@ -442,8 +442,6 @@ static inline POOLMEM* make_wchar_win32_path(POOLMEM* pszUCSPath,
 
   // Get buffer with enough size (name+max 6. wchars+1 null terminator
   DWORD dwBufCharsNeeded = (wcslen(name) + 7);
-  pwszBuf = (wchar_t*)CheckPoolMemorySize((POOLMEM*)pwszBuf,
-                                          dwBufCharsNeeded * sizeof(wchar_t));
 
   /*
    * Add \\?\ to support 32K long filepaths
@@ -453,6 +451,24 @@ static inline POOLMEM* make_wchar_win32_path(POOLMEM* pszUCSPath,
   BOOL bAddDrive = TRUE;
   BOOL bAddCurrentPath = TRUE;
   BOOL bAddPrefix = TRUE;
+
+  PoolMem full_path(PM_FNAME);
+
+  for (;;) {
+    full_path.check_size(dwBufCharsNeeded * sizeof(wchar_t));
+    LPWSTR buf = (LPWSTR) full_path.c_str();
+    DWORD num_needed = GetFullPathNameW(name, dwBufCharsNeeded,
+					buf, NULL);
+
+    if (num_needed < dwBufCharsNeeded) {
+      break;
+    } else {
+      dwBufCharsNeeded = num_needed + 7;
+    }
+  }
+  name = (LPWSTR) full_path.c_str();
+  pwszBuf = (wchar_t*)CheckPoolMemorySize((POOLMEM*)pwszBuf,
+                                          dwBufCharsNeeded * sizeof(wchar_t));
 
   // Does path begin with drive? if yes, it is absolute
   if (iswalpha(name[0]) && name[1] == ':' && IsPathSeparator(name[2])) {
