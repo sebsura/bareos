@@ -491,20 +491,28 @@ static bool IsNormalizedPath(std::wstring_view path)
   return path.rfind(L"\\\\.\\"sv, 0) == 0;
 }
 
-static std::wstring AsLiteralFullPath(std::wstring_view p)
+static void RemoveTrailingSlashes(std::wstring& str)
+{
+  // TODO think about this!
+  // we treat the case where str.size() <= 3 special here
+  // since we do not want to remove the slashes from paths like these: C:/
+  while (str.size() > 3 && IsPathSeparator(str.back())) {
+    str.pop_back();
+  }
+}
+
+static std::wstring AsFullPath(std::wstring_view p)
 {
   using namespace std::literals;
-  constexpr std::wstring_view literal_prefix = L"\\\\?\\"sv;
-  DWORD chars_needed = GetFullPathNameW(p.data(), 0, NULL, NULL);
-  if (chars_needed == 0) {
+  DWORD required = GetFullPathNameW(p.data(), 0, NULL, NULL);
+  if (required == 0) {
     Dmsg0(300, "Could not get full path length of path %s\n",
           std::string{std::begin(p), std::end(p)}.c_str());
   }
-  std::wstring literal;
-  literal.reserve(literal_prefix.size() + chars_needed);
-  literal.append(literal_prefix);
-  DWORD chars_written = GetFullPathNameW(p.data(), chars_needed,
-                                         &literal[literal_prefix.size()], NULL);
+  std::wstring literal(required, L'\0');
+  DWORD written = GetFullPathNameW(p.data(), required,
+				   literal.data(),
+				   NULL);
 
   // chars_needed contains the terminating 0 but
   // chars_written will not *if* the operation was successful.
@@ -515,6 +523,9 @@ static std::wstring AsLiteralFullPath(std::wstring_view p)
           std::string{std::begin(p), std::end(p)}.c_str(), chars_needed,
           chars_written);
   }
+
+  literal.resize(written);
+  RemoveTrailingSlashes(literal);
 
   return literal;
 }
@@ -544,10 +555,12 @@ static std::wstring ConvertNormalized(std::wstring_view p)
 }
 
 /**
- * This function expects an UCS-encoded standard wchar_t in pszUCSPath and
- * will complete the input path to an absolue path of the form \\?\c:\path\file
+ * This function converts relative paths to absolute paths and prepends \\?\ if
+ * needed.  It also replaces all '/' with '\' and removes duplicates of them.
  *
  * With this trick, it is possible to have 32K characters long paths.
+ *
+ * If availalbe it also converts the path to a vss path.
  *
  * Created 02/27/2006 Thorsten Engel
  */
@@ -565,21 +578,25 @@ static inline std::wstring make_wchar_win32_path(std::wstring_view path)
   std::wstring converted{};
 
   if (!IsNormalizedPath(path)) {
-    converted = AsLiteralFullPath(path);
+    converted = AsFullPath(path);
+    auto tvpc = Win32GetPathConvert();
+    if (tvpc) {
+      if (wchar_t* shadow_path = tvpc->pPathConvertW(converted.c_str());
+	  shadow_path != nullptr) {
+	// we sadly need to copy here
+	// TODO: refactor path convert so that this is not necessary anymore
+	converted = std::wstring(shadow_path);
+	free(shadow_path);
+      } else {
+	converted.insert(0, L"\\\\?\\"sv);
+      }
+    } else {
+      converted.insert(0, L"\\\\?\\"sv);
+    }
   } else {
     converted = ConvertNormalized(path);
   }
 
-  auto tvpc = Win32GetPathConvert();
-  if (tvpc) {
-    if (wchar_t* shadow_path = tvpc->pPathConvertW(converted.c_str());
-	shadow_path != nullptr) {
-      // we sadly need to copy here
-      // TODO: refactor path convert so that this is not necessary anymore
-      converted = std::wstring(shadow_path);
-      free(shadow_path);
-    }
-  }
 
   Dmsg1(debuglevel, "Leave make_wchar_win32_path=%s\n", FromUtf16(converted).c_str());
   return converted;
