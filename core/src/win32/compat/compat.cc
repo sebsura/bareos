@@ -187,8 +187,44 @@ static void Win32ConvCleanupCache(void* arg)
   delete tcc;
 }
 
-static thread_conversion_cache* Win32ConvInitCache()
-{
+static class PathConversionCache {
+public:
+  PathConversionCache() {
+    status = pthread_key_create(&key, Win32ConvCleanupCache);
+  }
+  ~PathConversionCache() {
+    if (status == 0) {
+      pthread_key_delete(key);
+    }
+  }
+
+  thread_conversion_cache* GetThreadLocal() {
+    if (status != 0) return nullptr; // could not init thread specific data
+    auto tcc = static_cast<thread_conversion_cache*>(pthread_getspecific(key));
+    if (!tcc) { return CreateThreadLocal(); }
+    else      { return tcc; }
+  }
+
+  void ResetThreadLocal() {
+    if (status != 0) return; // could not init thread specific data
+    auto tcc = static_cast<thread_conversion_cache*>(pthread_getspecific(key));
+    if (tcc) { tcc->utf8.clear(); tcc->utf16.clear(); }
+  }
+private:
+
+  thread_conversion_cache* CreateThreadLocal() {
+    ASSERT(status == 0);
+    auto tcc = std::make_unique<thread_conversion_cache>();
+    if (pthread_setspecific(key, tcc.get()) == 0) {
+      Dmsg1(debuglevel,
+	    "Win32ConvInitCache: Setup of thread specific cache at address %p\n",
+	    tcc.get());
+      return tcc.release();
+    } else {
+      return nullptr;
+    }
+  }
+  pthread_key_t key;
   int status;
   thread_conversion_cache* tcc = nullptr;
 
