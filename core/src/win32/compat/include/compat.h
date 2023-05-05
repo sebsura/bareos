@@ -343,7 +343,6 @@ int win32_chmod(const char*, mode_t, _dev_t);
 char* win32_cgets(char* buffer, int len);
 
 int WSA_Init(void);
-void Win32TSDCleanup();
 void Win32ClearCompatible();
 void Win32SetCompatible();
 bool Win32IsCompatible();
