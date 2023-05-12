@@ -298,9 +298,6 @@ void CleanupFileset(JobControlRecord* jcr)
         for (auto& regex : fo->regexdir) { regfree(&regex); }
         for (auto& regex : fo->regexfile) { regfree(&regex); }
         if (fo->size_match) { free(fo->size_match); }
-        fo->base.destroy();
-        fo->fstype.destroy();
-        fo->Drivetype.destroy();
         fo->~findFOPTS();
       }
       incexe->opts_list.destroy();
@@ -319,9 +316,6 @@ void CleanupFileset(JobControlRecord* jcr)
         for (auto& regex : fo->regexdir) { regfree(&regex); }
         for (auto& regex : fo->regexfile) { regfree(&regex); }
         if (fo->size_match) { free(fo->size_match); }
-        fo->base.destroy();
-        fo->fstype.destroy();
-        fo->Drivetype.destroy();
         fo->~findFOPTS();
       }
       incexe->opts_list.destroy();

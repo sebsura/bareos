@@ -151,8 +151,8 @@ int FindFiles(JobControlRecord* jcr,
         ff->Compress_level = fo->Compress_level;
         ff->StripPath = fo->StripPath;
         ff->size_match = fo->size_match;
-        ff->fstypes = fo->fstype;
-        ff->drivetypes = fo->Drivetype;
+        ff->fstypes = &fo->fstype;
+        ff->drivetypes = &fo->Drivetype;
         if (fo->plugin != NULL) {
           ff->plugin = fo->plugin; /* TODO: generate a plugin event ? */
           ff->opt_plugin = true;
@@ -287,8 +287,8 @@ bool AcceptFile(FindFilesPacket* ff)
     CopyBits(FO_MAX, fo->flags, ff->flags);
     ff->Compress_algo = fo->Compress_algo;
     ff->Compress_level = fo->Compress_level;
-    ff->fstypes = fo->fstype;
-    ff->drivetypes = fo->Drivetype;
+    ff->fstypes = &fo->fstype;
+    ff->drivetypes = &fo->Drivetype;
 
     const int fnm_flags
         = (BitIsSet(FO_IGNORECASE, ff->flags) ? FNM_CASEFOLD : 0)
@@ -536,9 +536,6 @@ findFOPTS* start_options(FindFilesPacket* ff)
     ff->fileset->state = state_options;
     findFOPTS* fo = (findFOPTS*)malloc(sizeof(findFOPTS));
     new (fo) findFOPTS{};
-    fo->base.init(1, true);
-    fo->fstype.init(1, true);
-    fo->Drivetype.init(1, true);
     incexe->current_opts = fo;
     incexe->opts_list.append(fo);
   }
@@ -553,9 +550,6 @@ void NewOptions(FindFilesPacket* ff, findIncludeExcludeItem* incexe)
 
   fo = (findFOPTS*)malloc(sizeof(findFOPTS));
   new (fo) findFOPTS{};
-  fo->base.init(1, true);
-  fo->fstype.init(1, true);
-  fo->Drivetype.init(1, true);
   incexe->current_opts = fo;
   incexe->opts_list.prepend(fo);
   ff->fileset->state = state_options;
