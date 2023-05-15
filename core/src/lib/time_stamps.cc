@@ -34,8 +34,12 @@ void ThreadTimeKeeper::enter(const BlockIdentity& block)
   current = times.emplace(times.end(), block);
 }
 
+void ThreadTimeKeeper::switch_to(const BlockIdentity& block)
 {
   std::unique_lock _{vec_mut};
+  ASSERT(current != times.end());
+  current->end();
+  current = times.emplace(times.end(), block);
 }
 
 void ThreadTimeKeeper::exit()
