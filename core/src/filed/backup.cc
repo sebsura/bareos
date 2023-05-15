@@ -185,6 +185,7 @@ struct save_file_timing {
   std::chrono::nanoseconds xattring;
   std::chrono::nanoseconds sending_sd;
 };
+
 /* Forward referenced functions */
 
 static int send_data(JobControlRecord* jcr,
