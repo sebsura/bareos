@@ -315,6 +315,8 @@ public:
     report << "== Thread: " << thread_id << " ==\n";
     thread_start = Event::time_point::max();
     thread_end   = Event::time_point::min();
+    current_maxdepth = 0;
+    max_strlen = 0;
   }
 
   virtual void end_thread() override {
@@ -325,7 +327,9 @@ public:
 		 id->c_str(),
 		 threadns,
 		 &node,
-		 report);
+		 report,
+		 current_maxdepth,
+		 max_strlen);
 
     }
   }
@@ -350,6 +354,8 @@ public:
     current->ns += duration_cast<nanoseconds>(end - start);
     current->last_end = end;
     current->depth = depth + 1;
+    current_maxdepth = std::max(current->depth, current_maxdepth);
+    max_strlen = std::max(std::strlen(e.block->c_str()), max_strlen);
   }
 
   CallstackReport(std::int32_t MaxDepth) : MaxDepth{MaxDepth} {}
@@ -357,6 +363,8 @@ public:
   std::string str() const { return report.str(); }
 private:
   std::int32_t MaxDepth;
+  std::int32_t current_maxdepth;
+  std::size_t max_strlen;
   Event::time_point now;
   Event::time_point thread_start;
   Event::time_point thread_end;
@@ -388,13 +396,18 @@ private:
 			 const char* name,
 			 std::chrono::nanoseconds parentns,
 			 Node* current,
-			 std::ostringstream& out) {
-    using namespace std::chrono;
-
-    for (std::int32_t i = 0; i < depth; ++i) {
-      out.put(' ');
-    }
-    out << name << ": " << current->ns.count();
+			 std::ostringstream& out,
+			 std::int32_t current_maxdepth,
+			 std::size_t max_strlen) {
+    // depth is (modulo a shared offset) equal to current->depth
+    std::size_t offset = (max_strlen - std::strlen(name))
+      + (current_maxdepth - depth);
+    SplitDuration d(current->ns);
+    out << std::setw(depth) << "" << name << ": " << std::setw(offset) << ""
+	<< std::setfill('0')
+	<< std::setw(2) << d.hours() << ":" << std::setw(2) << d.minutes() << ":" << std::setw(2) << d.seconds() << "."
+	<< std::setw(3) << d.millis() << "-" << std::setw(3) << d.micros()
+	<< std::setfill(' ');
     if (parentns.count() != 0) {
       out << " (" << std::setw(6) << std::fixed << std::setprecision(2) << double(current->ns.count() * 100) / double(parentns.count()) << "%%)";
     }
@@ -405,7 +418,9 @@ private:
 		 id->c_str(),
 		 current->ns,
 		 &node,
-		 out);
+		 out,
+		 current_maxdepth,
+		 max_strlen);
 
     }
   }
