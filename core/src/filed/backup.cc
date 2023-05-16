@@ -189,6 +189,152 @@ private:
   std::unordered_map<BlockIdentity const*, std::chrono::nanoseconds> cul_time;
 };
 
+class CallstackReport : public ReportGenerator {
+public:
+  virtual void begin_report(Event::time_point current) override {
+    report << "=== Start Performance Report (Callstack) ===\n";
+    now = current;
+  }
+  virtual void end_report() override {
+    report << "=== End Performance Report ===\n";
+  }
+
+  virtual void begin_thread(std::thread::id thread_id) override {
+    current = &top;
+    top.reset();
+    report << "== Thread: " << thread_id << " ==\n";
+    thread_start = Event::time_point::max();
+    thread_end   = Event::time_point::min();
+    current_maxdepth = 0;
+    max_strlen = 0;
+  }
+
+  virtual void end_thread() override {
+    using namespace std::chrono;
+    auto threadns = duration_cast<nanoseconds>(thread_end - thread_start);
+    std::vector<std::pair<BlockIdentity const*, Node>> children(top.children.begin(),
+								top.children.end());
+
+    std::sort(children.begin(), children.end(), [](auto& p1, auto& p2) {
+      if (p1.second.ns > p2.second.ns) { return true; }
+      if ((p1.second.ns == p2.second.ns) &&
+	  (p1.first > p2.first)) { return true; }
+      return false;
+    });
+    for (auto& [id, node] : children) {
+      PrintNodes(0,
+		 id->c_str(),
+		 threadns,
+		 &node,
+		 report,
+		 current_maxdepth,
+		 max_strlen);
+
+    }
+  }
+
+  virtual void add_event(const Event& e) override {
+    using namespace std::chrono;
+    auto start = e.start_point;
+    auto end   = e.end_point_as_of(now);
+
+    thread_start = std::min(start, thread_start);
+    thread_end   = std::max(end,   thread_end);
+
+    while (current->last_end <= start && current->parent) {
+      current = current->parent;
+    }
+
+    if (current->depth >= MaxDepth) return;
+    auto depth = current->depth;
+    auto [iter, _] = current->children.try_emplace(e.block, current);
+
+    current = &iter->second;
+    current->ns += duration_cast<nanoseconds>(end - start);
+    current->last_end = end;
+    current->depth = depth + 1;
+    current_maxdepth = std::max(current->depth, current_maxdepth);
+    max_strlen = std::max(std::strlen(e.block->c_str()), max_strlen);
+  }
+
+  CallstackReport(std::int32_t MaxDepth) : MaxDepth{MaxDepth} {}
+  static constexpr std::int32_t ShowAll = std::numeric_limits<int32_t>::max();
+  std::string str() const { return report.str(); }
+private:
+  std::int32_t MaxDepth;
+  std::int32_t current_maxdepth;
+  std::size_t max_strlen;
+  Event::time_point now;
+  Event::time_point thread_start;
+  Event::time_point thread_end;
+  std::ostringstream report;
+  class Node {
+  public:
+    Node* parent{nullptr};
+    std::int32_t depth{0};
+    Event::time_point last_end{Event::time_point::max()};
+    std::chrono::nanoseconds ns{0};
+    std::unordered_map<BlockIdentity const*, Node> children{};
+    Node() = default;
+    Node(Node* parent) : parent{parent}
+		       , depth{parent->depth} {
+    };
+    Node(const Node&) = default;
+    Node(Node&&) = default;
+    Node& operator=(Node&&) = default;
+    Node& operator=(const Node&) = default;
+
+    void reset() {
+      children.clear();
+      ns = std::chrono::nanoseconds{0};
+    }
+  };
+
+  Node top{};
+  Node* current{nullptr};
+
+  static void PrintNodes(std::int32_t depth,
+			 const char* name,
+			 std::chrono::nanoseconds parentns,
+			 Node* current,
+			 std::ostringstream& out,
+			 std::int32_t current_maxdepth,
+			 std::size_t max_strlen) {
+    // depth is (modulo a shared offset) equal to current->depth
+    std::size_t offset = (max_strlen - std::strlen(name))
+      + (current_maxdepth - depth);
+    SplitDuration d(current->ns);
+    out << std::setw(depth) << "" << name << ": " << std::setw(offset) << ""
+	<< std::setfill('0')
+	<< std::setw(2) << d.hours() << ":" << std::setw(2) << d.minutes() << ":" << std::setw(2) << d.seconds() << "."
+	<< std::setw(3) << d.millis() << "-" << std::setw(3) << d.micros()
+	<< std::setfill(' ');
+    if (parentns.count() != 0) {
+      out << " (" << std::setw(6) << std::fixed << std::setprecision(2) << double(current->ns.count() * 100) / double(parentns.count()) << "%%)";
+    }
+    out << "\n";
+
+    std::vector<std::pair<BlockIdentity const*, Node>> children(current->children.begin(),
+								current->children.end());
+
+    std::sort(children.begin(), children.end(), [](auto& p1, auto& p2) {
+      if (p1.second.ns > p2.second.ns) { return true; }
+      if ((p1.second.ns == p2.second.ns) &&
+	  (p1.first > p2.first)) { return true; }
+      return false;
+    });
+    for (auto& [id, node] : children) {
+      PrintNodes(depth + 1,
+		 id->c_str(),
+		 current->ns,
+		 &node,
+		 out,
+		 current_maxdepth,
+		 max_strlen);
+
+    }
+  }
+};
 /* Forward referenced functions */
 
 static int send_data(JobControlRecord* jcr,
