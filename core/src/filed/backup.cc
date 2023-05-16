@@ -421,6 +421,9 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  */
 bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 {
+  auto& timer = jcr->timer.get_thread_local();
+  constexpr auto blockid = BlockIdentity{"BlastDataToStorageDaemon"};
+  timer.enter(blockid);
   BareosSocket* sd;
   bool ok = true;
 
@@ -616,6 +619,18 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   StopHeartbeatMonitor(jcr);
 
   sd->signal(BNET_EOD); /* end of sending data */
+
+  timer.exit();
+
+  OverviewReport overview(OverviewReport::ShowAll);
+  jcr->timer.generate_report(&overview);
+  Jmsg(jcr, M_INFO, 0,
+       overview.str().c_str());
+
+  CallstackReport callstack(CallstackReport::ShowAll);
+  jcr->timer.generate_report(&callstack);
+  Jmsg(jcr, M_INFO, 0,
+       callstack.str().c_str());
 
   if (have_acl && jcr->fd_impl->acl_data) {
     FreePoolMemory(jcr->fd_impl->acl_data->u.build->content);
@@ -933,6 +948,7 @@ static inline bool DoBackupXattr(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
 int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 {
   save_file_timing timing{ff_pkt};
+  auto& timer = jcr->timer.get_thread_local();
   bool do_read = false;
   bool plugin_started = false;
   bool do_plugin_set = false;
@@ -1076,7 +1092,9 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   bsctx.ff_pkt = ff_pkt;
 
   // Digests and encryption are only useful if there's file data
+  static constexpr BlockIdentity SetupDigest{"setup digest"};
   if (has_file_data) {
+    TimedBlock block{timer, SetupDigest};
     std::chrono::time_point<std::chrono::steady_clock> start
         = std::chrono::steady_clock::now();
     if (!SetupEncryptionDigests(bsctx)) { goto good_rtn; }
@@ -1127,8 +1145,11 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     plugin_started = true;
   }
 
+  static constexpr BlockIdentity send_attributes{"send attributes"};
   // Send attributes -- must be done after binit()
+  timer.enter(send_attributes);
   if (!EncodeAndSendAttributes(jcr, ff_pkt, data_stream)) { goto bail_out; }
+  timer.exit();
 
   // Meta data only for restore object
   if (IS_FT_OBJECT(ff_pkt->type)) { goto good_rtn; }
@@ -1202,8 +1223,11 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 
     std::chrono::time_point<std::chrono::steady_clock> start
         = std::chrono::steady_clock::now();
+    static constexpr BlockIdentity sending{"send/read"};
+    timer.enter(sending);
     status = send_data(jcr, data_stream, ff_pkt, bsctx.digest,
                        bsctx.signing_digest, &timing);
+    timer.exit();
     std::chrono::time_point<std::chrono::steady_clock> end
         = std::chrono::steady_clock::now();
 
@@ -1226,8 +1250,10 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     }
   }
 
+  static constexpr BlockIdentity acl{"acl"};
   // Save ACLs when requested and available for anything not being a symlink.
   if (have_acl) {
+    TimedBlock block{timer, acl};
     if (BitIsSet(FO_ACL, ff_pkt->flags) && ff_pkt->type != FT_LNK) {
     std::chrono::time_point<std::chrono::steady_clock> start
         = std::chrono::steady_clock::now();
@@ -1239,8 +1265,10 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     }
   }
 
+  static constexpr BlockIdentity xattr{"xattr"};
   // Save Extended Attributes when requested and available for all files.
   if (have_xattr) {
+    TimedBlock block{timer, xattr};
     if (BitIsSet(FO_XATTR, ff_pkt->flags)) {
       std::chrono::time_point<std::chrono::steady_clock> start
         = std::chrono::steady_clock::now();
@@ -1252,8 +1280,10 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     }
   }
 
+  static constexpr BlockIdentity term_sign{"terminate digest"};
   // Terminate the signing digest and send it to the Storage daemon
   if (bsctx.signing_digest) {
+    TimedBlock block{timer, term_sign};
     std::chrono::time_point<std::chrono::steady_clock> start
         = std::chrono::steady_clock::now();
     if (!TerminateSigningDigest(bsctx)) { goto bail_out; }
@@ -1263,8 +1293,10 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     timing.sign(end - start);
   }
 
+  static constexpr BlockIdentity term_checksum{"terminate checksum"};
   // Terminate any digest and send it to Storage daemon
   if (bsctx.digest) {
+    TimedBlock block{timer, term_checksum};
     std::chrono::time_point<std::chrono::steady_clock> start
         = std::chrono::steady_clock::now();
     if (!TerminateDigest(bsctx)) { goto bail_out; }
@@ -1313,6 +1345,7 @@ static inline bool SendDataToSd(b_ctx* bctx)
 {
   BareosSocket* sd = bctx->jcr->store_bsock;
   bool need_more_data;
+  auto& timer = bctx->jcr->timer.get_thread_local();
 
   // Check for sparse blocks
   if (BitIsSet(FO_SPARSE, bctx->ff_pkt->flags)) {
@@ -1349,8 +1382,10 @@ static inline bool SendDataToSd(b_ctx* bctx)
   // Uncompressed cipher input length
   bctx->cipher_input_len = sd->message_length;
 
+  static constexpr BlockIdentity digest{"digest"};
   // Update checksum if requested
   if (bctx->digest) {
+    TimedBlock block(timer, digest);
     std::chrono::time_point<std::chrono::steady_clock> start
         = std::chrono::steady_clock::now();
     CryptoDigestUpdate(bctx->digest, (uint8_t*)bctx->rbuf, sd->message_length);
@@ -1359,8 +1394,10 @@ static inline bool SendDataToSd(b_ctx* bctx)
     if (bctx->timing) bctx->timing.value()->check(end - start);
   }
 
+  static constexpr BlockIdentity signing{"digest"};
   // Update signing digest if requested
   if (bctx->signing_digest) {
+    TimedBlock block(timer, signing);
     std::chrono::time_point<std::chrono::steady_clock> start
         = std::chrono::steady_clock::now();
     CryptoDigestUpdate(bctx->signing_digest, (uint8_t*)bctx->rbuf,
@@ -1504,19 +1541,31 @@ bail_out:
 // Send the content of a file on anything but an EFS filesystem.
 static inline bool SendPlainData(b_ctx& bctx)
 {
+  static constexpr BlockIdentity read{"read"};
+  static constexpr BlockIdentity send{"send"};
   bool retval = false;
   BareosSocket* sd = bctx.jcr->store_bsock;
+  auto& timer = bctx.jcr->timer.get_thread_local();
 
   // Read the file data
+  TimedBlock read_and_send{timer, read};
   auto read_start = std::chrono::steady_clock::now();
-  while ((sd->message_length
-          = (uint32_t)bread(&bctx.ff_pkt->bfd, bctx.rbuf, bctx.rsize))
-         > 0) {
+  for (;;) {
+    if ((sd->message_length
+	 = (uint32_t)bread(&bctx.ff_pkt->bfd, bctx.rbuf, bctx.rsize))
+	<= 0) {
+      break;
+    }
+
+    read_and_send.switch_to(send);
+
     auto read_end = std::chrono::steady_clock::now();
     if (bctx.timing) bctx.timing.value()->reading += (read_end - read_start);
     if (!SendDataToSd(&bctx)) { goto bail_out; }
     read_start = std::chrono::steady_clock::now();
     if (bctx.timing) bctx.timing.value()->sending_sd += (read_start - read_end);
+
+    read_and_send.switch_to(read);
   }
   retval = true;
 
