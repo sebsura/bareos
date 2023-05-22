@@ -563,7 +563,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   jcr->timer.add_writer(writer);
   jcr->timer.add_writer(writer2);
   auto& timer = jcr->timer.get_thread_local();
-  constexpr auto blockid = BlockIdentity{"BlastDataToStorageDaemon"};
+  static constexpr auto blockid = BlockIdentity{"BlastDataToStorageDaemon"};
   timer.enter(blockid);
   BareosSocket* sd;
   bool ok = true;
@@ -1391,7 +1391,7 @@ static inline bool SendDataToSd(b_ctx* bctx)
     CryptoDigestUpdate(bctx->digest, (uint8_t*)bctx->rbuf, sd->message_length);
   }
 
-  static constexpr BlockIdentity signing{"digest"};
+  static constexpr BlockIdentity signing{"signing"};
   // Update signing digest if requested
   if (bctx->signing_digest) {
     TimedBlock block(timer, signing);
