@@ -4,6 +4,8 @@
 #include <cassert>
 #include <algorithm>
 
+#include "lib/message.h"
+
 // we cannot include baconfig here because otherwise we get a
 // redefinition error of stat; so we cannot use our ASSERT
 // macro
@@ -54,6 +56,53 @@ void ThreadTimeKeeper::exit()
   buffer.events.push_back(event);
   stack.pop_back();
 }
+
+static void write_reports(bool* end,
+			  std::mutex* gen_mut,
+			  std::optional<OverviewReport>* overview,
+			  std::mutex* buf_mut,
+			  std::condition_variable* buf_empty,
+			  std::condition_variable* buf_not_empty,
+			  std::deque<EventBuffer>* buf_queue)
+{
+  for (;;) {
+    {
+      int perf = GetPerf();
+      if (!(perf & static_cast<std::int32_t>(PerfReport::Overview))) {
+	if (overview->has_value()) {
+	  std::unique_lock lock{*gen_mut};
+	  overview->reset();
+	}
+      } else {
+	if (!overview->has_value()) {
+	  std::unique_lock lock{*gen_mut};
+	  overview->emplace(OverviewReport::ShowAll);
+	}
+      }
+    }
+    EventBuffer buf;
+    bool now_empty = false;
+    {
+      std::unique_lock lock{*buf_mut};
+      buf_not_empty->wait(lock, [end, buf_queue]() { return *end || buf_queue->size() > 0; });
+
+      if (buf_queue->size() == 0) break;
+
+      buf = std::move(buf_queue->front());
+      buf_queue->pop_front();
+
+      if (buf_queue->size() == 0) now_empty = true;
+    }
+
+    if (overview->has_value()) overview->value().add_events(buf);
+
+    if (now_empty) buf_empty->notify_all();
+  }
+}
+
+TimeKeeper::TimeKeeper() : report_writer{&write_reports, &end, &gen_mut, &overview,
+					 &buf_mut, &buf_empty, &buf_not_empty, &buf_queue}
+{}
 
 ThreadTimeKeeper& TimeKeeper::get_thread_local()
 {
