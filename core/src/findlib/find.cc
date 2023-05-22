@@ -236,38 +236,12 @@ bool IsInFileset(FindFilesPacket* ff)
   return false;
 }
 
-bool AcceptFile(FindFilesPacket* ff)
+bool AcceptFile(JobControlRecord* jcr, FindFilesPacket* ff)
 {
-  struct accept_file_timing {
-    accept_file_timing(FindFilesPacket* ff_pkt, bool& result)
-        : start(std::chrono::steady_clock::now())
-        , ff_pkt(ff_pkt)
-        , result(result)
-    {
-    }
-
-    ~accept_file_timing()
-    {
-      std::chrono::time_point<std::chrono::steady_clock> end
-          = std::chrono::steady_clock::now();
-      std::chrono::nanoseconds diff
-          = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-      SplitDuration split{diff};
-      Dmsg2(400,
-            "AcceptFile %s\n"
-            "  -Time:  %4lld:%02lld:%02lld.%03lld-%03lld\n"
-            "  -Result: %s\n",
-            ff_pkt->fname, split.hours(), split.minutes(), split.seconds(),
-            split.millis(), split.micros(), result ? "accept" : "reject");
-      ff_pkt->accept_total += diff;
-    }
-
-    std::chrono::time_point<std::chrono::steady_clock> start;
-    FindFilesPacket* ff_pkt;
-    bool& result;
-  };
+  constexpr auto blockid = BlockIdentity{"AcceptFile"};
+  auto& timer = jcr->timer.get_thread_local();
   bool rtn = false;
-  accept_file_timing timing{ff, rtn};
+  TimedBlock block(timer, blockid);
   int i, j, k;
   int fnm_flags;
   const char* basename;
@@ -461,7 +435,7 @@ static int OurCallback(JobControlRecord* jcr,
     case FT_DIRNOCHG:
     case FT_REPARSE:
     case FT_JUNCTION:
-      if (AcceptFile(ff)) {
+      if (AcceptFile(jcr, ff)) {
         return ff->FileSave(jcr, ff, top_level);
       } else {
         Dmsg1(debuglevel, "Skip file %s\n", ff->fname);
