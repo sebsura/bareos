@@ -1420,23 +1420,18 @@ static inline bool SendDataToSd(b_ctx* bctx)
 }
 
 #ifdef HAVE_WIN32
-struct callback_context {
-  b_ctx* bctx;
-  std::chrono::time_point<std::chrono::steady_clock> read_start;
-};
 // Callback method for ReadEncryptedFileRaw()
 static DWORD WINAPI send_efs_data(PBYTE pbData,
                                   PVOID pvCallbackContext,
                                   ULONG ulLength)
 {
-  callback_context* ctx = (callback_context*)pvCallbackContext;
-  b_ctx* bctx = ctx->bctx;
+  static constexpr BlockIdentity read{"read"};
+  static constexpr BlockIdentity send{"send"};
+  b_ctx* bctx = static_cast<b_ctx*>(pvCallbackContext);
   BareosSocket* sd = bctx->jcr->store_bsock;
+  auto& timer = bctx->jcr->timer.get_thread_local();
 
-  auto read_end = std::chrono::steady_clock::now();
-
-  if (bctx->timing)
-    bctx->timing.value()->reading += (read_end - ctx->read_start);
+  TimedBlock read_and_send{timer, read};
 
   if (ulLength == 0) { return ERROR_SUCCESS; }
 
@@ -1445,6 +1440,7 @@ static DWORD WINAPI send_efs_data(PBYTE pbData,
   if (ulLength <= (ULONG)bctx->rsize) {
     sd->message_length = ulLength;
     memcpy(bctx->rbuf, pbData, ulLength);
+    read_and_send.switch_to(read);
     if (!SendDataToSd(bctx)) { return ERROR_NET_WRITE_FAULT; }
   } else {
     // Need to chunk the data into pieces.
@@ -1453,10 +1449,12 @@ static DWORD WINAPI send_efs_data(PBYTE pbData,
     while (ulLength > 0) {
       sd->message_length = MIN((ULONG)bctx->rsize, ulLength);
       memcpy(bctx->rbuf, pbData + offset, sd->message_length);
+      read_and_send.switch_to(read);
       if (!SendDataToSd(bctx)) { return ERROR_NET_WRITE_FAULT; }
 
       offset += sd->message_length;
       ulLength -= sd->message_length;
+      read_and_send.switch_to(read);
     }
   }
 
@@ -1479,8 +1477,7 @@ static inline bool SendEncryptedData(b_ctx& bctx)
    *
    * So ReadEncryptedFileRaw() will not return until it has read the whole file.
    */
-  callback_context ctx{&bctx, std::chrono::steady_clock::now()};
-  if (p_ReadEncryptedFileRaw((PFE_EXPORT_FUNC)send_efs_data, &ctx,
+  if (p_ReadEncryptedFileRaw((PFE_EXPORT_FUNC)send_efs_data, &bctx,
                              bctx.ff_pkt->bfd.pvContext)) {
     goto bail_out;
   }
