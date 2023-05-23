@@ -35,6 +35,8 @@
 
 #include "event.h"
 #include "perf_report.h"
+#include "lib/thread_util.h"
+#include "lib/channel.h"
 
 static constexpr std::size_t buffer_full = 2000;
 
@@ -56,9 +58,8 @@ class ThreadTimeKeeper {
  protected:
   EventBuffer flush()
   {
-    std::unique_lock _{vec_mut};
     EventBuffer new_buffer(this_id, buffer_full, stack);
-    std::swap(new_buffer, buffer);
+    std::swap(new_buffer, *buffer.lock());
     return new_buffer;
   }
 
@@ -66,63 +67,52 @@ class ThreadTimeKeeper {
   std::thread::id this_id;
   TimeKeeper& keeper;
   std::vector<event::OpenEvent> stack{};
-  EventBuffer buffer{this_id, buffer_full, {}};
-  mutable std::mutex vec_mut{};
+  synchronized<EventBuffer> buffer{this_id, buffer_full, stack};
 };
 
 class TimeKeeper {
  public:
-  TimeKeeper();
+  TimeKeeper(std::pair<channel::in<EventBuffer>, channel::out<EventBuffer>> p
+             = channel::CreateBufferedChannel<EventBuffer>(1000));
   ~TimeKeeper()
   {
     auto now = event::clock::now();
     flush();
     {
       std::unique_lock lock{gen_mut};
-      for (auto& gen : gens) { gen->end_report(now); }
-      gens.clear();
+      if (overview.has_value()) overview->end_report(now);
+      if (callstack.has_value()) callstack->end_report(now);
     }
-    {
-      std::unique_lock lock{buf_mut};
-      end = true;
-    }
-    buf_not_empty.notify_one();
+    queue.lock()->close();
     report_writer.join();
   }
 
   ThreadTimeKeeper& get_thread_local();
-  void add_writer(std::shared_ptr<ReportGenerator> gen);
-  void remove_writer(std::shared_ptr<ReportGenerator> gen);
+
   void handle_event_buffer(EventBuffer buf)
   {
-    {
-      std::unique_lock{buf_mut};
-      buf_queue.emplace_back(std::move(buf));
-    }
-    buf_not_empty.notify_one();
+    queue.lock()->put(std::move(buf));
   }
   bool try_handle_event_buffer(EventBuffer& buf)
   {
-    if (std::unique_lock lock{buf_mut, std::try_to_lock}; lock.owns_lock()) {
-      buf_queue.emplace_back(std::move(buf));
-      return true;
+    if (std::optional locked = queue.try_lock();
+	locked.has_value()) {
+      return (*locked)->try_put(buf);
+    } else {
+      return false;
     }
-    return false;
   }
   void flush()
   {
     {
-      std::unique_lock lock{alloc_mut};
-      for (auto& [_, thread] : keeper) {
+      auto locked = keeper.wlock();
+      for (auto& [_, thread] : *locked) {
         auto buf = thread.flush();
         handle_event_buffer(std::move(buf));
       }
     }
-    {
-      // TODO: we should somehow only wait until the above buffers were handled
-      std::unique_lock lock{buf_mut};
-      buf_empty.wait(lock, [this]() { return this->buf_queue.size() == 0; });
-    }
+    // TODO: we should somehow only wait until the above buffers were handled
+    queue.lock()->wait_till_empty();
   }
   std::string str()
   {
@@ -136,14 +126,11 @@ class TimeKeeper {
 
  private:
   mutable std::mutex gen_mut{};
-  bool end{false};
-  std::vector<std::shared_ptr<ReportGenerator>> gens;
-  std::mutex buf_mut{};
   std::condition_variable buf_empty{};
   std::condition_variable buf_not_empty{};
-  std::deque<EventBuffer> buf_queue;
-  mutable std::shared_mutex alloc_mut{};
-  std::unordered_map<std::thread::id, ThreadTimeKeeper> keeper{};
+  synchronized<channel::in<EventBuffer>> queue;
+  rw_synchronized<std::unordered_map<std::thread::id, ThreadTimeKeeper>>
+      keeper{};
   std::optional<OverviewReport> overview{std::nullopt};
   std::optional<CallstackReport> callstack{std::nullopt};
   std::thread report_writer;
