@@ -74,19 +74,17 @@ bool ReportCmd(UaContext* ua, const char* cmd)
   ua->SendMsg("Count:%d '%s'\n", ua->argc, cmd);
 
 
-  if (ua->argc < 3) {
+  if (ua->argc < 2) {
     ua->SendMsg(
-        "1900 Bad report command; Usage report <type> <target> <args...>.\n");
+        "1900 Bad report command; Usage report <target> <args...>.\n");
     return false;
   }
 
-  const char* type = ua->argk[1];
-  const char* target = ua->argk[2];
+  const char* target = ua->argk[1];
 
-  std::string msg{"report "};
-  msg += type;
+  std::string msg{"report"};
 
-  for (int i = 3; i < ua->argc; ++i) {
+  for (int i = 2; i < ua->argc; ++i) {
     msg += " ";
     if (ua->argv[i]) {
       msg += ua->argk[i];
@@ -98,10 +96,9 @@ bool ReportCmd(UaContext* ua, const char* cmd)
   }
 
   if (Bstrcasecmp(target, "dir")) {
-    ua->SendMsg("Dir got type=%s\n", type);
   } else if (Bstrcasecmp(target, "storage")) {
     StorageResource* storage = get_storage_resource(ua);
-    ua->SendMsg("storage %s got type=%s\n", storage->resource_name_, type);
+    ua->SendMsg("storage %s is here\n", storage->resource_name_);
   } else if (Bstrcasecmp(target, "client")) {
     ClientResource* client = get_client_resource(ua);
     if (client->Protocol != APT_NATIVE) {
