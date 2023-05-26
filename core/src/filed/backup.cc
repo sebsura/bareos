@@ -105,7 +105,7 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  */
 bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 {
-  auto& timer = jcr->timer.get_thread_local();
+  auto timer = jcr->timer.get_thread_local();
   static constexpr auto blockid = BlockIdentity{"BlastDataToStorageDaemon"};
   timer.enter(blockid);
   BareosSocket* sd;
@@ -510,7 +510,7 @@ static inline bool DoBackupXattr(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
  */
 int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 {
-  auto& timer = jcr->timer.get_thread_local();
+  auto timer = jcr->timer.get_thread_local();
   bool do_read = false;
   bool plugin_started = false;
   bool do_plugin_set = false;
@@ -869,7 +869,7 @@ static inline bool SendDataToSd(b_ctx* bctx)
 {
   BareosSocket* sd = bctx->jcr->store_bsock;
   bool need_more_data;
-  auto& timer = bctx->jcr->timer.get_thread_local();
+  auto timer = bctx->jcr->timer.get_thread_local();
 
   // Check for sparse blocks
   if (BitIsSet(FO_SPARSE, bctx->ff_pkt->flags)) {
@@ -1056,7 +1056,7 @@ static inline bool SendPlainData(b_ctx& bctx)
   static constexpr BlockIdentity send{"send"};
   bool retval = false;
   BareosSocket* sd = bctx.jcr->store_bsock;
-  auto& timer = bctx.jcr->timer.get_thread_local();
+  auto timer = bctx.jcr->timer.get_thread_local();
 
   // Read the file data
   TimedBlock read_and_send{timer, read};
