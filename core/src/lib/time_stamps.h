@@ -87,9 +87,12 @@ class TimeKeeper {
 
   bool try_handle_event_buffer(EventBuffer& buf)
   {
-    return queue.lock()->try_put(buf);
-    // queue.lock()->put(std::move(buf));
-    // return true;
+    if (std::optional locked = queue.try_lock();
+	locked.has_value()) {
+      return (*locked)->try_put(buf);
+    } else {
+      return false;
+    }
   }
 
   const CallstackReport& callstack_report() const {
