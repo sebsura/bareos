@@ -67,17 +67,6 @@ static std::string RandomBlocks(std::size_t num_blocks)
   return result;
 }
 
-static std::size_t DoSomeWork(int amount)
-{
-  std::binomial_distribution dist(1, 0.8);
-  std::vector<int> v;
-  for (int i = 0; i < amount; ++i) {
-    if (dist(engine) == 1) { v.push_back(i); }
-  }
-  benchmark::DoNotOptimize(v);
-  return v.size();
-}
-
 static TimeKeeper keeper;
 static void SubmitRandomEvents(bm::State& state)
 {
@@ -109,11 +98,6 @@ static void SubmitRandomEvents(bm::State& state)
       } else {
 	timer.exit(*blockid[c]);
       }
-      state.PauseTiming();
-      // simulate the function call
-      auto wait = DoSomeWork(10);
-      benchmark::DoNotOptimize(wait);
-      state.ResumeTiming();
     }
     numEvents += 2 * num_blocks;
   }
@@ -121,6 +105,6 @@ static void SubmitRandomEvents(bm::State& state)
   state.counters["per event"] = benchmark::Counter(numEvents, benchmark::Counter::kIsRate | benchmark::Counter::kInvert);
 
 }
-BENCHMARK(SubmitRandomEvents)->Range(1 << 10, 1 << 15)->ThreadRange(1, 24);
+BENCHMARK(SubmitRandomEvents)->Range(1 << 10, 1 << 20)->ThreadRange(1 << 0, 1 << 5);
 
 BENCHMARK_MAIN();
