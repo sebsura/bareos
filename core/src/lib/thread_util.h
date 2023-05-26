@@ -80,7 +80,7 @@ template <typename T> class synchronized {
   {
     std::unique_lock l(mut, std::try_to_lock);
     if (l.owns_lock()) {
-      return {std::move(l), data};
+      return unique_locked<T>{std::move(l), data};
     } else {
       return std::nullopt;
     }
