@@ -1395,7 +1395,8 @@ static bool SetdebugCmd(UaContext* ua, const char* cmd)
   level = -1;
   i = FindArgWithValue(ua, NT_("level"));
   if (i >= 0) { level = atoi(ua->argv[i]); }
-  if (level < 0) {
+  // do not ask for level if non is given.
+  if (i >= 0 && level < 0) {
     if (!GetPint(ua, _("Enter new debug level: "))) { return true; }
     level = ua->pint32_val;
   }
