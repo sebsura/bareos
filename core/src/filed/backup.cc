@@ -194,7 +194,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 
   sd->signal(BNET_EOD); /* end of sending data */
 
-  timer.exit();
+  timer.exit(blockid);
 
   if (have_acl && jcr->fd_impl->acl_data) {
     FreePoolMemory(jcr->fd_impl->acl_data->u.build->content);
@@ -704,7 +704,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   // Send attributes -- must be done after binit()
   timer.enter(send_attributes);
   if (!EncodeAndSendAttributes(jcr, ff_pkt, data_stream)) { goto bail_out; }
-  timer.exit();
+  timer.exit(send_attributes);
 
   // Meta data only for restore object
   if (IS_FT_OBJECT(ff_pkt->type)) { goto good_rtn; }
@@ -780,7 +780,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     timer.enter(sending);
     status = send_data(jcr, data_stream, ff_pkt, bsctx.digest,
                        bsctx.signing_digest);
-    timer.exit();
+    timer.exit(sending);
 
     if (BitIsSet(FO_CHKCHANGES, ff_pkt->flags)) { HasFileChanged(jcr, ff_pkt); }
 
