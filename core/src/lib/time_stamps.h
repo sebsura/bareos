@@ -88,8 +88,8 @@ class TimeKeeper {
 
   ThreadHandle get_thread_local();
 
-  const CallstackReport& callstack_report() const {
-    return callstack;
+  const PerformanceReport& performance_report() const {
+    return perf;
   }
 
   bool is_enabled() const {
@@ -100,7 +100,7 @@ class TimeKeeper {
   const bool enabled;
   TimeKeeper(bool enabled, std::pair<channel::in<EventBuffer>, channel::out<EventBuffer>> p);
   synchronized<channel::in<EventBuffer>> queue;
-  CallstackReport callstack{};
+  PerformanceReport perf{};
   rw_synchronized<std::unordered_map<std::thread::id, ThreadTimeKeeper>>
       keeper{};
   std::thread report_writer;
