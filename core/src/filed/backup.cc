@@ -105,9 +105,10 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  */
 bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 {
-  auto timer = jcr->timer.get_thread_local();
   static constexpr auto blockid = BlockIdentity{"BlastDataToStorageDaemon"};
-  timer.enter(blockid);
+  auto timer = jcr->timer.get_thread_local();
+
+  TimedBlock blast_data{timer, blockid};
   BareosSocket* sd;
   bool ok = true;
 
@@ -193,8 +194,6 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   StopHeartbeatMonitor(jcr);
 
   sd->signal(BNET_EOD); /* end of sending data */
-
-  timer.exit(blockid);
 
   if (have_acl && jcr->fd_impl->acl_data) {
     FreePoolMemory(jcr->fd_impl->acl_data->u.build->content);
@@ -990,7 +989,7 @@ static DWORD WINAPI send_efs_data(PBYTE pbData,
   static constexpr BlockIdentity send{"send"};
   b_ctx* bctx = static_cast<b_ctx*>(pvCallbackContext);
   BareosSocket* sd = bctx->jcr->store_bsock;
-  auto& timer = bctx->jcr->timer.get_thread_local();
+  auto timer = bctx->jcr->timer.get_thread_local();
 
   TimedBlock read_and_send{timer, read};
 
