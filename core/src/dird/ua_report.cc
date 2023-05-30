@@ -69,11 +69,8 @@ static socket_ptr NativeConnectToClient(UaContext* ua, ClientResource* client)
   return {fd, connection_closer{}};
 }
 
-bool ReportCmd(UaContext* ua, const char* cmd)
+bool ReportCmd(UaContext* ua, const char*)
 {
-  ua->SendMsg("Count:%d '%s'\n", ua->argc, cmd);
-
-
   if (ua->argc < 2) {
     ua->SendMsg(
         "1900 Bad report command; Usage report <target> <args...>.\n");
