@@ -106,7 +106,7 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
 bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 {
   static constexpr auto blockid = BlockIdentity{"BlastDataToStorageDaemon"};
-  auto timer = jcr->timer.get_thread_local();
+  auto timer = jcr->get_thread_local_timer();
 
   TimedBlock blast_data{timer, blockid};
   BareosSocket* sd;
@@ -509,7 +509,7 @@ static inline bool DoBackupXattr(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
  */
 int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 {
-  auto timer = jcr->timer.get_thread_local();
+  auto timer = jcr->get_thread_local_timer();
   bool do_read = false;
   bool plugin_started = false;
   bool do_plugin_set = false;
@@ -868,7 +868,7 @@ static inline bool SendDataToSd(b_ctx* bctx)
 {
   BareosSocket* sd = bctx->jcr->store_bsock;
   bool need_more_data;
-  auto timer = bctx->jcr->timer.get_thread_local();
+  auto timer = bctx->jcr->get_thread_local_timer();
 
   // Check for sparse blocks
   if (BitIsSet(FO_SPARSE, bctx->ff_pkt->flags)) {
@@ -989,7 +989,7 @@ static DWORD WINAPI send_efs_data(PBYTE pbData,
   static constexpr BlockIdentity send{"send"};
   b_ctx* bctx = static_cast<b_ctx*>(pvCallbackContext);
   BareosSocket* sd = bctx->jcr->store_bsock;
-  auto timer = bctx->jcr->timer.get_thread_local();
+  auto timer = bctx->jcr->get_thread_local_timer();
 
   TimedBlock read_and_send{timer, read};
 
@@ -1055,7 +1055,7 @@ static inline bool SendPlainData(b_ctx& bctx)
   static constexpr BlockIdentity send{"send"};
   bool retval = false;
   BareosSocket* sd = bctx.jcr->store_bsock;
-  auto timer = bctx.jcr->timer.get_thread_local();
+  auto timer = bctx.jcr->get_thread_local_timer();
 
   // Read the file data
   TimedBlock read_and_send{timer, read};
