@@ -50,6 +50,7 @@
 #include "lib/time_stamps.h"
 
 #include <atomic>
+#include <memory>
 
 struct job_callback_item;
 class BareosDb;
@@ -85,6 +86,7 @@ class JobControlRecord {
   int32_t JobLevel_{};           /**< Job level */
   int32_t Protocol_{};           /**< Backup Protocol */
   bool my_thread_killable_{};
+  std::optional<TimeKeeper> timer{std::nullopt};
  public:
   JobControlRecord();
   ~JobControlRecord();
@@ -139,6 +141,24 @@ class JobControlRecord {
   void MyThreadSendSignal(int sig);              /**< in lib/jcr.c */
   void SetKillable(bool killable);               /**< in lib/jcr.c */
   bool IsKillable() const { return my_thread_killable_; }
+  void destroy_timer() {
+    std::destroy_at(&timer);
+  }
+  ThreadTimerHandle get_thread_local_timer() {
+    if (timer.has_value()) {
+      return ThreadTimerHandle{ timer->get_thread_local() };
+    } else {
+      return ThreadTimerHandle{};
+    }
+  }
+
+  const PerformanceReport* performance_report() {
+    if (timer.has_value()) {
+      return &timer->performance_report();
+    } else {
+      return nullptr;
+    }
+  }
 
   dlink<JobControlRecord> link;                     /**< JobControlRecord chain link */
   pthread_t my_thread_id{};       /**< Id of thread controlling jcr */
@@ -233,9 +253,6 @@ class JobControlRecord {
     StoredJcrImpl* sd_impl;
     FiledJcrImpl* fd_impl;
   };
-
-
-  TimeKeeper timer{GetPerf() != 0};
 };
 /* clang-format on */
 
