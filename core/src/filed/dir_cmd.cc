@@ -62,9 +62,6 @@
 #  include "win32/findlib/win32.h"
 #  include "vss.h"
 #endif
-namespace shared {
-extern bool ReportCmd(JobControlRecord* jcr);
-};
 
 namespace filedaemon {
 
@@ -97,6 +94,7 @@ static alist<pthread_t*>* client_initiated_connection_threads = nullptr;
 extern bool AccurateCmd(JobControlRecord* jcr);
 extern bool StatusCmd(JobControlRecord* jcr);
 extern bool QstatusCmd(JobControlRecord* jcr);
+extern bool ReportCmd(JobControlRecord* jcr);
 extern "C" char* job_code_callback_filed(JobControlRecord* jcr,
                                          const char* param);
 
@@ -163,7 +161,7 @@ static struct s_fd_dir_cmds cmds[] = {
     {"pluginoptions", PluginoptionsCmd, false},
     {"RunBeforeNow", RunbeforenowCmd, false},
     {"Run", RunscriptCmd, false},
-    {"report", shared::ReportCmd, false},
+    {"report", ReportCmd, false},
     {"restoreobject", RestoreObjectCmd, false},
     {"restore ", RestoreCmd, false},
     {"resolve ", ResolveCmd, false},
