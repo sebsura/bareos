@@ -537,7 +537,8 @@ bool ReportCmd(JobControlRecord* jcr) {
     if (found->second == "perf") {
       std::ostringstream out;
       result = shared::PerformanceReport(out, parsed);
-      dir->fsend(out.str().c_str());
+      std::string answer = out.str();
+      dir->send(answer.c_str(), answer.size());
     } else {
       // the map does not contain cstrings but string_views.  As such
       // we need to create a string first if we want to print them with %s.

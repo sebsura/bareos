@@ -44,8 +44,8 @@ void DoDirectorReport(UaContext* ua, const char* msg) {
       found != parsed.end()) {
     if (found->second == "perf") {
       std::ostringstream out;
-      (void) shared::PerformanceReport(out, parsed);
-      ua->SendMsg(out.str().c_str());
+      static_cast<void>(shared::PerformanceReport(out, parsed));
+      ua->SendMsg("%s", out.str().c_str());
     } else {
       // the map does not contain cstrings but string_views.  As such
       // we need to create a string first if we want to print them with %s.
