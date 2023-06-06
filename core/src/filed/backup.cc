@@ -92,6 +92,36 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
 static void CloseVssBackupSession(JobControlRecord* jcr);
 #endif
 
+void dummy_work(JobControlRecord* jcr)
+{
+  auto handle = jcr->start_recording_thread();
+  auto timer = jcr->get_thread_local_timer();
+  for (int i = 0; i < 4; ++i) {
+    {
+      static BlockIdentity sleep1{"enter + exit sleep1"};
+      static BlockIdentity sleep2{"enter + exit sleep2"};
+
+      timer.enter(sleep1);
+      Bmicrosleep(0, 100);
+
+      timer.exit(sleep1);
+      timer.enter(sleep2);
+
+      Bmicrosleep(0, 100);
+      timer.exit(sleep2);
+    }
+
+    {
+      static BlockIdentity sleep1{"Raii sleep1"};
+      static BlockIdentity sleep2{"Raii sleep2"};
+      TimedBlock block{timer, sleep1};
+      Bmicrosleep(0, 100);
+      block.switch_to(sleep2);
+      Bmicrosleep(0, 100);
+    }
+  }
+}
+
 /**
  * Find all the requested files and send them
  * to the Storage daemon.
@@ -112,6 +142,8 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   TimedBlock blast_data{timer, blockid};
   BareosSocket* sd;
   bool ok = true;
+
+  std::thread s{dummy_work, jcr};
 
   sd = jcr->store_bsock;
 
@@ -215,6 +247,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   CryptoSessionEnd(jcr);
 
   Dmsg1(100, "end blast_data ok=%d\n", ok);
+  s.join();
   return ok;
 }
 

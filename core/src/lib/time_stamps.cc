@@ -32,6 +32,7 @@
 ThreadTimeKeeper::~ThreadTimeKeeper()
 {
   buffer.emplace_back(std::move(event::StopRecording{}));
+  Dmsg1(10, "Num events: %lu", num_events+2);
   queue.lock()->put(std::move(buffer));
 }
 
@@ -53,6 +54,7 @@ static void FlushEventsIfNecessary(synchronized<channel::in<EventBuffer>>& queue
 
 void ThreadTimeKeeper::enter(const BlockIdentity& block)
 {
+  num_events++;
   FlushEventsIfNecessary(queue, this_id, buffer);
   auto event = event::OpenEvent{block};
   buffer.emplace_back(std::move(event));
@@ -60,6 +62,7 @@ void ThreadTimeKeeper::enter(const BlockIdentity& block)
 
 void ThreadTimeKeeper::exit(const BlockIdentity& block)
 {
+  num_events++;
   FlushEventsIfNecessary(queue, this_id, buffer);
   auto event = event::CloseEvent{block};
   buffer.emplace_back(std::move(event));

@@ -55,6 +55,7 @@ class ThreadTimeKeeper {
   void exit(const BlockIdentity& block);
 
  private:
+  std::uint64_t num_events{};
   thread_id this_id;
   synchronized<channel::in<EventBuffer>>& queue;
   EventBuffer buffer{this_id, event_buffer_init_capacity};
