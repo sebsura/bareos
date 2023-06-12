@@ -1164,7 +1164,7 @@ static int GetWindowsFileInfo(const char* filename,
   DWORD* pdwReserved0;
   FILETIME* pftLastAccessTime;
   FILETIME* pftLastWriteTime;
-  FILETIME* pftCreationTime;
+  FILETIME* pftChangeTime;
 
 
   // First get a findhandle and a file handle to the file.
@@ -1224,15 +1224,8 @@ static int GetWindowsFileInfo(const char* filename,
               = (FILETIME*)&basic_info.LastAccessTime;
           pftLastWriteTime
               = (FILETIME*)&basic_info.LastWriteTime;
-          if (CvtFtimeToUtime(basic_info.CreationTime)
-              > CvtFtimeToUtime(basic_info.ChangeTime)) {
-            pftCreationTime
-                = (FILETIME*)&basic_info.CreationTime;
-          } else {
-	    Dmsg0(750, "Change time is newer.\n");
-            pftCreationTime
-                = (FILETIME*)&basic_info.ChangeTime;
-          }
+	  pftChangeTime
+	      = (FILETIME*)&basic_info.ChangeTime;
           use_fallback_data = false;
         }
       }
@@ -1247,11 +1240,11 @@ static int GetWindowsFileInfo(const char* filename,
       if (p_FindFirstFileW) { /* use unicode */
         pftLastAccessTime = &info_w.ftLastAccessTime;
         pftLastWriteTime = &info_w.ftLastWriteTime;
-        pftCreationTime = &info_w.ftCreationTime;
+        pftChangeTime = &info_w.ftLastWriteTime;
       } else {
         pftLastAccessTime = &info_a.ftLastAccessTime;
         pftLastWriteTime = &info_a.ftLastWriteTime;
-        pftCreationTime = &info_a.ftCreationTime;
+        pftChangeTime = &info_a.ftLastWriteTime;
       }
     }
 
@@ -1381,7 +1374,7 @@ static int GetWindowsFileInfo(const char* filename,
 
   sb->st_atime = CvtFtimeToUtime(*pftLastAccessTime);
   sb->st_mtime = CvtFtimeToUtime(*pftLastWriteTime);
-  sb->st_ctime = CvtFtimeToUtime(*pftCreationTime);
+  sb->st_ctime = CvtFtimeToUtime(*pftChangeTime);
 
   return 0;
 }
@@ -1440,15 +1433,8 @@ int fstat(intptr_t fd, struct stat* sb)
           = CvtFtimeToUtime(basic_info.LastAccessTime);
       sb->st_mtime
           = CvtFtimeToUtime(basic_info.LastWriteTime);
-      if (CvtFtimeToUtime(basic_info.CreationTime)
-          > CvtFtimeToUtime(basic_info.ChangeTime)) {
-        sb->st_ctime
-            = CvtFtimeToUtime(basic_info.CreationTime);
-      } else {
-	Dmsg0(750, "Change time is newer.\n");
-        sb->st_ctime
-            = CvtFtimeToUtime(basic_info.ChangeTime);
-      }
+      sb->st_ctime
+	  = CvtFtimeToUtime(basic_info.ChangeTime);
       use_fallback_data = false;
     }
   }
@@ -1457,7 +1443,7 @@ int fstat(intptr_t fd, struct stat* sb)
   if (use_fallback_data) {
     sb->st_atime = CvtFtimeToUtime(info.ftLastAccessTime);
     sb->st_mtime = CvtFtimeToUtime(info.ftLastWriteTime);
-    sb->st_ctime = CvtFtimeToUtime(info.ftCreationTime);
+    sb->st_ctime = CvtFtimeToUtime(info.ftLastWriteTime);
   }
 
   return 0;
@@ -1626,15 +1612,8 @@ int stat(const char* filename, struct stat* sb)
               = CvtFtimeToUtime(basic_info.LastAccessTime);
           sb->st_mtime
               = CvtFtimeToUtime(basic_info.LastWriteTime);
-          if (CvtFtimeToUtime(basic_info.CreationTime)
-              > CvtFtimeToUtime(basic_info.ChangeTime)) {
-            sb->st_ctime
-                = CvtFtimeToUtime(basic_info.CreationTime);
-          } else {
-	    Dmsg0(750, "Change time is newer.\n");
-            sb->st_ctime
-                = CvtFtimeToUtime(basic_info.ChangeTime);
-          }
+	  sb->st_ctime
+	      = CvtFtimeToUtime(basic_info.ChangeTime);
           use_fallback_data = false;
         }
 
@@ -1647,7 +1626,7 @@ int stat(const char* filename, struct stat* sb)
       // Fall back to the GetFileAttributesEx data.
       sb->st_atime = CvtFtimeToUtime(data.ftLastAccessTime);
       sb->st_mtime = CvtFtimeToUtime(data.ftLastWriteTime);
-      sb->st_ctime = CvtFtimeToUtime(data.ftCreationTime);
+      sb->st_ctime = CvtFtimeToUtime(data.ftLastWriteTime);
     }
   }
   rval = 0;
