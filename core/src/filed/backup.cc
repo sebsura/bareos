@@ -94,7 +94,6 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
 
 void dummy_work(JobControlRecord* jcr)
 {
-  auto handle = jcr->start_recording_thread();
   auto timer = jcr->get_thread_local_timer();
   for (int i = 0; i < 4; ++i) {
     {
@@ -103,6 +102,7 @@ void dummy_work(JobControlRecord* jcr)
 
       timer.enter(sleep1);
       Bmicrosleep(0, 100);
+      timer.exit(sleep1);
 
       timer.exit(sleep1);
       timer.enter(sleep2);
@@ -136,7 +136,6 @@ void dummy_work(JobControlRecord* jcr)
 bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 {
   static constexpr auto blockid = BlockIdentity{"BlastDataToStorageDaemon"};
-  auto handle = jcr->start_recording_thread();
   auto timer = jcr->get_thread_local_timer();
 
   TimedBlock blast_data{timer, blockid};

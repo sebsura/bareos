@@ -113,6 +113,9 @@ static bool SaveFullyProcessedFilesAttributes(
 // Append Data sent from File daemon
 bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
 {
+  static BlockIdentity mein_block("Append");
+  auto timer = jcr->get_thread_local_timer();
+  timer.enter(mein_block);
   int32_t n, file_index, stream, last_file_index, job_elapsed;
   bool ok = true;
   char buf1[100];
@@ -426,6 +429,8 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
   } else {
     CommitAttributeSpool(jcr);
   }
+
+  timer.exit(mein_block);
 
   jcr->sendJobStatus(); /* update director */
 
