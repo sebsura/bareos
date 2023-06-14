@@ -427,7 +427,10 @@ bool FindSuitableDeviceForJob(JobControlRecord* jcr, ReserveContext& rctx)
 
       // Check with Director if this Volume is OK
       bstrncpy(dcr->VolumeName, vol->vol_name, sizeof(dcr->VolumeName));
-      if (!dcr->DirGetVolumeInfo(GET_VOL_INFO_FOR_WRITE)) { continue; }
+      if (!dcr->DirGetVolumeInfo(GET_VOL_INFO_FOR_WRITE)) {
+        dcr->VolumeName[0] = 0;
+        continue;
+      }
 
       Dmsg1(debuglevel, "vol=%s OK for this job\n", vol->vol_name);
       foreach_alist (store, dirstore) {
