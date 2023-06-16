@@ -48,7 +48,7 @@ class ThreadTimeKeeper {
 		   thread_id my_id)
       : this_id{my_id}, queue{queue}
   {
-    buffer.emplace_back(std::move(event::StartRecording{}));
+    buffer.emplace_back(event::StartRecording{});
   }
   ~ThreadTimeKeeper();
   void enter(const BlockIdentity& block);

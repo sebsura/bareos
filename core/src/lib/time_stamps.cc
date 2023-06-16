@@ -31,7 +31,7 @@
 
 ThreadTimeKeeper::~ThreadTimeKeeper()
 {
-  buffer.emplace_back(std::move(event::StopRecording{}));
+  buffer.emplace_back(event::StopRecording{});
   queue.lock()->put(std::move(buffer));
 }
 
