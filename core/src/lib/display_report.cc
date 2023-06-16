@@ -239,7 +239,7 @@ std::optional<callstack_options> ParseCallstackOptions(std::ostringstream& out,
       options.relative = true;
     } else if (val == "yes") {
       options.relative = true;
-    } else if (val == "false") {
+    } else if (val == "no") {
       options.relative = false;
     } else {
       out << "Could not parse boolean 'relative': " << val << "\n";
