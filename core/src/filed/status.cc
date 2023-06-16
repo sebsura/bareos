@@ -528,7 +528,7 @@ bool ReportCmd(JobControlRecord* jcr) {
   BareosSocket* dir = jcr->dir_bsock;
 
   std::string received{dir->msg};
-  std::unordered_map parsed = shared::ParseReportCommands(received);
+  std::unordered_map parsed = report::ParseReportCommands(received);
 
   bool result = false;
 
@@ -536,7 +536,7 @@ bool ReportCmd(JobControlRecord* jcr) {
       found != parsed.end()) {
     if (found->second == "perf") {
       std::ostringstream out;
-      result = shared::PerformanceReport(out, parsed);
+      result = report::PerformanceReport(out, parsed);
       std::string answer = out.str();
       dir->send(answer.c_str(), answer.size());
     } else {

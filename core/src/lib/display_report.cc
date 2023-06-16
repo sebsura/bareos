@@ -26,7 +26,7 @@
 #include <charconv>
 #include <unordered_set>
 
-namespace shared {
+namespace report {
 struct words {
   class iterator {
   public:

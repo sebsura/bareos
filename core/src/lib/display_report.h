@@ -26,7 +26,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace shared {
+namespace report {
 std::unordered_map<std::string_view, std::string_view> ParseReportCommands(std::string_view str);
 bool PerformanceReport(std::ostringstream& out, const std::unordered_map<std::string_view, std::string_view>& options);
 };
