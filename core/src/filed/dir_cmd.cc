@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -1827,25 +1827,26 @@ static bool BackupCmd(JobControlRecord* jcr)
       // Plugin driver can return drive letters
       GeneratePluginEvent(jcr, bEventVssPrepareSnapshot, szWinDriveLetters);
 
-      std::vector<std::wstring> volumes = get_win32_volumes(jcr->fd_impl->ff->fileset);
+      std::vector<std::wstring> volumes
+          = get_win32_volumes(jcr->fd_impl->ff->fileset);
 
       {
-	char drive[] = "_:";
-	for (std::size_t i = 0; i < sizeof(szWinDriveLetters) && szWinDriveLetters[i]; ++i) {
-	  drive[0] = szWinDriveLetters[i];
-	  std::wstring wdrive = FromUtf8(drive);
-	  if (GetDriveTypeW(wdrive.c_str()) == DRIVE_FIXED) {
-	    volumes.emplace_back(std::move(wdrive));
-	  }
-	}
+        char drive[] = "_:";
+        for (std::size_t i = 0;
+             i < sizeof(szWinDriveLetters) && szWinDriveLetters[i]; ++i) {
+          drive[0] = szWinDriveLetters[i];
+          std::wstring wdrive = FromUtf8(drive);
+          if (GetDriveTypeW(wdrive.c_str()) == DRIVE_FIXED) {
+            volumes.emplace_back(std::move(wdrive));
+          }
+        }
       }
 
       onefs_disabled = win32_onefs_is_disabled(jcr->fd_impl->ff->fileset);
 
       volume_count = volumes.size();
       if (volume_count > 0) {
-        Jmsg(jcr, M_INFO, 0,
-             _("Generate VSS snapshots. Driver=\"%s\"\n"),
+        Jmsg(jcr, M_INFO, 0, _("Generate VSS snapshots. Driver=\"%s\"\n"),
              jcr->fd_impl->pVSSClient->GetDriverName());
 
         if (!jcr->fd_impl->pVSSClient->CreateSnapshots(volumes,
@@ -1860,20 +1861,20 @@ static bool BackupCmd(JobControlRecord* jcr)
           // Inform about VMPs if we have them
           jcr->fd_impl->pVSSClient->ShowVolumeMountPointStats(jcr);
 
-	  VSSClient* client = jcr->fd_impl->pVSSClient;
+          VSSClient* client = jcr->fd_impl->pVSSClient;
 
           // Tell the user about the created shadow copies
-	  for (auto [mount, vol] : client->mount_to_vol) {
-	    if (auto found = client->vol_to_vss.find(vol);
-		found != client->vol_to_vss.end()) {
-	      Jmsg(jcr, M_INFO, 0, "(%s)%s -> %s\n",
-		   mount.c_str(), vol.c_str(), found->second.c_str());
-	    } else {
-	      Jmsg(jcr, M_FATAL, 0, "No snapshot for volume %s (aka. %s) was generated.\n",
-		   mount.c_str(), vol.c_str());
-
-	    }
-	  }
+          for (auto [mount, vol] : client->mount_to_vol) {
+            if (auto found = client->vol_to_vss.find(vol);
+                found != client->vol_to_vss.end()) {
+              Jmsg(jcr, M_INFO, 0, "(%s)%s -> %s\n", mount.c_str(), vol.c_str(),
+                   found->second.c_str());
+            } else {
+              Jmsg(jcr, M_FATAL, 0,
+                   "No snapshot for volume %s (aka. %s) was generated.\n",
+                   mount.c_str(), vol.c_str());
+            }
+          }
 
           // Inform user about writer states
           for (size_t i = 0; i < jcr->fd_impl->pVSSClient->GetWriterCount();
