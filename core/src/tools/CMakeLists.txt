@@ -76,7 +76,6 @@ endif()
 add_executable(drydedup drydedup.cc)
 target_link_libraries(drydedup bareos CLI11::CLI11 ${OPENSSL_LIBRARIES})
 
-
 install(TARGETS ${TOOLS_BIN} DESTINATION "${bindir}")
 install(TARGETS ${TOOLS_SBIN} DESTINATION "${sbindir}")
 
