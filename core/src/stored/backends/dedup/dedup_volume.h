@@ -490,6 +490,10 @@ struct volume_config {
                                recordsection.start_record,
                                recordsection.num_records);
     }
+    std::sort(recordfiles.begin(), recordfiles.end(),
+              [](const auto& lhs, const auto& rhs) {
+                return lhs.start_record < rhs.start_record;
+              });
     for (auto&& datasection : conf.datafiles) {
       datafiles.emplace_back(std::move(datasection.path),
                              datasection.file_index, datasection.block_size);
@@ -685,13 +689,21 @@ class volume {
     // wenn eod, bod & reposition das richtige machen, sollte man
     // immer bei der richtigen position sein
 
-    for (auto& recordfile : config.recordfiles) {
-      if (record_index >= recordfile.start_record
-          && record_index - recordfile.start_record < recordfile.num_records) {
-        return recordfile.read_record(record_index);
-      }
+    auto lower = std::lower_bound(config.recordfiles.rbegin(),
+                                  config.recordfiles.rend(), record_index,
+                                  [](const auto& lhs, const auto& rhs) {
+                                    return lhs.start_record > rhs;
+                                  });
+    // lower "points" to the last block that has start_record <= record_index
+    // one invariant of our class is that there is always a record file
+    // that starts at 0, so we know that lower was always found
+    // to make doubly sure we still check
+    if (lower == config.recordfiles.rend()) {
+      // can never be true
+      return std::nullopt;
     }
-    return std::nullopt;
+
+    return lower->read_record(record_index);
   }
 
   bool read_data(std::uint32_t file_index,
