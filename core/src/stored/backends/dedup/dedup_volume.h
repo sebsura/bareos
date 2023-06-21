@@ -297,6 +297,8 @@ struct block_file : public volume_file {
     return false;
   }
 
+  std::uint64_t last_block() const { return start_block + num_blocks; }
+
   bool write(const bareos_block_header&, std::uint64_t, std::uint32_t);
 
   std::optional<block_header> read_block()
@@ -652,18 +654,22 @@ class volume {
     //       the record and data files as well
     //       otherwise set the record and data files to their respective end
 
-    std::uint64_t max_block = 0;
-    for (auto& blockfile : config.blockfiles) {
-      max_block
-          = std::max(max_block, blockfile.start_block + blockfile.num_blocks);
-      if (blockfile.start_block <= block_num
-          && block_num < blockfile.start_block + blockfile.num_blocks) {
-        return blockfile.goto_block(block_num);
-      }
+    std::uint64_t max_block = config.blockfiles.back().last_block();
+    if (block_num == max_block) { return goto_end(); }
+
+    auto lower = std::lower_bound(
+        config.blockfiles.rbegin(), config.blockfiles.rend(), block_num,
+        [](const auto& lhs, const auto& rhs) { return lhs.start_block > rhs; });
+    // lower "points" to the last block that has start_block <= block_index
+    // one invariant of our class is that there is always a block file
+    // that starts at 0, so we know that lower was always found
+    // to make doubly sure we still check
+    if (lower == config.blockfiles.rend()) {
+      // can never happen (unless the object is in a bad state)
+      return false;
     }
 
-    if (block_num == max_block) { return goto_end(); }
-    return false;
+    return lower->goto_block(block_num);
   }
 
   bool goto_end()
