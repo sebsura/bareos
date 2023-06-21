@@ -485,6 +485,10 @@ struct volume_config {
                               blocksection.start_block,
                               blocksection.num_blocks);
     }
+    std::sort(blockfiles.begin(), blockfiles.end(),
+              [](const auto& lhs, const auto& rhs) {
+                return lhs.start_block < rhs.start_block;
+              });
     for (auto&& recordsection : conf.recordfiles) {
       recordfiles.emplace_back(std::move(recordsection.path),
                                recordsection.start_record,
