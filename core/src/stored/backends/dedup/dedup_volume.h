@@ -606,12 +606,18 @@ class volume {
     // if datafile::any_size is first, we should ignore it until the end!
     // maybe split into _one_ any_size + map size -> file
     // + vector of read_only ?
+    data_file* best = nullptr;
     for (auto& datafile : config.datafiles) {
-      if (datafile.accepts_records_of_size(record_size)) { return datafile; }
+      if (datafile.accepts_records_of_size(record_size)) {
+        if (!best || best->block_size < datafile.block_size) {
+          best = &datafile;
+        }
+      }
     }
 
-    ASSERT(!"dedup volume has no datafile for this record.\n");
-    return config.datafiles[0];
+    // best is never null here because we always have at least one
+    // datafile with data_file::any_size
+    return *best;
   }
 
   bool reset()
