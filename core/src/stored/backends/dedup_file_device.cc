@@ -166,8 +166,8 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
   auto& blockfile = vol.get_active_block_file();
   auto& recordfile = vol.get_active_record_file();
 
-  uint32_t RecStart = recordfile.current();
-  uint32_t RecEnd = RecStart;
+  std::uint64_t RecStart = recordfile.current();
+  std::uint32_t RecEnd = 0;
 
   while (current != end) {
     dedup::bareos_record_header* record = (dedup::bareos_record_header*)current;
@@ -191,15 +191,15 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
 
     if (!recordfile.write(*record, written_loc->begin, written_loc->end,
                           written_loc->file_index)
-        || RecEnd != recordfile.current()) {
+        || RecStart + RecEnd != recordfile.current()) {
       // something went wrong
       return -1;
     }
     current = payload_end;
   }
 
-  ASSERT(RecEnd == recordfile.current());
-  blockfile.write(*block, RecStart, RecEnd, recordfile.file_index);
+  ASSERT(RecStart + RecEnd == recordfile.current());
+  blockfile.write(*block, RecStart, RecEnd);
 
   return current - begin;
 }
@@ -228,9 +228,8 @@ ssize_t gather(dedup::volume& vol, char* data, std::size_t size)
 
   if (!buf.write(block->BareosHeader)) { return -1; }
 
-  for (std::size_t record_idx = block->RecStart; record_idx < block->RecEnd;
-       ++record_idx) {
-    std::optional record = vol.read_record(block->file_index, record_idx);
+  for (std::uint32_t offset = 0; offset < block->RecEnd; ++offset) {
+    std::optional record = vol.read_record(block->RecStart + offset);
 
     if (!record) { return -1; }
 

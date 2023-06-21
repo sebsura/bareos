@@ -59,22 +59,20 @@ struct bareos_record_header {
 };
 
 struct block_header {
-  bareos_block_header BareosHeader;
-  // change to 64bit start!
-  net_u32 RecStart;
+  net_u64 RecStart;
   net_u32 RecEnd;
-  net_u32 file_index;
+  net_u32 reserved_0;
+  bareos_block_header BareosHeader;
 
   block_header() = default;
 
   block_header(const bareos_block_header& base,
-               std::uint32_t RecStart,
-               std::uint32_t RecEnd,
-               std::uint32_t file_index)
-      : BareosHeader(base)
-      , RecStart{network_order::of_native(RecStart)}
+               std::uint64_t RecStart,
+               std::uint32_t RecEnd)
+      : RecStart{network_order::of_native(RecStart)}
       , RecEnd{network_order::of_native(RecEnd)}
-      , file_index{network_order::of_native(file_index)}
+      , reserved_0{0}
+      , BareosHeader(base)
   {
   }
 };
@@ -256,33 +254,28 @@ struct volume_file {
 
 struct block_file : public volume_file {
   block_file() = default;
-  block_file(std::string_view path,
-             std::uint32_t file_index,
-             std::uint32_t s,
-             std::uint32_t e)
+  block_file(std::string_view path, std::uint64_t start, std::uint32_t count)
       : volume_file(path)
-      , file_index{file_index}
-      , start_block{s}
-      , end_block{e}
+      , start_block{start}
+      , num_blocks{count}
       , current_block{0}
   {
   }
-  std::uint32_t file_index{};
-  std::uint32_t start_block{};
-  std::uint32_t end_block{};
-  std::uint32_t current_block{};
+  std::uint64_t start_block{};
+  std::uint32_t num_blocks{};
+  std::uint32_t current_block{};  // between 0 and num_blocks!
 
   bool truncate()
   {
     start_block = 0;
-    end_block = 0;
+    num_blocks = 0;
     current_block = 0;
     return volume_file::truncate();
   }
 
   bool goto_end()
   {
-    current_block = end_block;
+    current_block = num_blocks;
     return volume_file::goto_end();
   }
 
@@ -292,8 +285,10 @@ struct block_file : public volume_file {
     return volume_file::goto_begin();
   }
 
-  bool goto_block(std::int64_t block)
+  bool goto_block(std::uint64_t absolute_block)
   {
+    std::uint64_t block = absolute_block - start_block;
+    if (block > num_blocks) { return false; }
     if (current_block == block) { return true; }
     if (volume_file::goto_begin(block * sizeof(block_header))) {
       current_block = block;
@@ -302,14 +297,11 @@ struct block_file : public volume_file {
     return false;
   }
 
-  bool write(const bareos_block_header&,
-             std::uint32_t,
-             std::uint32_t,
-             std::uint32_t);
+  bool write(const bareos_block_header&, std::uint64_t, std::uint32_t);
 
   std::optional<block_header> read_block()
   {
-    if (current_block == end_block) { return std::nullopt; }
+    if (current_block == num_blocks) { return std::nullopt; }
 
     block_header result;
     if (!read(static_cast<void*>(&result), sizeof(result))) {
@@ -323,33 +315,28 @@ struct block_file : public volume_file {
 
 struct record_file : public volume_file {
   record_file() = default;
-  record_file(std::string_view path,
-              std::uint32_t file_index,
-              std::uint32_t s,
-              std::uint32_t e)
+  record_file(std::string_view path, std::uint64_t start, std::uint32_t count)
       : volume_file(path)
-      , file_index{file_index}
-      , start_record{s}
-      , end_record{e}
+      , start_record{start}
+      , num_records{count}
       , current_record{0}
   {
   }
-  std::uint32_t file_index{};
-  std::uint32_t start_record{};
-  std::uint32_t end_record{};
-  std::uint32_t current_record{};
+  std::uint64_t start_record{};
+  std::uint32_t num_records{};
+  std::uint32_t current_record{};  // between 0 and num_records
 
   bool truncate()
   {
     start_record = 0;
-    end_record = 0;
+    num_records = 0;
     current_record = 0;
     return volume_file::truncate();
   }
 
   bool goto_end()
   {
-    current_record = end_record;
+    current_record = num_records;
     return volume_file::goto_end();
   }
 
@@ -359,12 +346,14 @@ struct record_file : public volume_file {
     return volume_file::goto_begin();
   }
 
-  bool goto_record(std::uint64_t record_idx)
+  bool goto_record(std::uint64_t absolute_record)
   {
-    if (current_record == record_idx) { return true; }
+    std::uint64_t record = absolute_record - start_record;
+    if (record > num_records) { return false; }
+    if (current_record == record) { return true; }
 
-    if (volume_file::goto_begin(record_idx * sizeof(record_header))) {
-      current_record = record_idx;
+    if (volume_file::goto_begin(record * sizeof(record_header))) {
+      current_record = record;
       return true;
     }
     return false;
@@ -482,8 +471,8 @@ struct volume_config {
     blockfiles.clear();
     recordfiles.clear();
     datafiles.clear();
-    blockfiles.emplace_back("block", 0, 0, 0);
-    recordfiles.emplace_back("record", 0, 0, 0);
+    blockfiles.emplace_back("block", 0, 0);
+    recordfiles.emplace_back("record", 0, 0);
     datafiles.emplace_back("64KiB", 0, 65536);
     datafiles.emplace_back("data", 1, data_file::any_size);
   }
@@ -493,13 +482,13 @@ struct volume_config {
   {
     for (auto&& blocksection : conf.blockfiles) {
       blockfiles.emplace_back(std::move(blocksection.path),
-                              blocksection.file_index, blocksection.start_block,
-                              blocksection.end_block);
+                              blocksection.start_block,
+                              blocksection.num_blocks);
     }
     for (auto&& recordsection : conf.recordfiles) {
-      recordfiles.emplace_back(
-          std::move(recordsection.path), recordsection.file_index,
-          recordsection.start_record, recordsection.end_record);
+      recordfiles.emplace_back(std::move(recordsection.path),
+                               recordsection.start_record,
+                               recordsection.num_records);
     }
     for (auto&& datasection : conf.datafiles) {
       datafiles.emplace_back(std::move(datasection.path),
@@ -598,7 +587,7 @@ class volume {
   bool is_at_end()
   {
     auto& blockfile = get_active_block_file();
-    return blockfile.current_block == blockfile.end_block;
+    return blockfile.current_block == blockfile.num_blocks;
   }
 
   data_file& get_data_file_by_size(std::uint32_t record_size)
@@ -648,18 +637,19 @@ class volume {
     return true;
   }
 
-  bool goto_block(std::size_t block_num)
+  bool goto_block(std::uint64_t block_num)
   {
     // todo: if we are not at the end of the device
     //       we should read the block header and position
     //       the record and data files as well
     //       otherwise set the record and data files to their respective end
 
-    std::uint32_t max_block = 0;
+    std::uint64_t max_block = 0;
     for (auto& blockfile : config.blockfiles) {
-      max_block = std::max(max_block, blockfile.end_block);
+      max_block
+          = std::max(max_block, blockfile.start_block + blockfile.num_blocks);
       if (blockfile.start_block <= block_num
-          && blockfile.end_block < block_num) {
+          && block_num < blockfile.start_block + blockfile.num_blocks) {
         return blockfile.goto_block(block_num);
       }
     }
@@ -689,15 +679,19 @@ class volume {
     return blockfile.read_block();
   }
 
-  std::optional<record_header> read_record(std::uint32_t file_index,
-                                           std::uint32_t record_index)
+  std::optional<record_header> read_record(std::uint64_t record_index)
   {
     // müssen wir hier überhaupt das record bewegen ?
     // wenn eod, bod & reposition das richtige machen, sollte man
     // immer bei der richtigen position sein
-    if (file_index > config.recordfiles.size()) { return std::nullopt; }
-    auto& record_file = config.recordfiles[file_index];
-    return record_file.read_record(record_index);
+
+    for (auto& recordfile : config.recordfiles) {
+      if (record_index >= recordfile.start_record
+          && record_index - recordfile.start_record < recordfile.num_records) {
+        return recordfile.read_record(record_index);
+      }
+    }
+    return std::nullopt;
   }
 
   bool read_data(std::uint32_t file_index,

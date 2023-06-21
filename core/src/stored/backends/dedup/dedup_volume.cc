@@ -37,12 +37,12 @@ void volume::write_current_config()
 
 
   for (auto&& blockfile : config.blockfiles) {
-    blocksections.emplace_back(blockfile.file_index, blockfile.start_block,
-                               blockfile.end_block, blockfile.path);
+    blocksections.emplace_back(blockfile.start_block, blockfile.num_blocks,
+                               blockfile.path);
   }
   for (auto&& recordfile : config.recordfiles) {
-    recordsections.emplace_back(recordfile.file_index, recordfile.start_record,
-                                recordfile.end_record, recordfile.path);
+    recordsections.emplace_back(recordfile.start_record, recordfile.num_records,
+                                recordfile.path);
   }
   for (auto&& datafile : config.datafiles) {
     datasections.emplace_back(datafile.file_index, datafile.block_size,
@@ -113,16 +113,15 @@ bool volume::load_config()
 }
 
 bool block_file::write(const bareos_block_header& header,
-                       std::uint32_t start_record,
-                       std::uint32_t end_record,
-                       std::uint32_t record_file_index)
+                       std::uint64_t start_record,
+                       std::uint32_t num_records)
 {
-  block_header dedup{header, start_record, end_record, record_file_index};
+  block_header dedup{header, start_record, num_records};
 
   if (!volume_file::write(&dedup, sizeof(dedup))) { return false; }
 
   current_block += 1;
-  end_block = current_block;
+  num_blocks = current_block;
   return true;
 }
 
@@ -136,7 +135,7 @@ bool record_file::write(const bareos_record_header& header,
   if (!volume_file::write(&dedup, sizeof(dedup))) { return false; }
 
   current_record += 1;
-  end_record = current_record;
+  num_records = current_record;
   return true;
 }
 

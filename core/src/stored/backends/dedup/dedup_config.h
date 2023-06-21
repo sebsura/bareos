@@ -31,7 +31,6 @@
 
 namespace dedup::config {
 
-
 using net_u32 = network_order::network_value<std::uint32_t>;
 using net_i32 = network_order::network_value<std::int32_t>;
 using net_u64 = network_order::network_value<std::uint64_t>;
@@ -105,9 +104,8 @@ struct general_section {
 };
 
 struct block_file_section {
-  net_u32 file_index;
-  net_u32 start_block;
-  net_u32 end_block;
+  net_u64 start_block;
+  net_u32 num_blocks;
   net_u32 path_length;
   // the path data follows directly without any padding
   // as if
@@ -116,9 +114,8 @@ struct block_file_section {
 };
 
 struct record_file_section {
-  net_u32 file_index;
-  net_u32 start_record;
-  net_u32 end_record;
+  net_u64 start_record;
+  net_u32 num_records;
   net_u32 path_length;
   // the path data follows directly without any padding
   // as if
@@ -151,38 +148,30 @@ struct loaded_data_section {
 };
 
 struct loaded_block_section {
-  std::uint32_t file_index;
   std::uint32_t start_block;
-  std::uint32_t end_block;
+  std::uint32_t num_blocks;
   std::string path;
 
   loaded_block_section() = default;
-  loaded_block_section(std::uint32_t file_index,
-                       std::uint32_t start_block,
-                       std::uint32_t end_block,
+  loaded_block_section(std::uint64_t start_block,
+                       std::uint32_t num_blocks,
                        std::string path)
-      : file_index(file_index)
-      , start_block(start_block)
-      , end_block(end_block)
-      , path(std::move(path))
+      : start_block(start_block), num_blocks(num_blocks), path(std::move(path))
   {
   }
 };
 
 struct loaded_record_section {
-  std::uint32_t file_index;
-  std::uint32_t start_record;
-  std::uint32_t end_record;
+  std::uint64_t start_record;
+  std::uint32_t num_records;
   std::string path;
 
   loaded_record_section() = default;
-  loaded_record_section(std::uint32_t file_index,
-                        std::uint32_t start_record,
-                        std::uint32_t end_record,
+  loaded_record_section(std::uint64_t start_record,
+                        std::uint32_t num_records,
                         std::string path)
-      : file_index(file_index)
-      , start_record(start_record)
-      , end_record(end_record)
+      : start_record(start_record)
+      , num_records(num_records)
       , path(std::move(path))
   {
   }
