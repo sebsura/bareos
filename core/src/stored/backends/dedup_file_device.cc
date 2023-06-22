@@ -163,11 +163,8 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
   auto* current = begin + sizeof(*block);
   auto* end = begin + bsize;
 
-  auto& blockfile = vol.get_active_block_file();
-  auto& recordfile = vol.get_active_record_file();
-
-  std::uint64_t RecStart = recordfile.current();
-  std::uint32_t RecEnd = 0;
+  std::uint64_t first_rec = vol.next_record_idx();
+  std::uint32_t num_recs = 0;
 
   while (current != end) {
     dedup::bareos_record_header* record = (dedup::bareos_record_header*)current;
@@ -176,7 +173,6 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
       return -1;
     }
 
-    RecEnd += 1;
     auto* payload_start = reinterpret_cast<const char*>(record + 1);
     auto* payload_end = payload_start + record->DataSize;
 
@@ -187,19 +183,32 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
 
     std::optional written_loc
         = vol.write_data(*block, *record, payload_start, payload_end);
-    if (!written_loc) { return -1; }
-
-    if (!recordfile.write(*record, written_loc->begin, written_loc->end,
-                          written_loc->file_index)
-        || RecStart + RecEnd != recordfile.current()) {
-      // something went wrong
+    if (!written_loc) {
+      vol.revert_to_record(first_rec);
       return -1;
     }
+
+    auto rec_id = vol.write_record(*record, written_loc->begin,
+                                   written_loc->end, written_loc->file_index);
+
+    if (!rec_id) { return -1; }
+
+    if (*rec_id != first_rec + num_recs) {
+      // this is really bad; we have somehow lost/overwritten data
+      // this cannot happen unless two blocks are written _at the same time_
+      // to the same volume.  This should not be possible.
+      return -1;
+    }
+
+    num_recs += 1;
+
     current = payload_end;
   }
 
-  ASSERT(RecStart + RecEnd == recordfile.current());
-  blockfile.write(*block, RecStart, RecEnd);
+  if (!vol.write_block(*block, first_rec, num_recs)) {
+    vol.revert_to_record(first_rec);
+    return -1;
+  }
 
   return current - begin;
 }
@@ -312,23 +321,24 @@ bool dedup_file_device::rewind(DeviceControlRecord* dcr)
 
 bool dedup_file_device::UpdatePos(DeviceControlRecord*)
 {
-  if (auto found = open_volumes.find(fd); found != open_volumes.end()) {
-    dedup::volume& vol = found->second;
-    ASSERT(vol.is_ok());
-    auto pos = vol.get_active_block_file().current_pos();
-    if (!pos) return false;
+  // if (auto found = open_volumes.find(fd); found != open_volumes.end()) {
+  //   dedup::volume& vol = found->second;
+  //   ASSERT(vol.is_ok());
+  //   auto pos = vol.get_active_block_file().current_pos();
+  //   if (!pos) return false;
 
-    file_addr = *pos;
-    block_num = *pos / sizeof(dedup::block_header);
+  //   file_addr = *pos;
+  //   block_num = *pos / sizeof(dedup::block_header);
 
-    ASSERT(block_num * sizeof(dedup::block_header) == file_addr);
+  //   ASSERT(block_num * sizeof(dedup::block_header) == file_addr);
 
-    file = 0;
+  //   file = 0;
 
-    return true;
-  } else {
-    return false;
-  }
+  //   return true;
+  // } else {
+  //   return false;
+  // }
+  return true;
 }
 
 bool dedup_file_device::Reposition(DeviceControlRecord* dcr,

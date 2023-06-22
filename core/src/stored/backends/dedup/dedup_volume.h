@@ -30,7 +30,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <optional>
-#include <algorithm>
 #include <utility>
 #include <string>
 
@@ -464,22 +463,22 @@ struct data_file : public volume_file {
 };
 
 struct volume_config {
-  std::vector<block_file> blockfiles;
-  std::vector<record_file> recordfiles;
-  std::vector<data_file> datafiles;
+  std::vector<block_file> blockfiles{};
+  std::vector<record_file> recordfiles{};
+  std::vector<data_file> datafiles{};
 
-  void create_default()
+  std::size_t active_block_file{0};
+  std::size_t active_record_file{0};
+
+  bool error{false};
+
+  volume_config()
   {
-    blockfiles.clear();
-    recordfiles.clear();
-    datafiles.clear();
     blockfiles.emplace_back("block", 0, 0);
     recordfiles.emplace_back("record", 0, 0);
-    datafiles.emplace_back("64KiB", 0, 65536);
-    datafiles.emplace_back("data", 1, data_file::any_size);
+    datafiles.emplace_back("data", 0, 0);
   }
 
-  volume_config() = default;
   volume_config(config::loaded_config&& conf)
   {
     for (auto&& blocksection : conf.blockfiles) {
@@ -491,10 +490,19 @@ struct volume_config {
               [](const auto& lhs, const auto& rhs) {
                 return lhs.start_block < rhs.start_block;
               });
+
+    if (blockfiles.size() == 0 || blockfiles[0].start_block != 0) {
+      error = true;
+      return;
+    }
     for (auto&& recordsection : conf.recordfiles) {
       recordfiles.emplace_back(std::move(recordsection.path),
                                recordsection.start_record,
                                recordsection.num_records);
+    }
+    if (recordfiles.size() == 0 || recordfiles[0].start_record != 0) {
+      error = true;
+      return;
     }
     std::sort(recordfiles.begin(), recordfiles.end(),
               [](const auto& lhs, const auto& rhs) {
@@ -505,239 +513,16 @@ struct volume_config {
                              datasection.file_index, datasection.block_size);
     }
   }
+
+  bool goto_record(std::uint64_t record_idx);
+  bool goto_block(std::uint64_t block_idx);
+
+  bool is_ok() { return error; }
 };
 
 class volume {
  public:
-  volume(const char* path, DeviceMode dev_mode, int mode)
-      : path(path), configfile{"config"}
-  {
-    // to create files inside dir, we need executive permissions
-    int dir_mode = mode | 0100;
-    if (struct stat st; (dev_mode == DeviceMode::CREATE_READ_WRITE)
-                        && (::stat(path, &st) == -1)) {
-      if (mkdir(path, mode | 0100) < 0) {
-        error = true;
-        return;
-      }
-
-    } else {
-      dev_mode = DeviceMode::OPEN_READ_WRITE;
-    }
-
-    dir = raii_fd(path, O_RDONLY | O_DIRECTORY, dir_mode);
-
-
-    if (!dir.is_ok()) {
-      error = true;
-      return;
-    }
-
-    if (dev_mode == DeviceMode::OPEN_WRITE_ONLY) {
-      // we always need to read the config file
-      configfile.open_inside(dir, mode, DeviceMode::OPEN_READ_WRITE);
-    } else {
-      configfile.open_inside(dir, mode, dev_mode);
-    }
-
-    if (!configfile.is_ok()) {
-      error = true;
-      return;
-    }
-
-    if (dev_mode == DeviceMode::CREATE_READ_WRITE) {
-      config.create_default();
-      volume_changed = true;
-    } else {
-      if (!load_config()) {
-        error = true;
-        return;
-      }
-    }
-
-    for (auto& blockfile : config.blockfiles) {
-      if (!blockfile.open_inside(dir, mode, dev_mode)) {
-        error = true;
-        return;
-      }
-    }
-
-    for (auto& recordfile : config.recordfiles) {
-      if (!recordfile.open_inside(dir, mode, dev_mode)) {
-        error = true;
-        return;
-      }
-    }
-
-    for (auto& datafile : config.datafiles) {
-      if (!datafile.open_inside(dir, mode, dev_mode)) {
-        error = true;
-        return;
-      }
-    }
-  }
-
-  record_file& get_active_record_file()
-  {
-    // currently only one record file is supported
-    return config.recordfiles[0];
-  }
-
-  record_file& get_record_file(std::uint32_t)
-  {
-    return get_active_record_file();
-  }
-
-  block_file& get_active_block_file()
-  {
-    // currently only one block file is supported
-    return config.blockfiles[0];
-  }
-
-  bool is_at_end()
-  {
-    auto& blockfile = get_active_block_file();
-    return blockfile.current_block == blockfile.num_blocks;
-  }
-
-  data_file& get_data_file_by_size(std::uint32_t record_size)
-  {
-    // we have to do this smarter
-    // if datafile::any_size is first, we should ignore it until the end!
-    // maybe split into _one_ any_size + map size -> file
-    // + vector of read_only ?
-    data_file* best = nullptr;
-    for (auto& datafile : config.datafiles) {
-      if (datafile.accepts_records_of_size(record_size)) {
-        if (!best || best->block_size < datafile.block_size) {
-          best = &datafile;
-        }
-      }
-    }
-
-    // best is never null here because we always have at least one
-    // datafile with data_file::any_size
-    return *best;
-  }
-
-  bool reset()
-  {
-    // TODO: look at unix_file_device for "secure_erase_cmdline"
-    for (auto& blockfile : config.blockfiles) {
-      if (!blockfile.truncate()) { return false; }
-    }
-
-    for (auto& recordfile : config.recordfiles) {
-      if (!recordfile.truncate()) { return false; }
-    }
-
-    for (auto& datafile : config.datafiles) {
-      if (!datafile.truncate()) { return false; }
-    }
-    return true;
-  }
-
-  bool goto_begin()
-  {
-    for (auto& blockfile : config.blockfiles) {
-      if (!blockfile.goto_begin()) { return false; }
-    }
-
-    for (auto& recordfile : config.recordfiles) {
-      if (!recordfile.goto_begin()) { return false; }
-    }
-
-    for (auto& datafile : config.datafiles) {
-      if (!datafile.goto_begin()) { return false; }
-    }
-    return true;
-  }
-
-  bool goto_block(std::uint64_t block_num)
-  {
-    // todo: if we are not at the end of the device
-    //       we should read the block header and position
-    //       the record and data files as well
-    //       otherwise set the record and data files to their respective end
-
-    std::uint64_t max_block = config.blockfiles.back().last_block();
-    if (block_num == max_block) { return goto_end(); }
-
-    auto lower = std::lower_bound(
-        config.blockfiles.rbegin(), config.blockfiles.rend(), block_num,
-        [](const auto& lhs, const auto& rhs) { return lhs.start_block > rhs; });
-    // lower "points" to the last block that has start_block <= block_index
-    // one invariant of our class is that there is always a block file
-    // that starts at 0, so we know that lower was always found
-    // to make doubly sure we still check
-    if (lower == config.blockfiles.rend()) {
-      // can never happen (unless the object is in a bad state)
-      return false;
-    }
-
-    return lower->goto_block(block_num);
-  }
-
-  bool goto_end()
-  {
-    for (auto& blockfile : config.blockfiles) {
-      if (!blockfile.goto_end()) { return false; }
-    }
-    for (auto& recordfile : config.recordfiles) {
-      if (!recordfile.goto_end()) { return false; }
-    }
-    for (auto& datafile : config.datafiles) {
-      if (!datafile.goto_end()) { return false; }
-    }
-    return true;
-  }
-
-  std::optional<block_header> read_block()
-  {
-    auto& blockfile = get_active_block_file();
-
-    return blockfile.read_block();
-  }
-
-  std::optional<record_header> read_record(std::uint64_t record_index)
-  {
-    // müssen wir hier überhaupt das record bewegen ?
-    // wenn eod, bod & reposition das richtige machen, sollte man
-    // immer bei der richtigen position sein
-
-    auto lower = std::lower_bound(config.recordfiles.rbegin(),
-                                  config.recordfiles.rend(), record_index,
-                                  [](const auto& lhs, const auto& rhs) {
-                                    return lhs.start_record > rhs;
-                                  });
-    // lower "points" to the last block that has start_record <= record_index
-    // one invariant of our class is that there is always a record file
-    // that starts at 0, so we know that lower was always found
-    // to make doubly sure we still check
-    if (lower == config.recordfiles.rend()) {
-      // can never be true
-      return std::nullopt;
-    }
-
-    return lower->read_record(record_index);
-  }
-
-  bool read_data(std::uint32_t file_index,
-                 std::uint64_t start,
-                 std::uint64_t end,
-                 write_buffer& buf)
-  {
-    if (file_index > config.datafiles.size()) { return false; }
-
-    auto& data_file = config.datafiles[file_index];
-
-    // todo: check we are in the right position
-    char* data = buf.reserve(end - start);
-    if (!data) { return false; }
-    if (!data_file.read_data(data, start, end)) { return false; }
-    return true;
-  }
-
+  volume(const char* path, DeviceMode dev_mode, int mode);
   volume(volume&& other) : volume() { *this = std::move(other); }
   volume& operator=(volume&& other)
   {
@@ -751,7 +536,6 @@ class volume {
 
     return *this;
   }
-
   ~volume()
   {
     // do not write the config if there was an error
@@ -766,7 +550,40 @@ class volume {
     }
   }
 
-  bool is_ok() const { return !error && dir.is_ok() && configfile.is_ok(); }
+  std::uint64_t next_record_idx();
+  bool is_at_end()
+  {
+    return false;
+    // auto& blockfile = get_active_block_file();
+    // return blockfile.current_block == blockfile.num_blocks;
+  }
+
+  bool goto_begin();
+  bool goto_block(std::uint64_t block_num);
+  bool goto_end();
+  bool reset();
+
+  data_file& get_data_file_by_size(std::uint32_t record_size);
+
+  std::optional<block_header> read_block();
+
+  void revert_to_record(std::uint64_t);
+
+
+  std::optional<std::uint64_t> write_record(...);
+
+  std::optional<std::uint64_t> write_block(...);
+
+  std::optional<record_header> read_record(std::uint64_t record_index);
+
+  bool read_data(std::uint32_t file_index,
+                 std::uint64_t start,
+                 std::uint64_t end,
+                 write_buffer& buf);
+  bool is_ok() const
+  {
+    return !error && config.is_ok() && dir.is_ok() && configfile.is_ok();
+  }
 
   void write_current_config();
   bool load_config();
@@ -851,8 +668,6 @@ class volume {
       }
     }
   }
-
-  const volume_config& get_config() const { return config; }
 
  private:
   volume() = default;

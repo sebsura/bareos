@@ -20,6 +20,7 @@
 */
 
 #include "dedup_volume.h"
+#include <algorithm>
 
 namespace dedup {
 constexpr config::loaded_general_info my_general_info = {
@@ -139,4 +140,232 @@ bool record_file::write(const bareos_record_header& header,
   return true;
 }
 
+
+volume::volume(const char* path, DeviceMode dev_mode, int mode)
+    : path(path), configfile{"config"}
+{
+  // to create files inside dir, we need executive permissions
+  int dir_mode = mode | 0100;
+  if (struct stat st; (dev_mode == DeviceMode::CREATE_READ_WRITE)
+                      && (::stat(path, &st) == -1)) {
+    if (mkdir(path, mode | 0100) < 0) {
+      error = true;
+      return;
+    }
+
+  } else {
+    dev_mode = DeviceMode::OPEN_READ_WRITE;
+  }
+
+  dir = raii_fd(path, O_RDONLY | O_DIRECTORY, dir_mode);
+
+
+  if (!dir.is_ok()) {
+    error = true;
+    return;
+  }
+
+  if (dev_mode == DeviceMode::OPEN_WRITE_ONLY) {
+    // we always need to read the config file
+    configfile.open_inside(dir, mode, DeviceMode::OPEN_READ_WRITE);
+  } else {
+    configfile.open_inside(dir, mode, dev_mode);
+  }
+
+  if (!configfile.is_ok()) {
+    error = true;
+    return;
+  }
+
+  if (dev_mode == DeviceMode::CREATE_READ_WRITE) {
+    volume_changed = true;
+  } else {
+    if (!load_config()) {
+      error = true;
+      return;
+    }
+  }
+
+  for (auto& blockfile : config.blockfiles) {
+    if (!blockfile.open_inside(dir, mode, dev_mode)) {
+      error = true;
+      return;
+    }
+  }
+
+  for (auto& recordfile : config.recordfiles) {
+    if (!recordfile.open_inside(dir, mode, dev_mode)) {
+      error = true;
+      return;
+    }
+  }
+
+  for (auto& datafile : config.datafiles) {
+    if (!datafile.open_inside(dir, mode, dev_mode)) {
+      error = true;
+      return;
+    }
+  }
+}
+
+std::uint64_t volume::next_record_idx() { return 0; }
+
+data_file& volume::get_data_file_by_size(std::uint32_t record_size)
+{
+  // we have to do this smarter
+  // if datafile::any_size is first, we should ignore it until the end!
+  // maybe split into _one_ any_size + map size -> file
+  // + vector of read_only ?
+  data_file* best = nullptr;
+  for (auto& datafile : config.datafiles) {
+    if (datafile.accepts_records_of_size(record_size)) {
+      if (!best || best->block_size < datafile.block_size) { best = &datafile; }
+    }
+  }
+
+  // best is never null here because we always have at least one
+  // datafile with data_file::any_size
+  return *best;
+}
+
+bool volume::reset()
+{
+  // TODO: look at unix_file_device for "secure_erase_cmdline"
+  for (auto& blockfile : config.blockfiles) {
+    if (!blockfile.truncate()) { return false; }
+  }
+
+  for (auto& recordfile : config.recordfiles) {
+    if (!recordfile.truncate()) { return false; }
+  }
+
+  for (auto& datafile : config.datafiles) {
+    if (!datafile.truncate()) { return false; }
+  }
+  return true;
+}
+
+bool volume::goto_begin()
+{
+  for (auto& blockfile : config.blockfiles) {
+    if (!blockfile.goto_begin()) { return false; }
+  }
+
+  for (auto& recordfile : config.recordfiles) {
+    if (!recordfile.goto_begin()) { return false; }
+  }
+
+  for (auto& datafile : config.datafiles) {
+    if (!datafile.goto_begin()) { return false; }
+  }
+  return true;
+}
+
+bool volume::goto_block(std::uint64_t block_num)
+{
+  return config.goto_block(block_num);
+}
+
+bool volume::goto_end()
+{
+  for (auto& blockfile : config.blockfiles) {
+    if (!blockfile.goto_end()) { return false; }
+  }
+  for (auto& recordfile : config.recordfiles) {
+    if (!recordfile.goto_end()) { return false; }
+  }
+  for (auto& datafile : config.datafiles) {
+    if (!datafile.goto_end()) { return false; }
+  }
+  return true;
+}
+std::optional<block_header> volume::read_block()
+{
+  // auto& blockfile = get_active_block_file();
+
+  // return blockfile.read_block();
+  return std::nullopt;
+}
+void volume::revert_to_record(std::uint64_t) {}
+std::optional<std::uint64_t> volume::write_record(...) { return std::nullopt; }
+std::optional<std::uint64_t> volume::write_block(...) { return std::nullopt; }
+std::optional<record_header> volume::read_record(std::uint64_t record_index)
+{
+  // müssen wir hier überhaupt das record bewegen ?
+  // wenn eod, bod & reposition das richtige machen, sollte man
+  // immer bei der richtigen position sein
+
+  auto lower = std::lower_bound(
+      config.recordfiles.rbegin(), config.recordfiles.rend(), record_index,
+      [](const auto& lhs, const auto& rhs) { return lhs.start_record > rhs; });
+  // lower "points" to the last block that has start_record <= record_index
+  // one invariant of our class is that there is always a record file
+  // that starts at 0, so we know that lower was always found
+  // to make doubly sure we still check
+  if (lower == config.recordfiles.rend()) {
+    // can never be true
+    return std::nullopt;
+  }
+
+  return lower->read_record(record_index);
+}
+bool volume::read_data(std::uint32_t file_index,
+                       std::uint64_t start,
+                       std::uint64_t end,
+                       write_buffer& buf)
+{
+  if (file_index > config.datafiles.size()) { return false; }
+
+  auto& data_file = config.datafiles[file_index];
+
+  // todo: check we are in the right position
+  char* data = buf.reserve(end - start);
+  if (!data) { return false; }
+  if (!data_file.read_data(data, start, end)) { return false; }
+  return true;
+}
+
+bool volume_config::goto_record(std::uint64_t record_idx)
+{
+  std::uint64_t max_record = recordfiles.back().last_record();
+  if (record_idx >= max_record) { return false; }
+
+  auto lower = std::lower_bound(
+      recordfiles.rbegin(), recordfiles.rend(), record_idx,
+      [](const auto& lhs, const auto& rhs) { return lhs.start_record > rhs; });
+  // lower "points" to the last record that has start_record <= record_index
+  // one invariant of our class is that there is always a record file
+  // that starts at 0, so we know that lower was always found
+  // to make doubly sure we still check
+  if (lower == recordfiles.rend()) {
+    // can never happen (unless the object is in a bad state)
+    return false;
+  }
+
+  return lower->goto_record(record_idx);
+}
+bool volume_config::goto_block(std::uint64_t block_idx)
+{
+  // todo: if we are not at the end of the device
+  //       we should read the block header and position
+  //       the record and data files as well
+  //       otherwise set the record and data files to their respective end
+
+  std::uint64_t max_block = blockfiles.back().last_block();
+  if (block_idx == max_block) { return false; }
+
+  auto lower = std::lower_bound(
+      blockfiles.rbegin(), blockfiles.rend(), block_idx,
+      [](const auto& lhs, const auto& rhs) { return lhs.start_block > rhs; });
+  // lower "points" to the last block that has start_block <= block_index
+  // one invariant of our class is that there is always a block file
+  // that starts at 0, so we know that lower was always found
+  // to make doubly sure we still check
+  if (lower == blockfiles.rend()) {
+    // can never happen (unless the object is in a bad state)
+    return false;
+  }
+
+  return lower->goto_block(block_idx);
+}
 } /* namespace dedup */
