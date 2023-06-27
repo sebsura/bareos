@@ -404,7 +404,7 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
     DiscardDataSpool(jcr->sd_impl->dcr);
   } else {
     // if we had any job media updates hanging, do them now
-    jcr->sd_impl->dcr->DirCreateJobmediaRecord(false);
+    // jcr->sd_impl->dcr->DirCreateJobmediaRecord(false);
     // Note: if commit is OK, the device will remain blocked
     CommitDataSpool(jcr->sd_impl->dcr);
   }
