@@ -354,17 +354,6 @@ static void LogErrorMessage(std::string console_name, UaContext* ua)
         ua->UA_sock->port());
 }
 
-static uint32_t CurrentNumberOfConsoleConnections()
-{
-  JobControlRecord* jcr;
-  uint32_t cnt = 0;
-
-  foreach_jcr (jcr) {
-    if (jcr->is_JobType(JT_CONSOLE)) { cnt++; }
-  }
-  endeach_jcr(jcr);
-  return cnt;
-}
 
 static bool GetConsoleNameAndVersion(BareosSocket* ua_sock,
                                      std::string& name_out,
@@ -404,44 +393,71 @@ static ConsoleAuthenticator* CreateConsoleAuthenticator(UaContext* ua)
   }
 }
 
-bool AuthenticateConsole(UaContext* ua)
+static std::atomic<std::size_t> NumAuthenticatedConsoles{0};
+
+authentication::authentication(std::size_t max_console_connections)
+    : max_cons{max_console_connections}
 {
-  uint32_t ConsoleConnections = CurrentNumberOfConsoleConnections();
-  if (ConsoleConnections >= me->MaxConsoleConnections) {
+  num_cons = NumAuthenticatedConsoles.load(std::memory_order_relaxed);
+
+  while (!incremented_counter && (num_cons < max_cons)) {
+    incremented_counter = NumAuthenticatedConsoles.compare_exchange_weak(
+        num_cons, num_cons + 1, std::memory_order_relaxed,
+        std::memory_order_relaxed);
+  }
+}
+
+authentication::~authentication()
+{
+  if (incremented_counter) {
+    auto old_val
+        = NumAuthenticatedConsoles.fetch_sub(1, std::memory_order_relaxed);
+    if (old_val == 0) {
+      // NumAuthenticatedConsoles overflowed here
+      // this should never happen!
+      Dmsg0(0, "More consoles were deauthenticated than were authenticated.");
+    }
+  }
+}
+
+authentication AuthenticateConsole(UaContext* ua)
+{
+  authentication auth{me->MaxConsoleConnections};
+  if (!auth.is_ok()) {
     Emsg0(M_ERROR, 0,
           _("Number of console connections exceeded "
-            "Maximum :%u, Current: %u\n"),
-          me->MaxConsoleConnections, ConsoleConnections);
-    return false;
+            "Maximum :%lu, Current: %lu\n"),
+          auth.max_connections(), auth.connection_count());
+    return {};
   }
 
   std::unique_ptr<ConsoleAuthenticator> console_authenticator(
       CreateConsoleAuthenticator(ua));
-  if (!console_authenticator) { return false; }
+  if (!console_authenticator) { return {}; }
 
   if (console_authenticator->AuthenticateDefaultConsole()
       == OptionResult::Completed) {
     if (!console_authenticator->auth_success_) {
       LogErrorMessage(console_authenticator->console_name_, ua);
-      return false;
+      return {};
     }
   } else {
     console_authenticator->AuthenticateNamedConsole();
     if (!console_authenticator->auth_success_) {
       LogErrorMessage(console_authenticator->console_name_, ua);
-      return false;
+      return {};
     }
     if (console_authenticator->AuthenticatePamUser()
         == OptionResult::Completed) {
       if (!console_authenticator->auth_success_) {
         LogErrorMessage(console_authenticator->console_name_, ua);
-        return false;
+        return {};
       }
     }
   }
   if (console_authenticator->SendInfoMessage()) {
-    if (!console_authenticator->auth_success_) { return false; }
+    if (!console_authenticator->auth_success_) { return {}; }
   }
-  return true;
+  return auth;
 }
 } /* namespace directordaemon */

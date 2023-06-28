@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2007 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -91,9 +91,9 @@ void* HandleUserAgentClientRequest(BareosSocket* user_agent_socket)
   ua->UA_sock = user_agent_socket;
   SetJcrInThreadSpecificData(nullptr);
 
-  bool success = AuthenticateConsole(ua);
+  auto auth = AuthenticateConsole(ua);
 
-  if (!success) { ua->quit = true; }
+  if (!auth.is_ok()) { ua->quit = true; }
 
   while (!ua->quit) {
     if (ua->api) { user_agent_socket->signal(BNET_MAIN_PROMPT); }
