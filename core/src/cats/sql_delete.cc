@@ -212,10 +212,9 @@ bool BareosDb::DeleteMediaRecord(JobControlRecord* jcr, MediaDbRecord* mr)
   }
 
   Mmsg(cmd, "DELETE FROM Media WHERE MediaId=%d", mr->MediaId);
-  SqlQuery(cmd);
-
-  return true;
+  return DELETE_DB(jcr, cmd) != -1;
 }
+
 
 /**
  * Purge all records associated with a
