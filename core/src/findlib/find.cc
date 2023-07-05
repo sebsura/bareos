@@ -64,11 +64,7 @@ static const int fnmode = 0;
 // Initialize the find files "global" variables
 FindFilesPacket* init_find_files()
 {
-  FindFilesPacket* ff;
-
-  ff = (FindFilesPacket*)malloc(sizeof(FindFilesPacket));
-  FindFilesPacket empty_ff;
-  *ff = empty_ff;
+  FindFilesPacket* ff = new FindFilesPacket;
 
   /* Get system path and filename maximum lengths */
   path_max = pathconf(".", _PC_PATH_MAX);
@@ -490,7 +486,7 @@ void TermFindFiles(FindFilesPacket* ff)
 {
   if (ff) {
     TermFindOne(ff);
-    free(ff);
+    delete ff;
   }
 }
 
