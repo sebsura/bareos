@@ -371,10 +371,12 @@ static inline bool PySavePacketToNative(
     } else {
       sp->no_read = pSavePkt->no_read;
       sp->delta_seq = pSavePkt->delta_seq;
+      sp->save_time = pSavePkt->save_time;
     }
   } else {
     sp->no_read = pSavePkt->no_read;
     sp->delta_seq = pSavePkt->delta_seq;
+    sp->save_time = pSavePkt->save_time;
 
     if (PyByteArray_Check(pSavePkt->flags)) {
       char* flags;
@@ -1326,13 +1328,18 @@ static PyObject* PyBareosSetValue(PyObject*, PyObject* args)
 
   switch (var) {
     case bVarLevel: {
-      int value = 0;
-
-      value = PyLong_AsLong(pyValue);
-      if (value) {
-        retval = bareos_core_functions->setBareosValue(plugin_ctx,
-                                                       (bVariable)var, &value);
-      }
+      int value = PyLong_AsLong(pyValue);
+      retval = bareos_core_functions->setBareosValue(plugin_ctx, (bVariable)var,
+                                                     &value);
+      break;
+    }
+    case bVarSinceTime: {
+      int value = PyLong_AsLong(pyValue);
+      retval = bareos_core_functions->setBareosValue(plugin_ctx, (bVariable)var,
+                                                     &value);
+      static_cast<plugin_private_context*>(plugin_ctx->plugin_private_context)
+          ->since
+          = value;
       break;
     }
     case bVarFileSeen: {
