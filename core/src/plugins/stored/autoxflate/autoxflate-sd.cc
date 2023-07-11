@@ -380,7 +380,7 @@ static bRC setup_record_translation(PluginContext* ctx, void* value)
   switch (dcr->autoinflate) {
     case AutoXflateMode::IO_DIRECTION_NONE:
       break;
-    case AutoXflateMode::IO_DIRECTION_OUT:
+    case AutoXflateMode::IO_DIRECTION_IN:
     case AutoXflateMode::IO_DIRECTION_INOUT:
       if (!SetupAutoInflation(ctx, dcr)) { return bRC_Error; }
       did_setup = true;
