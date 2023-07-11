@@ -2094,15 +2094,6 @@ static bRC bareosSetValue(PluginContext* ctx, bVariable var, void* value)
   if (!jcr) { return bRC_Error; }
 
   switch (var) {
-    case bVarSinceTime:
-      jcr->fd_impl->since_time = (*(int*)value);
-      jcr->fd_impl->incremental = (jcr->fd_impl->since_time != 0);
-      SetFindOptions(jcr->fd_impl->ff, jcr->fd_impl->incremental,
-                     jcr->fd_impl->since_time);
-      break;
-    case bVarLevel:
-      jcr->setJobLevel(*(int*)value);
-      break;
     case bVarFileSeen:
       if (!AccurateMarkFileAsSeen(jcr, (char*)value)) { return bRC_Error; }
       break;
