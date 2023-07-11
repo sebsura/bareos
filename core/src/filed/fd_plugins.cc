@@ -162,6 +162,7 @@ struct b_plugin_ctx {
   bool disabled;         /* set if plugin disabled */
   bool restoreFileStarted;
   bool createFileCalled;
+  bool skip_check_changes;
   char events[NbytesForBits(FD_NR_EVENTS + 1)]; /* enabled events bitmask */
   findIncludeExcludeItem* exclude;              /* pointer to exclude files */
   findIncludeExcludeItem* include; /* pointer to include/exclude files */
@@ -2090,10 +2091,15 @@ static bRC bareosSetValue(PluginContext* ctx, bVariable var, void* value)
 
   if (!value || !ctx) { return bRC_Error; }
 
-  jcr = ((b_plugin_ctx*)ctx->core_private_context)->jcr;
+  auto* bctx = static_cast<b_plugin_ctx*>(ctx->core_private_context);
+
+  jcr = bctx->jcr;
   if (!jcr) { return bRC_Error; }
 
   switch (var) {
+    case bVarSkipCheckChanges: {
+      bctx->skip_check_changes = *static_cast<bool*>(value);
+    } break;
     case bVarSinceTime:
       jcr->fd_impl->since_time = (*(int*)value);
       break;
@@ -2417,7 +2423,7 @@ static bRC bareosCheckChanges(PluginContext* ctx, save_pkt* sp)
   }
   memcpy(&ff_pkt->statp, &sp->statp, sizeof(ff_pkt->statp));
 
-  if (CheckChanges(jcr, ff_pkt)) {
+  if (bctx->skip_check_changes || CheckChanges(jcr, ff_pkt)) {
     retval = bRC_OK;
   } else {
     retval = bRC_Seen;

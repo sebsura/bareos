@@ -1325,17 +1325,22 @@ static PyObject* PyBareosSetValue(PyObject*, PyObject* args)
   RETURN_RUNTIME_ERROR_IF_BFUNC_OR_BAREOS_PLUGIN_CTX_UNSET()
 
   switch (var) {
-    case bVarLevel: {
-      int value = 0;
+    case bVarSkipCheckChanges: {
+      if (!PyBool_Check(pyValue)) goto bail_out;
+      bool value = (pyValue == Py_True);
 
-      value = PyLong_AsLong(pyValue);
-      if (value) {
-        retval = bareos_core_functions->setBareosValue(plugin_ctx,
-                                                       (bVariable)var, &value);
-      }
+      retval = bareos_core_functions->setBareosValue(plugin_ctx, (bVariable)var,
+                                                     &value);
+    } break;
+    case bVarLevel: {
+      if (!PyLong_Check(pyValue)) goto bail_out;
+      int value = PyLong_AsLong(pyValue);
+      retval = bareos_core_functions->setBareosValue(plugin_ctx, (bVariable)var,
+                                                     &value);
       break;
     }
     case bVarFileSeen: {
+      if (!PyUnicode_Check(pyValue)) goto bail_out;
       const char* value = PyUnicode_AsUTF8(pyValue);
       if (value) {
         retval = bareos_core_functions->setBareosValue(
