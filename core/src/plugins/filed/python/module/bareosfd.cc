@@ -1270,7 +1270,6 @@ static PyObject* PyBareosGetValue(PyObject*, PyObject* args)
     case bVarLevel:
     case bVarType:
     case bVarJobStatus:
-    case bVarSinceTime:
     case bVarAccurate:
     case bVarPrefixLinks: {
       int value = 0;
@@ -1296,6 +1295,11 @@ static PyObject* PyBareosGetValue(PyObject*, PyObject* args)
       }
       break;
     }
+    case bVarSinceTime:
+      pRetVal = PyLong_FromLong(static_cast<plugin_private_context*>(
+                                    plugin_ctx->plugin_private_context)
+                                    ->since);
+      break;
     case bVarFileSeen:
       break; /* a write only variable, ignore read request */
     default:
@@ -1327,19 +1331,11 @@ static PyObject* PyBareosSetValue(PyObject*, PyObject* args)
   RETURN_RUNTIME_ERROR_IF_BFUNC_OR_BAREOS_PLUGIN_CTX_UNSET()
 
   switch (var) {
-    case bVarLevel: {
-      int value = PyLong_AsLong(pyValue);
-      retval = bareos_core_functions->setBareosValue(plugin_ctx, (bVariable)var,
-                                                     &value);
-      break;
-    }
     case bVarSinceTime: {
-      int value = PyLong_AsLong(pyValue);
-      retval = bareos_core_functions->setBareosValue(plugin_ctx, (bVariable)var,
-                                                     &value);
       static_cast<plugin_private_context*>(plugin_ctx->plugin_private_context)
           ->since
-          = value;
+          = PyLong_AsLong(pyValue);
+      retval = bRC_OK;
       break;
     }
     case bVarFileSeen: {
