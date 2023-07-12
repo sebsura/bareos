@@ -1300,6 +1300,15 @@ static PyObject* PyBareosGetValue(PyObject*, PyObject* args)
                                     plugin_ctx->plugin_private_context)
                                     ->since);
       break;
+    case bVarCheckChanges: {
+      bool value{false};
+      if (bareos_core_functions->getBareosValue(plugin_ctx, (bVariable)var,
+                                                &value)
+          == bRC_OK) {
+        pRetVal = value ? Py_True : Py_False;
+      }
+      break;
+    }
     case bVarFileSeen:
       break; /* a write only variable, ignore read request */
     default:
@@ -1338,12 +1347,15 @@ static PyObject* PyBareosSetValue(PyObject*, PyObject* args)
       retval = bRC_OK;
       break;
     }
+    case bVarCheckChanges: {
+      bool value = (pyValue == Py_True);
+      retval = bareos_core_functions->setBareosValue(plugin_ctx, var, &value);
+      break;
+    }
     case bVarFileSeen: {
       const char* value = PyUnicode_AsUTF8(pyValue);
       if (value) {
-        retval = bareos_core_functions->setBareosValue(
-            plugin_ctx, (bVariable)var,
-            static_cast<void*>(const_cast<char*>(value)));
+        retval = bareos_core_functions->setBareosValue(plugin_ctx, var, value);
       }
       break;
     }

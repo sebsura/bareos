@@ -35,7 +35,8 @@ from bareosfd import (
     bFileType,
     StatPacket,
     SetValue,
-    bVarSinceTime,
+    GetValue,
+    bVarCheckChanges,
 )
 
 from BareosFdPluginBaseclass import BareosFdPluginBaseclass
@@ -48,8 +49,10 @@ from stat import S_IFREG, S_IRWXU
 class TestForceBackupPlugin(BareosFdPluginBaseclass):
     def start_backup_job(self):
         DebugMessage(100, "enter custom start_backup_job()\n")
-        ret = SetValue(bVarSinceTime, 0)
+        DebugMessage(100, "check_changes = {}\n".format(GetValue(bVarCheckChanges)))
+        ret = SetValue(bVarCheckChanges, False)
         DebugMessage(100, "SetValue() returned {}\n".format(ret))
+        DebugMessage(100, "check_changes = {}\n".format(GetValue(bVarCheckChanges)))
         return bRC_OK
 
     def start_backup_file(self, savepkt):

@@ -155,7 +155,6 @@ static CoreFunctions bareos_core_functions = {sizeof(CoreFunctions),
                                               bareosSetSeenBitmap,
                                               bareosClearSeenBitmap};
 
-// Bareos private context
 struct FiledPluginContext {
   FiledPluginContext(JobControlRecord* t_jcr, Plugin* t_plugin)
       : jcr(t_jcr), plugin(t_plugin)
@@ -170,6 +169,7 @@ struct FiledPluginContext {
   findIncludeExcludeItem* exclude;                /* pointer to exclude files */
   findIncludeExcludeItem* include; /* pointer to include/exclude files */
   Plugin* plugin; /* pointer to plugin of which this is an instance off */
+  bool check_changes{true}; /* call CheckChanges() on every file */
 };
 
 static inline bool IsEventEnabled(PluginContext* ctx, bEventType eventType)
@@ -1993,6 +1993,12 @@ static bRC bareosGetValue(PluginContext* ctx, bVariable var, void* value)
     case bVarDistName:
       /* removed, as this value was never used by any plugin */
       return bRC_Error;
+    case bVarCheckChanges: {
+      *static_cast<bool*>(value)
+          = static_cast<FiledPluginContext*>(ctx->core_private_context)
+                ->check_changes;
+      break;
+    }
     default:
       if (!ctx) { /* Other variables need context */
         return bRC_Error;
@@ -2094,6 +2100,13 @@ static bRC bareosSetValue(PluginContext* ctx, bVariable var, const void* value)
   if (!jcr) { return bRC_Error; }
 
   switch (var) {
+    case bVarCheckChanges: {
+      const bool bool_value = *static_cast<const bool*>(value);
+      static_cast<FiledPluginContext*>(ctx->core_private_context)->check_changes
+          = bool_value;
+      Dmsg0(100, "check_changes set to %d\n", bool_value);
+      return bRC_OK;
+    }
     case bVarFileSeen:
       if (!AccurateMarkFileAsSeen(jcr, (char*)value)) { return bRC_Error; }
       break;
@@ -2415,7 +2428,7 @@ static bRC bareosCheckChanges(PluginContext* ctx, save_pkt* sp)
     }
     memcpy(&ff_pkt->statp, &sp->statp, sizeof(ff_pkt->statp));
 
-    if (CheckChanges(jcr, ff_pkt)) {
+    if (!bctx->check_changes || CheckChanges(jcr, ff_pkt)) {
       retval = bRC_OK;
     } else {
       retval = bRC_Seen;
