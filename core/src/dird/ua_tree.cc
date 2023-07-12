@@ -954,22 +954,16 @@ static int DotPwdcmd(UaContext* ua, TreeContext* tree)
 
 static int Unmarkcmd(UaContext* ua, TreeContext* tree)
 {
-  POOLMEM* cwd;
-  TREE_NODE* node;
   int count = 0;
-  bool restore_cwd = false;
 
   if (ua->argc < 2 || !TreeNodeHasChild(tree->node)) {
     ua->SendMsg(T_("No files unmarked.\n"));
     return 1;
   }
 
-  // Save the current CWD.
-  cwd = tree_getpath(tree->node);
-
   for (int i = 1; i < ua->argc; i++) {
     StripTrailingSlash(ua->argk[i]);
-
+    TREE_NODE* node;
     // See if this is a full path.
     if (strchr(ua->argk[i], '/')) {
       int pnl, fnl;
@@ -987,12 +981,11 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
         FreePoolMemory(path);
         continue;
       }
-      tree->node = node;
-      restore_cwd = true;
 
-      foreach_child (node, tree->node) {
-        if (fnmatch(file, node->fname, 0) == 0) {
-          count += SetExtract(ua, node, tree, false);
+      TREE_NODE* childnode;
+      foreach_child (childnode, node) {
+        if (fnmatch(file, childnode->fname, 0) == 0) {
+          count += SetExtract(ua, childnode, tree, false);
         }
       }
 
@@ -1017,18 +1010,6 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
     ua->SendMsg(T_("%s files unmarked.\n"),
                 edit_uint64_with_commas(count, ed1));
   }
-
-  // Restore the CWD when we changed it.
-  if (restore_cwd && cwd) {
-    node = tree_cwd(cwd, tree->root, tree->node);
-    if (!node) {
-      ua->WarningMsg(T_("Invalid path %s given.\n"), cwd);
-    } else {
-      tree->node = node;
-    }
-  }
-
-  if (cwd) { FreePoolMemory(cwd); }
 
   return 1;
 }
