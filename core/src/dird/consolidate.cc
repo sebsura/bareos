@@ -77,7 +77,7 @@ static inline void StartNewConsolidationJob(const JobResource* consolidate_job,
   Dmsg1(debuglevel, "=============== consolidate cmd=%s\n", ua->cmd);
   ParseUaArgs(ua); /* parse command */
 
-  jobid = DoRunCmd(ua, ua->cmd);
+  jobid = DoRunCmd(ua);
   if (jobid == 0) {
     Jmsg(jcr, M_ERROR, 0, T_("Could not start %s job.\n"),
          jcr->get_OperationName());

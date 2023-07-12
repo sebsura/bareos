@@ -1749,7 +1749,7 @@ void CreateClones(JobControlRecord* jcr)
       Dmsg1(900, "=============== Clone cmd=%s\n", ua->cmd);
       ParseUaArgs(ua); /* parse command */
 
-      jobid = DoRunCmd(ua, ua->cmd);
+      jobid = DoRunCmd(ua);
       if (!jobid) {
         Jmsg(jcr, M_ERROR, 0, T_("Could not start clone job: \"%s\".\n"),
              ua->cmd);
