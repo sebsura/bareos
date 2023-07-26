@@ -64,6 +64,8 @@ if(NOT HAVE_WIN32)
   list(APPEND TOOLS_SBIN bpluginfo btestls)
 endif()
 
+add_executable(bdedupestimate bdedup-estimate.cc)
+target_link_libraries(bdedupestimate bareos bareossd CLI11::CLI11)
 install(TARGETS ${TOOLS_BIN} DESTINATION "${bindir}")
 install(TARGETS ${TOOLS_SBIN} DESTINATION "${sbindir}")
 
