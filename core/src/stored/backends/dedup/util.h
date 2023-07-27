@@ -274,13 +274,6 @@ bool file_based_array<T>::read_at(std::size_t start,
   return true;
 }
 
-// template <typename T> bool file_based_array<T>::peek(T* arr, std::size_t
-// count)
-// {
-//   if (error) { return false; }
-//   return read_at(iter, arr, count);
-// }
-
 template <typename T>
 file_based_array<T>::file_based_array(raii_fd file_, std::size_t used_)
     : used{used_}, cap{0}, file{std::move(file_)}, error{!file.is_ok()}
