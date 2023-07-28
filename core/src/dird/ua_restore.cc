@@ -1253,7 +1253,7 @@ static tree_ptr BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
   ua->LogAuditEventInfoMsg(T_("Building directory tree for JobId(s) %s"),
                            rx->JobIds);
 
-  if (!ua->db->GetFileList(ua->jcr, rx->JobIds, false /* do not use md5 */,
+  if (!ua->db->GetFileList(rx->JobIds, false /* do not use md5 */,
                            true /* get delta */, InsertTreeHandler,
                            (void*)&tree)) {
     ua->ErrorMsg("%s", ua->db->strerror());
