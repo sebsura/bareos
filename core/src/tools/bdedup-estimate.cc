@@ -207,7 +207,7 @@ int main(int argc, const char* argv[])
   InitCLIApp(app, "bareos dedup estimate", 2023);
 
   std::vector<std::string> volumes;
-  app.add_option("-v,--volumes,volumes", volumes)->required();
+  app.add_option("-v,--volumes", volumes)->required();
   std::string config;
   app.add_option("-c,--config", config,
                  "Use <path> as configuration file or directory.")
@@ -220,11 +220,13 @@ int main(int argc, const char* argv[])
                  "Configuration file for the Key Encryption Key selection.")
       ->type_name("<director>");
 
-  app.add_option("-d,--devicename", device_name,
+  app.add_option("--devicename,devicename", device_name,
                  "Specify the input device name (either as name of a Bareos "
                  "Storage Daemon Device resource or identical to the Archive "
                  "Device in a Bareos Storage Daemon Device resource).")
       ->required();
+
+  AddDebugOptions(app);
 
   std::map<std::string, std::size_t> unit_map
       = {{"k", 1024}, {"m", 1024 * 1024}, {"g", 1024 * 1024 * 1024}};
