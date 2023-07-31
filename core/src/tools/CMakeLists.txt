@@ -95,6 +95,12 @@ add_executable(
 )
 target_link_libraries(dedup-conf bareos CLI11::CLI11)
 
+add_executable(
+  bdedupe dedupe.cc ../stored/backends/dedup/dedup_volume.cc
+          ../stored/backends/dedup/dedup_config.cc
+)
+target_link_libraries(bdedupe bareos CLI11::CLI11)
+
 install(TARGETS ${TOOLS_BIN} DESTINATION "${bindir}")
 install(TARGETS ${TOOLS_SBIN} DESTINATION "${sbindir}")
 
