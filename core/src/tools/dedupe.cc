@@ -168,6 +168,8 @@ int main(int argc, const char** argv)
   app.add_option("-o,--output", outfile)->check(CLI::NonexistentPath);
   std::string replacement{"dedup.repl"};
   app.add_option("-r,--replace", replacement)->check(CLI::NonexistentPath);
+  std::size_t min_save{0};
+  app.add_option("-s,--min-size", min_save);
 
   CLI11_PARSE(app, argc, argv);
   sha_aggregator agg;
@@ -204,6 +206,8 @@ int main(int argc, const char** argv)
     auto& datarecord = set.data();
     auto start = output.size();
     auto size = datarecord.size();
+
+    if (size * (set.ids().size() - 1) < min_save) { continue; }
 
     output.insert(output.end(), datarecord.begin(), datarecord.end());
 
