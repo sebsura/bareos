@@ -21,11 +21,11 @@
 
 #define STORAGE_DAEMON
 
+#include "include/jcr.h"
 #include "lib/cli.h"
 #include "lib/crypto.h"
 #include "stored/butil.h"
 #include "stored/device_control_record.h"
-#include "include/jcr.h"
 #include "stored/stored_jcr_impl.h"
 #include "stored/mount.h"
 #include "stored/read_record.h"
