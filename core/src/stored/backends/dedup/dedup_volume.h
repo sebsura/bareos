@@ -202,6 +202,14 @@ class block_file {
     }
   }
 
+  bool read_at(std::size_t block,
+               block_header* headers,
+               std::size_t count) const
+  {
+    if (block < start_block) return false;
+    return vec.read_at(block - start_block, headers, count);
+  }
+
   bool is_ok() { return vec.is_ok(); }
 
  private:
@@ -546,6 +554,30 @@ struct volume_data {
   }
 
   bool is_ok() const { return !error; }
+
+  std::size_t add_new_read_only(const char* filepath,
+                                util::raii_fd& dir,
+                                int mode,
+                                DeviceMode dev_mode)
+  {
+    auto file = open_inside(dir, filepath, mode, dev_mode);
+
+    // todo: check errors
+    std::size_t file_size = file.size().value();
+    std::size_t max_file_index = 0;
+    for (auto& [key, _] : datafiles) {
+      if (key > max_file_index) { max_file_index = key; }
+    }
+
+    std::size_t fi = max_file_index + 1;
+
+    auto [iter, inserted]
+        = datafiles.try_emplace(fi, std::move(file), 1, file_size, true);
+    (void)iter;
+    (void)inserted;
+
+    return fi;
+  }
 
   std::vector<block_file> blockfiles{};
   std::vector<record_file> recordfiles{};
@@ -932,6 +964,11 @@ class volume {
 
   volume_layout layout() const { return contents.make_layout(); }
 
+  const std::vector<block_file>& blockfiles() const
+  {
+    return contents.blockfiles;
+  }
+
   const std::vector<record_file>& recordfiles() const
   {
     return contents.recordfiles;
@@ -940,6 +977,12 @@ class volume {
   const char* name() { return path.c_str(); }
 
   int get_permissions() { return permissions; }
+
+  std::size_t add_read_only(const char* filepath)
+  {
+    changed_volume();
+    return contents.add_new_read_only(filepath, dir, permissions, mode);
+  }
 
  private:
   volume() = default;
