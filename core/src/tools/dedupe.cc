@@ -177,7 +177,10 @@ int main(int argc, const char** argv)
     dedup::volume vol{volume.c_str(), storagedaemon::DeviceMode::OPEN_READ_ONLY,
                       0, 0};
 
-    if (!vol.is_ok()) { continue; }
+    if (!vol.is_ok()) {
+      fprintf("could not open volume %s\n", volume.c_str());
+      continue;
+    }
     for_each_record(vol, [volidx, &agg](auto recidx, auto& data) {
       agg.add_record(record_id{volidx, recidx}, data);
     });
