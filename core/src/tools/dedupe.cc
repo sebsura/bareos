@@ -157,30 +157,20 @@ json_t* vec_as_json(const std::vector<std::size_t> vec)
   return array;
 }
 
-int main(int argc, const char** argv)
+template <typename Acceptor, typename Aggregator>
+bool dump_volumes(const std::vector<std::string>& volumes,
+                  const std::string& bin_out,
+                  const std::string& json_out,
+                  Aggregator agg,
+                  Acceptor accept)
 {
-  CLI::App app;
-  InitCLIApp(app, "bareos dedupe records", 2023);
-
-  std::vector<std::string> volumes;
-  app.add_option("-v,--volumes,volumes", volumes)->required();
-  std::string outfile{"dedup.out"};
-  app.add_option("-o,--output", outfile)->check(CLI::NonexistentPath);
-  std::string replacement{"dedup.repl"};
-  app.add_option("-r,--replace", replacement)->check(CLI::NonexistentPath);
-  std::size_t min_save{0};
-  app.add_option("-s,--min-size", min_save);
-
-  CLI11_PARSE(app, argc, argv);
-  sha_aggregator agg;
-
   for (std::size_t volidx = 0; volidx < volumes.size(); ++volidx) {
     auto& volume = volumes[volidx];
     dedup::volume vol{volume.c_str(), storagedaemon::DeviceMode::OPEN_READ_ONLY,
                       0, 0};
 
     if (!vol.is_ok()) {
-      fprintf("could not open volume %s\n", volume.c_str());
+      fprintf(stderr, "could not open volume %s\n", volume.c_str());
       continue;
     }
     for_each_record(vol, [volidx, &agg](auto recidx, auto& data) {
@@ -203,11 +193,10 @@ int main(int argc, const char** argv)
   std::vector<value*> current;
   current.resize(volumes.size());
   for (auto& set : data) {
+    if (!accept(set)) { continue; }
     auto& datarecord = set.data();
     auto start = output.size();
     auto size = datarecord.size();
-
-    if (size * (set.ids().size() - 1) < min_save) { continue; }
 
     output.insert(output.end(), datarecord.begin(), datarecord.end());
 
@@ -234,7 +223,7 @@ int main(int argc, const char** argv)
       if (!json) {
         fprintf(stderr, "json error %s:%d,%d: %s\n", ec.source, ec.line,
                 ec.column, ec.text);
-        return 1;
+        return false;
       }
 
       json_array_append_new(array, json);
@@ -242,30 +231,58 @@ int main(int argc, const char** argv)
     json_object_set_new(json_volumes, volumes[i].c_str(), array);
   }
 
-  json_t* root = json_pack_ex(&ec, 0, "{s:s,s:o}", "output", outfile.c_str(),
+  json_t* root = json_pack_ex(&ec, 0, "{s:s,s:o}", "output", bin_out.c_str(),
                               "volumes", json_volumes);
   if (!root) {
     fprintf(stderr, "json error %s:%d,%d: %s\n", ec.source, ec.line, ec.column,
             ec.text);
-    return 1;
+    return false;
   }
 
 
-  int outfd = open(outfile.c_str(), O_CREAT | O_APPEND | O_WRONLY);
+  int outfd = open(bin_out.c_str(), O_CREAT | O_APPEND | O_WRONLY);
 
   if (outfd < 0) {
     perror(nullptr);
-    return 1;
+    return false;
   }
 
   if (write(outfd, output.data(), output.size())
       != static_cast<ssize_t>(output.size())) {
     perror("bad write");
-    return 1;
+    return false;
   }
   close(outfd);
 
-  if (json_dump_file(root, replacement.c_str(), JSON_COMPACT) < 0) {
-    fprintf(stderr, "could not dump json into %s\n", replacement.c_str());
+  if (json_dump_file(root, json_out.c_str(), JSON_COMPACT) < 0) {
+    fprintf(stderr, "could not dump json into %s\n", json_out.c_str());
+    return false;
   }
+
+  return true;
+}
+
+int main(int argc, const char** argv)
+{
+  CLI::App app;
+  InitCLIApp(app, "bareos dedupe records", 2023);
+
+  std::vector<std::string> volumes;
+
+  app.add_option("-v,--volumes,volumes", volumes)->required();
+  std::string outfile{"dedup.out"};
+  app.add_option("-o,--output", outfile)->check(CLI::NonexistentPath);
+  std::string replacement{"dedup.repl"};
+  app.add_option("-r,--replace", replacement)->check(CLI::NonexistentPath);
+  std::size_t min_save{0};
+  app.add_option("-s,--min-size", min_save);
+
+  CLI11_PARSE(app, argc, argv);
+
+  sha_aggregator agg;
+
+  return !dump_volumes(
+      volumes, outfile, replacement, agg, [min_save](const auto& set) {
+        return set.data().size() * (set.ids().size() - 1) > min_save;
+      });
 }
