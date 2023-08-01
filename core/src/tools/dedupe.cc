@@ -256,11 +256,10 @@ bool analyze_volumes(const std::vector<std::string>& volumes,
     return false;
   }
 
-
-  int outfd = open(bin_out.c_str(), O_CREAT | O_APPEND | O_WRONLY);
+  int outfd = open(bin_out.c_str(), O_CREAT | O_WRONLY | O_TRUNC);
 
   if (outfd < 0) {
-    perror(nullptr);
+    perror("bin file");
     return false;
   }
 
@@ -271,10 +270,16 @@ bool analyze_volumes(const std::vector<std::string>& volumes,
   }
   close(outfd);
 
-  if (json_dump_file(root, json_out.c_str(), JSON_COMPACT) < 0) {
+  int jsonfd = open(json_out.c_str(), O_CREAT | O_WRONLY | O_TRUNC);
+  if (jsonfd < 0) {
+    perror("json file");
+    return false;
+  }
+  if (json_dumpfd(root, jsonfd, JSON_COMPACT) < 0) {
     fprintf(stderr, "could not dump json into %s\n", json_out.c_str());
     return false;
   }
+  close(jsonfd);
 
   return true;
 }
