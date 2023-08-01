@@ -324,7 +324,7 @@ static int dedupe(CLI::App& app, int argc, const char** argv)
   std::vector<std::string> volumes;
   app.add_option("-v,--volumes,volumes", volumes)->required();
   std::string out_dir{"out"};
-  app.add_option("-d,--volume-out-dir", out_dir)->check(CLI::ExistingDirectory);
+  app.add_option("-o,--volume-out-dir", out_dir)->check(CLI::ExistingDirectory);
   std::string json_file{"dedup.json"};
   app.add_option("-j,--json", json_file)->check(CLI::ExistingFile);
 
@@ -489,6 +489,7 @@ int main(int argc, const char** argv)
   kBareosVersionStrings.FormatCopyright(desc.data(), desc.size(), 2023);
   desc += "The Bareos Record Deduplication Tool";
   InitCLIApp(app, desc, 0);
+  AddDebugOptions(app);
 
 
   if (argc >= 2) {
