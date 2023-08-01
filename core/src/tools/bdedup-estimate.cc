@@ -44,6 +44,8 @@
 #include <iostream>
 #include <unordered_set>
 
+bool verbose_status{false};
+
 struct dedup_unit {
   uint64_t digest[4];
 
@@ -122,7 +124,7 @@ static bool RecordCallback(storagedaemon::DeviceControlRecord*,
     // cannot dedup this record
     real_size += size;
   }
-  if (num_records % 100000 == 0) { OutputStatus(); }
+  if (verbose_status && (num_records % 100000 == 0)) { OutputStatus(); }
   return true;
 }
 
@@ -207,7 +209,7 @@ int main(int argc, const char* argv[])
   InitCLIApp(app, "bareos dedup estimate", 2023);
 
   std::vector<std::string> volumes;
-  app.add_option("-v,--volumes", volumes, "List of volumes to be analyzed.")
+  app.add_option("-V,--volumes", volumes, "List of volumes to be analyzed.")
       ->type_name("<volume>")
       ->required();
   std::string config;
@@ -234,6 +236,8 @@ int main(int argc, const char* argv[])
   app.add_option("-b,--blocksize", block_size)
       ->transform(CLI::AsSizeValue{k_is_1000})
       ->check(CLI::PositiveNumber);
+
+  app.add_flag("-v,--verbose", verbose_status);
 
   CLI11_PARSE(app, argc, argv);
 
