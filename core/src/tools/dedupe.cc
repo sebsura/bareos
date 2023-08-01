@@ -321,10 +321,12 @@ static int analyze(CLI::App& app, int argc, const char** argv)
 
 static int dedupe(CLI::App& app, int argc, const char** argv)
 {
-  std::vector<std::string> volumes;
-  app.add_option("-v,--volumes,volumes", volumes)->required();
-  std::string out_dir{"out"};
-  app.add_option("-o,--volume-out-dir", out_dir)->check(CLI::ExistingDirectory);
+  std::string in_vol{};
+  app.add_option("-i,--input", in_vol)->required();
+  std::string out_vol{};
+  app.add_option("-o,--output", out_vol)
+      ->check(CLI::NonexistentPath)
+      ->required();
   std::string json_file{"dedup.json"};
   app.add_option("-j,--json", json_file)->check(CLI::ExistingFile);
 
@@ -358,126 +360,130 @@ static int dedupe(CLI::App& app, int argc, const char** argv)
     value(std::size_t start, std::size_t size) : start{start}, size{size} {}
   };
 
-  std::unordered_map<std::string, std::vector<value>> loaded_volumes;
+  bool found = false;
+  std::vector<value> dedup_data;
   json_object_foreach(json_volumes, name, records)
   {
-    std::size_t index;
-    json_t* record;
+    if (in_vol == name) {
+      std::size_t index;
+      json_t* record;
 
-    std::vector<value>& values = loaded_volumes[name];
-
-    json_array_foreach(records, index, record)
-    {
-      json_int_t jstart, jsize;
-      json_t* ids;
-      if (json_unpack_ex(record, &ec, 0, "{s:I,s:I,s:o}", "start", &jstart,
-                         "size", &jsize, "records", &ids)
-          < 0) {
-        fprintf(stderr, "json error %s:%d,%d: %s\n", ec.source, ec.line,
-                ec.column, ec.text);
-        return 1;
-      }
-
-      std::size_t start, size;
-      start = jstart;
-      size = jsize;
-
-      auto& val = values.emplace_back(start, size);
-
-      std::size_t index2;
-      json_t* json_int;
-      json_array_foreach(ids, index2, json_int)
+      json_array_foreach(records, index, record)
       {
-        val.records.push_back(json_integer_value(json_int));
-      }
-    }
-  }
+        json_int_t jstart, jsize;
+        json_t* ids;
+        if (json_unpack_ex(record, &ec, 0, "{s:I,s:I,s:o}", "start", &jstart,
+                           "size", &jsize, "records", &ids)
+            < 0) {
+          fprintf(stderr, "json error %s:%d,%d: %s\n", ec.source, ec.line,
+                  ec.column, ec.text);
+          return 1;
+        }
 
-  for (auto& volume : volumes) {
-    if (auto found = loaded_volumes.find(volume);
-        found != loaded_volumes.end()) {
-      std::unordered_map<std::size_t, std::pair<std::size_t, std::size_t>>
-          rec_to_loc;
+        std::size_t start, size;
+        start = jstart;
+        size = jsize;
 
-      for (auto value : found->second) {
-        for (auto rec : value.records) {
-          rec_to_loc.try_emplace(rec, value.start, value.size);
+        auto& val = dedup_data.emplace_back(start, size);
+
+        std::size_t index2;
+        json_t* json_int;
+        json_array_foreach(ids, index2, json_int)
+        {
+          val.records.push_back(json_integer_value(json_int));
         }
       }
-
-      dedup::volume old_vol{volume.c_str(),
-                            storagedaemon::DeviceMode::OPEN_READ_ONLY, 0, 0};
-
-      if (!old_vol.is_ok()) {
-        fprintf(stderr, "could not open volume %s; skipping\n", old_vol.name());
-        continue;
-      }
-      std::vector<dedup::block_header> blocks = get_blocks(old_vol);
-
-      if (blocks.size() == 0) {
-        fprintf(stderr, "no blocks in volume %s; skippinng\n", old_vol.name());
-        continue;
-      }
-
-      dedup::volume new_vol{(out_dir + "/" + volume).c_str(),
-                            storagedaemon::DeviceMode::CREATE_READ_WRITE, 0777,
-                            0};
-
-      if (!new_vol.is_ok()) {
-        fprintf(stderr, "could not open new volume %s; skipping\n",
-                new_vol.name());
-        continue;
-      }
-      new_vol.reset();
-
-      std::size_t file_index = new_vol.add_read_only(bin_file);
-
-      auto current_block = blocks.begin();
-
-
-      for_each_record(
-          old_vol, [&current_block, &blocks, &new_vol, &old_vol, &rec_to_loc,
-                    file_index](auto recidx, auto record_header, auto& data) {
-            auto copy = current_block;
-            while ((recidx >= current_block->start + current_block->count)
-                   && current_block != blocks.end()) {
-              ++current_block;
-            }
-
-            if ((recidx >= current_block->start + current_block->count)
-                || recidx < current_block->start) {
-              fprintf(stderr,
-                      "no block found for record %zu in volume %s; skipping\n",
-                      recidx, old_vol.name());
-              current_block = copy;
-              return;
-            }
-            dedup::record_header header;
-            header.BareosHeader = record_header;
-
-            if (auto rec_found = rec_to_loc.find(recidx);
-                rec_found != rec_to_loc.end()) {
-              header.start = rec_found->second.first;
-              assert(data.size() == rec_found->second.second);
-              header.size = rec_found->second.second;
-              header.file_index = file_index;
-            } else {
-              std::optional loc = new_vol.append_data(
-                  current_block->BareosHeader, record_header,
-                  reinterpret_cast<const char*>(data.data()), data.size());
-              header.start = loc->begin;
-              header.size = data.size();
-              header.file_index = loc->file_index;
-            }
-            new_vol.append_records(&header, 1);
-          });
-
-      for (auto& block : blocks) { new_vol.append_block(block); }
-    } else {
-      fprintf(stderr, "%s not found inside %s; skipping\n", volume.c_str(),
-              json_file.c_str());
+      found = true;
+      break;
     }
   }
+
+  if (!found) {
+    fprintf(stderr, "Volume %s not found inside json. Nothing to do.\n",
+            in_vol.c_str());
+    return 1;
+  }
+
+  if (dedup_data.size() == 0) {
+    fprintf(stderr, "Volume %s has no dedupable records. Nothing to do.\n",
+            in_vol.c_str());
+    return 1;
+  }
+
+  std::unordered_map<std::size_t, std::pair<std::size_t, std::size_t>>
+      rec_to_loc;
+
+  for (auto value : dedup_data) {
+    for (auto rec : value.records) {
+      rec_to_loc.try_emplace(rec, value.start, value.size);
+    }
+  }
+
+  dedup::volume old_vol{in_vol.c_str(),
+                        storagedaemon::DeviceMode::OPEN_READ_ONLY, 0, 0};
+
+  if (!old_vol.is_ok()) {
+    fprintf(stderr, "could not open volume %s; skipping\n", old_vol.name());
+    return 1;
+  }
+  std::vector<dedup::block_header> blocks = get_blocks(old_vol);
+
+  if (blocks.size() == 0) {
+    fprintf(stderr, "no blocks in volume %s; skipping\n", old_vol.name());
+    return 1;
+  }
+
+  dedup::volume new_vol{out_vol.c_str(),
+                        storagedaemon::DeviceMode::CREATE_READ_WRITE, 0777, 0};
+
+  if (!new_vol.is_ok()) {
+    fprintf(stderr, "could not open new volume %s; skipping\n", new_vol.name());
+    return 1;
+  }
+  new_vol.reset();
+
+  std::size_t file_index = new_vol.add_read_only(bin_file);
+
+  auto current_block = blocks.begin();
+
+
+  for_each_record(old_vol, [&current_block, &blocks, &new_vol, &old_vol,
+                            &rec_to_loc, file_index](
+                               auto recidx, auto record_header, auto& data) {
+    auto copy = current_block;
+    while ((recidx >= current_block->start + current_block->count)
+           && current_block != blocks.end()) {
+      ++current_block;
+    }
+
+    if ((recidx >= current_block->start + current_block->count)
+        || recidx < current_block->start) {
+      fprintf(stderr, "no block found for record %zu in volume %s; skipping\n",
+              recidx, old_vol.name());
+      current_block = copy;
+      return;
+    }
+    dedup::record_header header;
+    header.BareosHeader = record_header;
+
+    if (auto rec_found = rec_to_loc.find(recidx);
+        rec_found != rec_to_loc.end()) {
+      header.start = rec_found->second.first;
+      assert(data.size() == rec_found->second.second);
+      header.size = rec_found->second.second;
+      header.file_index = file_index;
+    } else {
+      std::optional loc = new_vol.append_data(
+          current_block->BareosHeader, record_header,
+          reinterpret_cast<const char*>(data.data()), data.size());
+      header.start = loc->begin;
+      header.size = data.size();
+      header.file_index = loc->file_index;
+    }
+    new_vol.append_records(&header, 1);
+  });
+
+  for (auto& block : blocks) { new_vol.append_block(block); }
 
   return 0;
 }
