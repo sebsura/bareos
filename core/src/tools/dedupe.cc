@@ -160,11 +160,11 @@ json_t* vec_as_json(const std::vector<std::size_t> vec)
 }
 
 template <typename Acceptor, typename Aggregator>
-bool dump_volumes(const std::vector<std::string>& volumes,
-                  const std::string& bin_out,
-                  const std::string& json_out,
-                  Aggregator agg,
-                  Acceptor accept)
+bool analyze_volumes(const std::vector<std::string>& volumes,
+                     const std::string& bin_out,
+                     const std::string& json_out,
+                     Aggregator agg,
+                     Acceptor accept)
 {
   for (std::size_t volidx = 0; volidx < volumes.size(); ++volidx) {
     auto& volume = volumes[volidx];
@@ -283,15 +283,10 @@ bool dump_volumes(const std::vector<std::string>& volumes,
   return header;
 }
 
-int main(int argc, const char** argv)
+static int analyze(CLI::App& app, int argc, const char** argv)
 {
-  CLI::App app;
-  InitCLIApp(app, "bareos dedupe records", 2023);
-
   std::vector<std::string> volumes;
   app.add_option("-v,--volumes,volumes", volumes)->required();
-
-#if 0
   std::string outfile{"dedup.out"};
   app.add_option("-o,--output", outfile)->check(CLI::NonexistentPath);
   std::string replacement{"dedup.json"};
@@ -303,12 +298,19 @@ int main(int argc, const char** argv)
 
   sha_aggregator agg;
 
-  return !dump_volumes(
-      volumes, outfile, replacement, agg, [min_save](const auto& set) {
-        return set.data().size() * (set.ids().size() - 1) > min_save;
-      });
-#else
+  return analyze_volumes(volumes, outfile, replacement, agg,
+                         [min_save](const auto& set) {
+                           return set.data().size() * (set.ids().size() - 1)
+                                  > min_save;
+                         })
+             ? 0
+             : 1;
+}
 
+static int dedupe(CLI::App& app, int argc, const char** argv)
+{
+  std::vector<std::string> volumes;
+  app.add_option("-v,--volumes,volumes", volumes)->required();
   std::string out_dir{"out"};
   app.add_option("-d,--volume-out-dir", out_dir)->check(CLI::ExistingDirectory);
   std::string json_file{"dedup.json"};
@@ -321,7 +323,7 @@ int main(int argc, const char** argv)
   if (!root) {
     fprintf(stderr, "json error %s:%d,%d: %s\n", ec.source, ec.line, ec.column,
             ec.text);
-    return false;
+    return 1;
   }
 
   const char* bin_file;
@@ -331,7 +333,7 @@ int main(int argc, const char** argv)
       < 0) {
     fprintf(stderr, "json error %s:%d,%d: %s\n", ec.source, ec.line, ec.column,
             ec.text);
-    return false;
+    return 1;
   }
 
   const char* name;
@@ -361,7 +363,7 @@ int main(int argc, const char** argv)
           < 0) {
         fprintf(stderr, "json error %s:%d,%d: %s\n", ec.source, ec.line,
                 ec.column, ec.text);
-        return false;
+        return 1;
       }
 
       std::size_t start, size;
@@ -471,5 +473,29 @@ int main(int argc, const char** argv)
     }
   }
 
-#endif
+  return 0;
+}
+
+int main(int argc, const char** argv)
+{
+  CLI::App app;
+  std::string desc(1024, '\0');
+  kBareosVersionStrings.FormatCopyright(desc.data(), desc.size(), 2023);
+  desc += "The Bareos Record Deduplication Tool";
+  InitCLIApp(app, desc, 0);
+
+
+  if (argc >= 2) {
+    if (Bstrcasecmp(argv[1], "analyze")) {
+      std::exchange(argv[0], argv[1]);
+      argc -= 1;
+      return analyze(app, argc, argv + 1);
+    } else if (Bstrcasecmp(argv[1], "dedupe")) {
+      std::exchange(argv[0], argv[1]);
+      argc -= 1;
+      return dedupe(app, argc, argv + 1);
+    }
+  }
+
+  return analyze(app, argc, argv);
 }
