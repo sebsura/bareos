@@ -45,6 +45,7 @@
 #include <unordered_set>
 
 bool verbose_status{false};
+bool record_based_dedup{false};
 
 struct dedup_unit {
   uint64_t digest[4];
@@ -233,11 +234,15 @@ int main(int argc, const char* argv[])
   AddDebugOptions(app);
 
   bool k_is_1000 = false;
-  app.add_option("-b,--blocksize", block_size)
-      ->transform(CLI::AsSizeValue{k_is_1000})
-      ->check(CLI::PositiveNumber);
+  auto* blksize = app.add_option("-b,--blocksize", block_size)
+                      ->transform(CLI::AsSizeValue{k_is_1000})
+                      ->check(CLI::PositiveNumber);
 
   app.add_flag("-v,--verbose", verbose_status);
+  auto* recbased = app.add_flag("-r,--record-based", record_based_dedup);
+
+  blksize->excludes(recbased);
+  recbased->excludes(blksize);
 
   CLI11_PARSE(app, argc, argv);
 
