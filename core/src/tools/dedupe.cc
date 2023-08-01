@@ -233,8 +233,20 @@ bool analyze_volumes(const std::vector<std::string>& volumes,
     json_object_set_new(json_volumes, volumes[i].c_str(), array);
   }
 
-  json_t* root = json_pack_ex(&ec, 0, "{s:s,s:o}", "output", bin_out.c_str(),
-                              "volumes", json_volumes);
+  std::string absolute_bin_out;
+  if (bin_out.front() == '/') {
+    absolute_bin_out = bin_out;
+  } else {
+    const char* cwd = get_current_dir_name();
+    absolute_bin_out += cwd;
+    absolute_bin_out += "/";
+    absolute_bin_out += bin_out;
+    free((void*)cwd);
+  }
+
+  json_t* root
+      = json_pack_ex(&ec, 0, "{s:s,s:o}", "output", absolute_bin_out.c_str(),
+                     "volumes", json_volumes);
   if (!root) {
     fprintf(stderr, "json error %s:%d,%d: %s\n", ec.source, ec.line, ec.column,
             ec.text);
@@ -381,12 +393,6 @@ static int dedupe(CLI::App& app, int argc, const char** argv)
     }
   }
 
-  const char* cwd = get_current_dir_name();
-  std::string absolute_bin_file{cwd};
-  absolute_bin_file += "/";
-  absolute_bin_file += bin_file;
-  free((void*)cwd);
-
   for (auto& volume : volumes) {
     if (auto found = loaded_volumes.find(volume);
         found != loaded_volumes.end()) {
@@ -424,7 +430,7 @@ static int dedupe(CLI::App& app, int argc, const char** argv)
       }
       new_vol.reset();
 
-      std::size_t file_index = new_vol.add_read_only(absolute_bin_file.c_str());
+      std::size_t file_index = new_vol.add_read_only(bin_file);
 
       auto current_block = blocks.begin();
 
