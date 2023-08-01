@@ -207,7 +207,9 @@ int main(int argc, const char* argv[])
   InitCLIApp(app, "bareos dedup estimate", 2023);
 
   std::vector<std::string> volumes;
-  app.add_option("-v,--volumes", volumes)->required();
+  app.add_option("-v,--volumes", volumes, "List of volumes to be analyzed.")
+      ->type_name("<volume>")
+      ->required();
   std::string config;
   app.add_option("-c,--config", config,
                  "Use <path> as configuration file or directory.")
@@ -228,10 +230,9 @@ int main(int argc, const char* argv[])
 
   AddDebugOptions(app);
 
-  std::map<std::string, std::size_t> unit_map
-      = {{"k", 1024}, {"m", 1024 * 1024}, {"g", 1024 * 1024 * 1024}};
+  bool k_is_1000 = false;
   app.add_option("-b,--blocksize", block_size)
-      ->transform(CLI::AsNumberWithUnit(unit_map))
+      ->transform(CLI::AsSizeValue{k_is_1000})
       ->check(CLI::PositiveNumber);
 
   CLI11_PARSE(app, argc, argv);
