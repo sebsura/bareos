@@ -304,16 +304,16 @@ static int analyze(CLI::App& app, int argc, const char** argv)
   app.add_option("-v,--volumes,volumes", volumes)->required();
   std::string outfile{"dedup.out"};
   app.add_option("-o,--output", outfile)->check(CLI::NonexistentPath);
-  std::string replacement{"dedup.json"};
-  app.add_option("-r,--replace", replacement)->check(CLI::NonexistentPath);
+  std::string json{"dedup.json"};
+  app.add_option("-j,--json", json)->check(CLI::NonexistentPath);
   std::size_t min_save{0};
-  app.add_option("-s,--min-size", min_save);
+  app.add_option("-s,--min-size", min_save)->transform(CLI::AsSizeValue{false});
 
   CLI11_PARSE(app, argc, argv);
 
   sha_aggregator agg;
 
-  return analyze_volumes(volumes, outfile, replacement, agg,
+  return analyze_volumes(volumes, outfile, json, agg,
                          [min_save](const auto& set) {
                            return set.data().size() * (set.ids().size() - 1)
                                   > min_save;
