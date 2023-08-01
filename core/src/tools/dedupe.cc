@@ -96,8 +96,6 @@ struct sha {
 
     CryptoDigestFree(digester);
   }
-  std::array<uint64_t, 4> data;
-
 
   friend bool operator==(const sha& l, const sha& r)
   {
@@ -112,28 +110,67 @@ struct sha {
   };
 
   template <typename Val> using map = std::unordered_map<sha, Val, sha::hash>;
+
+ private:
+  std::array<uint64_t, 4> data;
 };
 
-template <typename T> struct aggregator {
+struct binary {
+  binary(const std::vector<std::byte>& record) : data(record), checksum(record)
+  {
+  }
+
+  friend bool operator==(const binary& l, const binary& r)
+  {
+    return l.checksum == r.checksum && l.data == r.data;
+  }
+
+  struct hash {
+    std::size_t operator()(const binary& val) const
+    {
+      return decltype(val.checksum)::hash{}(val.checksum);
+    }
+  };
+
+  template <typename Val>
+  using map = std::unordered_map<binary, Val, binary::hash>;
+
+ private:
+  std::vector<std::byte> data;
+  sha checksum;
+};
+
+struct record_set {
+  std::vector<std::byte> datarecord;
+  std::vector<record_id> recids{};
+
+  record_set(const std::vector<std::byte>& data) : datarecord{data} {}
+
+  std::vector<record_id>& ids() { return recids; }
+
+  const std::vector<record_id>& ids() const { return recids; }
+
+  const std::vector<std::byte>& data() const { return datarecord; }
+};
+
+class aggregator {
+ public:
+  virtual std::vector<record_set> data() = 0;
+  virtual void add_record(record_id id,
+                          const std::vector<std::byte>& datarecord)
+      = 0;
+};
+
+template <typename T> class aggregator_impl : public aggregator {
   // T needs to have a constructor that takes std::vector<std::byte>
   // as well as a type T::map<Val> that acts like a map between
   // T and Val.
-  struct record_set {
-    std::vector<std::byte> datarecord;
-    std::vector<record_id> recids{};
-
-    record_set(const std::vector<std::byte>& data) : datarecord{data} {}
-
-    std::vector<record_id>& ids() { return recids; }
-
-    const std::vector<record_id>& ids() const { return recids; }
-
-    const std::vector<std::byte>& data() const { return datarecord; }
-  };
 
   template <typename Val> using val_map = typename T::map<Val>;
 
-  void add_record(record_id id, const std::vector<std::byte>& datarecord)
+ public:
+  void add_record(record_id id,
+                  const std::vector<std::byte>& datarecord) override
   {
     auto size = datarecord.size();
 
@@ -150,9 +187,7 @@ template <typename T> struct aggregator {
     }
   }
 
-  std::unordered_map<std::size_t, val_map<record_set>> records_by_size;
-
-  std::vector<record_set> data()
+  std::vector<record_set> data() override
   {
     std::vector<record_set> data;
     for (auto& [_, map] : records_by_size) {
@@ -161,6 +196,9 @@ template <typename T> struct aggregator {
 
     return data;
   }
+
+ private:
+  std::unordered_map<std::size_t, val_map<record_set>> records_by_size;
 };
 
 json_t* vec_as_json(const std::vector<std::size_t> vec)
@@ -173,11 +211,11 @@ json_t* vec_as_json(const std::vector<std::size_t> vec)
   return array;
 }
 
-template <typename Acceptor, typename Aggregator>
+template <typename Acceptor>
 bool analyze_volumes(const std::vector<std::string>& volumes,
                      const std::string& bin_out,
                      const std::string& json_out,
-                     Aggregator agg,
+                     aggregator* agg,
                      Acceptor accept)
 {
   for (std::size_t volidx = 0; volidx < volumes.size(); ++volidx) {
@@ -189,12 +227,12 @@ bool analyze_volumes(const std::vector<std::string>& volumes,
       fprintf(stderr, "could not open volume %s\n", volume.c_str());
       continue;
     }
-    for_each_record(vol, [volidx, &agg](auto recidx, auto, auto& data) {
-      agg.add_record(record_id{volidx, recidx}, data);
+    for_each_record(vol, [volidx, agg](auto recidx, auto, auto& data) {
+      agg->add_record(record_id{volidx, recidx}, data);
     });
   }
 
-  auto data = agg.data();
+  auto data = agg->data();
 
   std::vector<std::byte> output;
   std::vector<std::vector<dedup_opportunity>> vols;
@@ -317,12 +355,19 @@ static int analyze(CLI::App& app, int argc, const char** argv)
   app.add_option("-j,--json", json)->check(CLI::NonexistentPath);
   std::size_t min_save{0};
   app.add_option("-s,--min-size", min_save)->transform(CLI::AsSizeValue{false});
+  bool binary_compare{false};
+  app.add_flag("-b,--binary-compare", binary_compare);
 
   CLI11_PARSE(app, argc, argv);
 
-  aggregator<sha> agg;
+  std::unique_ptr<aggregator> agg{nullptr};
+  if (binary_compare) {
+    agg = std::make_unique<aggregator_impl<binary>>();
+  } else {
+    agg = std::make_unique<aggregator_impl<sha>>();
+  }
 
-  return analyze_volumes(volumes, outfile, json, agg,
+  return analyze_volumes(volumes, outfile, json, agg.get(),
                          [min_save](const auto& set) {
                            return set.data().size() * (set.ids().size() - 1)
                                   > min_save;
