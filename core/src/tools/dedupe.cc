@@ -45,44 +45,6 @@ struct dedup_opportunity {
   }
 };
 
-template <typename F> void for_each_record(dedup::volume& vol, F callback)
-{
-  std::vector<dedup::record_header> records;
-  std::vector<std::byte> data;
-  for (auto& rf : vol.recordfiles()) {
-    records.clear();
-    records.resize(rf.size());
-    if (!rf.read_at(rf.begin(), records.data(), records.size())) {
-      std::cout << "Error while reading the records from record file "
-                << rf.path();
-      continue;
-    }
-
-    // todo: ingest by file_index
-
-    for (std::size_t i = 0; i < records.size(); ++i) {
-      data.clear();
-      data.resize(records[i].size);
-      dedup::write_buffer buffer((char*)data.data(), data.size());
-      if (!vol.read_data(records[i].file_index, records[i].start,
-                         records[i].size, buffer)) {
-        std::cout << "Could not read record " << i + rf.begin() << " from file "
-                  << rf.path() << "\n";
-        continue;
-      }
-      callback(i + rf.begin(), records[i].BareosHeader, data);
-    }
-  }
-}
-
-struct record_id {
-  std::size_t volidx, recidx;
-  record_id(std::size_t volidx, std::size_t recidx)
-      : volidx{volidx}, recidx{recidx}
-  {
-  }
-};
-
 struct sha {
   sha(const std::vector<std::byte>& record)
   {
@@ -116,20 +78,18 @@ struct sha {
 };
 
 struct binary {
-  binary(const std::vector<std::byte>& record) : data(record), checksum(record)
+  binary(const std::vector<std::byte>& record) : data(record)
   {
+    hash = sha::hash{}(sha(record));
   }
 
   friend bool operator==(const binary& l, const binary& r)
   {
-    return l.checksum == r.checksum && l.data == r.data;
+    return l.hash == r.hash && l.data == r.data;
   }
 
   struct hash {
-    std::size_t operator()(const binary& val) const
-    {
-      return decltype(val.checksum)::hash{}(val.checksum);
-    }
+    std::size_t operator()(const binary& val) const { return val.hash; }
   };
 
   template <typename Val>
@@ -137,7 +97,15 @@ struct binary {
 
  private:
   std::vector<std::byte> data;
-  sha checksum;
+  std::size_t hash{};
+};
+
+struct record_id {
+  std::size_t volidx, recidx;
+  record_id(std::size_t volidx, std::size_t recidx)
+      : volidx{volidx}, recidx{recidx}
+  {
+  }
 };
 
 struct record_set {
@@ -209,6 +177,40 @@ json_t* vec_as_json(const std::vector<std::size_t> vec)
     json_array_append_new(array, val);
   }
   return array;
+}
+
+template <typename F> void for_each_record(dedup::volume& vol, F callback)
+{
+  std::vector<dedup::record_header> records;
+  std::vector<std::byte> data;
+  for (auto& rf : vol.recordfiles()) {
+    records.clear();
+    records.resize(rf.size());
+    if (!rf.read_at(rf.begin(), records.data(), records.size())) {
+      std::cout << "Error while reading the records from record file "
+                << rf.path();
+      continue;
+    }
+
+    // idea: ingest by file_index for faster reading
+    //       we need to make sure the callback is called
+    //       in the right order though
+    //       Maybe its better to read them in the right order
+    //       but batch reads together (e.g. read multiple records at once).
+    //       The OS cache should probably take care of that though
+    for (std::size_t i = 0; i < records.size(); ++i) {
+      data.clear();
+      data.resize(records[i].size);
+      dedup::write_buffer buffer((char*)data.data(), data.size());
+      if (!vol.read_data(records[i].file_index, records[i].start,
+                         records[i].size, buffer)) {
+        std::cout << "Could not read record " << i + rf.begin() << " from file "
+                  << rf.path() << "\n";
+        continue;
+      }
+      callback(i + rf.begin(), records[i].BareosHeader, data);
+    }
+  }
 }
 
 template <typename Acceptor>
