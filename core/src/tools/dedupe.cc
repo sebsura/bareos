@@ -83,36 +83,41 @@ struct record_id {
   }
 };
 
-struct sha_aggregator {
-  struct sha {
-    sha(const std::vector<std::byte>& record)
+struct sha {
+  sha(const std::vector<std::byte>& record)
+  {
+    DIGEST* digester = crypto_digest_new(nullptr, CRYPTO_DIGEST_SHA256);
+
+    uint32_t size = sizeof(data);
+    assert(digester->Update((const uint8_t*)record.data(), record.size()));
+    assert(digester->Finalize((uint8_t*)data.data(), &size));
+
+    if (size != sizeof(data)) { throw "Bad size"; }
+
+    CryptoDigestFree(digester);
+  }
+  std::array<uint64_t, 4> data;
+
+
+  friend bool operator==(const sha& l, const sha& r)
+  {
+    return l.data == r.data;
+  }
+
+  struct hash {
+    std::size_t operator()(const sha& val) const
     {
-      DIGEST* digester = crypto_digest_new(nullptr, CRYPTO_DIGEST_SHA256);
-
-      uint32_t size = sizeof(data);
-      assert(digester->Update((const uint8_t*)record.data(), record.size()));
-      assert(digester->Finalize((uint8_t*)data.data(), &size));
-
-      if (size != sizeof(data)) { throw "Bad size"; }
-
-      CryptoDigestFree(digester);
+      return val.data[0] + val.data[1] + val.data[2] + val.data[3];
     }
-    std::array<uint64_t, 4> data;
-
-
-    friend bool operator==(const sha& l, const sha& r)
-    {
-      return l.data == r.data;
-    }
-
-    struct hash {
-      std::size_t operator()(const sha& val) const
-      {
-        return val.data[0] + val.data[1] + val.data[2] + val.data[3];
-      }
-    };
   };
 
+  template <typename Val> using map = std::unordered_map<sha, Val, sha::hash>;
+};
+
+template <typename T> struct aggregator {
+  // T needs to have a constructor that takes std::vector<std::byte>
+  // as well as a type T::map<Val> that acts like a map between
+  // T and Val.
   struct record_set {
     std::vector<std::byte> datarecord;
     std::vector<record_id> recids{};
@@ -126,14 +131,13 @@ struct sha_aggregator {
     const std::vector<std::byte>& data() const { return datarecord; }
   };
 
-  template <typename Val>
-  using sha_map = std::unordered_map<sha, Val, sha::hash>;
+  template <typename Val> using val_map = typename T::map<Val>;
 
   void add_record(record_id id, const std::vector<std::byte>& datarecord)
   {
     auto size = datarecord.size();
 
-    auto val = sha(datarecord);
+    auto val = T(datarecord);
 
     auto& map = records_by_size[size];
 
@@ -146,7 +150,7 @@ struct sha_aggregator {
     }
   }
 
-  std::unordered_map<std::size_t, sha_map<record_set>> records_by_size;
+  std::unordered_map<std::size_t, val_map<record_set>> records_by_size;
 
   std::vector<record_set> data()
   {
@@ -316,7 +320,7 @@ static int analyze(CLI::App& app, int argc, const char** argv)
 
   CLI11_PARSE(app, argc, argv);
 
-  sha_aggregator agg;
+  aggregator<sha> agg;
 
   return analyze_volumes(volumes, outfile, json, agg,
                          [min_save](const auto& set) {
