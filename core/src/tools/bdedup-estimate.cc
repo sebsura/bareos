@@ -48,13 +48,14 @@ bool verbose_status{false};
 bool record_based_dedup{false};
 
 struct dedup_unit {
+  std::size_t data_size;
   uint64_t digest[4];
 
   dedup_unit(std::vector<std::uint8_t> data)
       : dedup_unit(data.data(), data.size())
   {
   }
-  dedup_unit(const std::uint8_t* data, std::size_t dsize)
+  dedup_unit(const std::uint8_t* data, std::size_t dsize) : data_size{dsize}
   {
     DIGEST* digester = crypto_digest_new(nullptr, CRYPTO_DIGEST_SHA256);
 
@@ -69,7 +70,8 @@ struct dedup_unit {
 
   friend bool operator==(const dedup_unit& l, const dedup_unit& r)
   {
-    return std::memcmp(l.digest, r.digest, 32) == 0;
+    return l.data_size == r.data_size
+           && std::memcmp(l.digest, r.digest, sizeof(l.digest)) == 0;
   }
 };
 
