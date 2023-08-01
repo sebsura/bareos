@@ -35,6 +35,16 @@
 
 #include <unistd.h>
 
+struct dedup_opportunity {
+  std::size_t start{}, size{};
+  std::vector<std::size_t> records{};
+  dedup_opportunity() = default;
+  dedup_opportunity(std::size_t start, std::size_t size)
+      : start{start}, size{size}
+  {
+  }
+};
+
 template <typename F> void for_each_record(dedup::volume& vol, F callback)
 {
   std::vector<dedup::record_header> records;
@@ -183,16 +193,9 @@ bool analyze_volumes(const std::vector<std::string>& volumes,
   auto data = agg.data();
 
   std::vector<std::byte> output;
-  struct value {
-    std::size_t start{}, size{};
-    std::vector<std::size_t> records{};
-    value() = default;
-    value(std::size_t start, std::size_t size) : start{start}, size{size} {}
-  };
-
-  std::vector<std::vector<value>> vols;
+  std::vector<std::vector<dedup_opportunity>> vols;
   vols.resize(volumes.size());
-  std::vector<value*> current;
+  std::vector<dedup_opportunity*> current;
   current.resize(volumes.size());
   for (auto& set : data) {
     if (!accept(set)) { continue; }
@@ -353,15 +356,8 @@ static int dedupe(CLI::App& app, int argc, const char** argv)
   const char* name;
   json_t* records;
 
-  struct value {
-    std::size_t start{}, size{};
-    std::vector<std::size_t> records{};
-    value() = default;
-    value(std::size_t start, std::size_t size) : start{start}, size{size} {}
-  };
-
   bool found = false;
-  std::vector<value> dedup_data;
+  std::vector<dedup_opportunity> dedup_data;
   json_object_foreach(json_volumes, name, records)
   {
     if (in_vol == name) {
@@ -413,9 +409,9 @@ static int dedupe(CLI::App& app, int argc, const char** argv)
   std::unordered_map<std::size_t, std::pair<std::size_t, std::size_t>>
       rec_to_loc;
 
-  for (auto value : dedup_data) {
-    for (auto rec : value.records) {
-      rec_to_loc.try_emplace(rec, value.start, value.size);
+  for (auto opp : dedup_data) {
+    for (auto rec : opp.records) {
+      rec_to_loc.try_emplace(rec, opp.start, opp.size);
     }
   }
 
