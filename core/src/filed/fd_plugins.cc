@@ -2252,14 +2252,12 @@ static bRC bareosAddExclude(PluginContext* ctx, const char* fname)
   // Not right time to add exlude
   if (!old) { return bRC_Error; }
 
-  if (!bctx->exclude) {
-    bctx->exclude = new_exclude(jcr->fd_impl->ff->fileset);
-  }
+  if (!bctx->exclude) { bctx->exclude = new_exclude(jcr->fd_impl->ff); }
 
   // Set the Exclude context
   SetIncexe(jcr, bctx->exclude);
 
-  AddFileToFileset(jcr, fname, true, jcr->fd_impl->ff->fileset);
+  AddFileToFileset(jcr, fname, true, jcr->fd_impl->ff->incexe);
 
   // Restore the current context
   SetIncexe(jcr, old);
@@ -2292,7 +2290,7 @@ static bRC bareosAddInclude(PluginContext* ctx, const char* fname)
   if (!bctx->include) { bctx->include = old; }
 
   SetIncexe(jcr, bctx->include);
-  AddFileToFileset(jcr, fname, true, jcr->fd_impl->ff->fileset);
+  AddFileToFileset(jcr, fname, true, jcr->fd_impl->ff->incexe);
 
   // Restore the current context
   SetIncexe(jcr, old);
@@ -2350,7 +2348,7 @@ static bRC bareosNewOptions(PluginContext* ctx)
   b_plugin_ctx* bctx;
 
   if (!IsCtxGood(ctx, jcr, bctx)) { return bRC_Error; }
-  (void)NewOptions(jcr->fd_impl->ff, jcr->fd_impl->ff->fileset->incexe);
+  (void)NewOptions(jcr->fd_impl->ff, jcr->fd_impl->ff->incexe);
 
   return bRC_OK;
 }
@@ -2361,7 +2359,7 @@ static bRC bareosNewInclude(PluginContext* ctx)
   b_plugin_ctx* bctx;
 
   if (!IsCtxGood(ctx, jcr, bctx)) { return bRC_Error; }
-  (void)new_include(jcr->fd_impl->ff->fileset);
+  (void)new_include(jcr->fd_impl->ff);
 
   return bRC_OK;
 }
@@ -2373,7 +2371,7 @@ static bRC bareosNewPreInclude(PluginContext* ctx)
 
   if (!IsCtxGood(ctx, jcr, bctx)) { return bRC_Error; }
 
-  bctx->include = new_preinclude(jcr->fd_impl->ff->fileset);
+  bctx->include = new_preinclude(jcr->fd_impl->ff);
   NewOptions(jcr->fd_impl->ff, bctx->include);
   SetIncexe(jcr, bctx->include);
 
