@@ -1058,12 +1058,21 @@ int SendFiles(JobControlRecord* jcr,
     auto [in, out] = channel::CreateBufferedChannel<stated_opened_file>(max_open_files);
     std::thread opener(PrepareFileForSending, jcr, std::move(outs), std::move(in));
 
+    // some values are not overwritten for each file inside an include block
+    // but are "cached" from one run to the next.  As we now send send them
+    // out of order (between different include blocks), we need to ensure
+    // that we restore them if needed
+    struct cached_vals { int StripPath; char* top_fname; };
+    // everything is set to 0
+    std::vector<cached_vals> cached_values(fileset->include_list.size());
     while (1) {
       if (std::optional opened_file = out.get(); opened_file) {
 	auto& [file, bfd, fileset_idx] = opened_file.value();
 	fileset->incexe = fileset->include_list.get(fileset_idx);
 	char* fname = file.name.data();
 	SetupLastOptionBlock(ff, fileset->incexe);
+	ff->StripPath = cached_values[fileset_idx].StripPath;
+	ff->top_fname = cached_values[fileset_idx].top_fname;
 	if (!SetupFFPkt(ff, fname, file.statp, file.delta_seq,
 			file.type, file.hfsinfo)) {
 	  Dmsg1(debuglevel, "Error: Could not setup ffpkt for file '%s'\n",
@@ -1107,6 +1116,8 @@ int SendFiles(JobControlRecord* jcr,
 	} else {
 	  CleanupLink(ff);
 	  if (ff->linked) { ff->linked->FileIndex = ff->FileIndex; }
+	  cached_values[fileset_idx].StripPath = ff->StripPath;
+	  cached_values[fileset_idx].top_fname = ff->top_fname;
 	}
 	if (jcr->IsJobCanceled()) { ret_val = 0; break; }
       } else {
