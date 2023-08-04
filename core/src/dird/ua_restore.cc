@@ -97,7 +97,6 @@ static void InsertOneFileOrDir(UaContext* ua,
 static bool GetClientName(UaContext* ua, RestoreContext* rx);
 static bool GetRestoreClientName(UaContext* ua, RestoreContext& rx);
 static bool get_date(UaContext* ua, char* date, int date_len);
-static int RestoreCountHandler(void* ctx, int num_fields, char** row);
 static bool InsertTableIntoFindexList(UaContext* ua,
                                       RestoreContext* rx,
                                       char* table);
@@ -1200,7 +1199,7 @@ static bool AskForFileregex(UaContext* ua, RestoreContext* rx)
  * should insert as
  * 0, 1, 2, 3, 4, 5, 6
  */
-static void AddDeltaListFindex(RestoreContext* rx, struct delta_list* lst)
+void AddDeltaListFindex(RestoreContext* rx, delta_list* lst)
 {
   if (lst == NULL) { return; }
   if (lst->next) { AddDeltaListFindex(rx, lst->next); }
@@ -1594,7 +1593,7 @@ bail_out:
   return ok;
 }
 
-static int RestoreCountHandler(void* ctx, int, char** row)
+int RestoreCountHandler(void* ctx, int, char** row)
 {
   RestoreContext* rx = (RestoreContext*)ctx;
   rx->JobId = str_to_int64(row[0]);
