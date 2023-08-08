@@ -41,7 +41,7 @@
 #include "lib/compression.h"
 
 #include <cassert>
-#include <cstring>
+#include <array>
 #include <iostream>
 #include <unordered_set>
 
@@ -51,7 +51,7 @@ static bool enable_decompression{false};
 
 struct dedup_unit {
   std::size_t data_size;
-  uint64_t digest[4];
+  std::array<uint64_t, 4> digest;
 
   dedup_unit(std::vector<std::uint8_t> data)
       : dedup_unit(data.data(), data.size())
@@ -63,7 +63,7 @@ struct dedup_unit {
 
     uint32_t size = sizeof(digest);
     assert(digester->Update(data, dsize));
-    assert(digester->Finalize((uint8_t*)digest, &size));
+    assert(digester->Finalize((uint8_t*)digest.data(), &size));
 
     if (size != sizeof(digest)) { throw "Bad size"; }
 
@@ -72,8 +72,7 @@ struct dedup_unit {
 
   friend bool operator==(const dedup_unit& l, const dedup_unit& r)
   {
-    return l.data_size == r.data_size
-           && std::memcmp(l.digest, r.digest, sizeof(l.digest)) == 0;
+    return l.data_size == r.data_size && l.digest == r.digest;
   }
 };
 
