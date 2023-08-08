@@ -44,8 +44,8 @@
 #include <iostream>
 #include <unordered_set>
 
-bool verbose_status{false};
-bool record_based_dedup{false};
+static bool verbose_status{false};
+static bool record_based_dedup{false};
 
 struct dedup_unit {
   std::size_t data_size;
