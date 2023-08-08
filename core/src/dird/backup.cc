@@ -474,6 +474,7 @@ static bool ConfigureMessageThread(JobControlRecord* jcr)
  */
 bool DoNativeBackup(JobControlRecord* jcr)
 {
+  auto timer = jcr->get_thread_local_timer();
   Jmsg(jcr, M_INFO, 0, _("Start Backup JobId %llu, Job=%s\n"),
        (uint64_t)jcr->JobId, jcr->Job);
 
@@ -485,127 +486,154 @@ bool DoNativeBackup(JobControlRecord* jcr)
     return false;
   }
 
-  if (CheckHardquotas(jcr)) {
-    Jmsg(jcr, M_FATAL, 0, _("Quota Exceeded. Job terminated.\n"));
-    return false;
+  {
+    static BlockIdentity id{"check quotas"};
+    TimedBlock blk{timer, id};
+    if (CheckHardquotas(jcr)) {
+      Jmsg(jcr, M_FATAL, 0, _("Quota Exceeded. Job terminated.\n"));
+      return false;
+    }
+
+    if (CheckSoftquotas(jcr)) {
+      Dmsg0(10, "Quota exceeded\n");
+      Jmsg(jcr, M_FATAL, 0,
+           _("Soft Quota exceeded / Grace Time expired. Job terminated.\n"));
+      return false;
+    }
   }
 
-  if (CheckSoftquotas(jcr)) {
-    Dmsg0(10, "Quota exceeded\n");
-    Jmsg(jcr, M_FATAL, 0,
-         _("Soft Quota exceeded / Grace Time expired. Job terminated.\n"));
-    return false;
+  {
+    static BlockIdentity id{"wait sd"};
+    TimedBlock blk{timer, id};
+
+    /* Open a message channel connection with the Storage
+     * daemon. This is to let him know that our client
+     * will be contacting him for a backup  session. */
+    Dmsg0(110, "Open connection with storage daemon\n");
+    jcr->setJobStatusWithPriorityCheck(JS_WaitSD);
+
+    if (!ConnectToStorageDaemon(jcr, 10, me->SDConnectTimeout, true)) {
+      return false;
+    }
+
+    if (!StartStorageDaemonJob(jcr)) { return false; }
   }
 
-  /* Open a message channel connection with the Storage
-   * daemon. This is to let him know that our client
-   * will be contacting him for a backup  session. */
-  Dmsg0(110, "Open connection with storage daemon\n");
-  jcr->setJobStatusWithPriorityCheck(JS_WaitSD);
+  {
+    static BlockIdentity id{"wait fd"};
+    TimedBlock blk{timer, id};
+    jcr->setJobStatusWithPriorityCheck(JS_WaitFD);
+    if (!ConnectToFileDaemon(jcr, 10, me->FDConnectTimeout, true)) {
+      TerminateBackupWithError(jcr);
+      return false;
+    }
+    Dmsg1(120, "jobid: %d: connected\n", jcr->JobId);
+    SendJobInfoToFileDaemon(jcr);
 
-  if (!ConnectToStorageDaemon(jcr, 10, me->SDConnectTimeout, true)) {
-    return false;
-  }
-
-  if (!StartStorageDaemonJob(jcr)) { return false; }
-
-  jcr->setJobStatusWithPriorityCheck(JS_WaitFD);
-  if (!ConnectToFileDaemon(jcr, 10, me->FDConnectTimeout, true)) {
-    TerminateBackupWithError(jcr);
-    return false;
-  }
-  Dmsg1(120, "jobid: %d: connected\n", jcr->JobId);
-  SendJobInfoToFileDaemon(jcr);
-
-  if (jcr->passive_client && jcr->dir_impl->FDVersion < FD_VERSION_51) {
-    Jmsg(jcr, M_FATAL, 0,
-         _("Client \"%s\" doesn't support passive client mode. "
-           "Please upgrade your client or disable compat mode.\n"),
-         jcr->dir_impl->res.client->resource_name_);
-    CloseFdConnection(jcr);
-    TerminateBackupWithError(jcr);
-    return false;
+    if (jcr->passive_client && jcr->dir_impl->FDVersion < FD_VERSION_51) {
+      Jmsg(jcr, M_FATAL, 0,
+           _("Client \"%s\" doesn't support passive client mode. "
+             "Please upgrade your client or disable compat mode.\n"),
+           jcr->dir_impl->res.client->resource_name_);
+      CloseFdConnection(jcr);
+      TerminateBackupWithError(jcr);
+      return false;
+    }
   }
 
   jcr->setJobStatusWithPriorityCheck(JS_Running);
 
-  if (!SendLevelCommand(jcr)) {
-    TerminateBackupWithError(jcr);
-    return false;
+  {
+    static BlockIdentity id{"send data"};
+    TimedBlock blk{timer, id};
+    if (!SendLevelCommand(jcr)) {
+      TerminateBackupWithError(jcr);
+      return false;
+    }
+
+    if (!SendIncludeExcludeLists(jcr)) {
+      TerminateBackupWithError(jcr);
+      return false;
+    }
+
+    if (!SendPluginOptions(jcr)) {
+      TerminateBackupWithError(jcr);
+      return false;
+    }
+
+    if (!SendPreviousRestoreObjects(jcr)) {
+      TerminateBackupWithError(jcr);
+      return false;
+    }
+
+    if (!SendSecureEraseReqToFd(jcr)) {
+      Dmsg1(500, "Unexpected %s secure erase\n", "client");
+    }
+
+    if (jcr->dir_impl->res.job->max_bandwidth > 0) {
+      jcr->max_bandwidth = jcr->dir_impl->res.job->max_bandwidth;
+    } else if (jcr->dir_impl->res.client->max_bandwidth > 0) {
+      jcr->max_bandwidth = jcr->dir_impl->res.client->max_bandwidth;
+    }
+
+    if (jcr->max_bandwidth > 0) {
+      SendBwlimitToFd(jcr, jcr->Job);  // Old clients don't have this command
+    }
+
+    // Declare the job started to start the MaxRunTime check
+    jcr->setJobStarted();
+
+    if (!SendRunscriptsCommands(jcr)) {
+      TerminateBackupWithError(jcr);
+      return false;
+    }
+
+    /* We re-update the job start record so that the start
+     * time is set after the run before job.  This avoids
+     * that any files created by the run before job will
+     * be saved twice.  They will be backed up in the current
+     * job, but not in the next one unless they are changed.
+     * Without this, they will be backed up in this job and
+     * in the next job run because in that case, their date
+     * is after the start of this run. */
+    jcr->start_time = time(nullptr);
+    jcr->dir_impl->jr.StartTime = jcr->start_time;
+    if (!jcr->db->UpdateJobStartRecord(jcr, &jcr->dir_impl->jr)) {
+      Jmsg(jcr, M_FATAL, 0, "%s", jcr->db->strerror());
+    }
+
+    /* If backup is in accurate mode, we send the list of
+     * all files to FD. */
+    if (!SendAccurateCurrentFiles(jcr)) {
+      TerminateBackupWithError(jcr);
+      return false;  // error
+    }
   }
 
-  if (!SendIncludeExcludeLists(jcr)) {
-    TerminateBackupWithError(jcr);
-    return false;
+  {
+    static BlockIdentity id{"reserve device"};
+    TimedBlock blk{timer, id};
+
+    if (!ReserveWriteDevice(jcr, jcr->dir_impl->res.write_storage_list)) {
+      return false;
+    }
   }
 
-  if (!SendPluginOptions(jcr)) {
-    TerminateBackupWithError(jcr);
-    return false;
+  int status;
+  {
+    static BlockIdentity id{"do backup"};
+    TimedBlock blk{timer, id};
+    if (!ConfigureMessageThread(jcr)) { return false; }
+
+    jcr->file_bsock->fsend(backupcmd, jcr->JobFiles);
+    Dmsg1(100, ">filed: %s", jcr->file_bsock->msg);
+    if (!response(jcr, jcr->file_bsock, OKbackup, "Backup", DISPLAY_ERROR)) {
+      TerminateBackupWithError(jcr);
+      return false;
+    }
+
+    status = WaitForJobTermination(jcr);
   }
-
-  if (!SendPreviousRestoreObjects(jcr)) {
-    TerminateBackupWithError(jcr);
-    return false;
-  }
-
-  if (!SendSecureEraseReqToFd(jcr)) {
-    Dmsg1(500, "Unexpected %s secure erase\n", "client");
-  }
-
-  if (jcr->dir_impl->res.job->max_bandwidth > 0) {
-    jcr->max_bandwidth = jcr->dir_impl->res.job->max_bandwidth;
-  } else if (jcr->dir_impl->res.client->max_bandwidth > 0) {
-    jcr->max_bandwidth = jcr->dir_impl->res.client->max_bandwidth;
-  }
-
-  if (jcr->max_bandwidth > 0) {
-    SendBwlimitToFd(jcr, jcr->Job);  // Old clients don't have this command
-  }
-
-  // Declare the job started to start the MaxRunTime check
-  jcr->setJobStarted();
-
-  if (!SendRunscriptsCommands(jcr)) {
-    TerminateBackupWithError(jcr);
-    return false;
-  }
-
-  /* We re-update the job start record so that the start
-   * time is set after the run before job.  This avoids
-   * that any files created by the run before job will
-   * be saved twice.  They will be backed up in the current
-   * job, but not in the next one unless they are changed.
-   * Without this, they will be backed up in this job and
-   * in the next job run because in that case, their date
-   * is after the start of this run. */
-  jcr->start_time = time(nullptr);
-  jcr->dir_impl->jr.StartTime = jcr->start_time;
-  if (!jcr->db->UpdateJobStartRecord(jcr, &jcr->dir_impl->jr)) {
-    Jmsg(jcr, M_FATAL, 0, "%s", jcr->db->strerror());
-  }
-
-  /* If backup is in accurate mode, we send the list of
-   * all files to FD. */
-  if (!SendAccurateCurrentFiles(jcr)) {
-    TerminateBackupWithError(jcr);
-    return false;  // error
-  }
-
-  if (!ReserveWriteDevice(jcr, jcr->dir_impl->res.write_storage_list)) {
-    return false;
-  }
-
-  if (!ConfigureMessageThread(jcr)) { return false; }
-
-  jcr->file_bsock->fsend(backupcmd, jcr->JobFiles);
-  Dmsg1(100, ">filed: %s", jcr->file_bsock->msg);
-  if (!response(jcr, jcr->file_bsock, OKbackup, "Backup", DISPLAY_ERROR)) {
-    TerminateBackupWithError(jcr);
-    return false;
-  }
-
-  int status = WaitForJobTermination(jcr);
   if (jcr->batch_started) {
     jcr->db_batch->WriteBatchFileRecords(
         jcr);  // used by bulk batch file insert

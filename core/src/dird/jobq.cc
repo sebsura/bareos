@@ -199,6 +199,7 @@ extern "C" void* sched_wait(void* arg)
  */
 int JobqAdd(jobq_t* jq, JobControlRecord* jcr)
 {
+  auto timer = jcr->get_thread_local_timer();
   int status;
   jobq_item_t *item, *li;
   bool inserted = false;
@@ -240,45 +241,61 @@ int JobqAdd(jobq_t* jq, JobControlRecord* jcr)
     return status;
   }
 
-  lock_mutex(jq->mutex);
-
-  if ((item = (jobq_item_t*)malloc(sizeof(jobq_item_t))) == NULL) {
-    FreeJcr(jcr); /* release jcr */
-    return ENOMEM;
+  {
+    static BlockIdentity id{"lock mutex"};
+    TimedBlock blk{timer, id};
+    lock_mutex(jq->mutex);
   }
-  item->jcr = jcr;
 
-  // While waiting in a queue this job is not attached to a thread
-  SetJcrInThreadSpecificData(nullptr);
-  if (jcr->IsJobCanceled()) {
-    // Add job to ready queue so that it is canceled quickly
-    jq->ready_jobs->prepend(item);
-    Dmsg1(2300, "Prepended job=%d to ready queue\n", jcr->JobId);
-  } else {
-    // Add this job to the wait queue in priority sorted order
-    foreach_dlist (li, jq->waiting_jobs) {
-      Dmsg2(2300, "waiting item jobid=%d priority=%d\n", li->jcr->JobId,
-            li->jcr->JobPriority);
-      if (li->jcr->JobPriority > jcr->JobPriority) {
-        jq->waiting_jobs->InsertBefore(item, li);
-        Dmsg2(2300, "InsertBefore jobid=%d before waiting job=%d\n",
-              li->jcr->JobId, jcr->JobId);
-        inserted = true;
-        break;
+  {
+    static BlockIdentity id{"insert queue"};
+    TimedBlock blk{timer, id};
+    if ((item = (jobq_item_t*)malloc(sizeof(jobq_item_t))) == NULL) {
+      FreeJcr(jcr); /* release jcr */
+      return ENOMEM;
+    }
+    item->jcr = jcr;
+
+    // While waiting in a queue this job is not attached to a thread
+    SetJcrInThreadSpecificData(nullptr);
+    if (jcr->IsJobCanceled()) {
+      // Add job to ready queue so that it is canceled quickly
+      jq->ready_jobs->prepend(item);
+      Dmsg1(2300, "Prepended job=%d to ready queue\n", jcr->JobId);
+    } else {
+      // Add this job to the wait queue in priority sorted order
+      foreach_dlist (li, jq->waiting_jobs) {
+        Dmsg2(2300, "waiting item jobid=%d priority=%d\n", li->jcr->JobId,
+              li->jcr->JobPriority);
+        if (li->jcr->JobPriority > jcr->JobPriority) {
+          jq->waiting_jobs->InsertBefore(item, li);
+          Dmsg2(2300, "InsertBefore jobid=%d before waiting job=%d\n",
+                li->jcr->JobId, jcr->JobId);
+          inserted = true;
+          break;
+        }
+      }
+      // If not jobs in wait queue, append it
+      if (!inserted) {
+        jq->waiting_jobs->append(item);
+        Dmsg1(2300, "Appended item jobid=%d to waiting queue\n", jcr->JobId);
       }
     }
-
-    // If not jobs in wait queue, append it
-    if (!inserted) {
-      jq->waiting_jobs->append(item);
-      Dmsg1(2300, "Appended item jobid=%d to waiting queue\n", jcr->JobId);
-    }
   }
 
-  // Ensure that at least one server looks at the queue.
-  status = StartServer(jq);
 
-  unlock_mutex(jq->mutex);
+  {
+    static BlockIdentity id{"StartServer"};
+    TimedBlock blk{timer, id};
+    // Ensure that at least one server looks at the queue.
+    status = StartServer(jq);
+  }
+
+  {
+    static BlockIdentity id{"unlock mutex"};
+    TimedBlock blk{timer, id};
+    unlock_mutex(jq->mutex);
+  }
   Dmsg0(2300, "Return JobqAdd\n");
   return status;
 }
@@ -411,6 +428,8 @@ extern "C" void* jobq_server(void* arg)
       }
       jq->running_jobs->append(je);
 
+      auto timer = je->jcr->get_thread_local_timer();
+
       // Attach jcr to this thread while we run the job
       jcr->SetKillable(true);
       SetJcrInThreadSpecificData(jcr);
@@ -422,7 +441,11 @@ extern "C" void* jobq_server(void* arg)
       // Call user's routine here
       Dmsg3(2300, "Calling user engine for jobid=%d use=%d stat=%c\n",
             jcr->JobId, jcr->UseCount(), jcr->getJobStatus());
-      jq->engine(je->jcr);
+      {
+        static BlockIdentity id{"actually run job"};
+        TimedBlock blk{timer, id};
+        jq->engine(je->jcr);
+      }
 
       // Job finished detach from thread
       RemoveJcrFromThreadSpecificData(je->jcr);

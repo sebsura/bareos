@@ -204,6 +204,7 @@ bool ReserveReadDevice(JobControlRecord* jcr,
 bool ReserveWriteDevice(JobControlRecord* jcr,
                         alist<StorageResource*>* write_storage)
 {
+  auto timer = jcr->get_thread_local_timer();
   PoolMem device_name;
   std::string StoreName{};
   std::string pool_name{};
@@ -226,37 +227,47 @@ bool ReserveWriteDevice(JobControlRecord* jcr,
     BashSpaces(pool_type);
     BashSpaces(pool_name);
     StorageResource* storage = nullptr;
-    foreach_alist (storage, write_storage) {
-      StoreName = storage->resource_name_;
-      BashSpaces(StoreName);
-      media_type = storage->media_type;
-      BashSpaces(media_type);
-      jcr->store_bsock->fsend(use_storage, StoreName.c_str(),
-                              media_type.c_str(), pool_name.c_str(),
-                              pool_type.c_str(), 1, copy, stripe);
+    {
+      static BlockIdentity id{"send storage"};
+      TimedBlock blk{timer, id};
+      foreach_alist (storage, write_storage) {
+        StoreName = storage->resource_name_;
+        BashSpaces(StoreName);
+        media_type = storage->media_type;
+        BashSpaces(media_type);
+        jcr->store_bsock->fsend(use_storage, StoreName.c_str(),
+                                media_type.c_str(), pool_name.c_str(),
+                                pool_type.c_str(), 1, copy, stripe);
 
-      Dmsg1(100, "write_storage >stored: %s", jcr->store_bsock->msg);
-      DeviceResource* dev = nullptr;
-      // Loop over alternative storage Devices until one is OK
-      foreach_alist (dev, storage->device) {
-        PmStrcpy(device_name, dev->resource_name_);
-        BashSpaces(device_name);
-        jcr->store_bsock->fsend(use_device, device_name.c_str());
-        Dmsg1(100, ">stored: %s", jcr->store_bsock->msg);
+        Dmsg1(100, "write_storage >stored: %s", jcr->store_bsock->msg);
+        DeviceResource* dev = nullptr;
+        // Loop over alternative storage Devices until one is OK
+        foreach_alist (dev, storage->device) {
+          static BlockIdentity id{"send device"};
+          TimedBlock blk{timer, id};
+          PmStrcpy(device_name, dev->resource_name_);
+          BashSpaces(device_name);
+          jcr->store_bsock->fsend(use_device, device_name.c_str());
+          Dmsg1(100, ">stored: %s", jcr->store_bsock->msg);
+        }
+        jcr->store_bsock->signal(BNET_EOD);  // end of Devices
       }
-      jcr->store_bsock->signal(BNET_EOD);  // end of Devices
+      jcr->store_bsock->signal(BNET_EOD);  // end of Storages
     }
-    jcr->store_bsock->signal(BNET_EOD);  // end of Storages
-    if (BgetDirmsg(jcr->store_bsock) > 0) {
-      Dmsg1(100, "<stored: %s", jcr->store_bsock->msg);
-      // ****FIXME**** save actual device name
-      ok = sscanf(jcr->store_bsock->msg, OK_device, device_name.c_str()) == 1;
-    } else {
-      ok = false;
-    }
-    if (ok) {
-      Jmsg(jcr, M_INFO, 0, _("Using Device \"%s\" to write.\n"),
-           device_name.c_str());
+    {
+      static BlockIdentity id{"wait on answer"};
+      TimedBlock blk{timer, id};
+      if (BgetDirmsg(jcr->store_bsock) > 0) {
+        Dmsg1(100, "<stored: %s", jcr->store_bsock->msg);
+        // ****FIXME**** save actual device name
+        ok = sscanf(jcr->store_bsock->msg, OK_device, device_name.c_str()) == 1;
+      } else {
+        ok = false;
+      }
+      if (ok) {
+        Jmsg(jcr, M_INFO, 0, _("Using Device \"%s\" to write.\n"),
+             device_name.c_str());
+      }
     }
   }
   if (!ok) {

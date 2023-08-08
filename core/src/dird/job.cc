@@ -137,6 +137,9 @@ JobId_t RunJob(JobControlRecord* jcr)
 
 bool SetupJob(JobControlRecord* jcr, bool suppress_output)
 {
+  auto timer = jcr->get_thread_local_timer();
+  static BlockIdentity id{"SetupJob"};
+  TimedBlock blk{timer, id};
   int errstat;
 
   jcr->lock();
@@ -169,19 +172,29 @@ bool SetupJob(JobControlRecord* jcr, bool suppress_output)
   }
   jcr->dir_impl->nextrun_ready_inited = true;
 
-  CreateUniqueJobName(jcr, jcr->dir_impl->res.job->resource_name_);
+  {
+    static BlockIdentity id{"CreateName"};
+    TimedBlock blk{timer, id};
+    CreateUniqueJobName(jcr, jcr->dir_impl->res.job->resource_name_);
+  }
   jcr->setJobStatusWithPriorityCheck(JS_Created);
   jcr->unlock();
 
   // Open database
-  Dmsg0(100, "Open database\n");
-  jcr->db = GetDatabaseConnection(jcr);
-  if (jcr->db == NULL) {
-    Jmsg(jcr, M_FATAL, 0, _("Could not open database \"%s\".\n"),
-         jcr->dir_impl->res.catalog->db_name);
-    goto bail_out;
+  {
+    static BlockIdentity id{"OpenDB"};
+    TimedBlock blk{timer, id};
+
+    Dmsg0(100, "Open database\n");
+    jcr->db = GetDatabaseConnection(jcr);
+    if (jcr->db == NULL) {
+      Jmsg(jcr, M_FATAL, 0, _("Could not open database \"%s\".\n"),
+           jcr->dir_impl->res.catalog->db_name);
+      goto bail_out;
+    }
+    Dmsg0(150, "DB opened\n");
   }
-  Dmsg0(150, "DB opened\n");
+
   if (!jcr->dir_impl->fname) { jcr->dir_impl->fname = GetPoolMemory(PM_FNAME); }
 
   if (!jcr->dir_impl->res.pool_source) {
@@ -201,17 +214,22 @@ bool SetupJob(JobControlRecord* jcr, bool suppress_output)
     }
   }
 
-  // Create Job record
-  InitJcrJobRecord(jcr);
+  {
+    static BlockIdentity id{"InitJobRecord"};
+    TimedBlock blk{timer, id};
 
-  if (jcr->dir_impl->res.client) {
-    if (!GetOrCreateClientRecord(jcr)) { goto bail_out; }
+    // Create Job record
+    InitJcrJobRecord(jcr);
+    if (jcr->dir_impl->res.client) {
+      if (!GetOrCreateClientRecord(jcr)) { goto bail_out; }
+    }
+
+    if (!jcr->db->CreateJobRecord(jcr, &jcr->dir_impl->jr)) {
+      Jmsg(jcr, M_FATAL, 0, "%s", jcr->db->strerror());
+      goto bail_out;
+    }
   }
 
-  if (!jcr->db->CreateJobRecord(jcr, &jcr->dir_impl->jr)) {
-    Jmsg(jcr, M_FATAL, 0, "%s", jcr->db->strerror());
-    goto bail_out;
-  }
 
   jcr->JobId = jcr->dir_impl->jr.JobId;
   Dmsg4(100, "Created job record JobId=%d Name=%s Type=%c Level=%c\n",
@@ -235,128 +253,133 @@ bool SetupJob(JobControlRecord* jcr, bool suppress_output)
 
   if (!jcr->JobReads()) { FreeRstorage(jcr); }
 
-  /* Now, do pre-run stuff, like setting job level (Inc/diff, ...)
-   *  this allows us to setup a proper job start record for restarting
-   *  in case of later errors. */
-  switch (jcr->getJobType()) {
-    case JT_BACKUP:
-      if (!jcr->is_JobLevel(L_VIRTUAL_FULL)) {
-        if (GetOrCreateFilesetRecord(jcr)) {
-          /* See if we need to upgrade the level. If GetLevelSinceTime returns
-           * true it has updated the level of the backup and we run
-           * apply_pool_overrides with the force flag so the correct pool (full,
-           * diff, incr) is selected. For all others we respect any set ignore
-           * flags. */
-          if (GetLevelSinceTime(jcr)) {
-            ApplyPoolOverrides(jcr, true);
+  static BlockIdentity prerun{"prerun"};
+  {
+    TimedBlock blk{timer, prerun};
+
+    /* Now, do pre-run stuff, like setting job level (Inc/diff, ...)
+     *  this allows us to setup a proper job start record for restarting
+     *  in case of later errors. */
+    switch (jcr->getJobType()) {
+      case JT_BACKUP:
+        if (!jcr->is_JobLevel(L_VIRTUAL_FULL)) {
+          if (GetOrCreateFilesetRecord(jcr)) {
+            /* See if we need to upgrade the level. If GetLevelSinceTime returns
+             * true it has updated the level of the backup and we run
+             * apply_pool_overrides with the force flag so the correct pool
+             * (full, diff, incr) is selected. For all others we respect any set
+             * ignore flags. */
+            if (GetLevelSinceTime(jcr)) {
+              ApplyPoolOverrides(jcr, true);
+            } else {
+              ApplyPoolOverrides(jcr, false);
+            }
           } else {
-            ApplyPoolOverrides(jcr, false);
+            goto bail_out;
           }
-        } else {
+        }
+
+        switch (jcr->getJobProtocol()) {
+          case PT_NDMP_BAREOS:
+            if (!DoNdmpBackupInit(jcr)) {
+              NdmpBackupCleanup(jcr, JS_ErrorTerminated);
+              goto bail_out;
+            }
+            break;
+          case PT_NDMP_NATIVE:
+            if (!DoNdmpBackupInitNdmpNative(jcr)) {
+              NdmpBackupCleanup(jcr, JS_ErrorTerminated);
+              goto bail_out;
+            }
+            break;
+          default:
+            if (jcr->is_JobLevel(L_VIRTUAL_FULL)) {
+              if (!DoNativeVbackupInit(jcr)) {
+                NativeVbackupCleanup(jcr, JS_ErrorTerminated);
+                goto bail_out;
+              }
+            } else {
+              if (!DoNativeBackupInit(jcr)) {
+                NativeBackupCleanup(jcr, JS_ErrorTerminated);
+                goto bail_out;
+              }
+            }
+            break;
+        }
+        break;
+      case JT_VERIFY:
+        if (!DoVerifyInit(jcr)) {
+          VerifyCleanup(jcr, JS_ErrorTerminated);
           goto bail_out;
         }
-      }
-
-      switch (jcr->getJobProtocol()) {
-        case PT_NDMP_BAREOS:
-          if (!DoNdmpBackupInit(jcr)) {
-            NdmpBackupCleanup(jcr, JS_ErrorTerminated);
-            goto bail_out;
-          }
-          break;
-        case PT_NDMP_NATIVE:
-          if (!DoNdmpBackupInitNdmpNative(jcr)) {
-            NdmpBackupCleanup(jcr, JS_ErrorTerminated);
-            goto bail_out;
-          }
-          break;
-        default:
-          if (jcr->is_JobLevel(L_VIRTUAL_FULL)) {
-            if (!DoNativeVbackupInit(jcr)) {
-              NativeVbackupCleanup(jcr, JS_ErrorTerminated);
+        break;
+      case JT_RESTORE:
+        switch (jcr->getJobProtocol()) {
+          case PT_NDMP_BAREOS:
+          case PT_NDMP_NATIVE:
+            if (!DoNdmpRestoreInit(jcr)) {
+              NdmpRestoreCleanup(jcr, JS_ErrorTerminated);
               goto bail_out;
             }
-          } else {
-            if (!DoNativeBackupInit(jcr)) {
-              NativeBackupCleanup(jcr, JS_ErrorTerminated);
+            break;
+          default:
+            /* Any non NDMP restore is not interested at the items
+             * that were selected for restore so drop them now. */
+            if (jcr->dir_impl->restore_tree_root) {
+              FreeTree(jcr->dir_impl->restore_tree_root);
+              jcr->dir_impl->restore_tree_root = NULL;
+            }
+            if (!DoNativeRestoreInit(jcr)) {
+              NativeRestoreCleanup(jcr, JS_ErrorTerminated);
               goto bail_out;
             }
-          }
-          break;
-      }
-      break;
-    case JT_VERIFY:
-      if (!DoVerifyInit(jcr)) {
-        VerifyCleanup(jcr, JS_ErrorTerminated);
-        goto bail_out;
-      }
-      break;
-    case JT_RESTORE:
-      switch (jcr->getJobProtocol()) {
-        case PT_NDMP_BAREOS:
-        case PT_NDMP_NATIVE:
-          if (!DoNdmpRestoreInit(jcr)) {
-            NdmpRestoreCleanup(jcr, JS_ErrorTerminated);
-            goto bail_out;
-          }
-          break;
-        default:
-          /* Any non NDMP restore is not interested at the items
-           * that were selected for restore so drop them now. */
-          if (jcr->dir_impl->restore_tree_root) {
-            FreeTree(jcr->dir_impl->restore_tree_root);
-            jcr->dir_impl->restore_tree_root = NULL;
-          }
-          if (!DoNativeRestoreInit(jcr)) {
-            NativeRestoreCleanup(jcr, JS_ErrorTerminated);
-            goto bail_out;
-          }
-          break;
-      }
-      break;
-    case JT_ADMIN:
-      if (!DoAdminInit(jcr)) {
-        AdminCleanup(jcr, JS_ErrorTerminated);
-        goto bail_out;
-      }
-      break;
-    case JT_ARCHIVE:
-      if (!DoArchiveInit(jcr)) {
-        ArchiveCleanup(jcr, JS_ErrorTerminated);
-        goto bail_out;
-      }
-      break;
-    case JT_COPY:
-    case JT_MIGRATE:
-      if (!DoMigrationInit(jcr)) {
-        MigrationCleanup(jcr, JS_ErrorTerminated);
-        goto bail_out;
-      }
+            break;
+        }
+        break;
+      case JT_ADMIN:
+        if (!DoAdminInit(jcr)) {
+          AdminCleanup(jcr, JS_ErrorTerminated);
+          goto bail_out;
+        }
+        break;
+      case JT_ARCHIVE:
+        if (!DoArchiveInit(jcr)) {
+          ArchiveCleanup(jcr, JS_ErrorTerminated);
+          goto bail_out;
+        }
+        break;
+      case JT_COPY:
+      case JT_MIGRATE:
+        if (!DoMigrationInit(jcr)) {
+          MigrationCleanup(jcr, JS_ErrorTerminated);
+          goto bail_out;
+        }
 
-      /* If there is nothing to do the DoMigrationInit() function will set
-       * the termination status to JS_Terminated. */
-      if (jcr->IsTerminatedOk()) {
-        MigrationCleanup(jcr, jcr->getJobStatus());
-        goto bail_out;
-      }
-      break;
-    case JT_CONSOLIDATE:
-      if (!DoConsolidateInit(jcr)) {
-        ConsolidateCleanup(jcr, JS_ErrorTerminated);
-        goto bail_out;
-      }
+        /* If there is nothing to do the DoMigrationInit() function will set
+         * the termination status to JS_Terminated. */
+        if (jcr->IsTerminatedOk()) {
+          MigrationCleanup(jcr, jcr->getJobStatus());
+          goto bail_out;
+        }
+        break;
+      case JT_CONSOLIDATE:
+        if (!DoConsolidateInit(jcr)) {
+          ConsolidateCleanup(jcr, JS_ErrorTerminated);
+          goto bail_out;
+        }
 
-      /* If there is nothing to do the do_consolidation_init() function will set
-       * the termination status to JS_Terminated. */
-      if (jcr->IsTerminatedOk()) {
-        ConsolidateCleanup(jcr, jcr->getJobStatus());
+        /* If there is nothing to do the do_consolidation_init() function will
+         * set the termination status to JS_Terminated. */
+        if (jcr->IsTerminatedOk()) {
+          ConsolidateCleanup(jcr, jcr->getJobStatus());
+          goto bail_out;
+        }
+        break;
+      default:
+        Pmsg1(0, _("Unimplemented job type: %d\n"), jcr->getJobType());
+        jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
         goto bail_out;
-      }
-      break;
-    default:
-      Pmsg1(0, _("Unimplemented job type: %d\n"), jcr->getJobType());
-      jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
-      goto bail_out;
+    }
   }
 
   GeneratePluginEvent(jcr, bDirEventJobInit);
@@ -434,6 +457,7 @@ void UpdateJobEnd(JobControlRecord* jcr, int TermCode)
 static void* job_thread(void* arg)
 {
   JobControlRecord* jcr = (JobControlRecord*)arg;
+  auto timer = jcr->get_thread_local_timer();
 
   DetachIfNotDetached(pthread_self());
 
@@ -467,12 +491,21 @@ static void* job_thread(void* arg)
         = new alist<RunScript*>(10, not_owned_by_alist);
   }
 
-  if (!jcr->db->UpdateJobStartRecord(jcr, &jcr->dir_impl->jr)) {
-    Jmsg(jcr, M_FATAL, 0, "%s", jcr->db->strerror());
+  {
+    static BlockIdentity id{"update job start record"};
+    TimedBlock blk{timer, id};
+    if (!jcr->db->UpdateJobStartRecord(jcr, &jcr->dir_impl->jr)) {
+      Jmsg(jcr, M_FATAL, 0, "%s", jcr->db->strerror());
+    }
   }
 
-  // Run any script BeforeJob on dird
-  RunScripts(jcr, jcr->dir_impl->res.job->RunScripts, "BeforeJob");
+  {
+    static BlockIdentity id{"before run scripts"};
+    TimedBlock blk{timer, id};
+
+    // Run any script BeforeJob on dird
+    RunScripts(jcr, jcr->dir_impl->res.job->RunScripts, "BeforeJob");
+  }
 
   /* We re-update the job start record so that the start time is set after the
    * run before job. This avoids that any files created by the run before job
@@ -489,156 +522,165 @@ static void* job_thread(void* arg)
 
   GeneratePluginEvent(jcr, bDirEventJobRun);
 
-  switch (jcr->getJobType()) {
-    case JT_BACKUP:
-      switch (jcr->getJobProtocol()) {
-        case PT_NDMP_BAREOS:
-          if (!jcr->IsJobCanceled()) {
-            if (DoNdmpBackup(jcr)) {
-              DoAutoprune(jcr);
-            } else {
-              NdmpBackupCleanup(jcr, JS_ErrorTerminated);
-            }
-          } else {
-            NdmpBackupCleanup(jcr, JS_Canceled);
-          }
-          break;
-        case PT_NDMP_NATIVE:
-          if (!jcr->IsJobCanceled()) {
-            if (DoNdmpBackupNdmpNative(jcr)) {
-              DoAutoprune(jcr);
-            } else {
-              NdmpBackupCleanup(jcr, JS_ErrorTerminated);
-            }
-          } else {
-            NdmpBackupCleanup(jcr, JS_Canceled);
-          }
-          break;
-        default:
-          if (!jcr->IsJobCanceled()) {
-            if (jcr->is_JobLevel(L_VIRTUAL_FULL)) {
-              if (DoNativeVbackup(jcr)) {
+  {
+    static BlockIdentity id{"do work"};
+    TimedBlock blk{timer, id};
+    switch (jcr->getJobType()) {
+      case JT_BACKUP:
+        switch (jcr->getJobProtocol()) {
+          case PT_NDMP_BAREOS:
+            if (!jcr->IsJobCanceled()) {
+              if (DoNdmpBackup(jcr)) {
                 DoAutoprune(jcr);
               } else {
-                NativeVbackupCleanup(jcr, JS_ErrorTerminated);
+                NdmpBackupCleanup(jcr, JS_ErrorTerminated);
               }
             } else {
-              if (DoNativeBackup(jcr)) {
+              NdmpBackupCleanup(jcr, JS_Canceled);
+            }
+            break;
+          case PT_NDMP_NATIVE:
+            if (!jcr->IsJobCanceled()) {
+              if (DoNdmpBackupNdmpNative(jcr)) {
                 DoAutoprune(jcr);
               } else {
-                NativeBackupCleanup(jcr, JS_ErrorTerminated);
+                NdmpBackupCleanup(jcr, JS_ErrorTerminated);
+              }
+            } else {
+              NdmpBackupCleanup(jcr, JS_Canceled);
+            }
+            break;
+          default:
+            if (!jcr->IsJobCanceled()) {
+              if (jcr->is_JobLevel(L_VIRTUAL_FULL)) {
+                if (DoNativeVbackup(jcr)) {
+                  DoAutoprune(jcr);
+                } else {
+                  NativeVbackupCleanup(jcr, JS_ErrorTerminated);
+                }
+              } else {
+                if (DoNativeBackup(jcr)) {
+                  DoAutoprune(jcr);
+                } else {
+                  NativeBackupCleanup(jcr, JS_ErrorTerminated);
+                }
+              }
+            } else {
+              if (jcr->is_JobLevel(L_VIRTUAL_FULL)) {
+                NativeVbackupCleanup(jcr, JS_Canceled);
+              } else {
+                NativeBackupCleanup(jcr, JS_Canceled);
               }
             }
+            break;
+        }
+        break;
+      case JT_VERIFY:
+        if (!jcr->IsJobCanceled()) {
+          if (DoVerify(jcr)) {
+            DoAutoprune(jcr);
           } else {
-            if (jcr->is_JobLevel(L_VIRTUAL_FULL)) {
-              NativeVbackupCleanup(jcr, JS_Canceled);
-            } else {
-              NativeBackupCleanup(jcr, JS_Canceled);
-            }
+            VerifyCleanup(jcr, JS_ErrorTerminated);
           }
-          break;
-      }
-      break;
-    case JT_VERIFY:
-      if (!jcr->IsJobCanceled()) {
-        if (DoVerify(jcr)) {
-          DoAutoprune(jcr);
         } else {
-          VerifyCleanup(jcr, JS_ErrorTerminated);
+          VerifyCleanup(jcr, JS_Canceled);
         }
-      } else {
-        VerifyCleanup(jcr, JS_Canceled);
-      }
-      break;
-    case JT_RESTORE:
-      switch (jcr->getJobProtocol()) {
-        case PT_NDMP_BAREOS:
-          if (!jcr->IsJobCanceled()) {
-            if (DoNdmpRestore(jcr)) {
-              DoAutoprune(jcr);
+        break;
+      case JT_RESTORE:
+        switch (jcr->getJobProtocol()) {
+          case PT_NDMP_BAREOS:
+            if (!jcr->IsJobCanceled()) {
+              if (DoNdmpRestore(jcr)) {
+                DoAutoprune(jcr);
+              } else {
+                NdmpRestoreCleanup(jcr, JS_ErrorTerminated);
+              }
             } else {
-              NdmpRestoreCleanup(jcr, JS_ErrorTerminated);
+              NdmpRestoreCleanup(jcr, JS_Canceled);
             }
+            break;
+          case PT_NDMP_NATIVE:
+            if (!jcr->IsJobCanceled()) {
+              if (DoNdmpRestoreNdmpNative(jcr)) {
+                DoAutoprune(jcr);
+              } else {
+                NdmpRestoreCleanup(jcr, JS_ErrorTerminated);
+              }
+            } else {
+              NdmpRestoreCleanup(jcr, JS_Canceled);
+            }
+            break;
+          default:
+            if (!jcr->IsJobCanceled()) {
+              if (DoNativeRestore(jcr)) {
+                DoAutoprune(jcr);
+              } else {
+                NativeRestoreCleanup(jcr, JS_ErrorTerminated);
+              }
+            } else {
+              NativeRestoreCleanup(jcr, JS_Canceled);
+            }
+            break;
+        }
+        break;
+      case JT_ADMIN:
+        if (!jcr->IsJobCanceled()) {
+          if (do_admin(jcr)) {
+            DoAutoprune(jcr);
           } else {
-            NdmpRestoreCleanup(jcr, JS_Canceled);
+            AdminCleanup(jcr, JS_ErrorTerminated);
           }
-          break;
-        case PT_NDMP_NATIVE:
-          if (!jcr->IsJobCanceled()) {
-            if (DoNdmpRestoreNdmpNative(jcr)) {
-              DoAutoprune(jcr);
-            } else {
-              NdmpRestoreCleanup(jcr, JS_ErrorTerminated);
-            }
+        } else {
+          AdminCleanup(jcr, JS_Canceled);
+        }
+        break;
+      case JT_ARCHIVE:
+        if (!jcr->IsJobCanceled()) {
+          if (DoArchive(jcr)) {
+            DoAutoprune(jcr);
           } else {
-            NdmpRestoreCleanup(jcr, JS_Canceled);
+            ArchiveCleanup(jcr, JS_ErrorTerminated);
           }
-          break;
-        default:
-          if (!jcr->IsJobCanceled()) {
-            if (DoNativeRestore(jcr)) {
-              DoAutoprune(jcr);
-            } else {
-              NativeRestoreCleanup(jcr, JS_ErrorTerminated);
-            }
+        } else {
+          ArchiveCleanup(jcr, JS_Canceled);
+        }
+        break;
+      case JT_COPY:
+      case JT_MIGRATE:
+        if (!jcr->IsJobCanceled()) {
+          if (DoMigration(jcr)) {
+            DoAutoprune(jcr);
           } else {
-            NativeRestoreCleanup(jcr, JS_Canceled);
+            MigrationCleanup(jcr, JS_ErrorTerminated);
           }
-          break;
-      }
-      break;
-    case JT_ADMIN:
-      if (!jcr->IsJobCanceled()) {
-        if (do_admin(jcr)) {
-          DoAutoprune(jcr);
         } else {
-          AdminCleanup(jcr, JS_ErrorTerminated);
+          MigrationCleanup(jcr, JS_Canceled);
         }
-      } else {
-        AdminCleanup(jcr, JS_Canceled);
-      }
-      break;
-    case JT_ARCHIVE:
-      if (!jcr->IsJobCanceled()) {
-        if (DoArchive(jcr)) {
-          DoAutoprune(jcr);
+        break;
+      case JT_CONSOLIDATE:
+        if (!jcr->IsJobCanceled()) {
+          if (DoConsolidate(jcr)) {
+            ConsolidateCleanup(jcr, JS_Terminated);
+            DoAutoprune(jcr);
+          } else {
+            ConsolidateCleanup(jcr, JS_ErrorTerminated);
+          }
         } else {
-          ArchiveCleanup(jcr, JS_ErrorTerminated);
+          ConsolidateCleanup(jcr, JS_Canceled);
         }
-      } else {
-        ArchiveCleanup(jcr, JS_Canceled);
-      }
-      break;
-    case JT_COPY:
-    case JT_MIGRATE:
-      if (!jcr->IsJobCanceled()) {
-        if (DoMigration(jcr)) {
-          DoAutoprune(jcr);
-        } else {
-          MigrationCleanup(jcr, JS_ErrorTerminated);
-        }
-      } else {
-        MigrationCleanup(jcr, JS_Canceled);
-      }
-      break;
-    case JT_CONSOLIDATE:
-      if (!jcr->IsJobCanceled()) {
-        if (DoConsolidate(jcr)) {
-          ConsolidateCleanup(jcr, JS_Terminated);
-          DoAutoprune(jcr);
-        } else {
-          ConsolidateCleanup(jcr, JS_ErrorTerminated);
-        }
-      } else {
-        ConsolidateCleanup(jcr, JS_Canceled);
-      }
-      break;
-    default:
-      Pmsg1(0, _("Unimplemented job type: %d\n"), jcr->getJobType());
-      break;
+        break;
+      default:
+        Pmsg1(0, _("Unimplemented job type: %d\n"), jcr->getJobType());
+        break;
+    }
   }
 
-  RunScripts(jcr, jcr->dir_impl->res.job->RunScripts, "AfterJob");
+  {
+    static BlockIdentity id{"after run scripts"};
+    TimedBlock blk{timer, id};
+
+    RunScripts(jcr, jcr->dir_impl->res.job->RunScripts, "AfterJob");
+  }
 
   // Send off any queued messages
   if (jcr->msg_queue && jcr->msg_queue->size() > 0) { DequeueMessages(jcr); }
