@@ -23,6 +23,7 @@
 
 #include "include/jcr.h"
 #include "lib/cli.h"
+#include "lib/version.h"
 #include "lib/crypto.h"
 #include "stored/butil.h"
 #include "stored/device_control_record.h"
@@ -239,7 +240,11 @@ bool read_records(const std::vector<std::string>& volumenames)
 int main(int argc, const char* argv[])
 {
   CLI::App app;
-  InitCLIApp(app, "bareos dedup estimate", 2023);
+  std::string desc(1024, '\0');
+  kBareosVersionStrings.FormatCopyright(desc.data(), desc.size(), 2023);
+  desc += "The Bareos Deduplication Estimation Tool";
+  InitCLIApp(app, desc, 0);
+  AddDebugOptions(app);
 
   std::vector<std::string> volumes;
   app.add_option("-V,--volumes", volumes, "List of volumes to be analyzed.")
@@ -267,8 +272,6 @@ int main(int argc, const char* argv[])
                  "Storage Daemon Device resource or identical to the Archive "
                  "Device in a Bareos Storage Daemon Device resource).")
       ->required();
-
-  AddDebugOptions(app);
 
   bool k_is_1000 = false;
   auto* blksize = app.add_option("-b,--blocksize", block_size)
