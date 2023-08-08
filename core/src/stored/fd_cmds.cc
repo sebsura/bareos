@@ -164,14 +164,23 @@ void RunJob(JobControlRecord* jcr)
   BareosSocket* dir = jcr->dir_bsock;
   char ec1[30];
 
-  dir->SetJcr(jcr);
-  Dmsg1(120, "Start run Job=%s\n", jcr->Job);
-  dir->fsend(Job_start, jcr->Job);
-  jcr->start_time = time(NULL);
-  jcr->run_time = jcr->start_time;
-  jcr->sendJobStatus(JS_Running);
+  auto timer = jcr->get_thread_local_timer();
+  {
+    static BlockIdentity id{"Setup"};
+    TimedBlock block{timer, id};
+    dir->SetJcr(jcr);
+    Dmsg1(120, "Start run Job=%s\n", jcr->Job);
+    dir->fsend(Job_start, jcr->Job);
+    jcr->start_time = time(NULL);
+    jcr->run_time = jcr->start_time;
+    jcr->sendJobStatus(JS_Running);
+  }
 
-  DoFdCommands(jcr);
+  {
+    static BlockIdentity id{"DoFdCommands"};
+    TimedBlock block{timer, id};
+    DoFdCommands(jcr);
+  }
 
   jcr->end_time = time(NULL);
   DequeueMessages(jcr); /* send any queued messages */

@@ -214,6 +214,9 @@ int WaitForSysop(DeviceControlRecord* dcr)
  */
 bool WaitForDevice(JobControlRecord* jcr, int& retries)
 {
+  auto timer = jcr->get_thread_local_timer();
+  static BlockIdentity id{"wait for device"};
+  TimedBlock blk{timer, id};
   struct timeval tv;
   struct timezone tz;
   struct timespec timeout;

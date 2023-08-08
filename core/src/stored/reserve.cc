@@ -186,6 +186,7 @@ void DeviceControlRecord::UnreserveDevice()
  */
 static bool UseDeviceCmd(JobControlRecord* jcr)
 {
+  auto timer = jcr->get_thread_local_timer();
   PoolMem StoreName, dev_name, media_type, pool_name, pool_type;
   BareosSocket* dir = jcr->dir_bsock;
   int32_t append;
@@ -197,57 +198,65 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
   memset(&rctx, 0, sizeof(ReserveContext));
   rctx.jcr = jcr;
 
-  /* If there are multiple devices, the director sends us
-   * use_device for each device that it wants to use. */
-  jcr->sd_impl->reserve_msgs = new alist<const char*>(10, not_owned_by_alist);
-  do {
-    Dmsg1(debuglevel, "<dird: %s", dir->msg);
-    ok = sscanf(dir->msg, use_storage, StoreName.c_str(), media_type.c_str(),
-                pool_name.c_str(), pool_type.c_str(), &append, &Copy, &Stripe)
-         == 7;
-    if (!ok) { break; }
-    alist<DirectorStorage*>* dirstore
-        = new alist<DirectorStorage*>(10, not_owned_by_alist);
-    if (append) {
-      jcr->sd_impl->write_store = dirstore;
-    } else {
-      jcr->sd_impl->read_store = dirstore;
-    }
-    rctx.append = append;
-    UnbashSpaces(StoreName);
-    UnbashSpaces(media_type);
-    UnbashSpaces(pool_name);
-    UnbashSpaces(pool_type);
-    store = new DirectorStorage;
-    dirstore->append(store);
-    memset(store, 0, sizeof(DirectorStorage));
-    store->device = new alist<const char*>(10);
-    bstrncpy(store->name, StoreName, sizeof(store->name));
-    bstrncpy(store->media_type, media_type, sizeof(store->media_type));
-    bstrncpy(store->pool_name, pool_name, sizeof(store->pool_name));
-    bstrncpy(store->pool_type, pool_type, sizeof(store->pool_type));
-    store->append = append;
-
-    // Now get all devices
-    while (dir->recv() >= 0) {
-      Dmsg1(debuglevel, "<dird device: %s", dir->msg);
-      ok = sscanf(dir->msg, use_device, dev_name.c_str()) == 1;
+  {
+    static BlockIdentity id{"receiving data"};
+    TimedBlock blk{timer, id};
+    /* If there are multiple devices, the director sends us
+     * use_device for each device that it wants to use. */
+    jcr->sd_impl->reserve_msgs = new alist<const char*>(10, not_owned_by_alist);
+    do {
+      Dmsg1(debuglevel, "<dird: %s", dir->msg);
+      ok = sscanf(dir->msg, use_storage, StoreName.c_str(), media_type.c_str(),
+                  pool_name.c_str(), pool_type.c_str(), &append, &Copy, &Stripe)
+           == 7;
       if (!ok) { break; }
-      UnbashSpaces(dev_name);
-      store->device->append(strdup(dev_name.c_str()));
+      alist<DirectorStorage*>* dirstore
+          = new alist<DirectorStorage*>(10, not_owned_by_alist);
+      if (append) {
+        jcr->sd_impl->write_store = dirstore;
+      } else {
+        jcr->sd_impl->read_store = dirstore;
+      }
+      rctx.append = append;
+      UnbashSpaces(StoreName);
+      UnbashSpaces(media_type);
+      UnbashSpaces(pool_name);
+      UnbashSpaces(pool_type);
+      store = new DirectorStorage;
+      dirstore->append(store);
+      memset(store, 0, sizeof(DirectorStorage));
+      store->device = new alist<const char*>(10);
+      bstrncpy(store->name, StoreName, sizeof(store->name));
+      bstrncpy(store->media_type, media_type, sizeof(store->media_type));
+      bstrncpy(store->pool_name, pool_name, sizeof(store->pool_name));
+      bstrncpy(store->pool_type, pool_type, sizeof(store->pool_type));
+      store->append = append;
+
+      // Now get all devices
+      while (dir->recv() >= 0) {
+        Dmsg1(debuglevel, "<dird device: %s", dir->msg);
+        ok = sscanf(dir->msg, use_device, dev_name.c_str()) == 1;
+        if (!ok) { break; }
+        UnbashSpaces(dev_name);
+        store->device->append(strdup(dev_name.c_str()));
+      }
+    } while (ok && dir->recv() >= 0);
+  }
+
+  {
+    static BlockIdentity id{"init dcr"};
+    TimedBlock blk{timer, id};
+    InitJcrDeviceWaitTimers(jcr);
+    jcr->sd_impl->dcr = new StorageDaemonDeviceControlRecord;
+    SetupNewDcrDevice(jcr, jcr->sd_impl->dcr, NULL, NULL);
+    if (rctx.append) { jcr->sd_impl->dcr->SetWillWrite(); }
+
+    if (!jcr->sd_impl->dcr) {
+      BareosSocket* dir = jcr->dir_bsock;
+      dir->fsend(_("3939 Could not get dcr\n"));
+      Dmsg1(debuglevel, ">dird: %s", dir->msg);
+      ok = false;
     }
-  } while (ok && dir->recv() >= 0);
-
-  InitJcrDeviceWaitTimers(jcr);
-  jcr->sd_impl->dcr = new StorageDaemonDeviceControlRecord;
-  SetupNewDcrDevice(jcr, jcr->sd_impl->dcr, NULL, NULL);
-  if (rctx.append) { jcr->sd_impl->dcr->SetWillWrite(); }
-
-  if (!jcr->sd_impl->dcr) {
-    BareosSocket* dir = jcr->dir_bsock;
-    dir->fsend(_("3939 Could not get dcr\n"));
-    Dmsg1(debuglevel, ">dird: %s", dir->msg);
-    ok = false;
   }
 
   /* At this point, we have a list of all the Director's Storage resources
@@ -271,80 +280,145 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
       rctx.jcr->sd_impl->read_dcr = jcr->sd_impl->dcr;
     }
 
-    LockReservations();
-    for (; !fail && !jcr->IsJobCanceled();) {
-      PopReserveMessages(jcr);
-      rctx.suitable_device = false;
-      rctx.have_volume = false;
-      rctx.VolumeName[0] = 0;
-      rctx.any_drive = false;
-      if (!jcr->sd_impl->PreferMountedVols) {
-        /* Here we try to find a drive that is not used.
-         * This will maximize the use of available drives. */
-        rctx.num_writers = 20000000; /* start with impossible number */
-        rctx.low_use_drive = NULL;
-        rctx.PreferMountedVols = false;
-        rctx.exact_match = false;
-        rctx.autochanger_only = true;
-        if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
+    {
+      static BlockIdentity id{"reserving"};
+      TimedBlock blk{timer, id};
+      {
+        static BlockIdentity id{"Lock Reservations"};
+        TimedBlock blk{timer, id};
+        LockReservations();
+      }
+      for (; !fail && !jcr->IsJobCanceled();) {
+        {
+          static BlockIdentity id{"pop reserve messages"};
+          TimedBlock blk{timer, id};
 
-        // Look through all drives possibly for low_use drive
-        if (rctx.low_use_drive) {
-          rctx.try_low_use_drive = true;
-          if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
-          rctx.try_low_use_drive = false;
+          PopReserveMessages(jcr);
         }
+        rctx.suitable_device = false;
+        rctx.have_volume = false;
+        rctx.VolumeName[0] = 0;
+        rctx.any_drive = false;
+        if (!jcr->sd_impl->PreferMountedVols) {
+          /* Here we try to find a drive that is not used.
+           * This will maximize the use of available drives. */
+          rctx.num_writers = 20000000; /* start with impossible number */
+          rctx.low_use_drive = NULL;
+          rctx.PreferMountedVols = false;
+          rctx.exact_match = false;
+          rctx.autochanger_only = true;
+          {
+            static BlockIdentity id{"Find Suitable (1)"};
+            TimedBlock blk{timer, id};
+            if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
+          }
+
+          // Look through all drives possibly for low_use drive
+          if (rctx.low_use_drive) {
+            rctx.try_low_use_drive = true;
+            {
+              static BlockIdentity id{"Find Suitable (2)"};
+              TimedBlock blk{timer, id};
+              if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
+            }
+            rctx.try_low_use_drive = false;
+          }
+          rctx.autochanger_only = false;
+          {
+            static BlockIdentity id{"Find Suitable (3)"};
+            TimedBlock blk{timer, id};
+            if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
+          }
+        }
+
+        /* Now we look for a drive that may or may not be in use.
+         * Look for an exact Volume match all drives */
+        rctx.PreferMountedVols = true;
+        rctx.exact_match = true;
         rctx.autochanger_only = false;
-        if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
+        {
+          static BlockIdentity id{"Find Suitable (4)"};
+          TimedBlock blk{timer, id};
+          if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
+        }
+
+        // Look for any mounted drive
+        rctx.exact_match = false;
+        {
+          static BlockIdentity id{"Find Suitable (5)"};
+          TimedBlock blk{timer, id};
+          if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
+        }
+
+        // Try any drive
+        rctx.any_drive = true;
+        {
+          static BlockIdentity id{"Find Suitable (6)"};
+          TimedBlock blk{timer, id};
+          if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
+        }
+
+        // during WaitForDevice()
+        {
+          static BlockIdentity id{"Inner Unlock Reservations"};
+          TimedBlock blk{timer, id};
+          UnlockReservations();
+        }
+
+        /* The idea of looping on repeat a few times it to ensure
+         * that if there is some subtle timing problem between two
+         * jobs, we will simply try again, and most likely succeed.
+         * This can happen if one job reserves a drive or finishes using
+         * a drive at the same time a second job wants it. */
+        if (repeat++ > 1) { /* try algorithm 3 times */
+          {
+            static BlockIdentity id{"sleep"};
+            TimedBlock blk{timer, id};
+
+            // sleep between 5-10sec
+            int sleeptime = (std::rand() % 5000) + 5000;
+
+            int sleep_sec = sleeptime / 1000;
+            int sleep_msec = sleeptime % 1000;
+
+            Bmicrosleep(sleep_sec, sleep_msec); /* wait a bit */
+            Dmsg0(debuglevel, "repeat reserve algorithm\n");
+          }
+        } else if (!rctx.suitable_device
+                   || !WaitForDevice(jcr, wait_for_device_retries)) {
+          Dmsg0(debuglevel, "Fail. !suitable_device || !WaitForDevice\n");
+          fail = true;
+        }
+        {
+          static BlockIdentity id{"Lock Reservations"};
+          TimedBlock blk{timer, id};
+          LockReservations();
+        }
+        dir->signal(BNET_HEARTBEAT); /* Inform Dir that we are alive */
       }
-
-      /* Now we look for a drive that may or may not be in use.
-       * Look for an exact Volume match all drives */
-      rctx.PreferMountedVols = true;
-      rctx.exact_match = true;
-      rctx.autochanger_only = false;
-      if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
-
-      // Look for any mounted drive
-      rctx.exact_match = false;
-      if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
-
-      // Try any drive
-      rctx.any_drive = true;
-      if ((ok = FindSuitableDeviceForJob(jcr, rctx))) { break; }
-
-      // during WaitForDevice()
-      UnlockReservations();
-
-      /* The idea of looping on repeat a few times it to ensure
-       * that if there is some subtle timing problem between two
-       * jobs, we will simply try again, and most likely succeed.
-       * This can happen if one job reserves a drive or finishes using
-       * a drive at the same time a second job wants it. */
-      if (repeat++ > 1) {   /* try algorithm 3 times */
-        Bmicrosleep(30, 0); /* wait a bit */
-        Dmsg0(debuglevel, "repeat reserve algorithm\n");
-      } else if (!rctx.suitable_device
-                 || !WaitForDevice(jcr, wait_for_device_retries)) {
-        Dmsg0(debuglevel, "Fail. !suitable_device || !WaitForDevice\n");
-        fail = true;
+      {
+        static BlockIdentity id{"Unlock Reservations"};
+        TimedBlock blk{timer, id};
+        UnlockReservations();
       }
-      LockReservations();
-      dir->signal(BNET_HEARTBEAT); /* Inform Dir that we are alive */
     }
-    UnlockReservations();
 
-    if (!ok) {
-      /* If we get here, there are no suitable devices available, which
-       * means nothing configured.  If a device is suitable but busy
-       * with another Volume, we will not come here. */
-      UnbashSpaces(dir->msg);
-      PmStrcpy(jcr->errmsg, dir->msg);
-      Jmsg(jcr, M_FATAL, 0, _("Device reservation failed for JobId=%d: %s\n"),
-           jcr->JobId, jcr->errmsg);
-      dir->fsend(NO_device, dev_name.c_str());
+    {
+      static BlockIdentity id{"send answer"};
+      TimedBlock blk{timer, id};
 
-      Dmsg1(debuglevel, ">dird: %s", dir->msg);
+      if (!ok) {
+        /* If we get here, there are no suitable devices available, which
+         * means nothing configured.  If a device is suitable but busy
+         * with another Volume, we will not come here. */
+        UnbashSpaces(dir->msg);
+        PmStrcpy(jcr->errmsg, dir->msg);
+        Jmsg(jcr, M_FATAL, 0, _("Device reservation failed for JobId=%d: %s\n"),
+             jcr->JobId, jcr->errmsg);
+        dir->fsend(NO_device, dev_name.c_str());
+
+        Dmsg1(debuglevel, ">dird: %s", dir->msg);
+      }
     }
   } else {
     UnbashSpaces(dir->msg);
@@ -942,8 +1016,10 @@ static bool IsMaxJobsOk(DeviceControlRecord* dcr)
              <= (uint32_t)(dev->num_writers + dev->NumReserved())) {
     // Max Concurrent Jobs depassed or already reserved
     Mmsg(jcr->errmsg,
-         _("3609 JobId=%u Max concurrent jobs exceeded on drive %s.\n"),
-         (uint32_t)jcr->JobId, dev->print_name());
+         _("3609 JobId=%u Max concurrent jobs exceeded on drive %s (%u <= %u + "
+           "%u).\n"),
+         (uint32_t)jcr->JobId, dev->print_name(), dev->max_concurrent_jobs,
+         (uint32_t)dev->num_writers, (uint32_t)dev->NumReserved());
     Dmsg1(debuglevel, "Failed: %s", jcr->errmsg);
     QueueReserveMessage(jcr);
     return false;
