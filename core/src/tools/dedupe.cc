@@ -307,10 +307,18 @@ bool analyze_volumes(const std::vector<std::string>& volumes,
     return false;
   }
 
-  if (write(outfd, output.data(), output.size())
-      != static_cast<ssize_t>(output.size())) {
-    perror("bad write");
-    return false;
+  std::byte* outdata = output.data();
+  std::size_t outsize = output.size();
+
+  for (auto bytes_written = write(outfd, outdata, outsize); bytes_written != 0;
+       bytes_written = write(outfd, outdata, outsize)) {
+    if (bytes_written == -1) {
+      perror("bad write");
+      return false;
+    } else {
+      outdata += bytes_written;
+      outsize -= bytes_written;
+    }
   }
   close(outfd);
 
