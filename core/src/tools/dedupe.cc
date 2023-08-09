@@ -201,9 +201,9 @@ template <typename F> void for_each_record(dedup::volume& vol, F callback)
     for (std::size_t i = 0; i < records.size(); ++i) {
       data.clear();
       data.resize(records[i].size);
-      dedup::write_buffer buffer((char*)data.data(), data.size());
       if (!vol.read_data(records[i].file_index, records[i].start,
-                         records[i].size, buffer)) {
+                         records[i].size,
+                         reinterpret_cast<char*>(data.data()))) {
         std::cout << "Could not read record " << i + rf.begin() << " from file "
                   << rf.path() << "\n";
         continue;
