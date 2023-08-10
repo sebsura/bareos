@@ -1311,7 +1311,7 @@ static tree_ptr BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
           /* TODO: optimize bsr insertion when jobid are non sorted */
           AddDeltaListFindex(rx, node->delta_list);
           AddFindex(rx->bsr.get(), node->JobId, node->FileIndex);
-          if (node->extract && node->type != TN_NEWDIR) {
+          if (node->extract && node->type != TreeNodeType::NewDir) {
             rx->selected_files++; /* count only saved files */
           }
         }
