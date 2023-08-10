@@ -369,18 +369,19 @@ static int SetExtract(UaContext* ua,
 
   if (node->type != TN_NEWDIR) { count++; }
 
+  n = node;
+  // Walk up tree marking any unextracted parent to be extracted.
+  if (extract) {
+    while (n->parent && !n->parent->extract_dir) {
+      n = n->parent;
+      n->extract_dir = true;
+    }
+  }
+
   // For a non-file (i.e. directory), we see all the children
   if (node->type != TN_FILE || (node->soft_link && TreeNodeHasChild(node))) {
     // Recursive set children within directory
     foreach_child (n, node) { count += SetExtract(ua, n, tree, extract); }
-
-    // Walk up tree marking any unextracted parent to be extracted.
-    if (extract) {
-      while (node->parent && !node->parent->extract_dir) {
-        node = node->parent;
-        node->extract_dir = true;
-      }
-    }
   } else {
     if (extract) {
       uint64_t key = 0;
