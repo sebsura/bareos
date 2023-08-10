@@ -526,6 +526,7 @@ static char** readline_completion(const char* text, int start, int)
       if (cpl_keywords[i].file_selection != file_selection) { continue; }
 
       if (Bstrcasecmp(s, cpl_keywords[i].key)) {
+        rl_completion_suppress_append = true;
         cpl_item = cpl_keywords[i].cmd;
         cpl_type = ITEM_ARG;
         matches = rl_completion_matches(text, cpl_generator);
