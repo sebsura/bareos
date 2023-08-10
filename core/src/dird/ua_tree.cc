@@ -634,12 +634,19 @@ static int findcmd(UaContext* ua, TreeContext* tree)
 static int DotLsdircmd(UaContext* ua, TreeContext* tree)
 {
   TREE_NODE* node;
+  TREE_NODE* start = tree->node;
 
-  if (!TreeNodeHasChild(tree->node)) { return 1; }
+  if (ua->argc != 2 || !TreeNodeHasChild(tree->node)) { return 1; }
 
-  foreach_child (node, tree->node) {
-    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
-      if (TreeNodeHasChild(node)) { ua->SendMsg("%s/\n", node->fname); }
+  char* p;
+  if (p = (char*)last_path_separator(ua->argk[1]); p != NULL) {
+    *p = 0;
+    start = tree_cwd(ua->argk[1], tree->root, tree->node);
+  }
+
+  foreach_child (node, start) {
+    if (TreeNodeHasChild(node)) {
+      ua->SendMsg("%s%s%s/\n", p ? ua->argk[1] : "", p ? "/" : "", node->fname);
     }
   }
 
@@ -658,13 +665,19 @@ static int DotHelpcmd(UaContext* ua, TreeContext*)
 static int DotLscmd(UaContext* ua, TreeContext* tree)
 {
   TREE_NODE* node;
+  TREE_NODE* start = tree->node;
 
-  if (!TreeNodeHasChild(tree->node)) { return 1; }
+  if (ua->argc != 2 || !TreeNodeHasChild(tree->node)) { return 1; }
 
-  foreach_child (node, tree->node) {
-    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
-      ua->SendMsg("%s%s\n", node->fname, TreeNodeHasChild(node) ? "/" : "");
-    }
+  char* p;
+  if (p = (char*)last_path_separator(ua->argk[1]); p != NULL) {
+    *p = 0;
+    start = tree_cwd(ua->argk[1], tree->root, tree->node);
+  }
+
+  foreach_child (node, start) {
+    ua->SendMsg("%s%s%s%s\n", p ? ua->argk[1] : "", p ? "/" : "", node->fname,
+                TreeNodeHasChild(node) ? "/" : "");
   }
 
   return 1;
