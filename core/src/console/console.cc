@@ -408,11 +408,11 @@ void GetArguments(const char* what)
 }
 
 /* retreive a simple list (.pool, .client) and store it into items */
-static void GetItems(const char* what)
+static void GetItems(const char* what, const char* text)
 {
   init_items();
 
-  UA_sock->fsend("%s", what);
+  UA_sock->fsend("%s %s", what, text);
   while (UA_sock->recv() > 0) {
     StripTrailingJunk(UA_sock->msg);
     items->list.append(strdup(UA_sock->msg));
@@ -439,7 +439,7 @@ static char* item_generator(const char* text,
     len = strlen(text);
     switch (type) {
       case ITEM_ARG:
-        GetItems(item);
+        GetItems(item, text);
         break;
       case ITEM_HELP:
         GetArguments(item);
