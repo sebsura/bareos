@@ -60,6 +60,7 @@ void InitContexts(UaContext* t_ua, TreeContext* t_tree)
   t_tree->ua = t_ua;
   t_tree->all = false;
   t_tree->FileEstimate = 100;
+  t_tree->FileEstimate = 100;
   t_tree->DeltaCount = 1;
   t_tree->node = (TREE_NODE*)t_tree->root;
 }
