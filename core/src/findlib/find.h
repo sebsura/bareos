@@ -234,9 +234,6 @@ struct FindFilesPacket {
   int (*FileSave)(JobControlRecord*,
                   FindFilesPacket*,
                   bool){};   /**< User's callback */
-  int (*PluginSave)(JobControlRecord*,
-                    FindFilesPacket*,
-                    bool){}; /**< User's callback */
   bool (*CheckFct)(
       JobControlRecord*,
       FindFilesPacket*){};   /**< Optional user fct to check file changes */
