@@ -50,3 +50,5 @@ if(USE_SYSTEM_XXHASH)
 else()
   include(./xxHash.cmake)
 endif()
+
+include(./websocketpp.cmake)
