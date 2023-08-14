@@ -47,6 +47,7 @@
 #include "lib/path_list.h"
 #include "lib/guid_to_name.h"
 #include "lib/jcr.h"
+#include "lib/thread_pool.h"
 
 #include <atomic>
 
@@ -228,6 +229,8 @@ class JobControlRecord {
   int64_t max_bandwidth{};  /**< Bandwidth limit for this Job */
   PathList* path_list{};      /**< Directory list (used by findlib) */
   bool is_passive_client_connection_probing{}; /**< Set if director probes a passive client connection */
+
+  thread_pool pool;
 
   union {
     DirectorJcrImpl* dir_impl;

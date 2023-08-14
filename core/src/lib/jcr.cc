@@ -172,7 +172,7 @@ static void CallJobEndCallbacks(JobControlRecord* jcr)
   }
 }
 
-JobControlRecord::JobControlRecord()
+JobControlRecord::JobControlRecord() : pool{8}
 {
   Dmsg0(100, "Construct JobControlRecord\n");
 
