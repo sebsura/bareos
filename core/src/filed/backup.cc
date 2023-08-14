@@ -51,6 +51,12 @@
 #include "lib/serial.h"
 #include "lib/compression.h"
 
+#include "lib/thread_util.h"
+#include "lib/thread_pool.h"
+
+#include <utility>
+#include <variant>
+
 namespace filedaemon {
 
 #ifdef HAVE_DARWIN_OS
@@ -838,6 +844,86 @@ bail_out:
 }
 
 /**
+ * After all checks are done, we just send everything regarding this
+ * file to the sd.
+ */
+struct send_success {
+  std::size_t bytes_read;
+  std::size_t bytes_send;
+};
+using send_result = std::variant<send_success, PoolMem>;
+send_result SendData(synchronized<BareosSocket*>& sock,
+                     std::size_t max_buf_size,
+                     std::size_t offset,
+                     std::size_t file_addr,
+                     std::vector<char> buf,
+                     int file_type,
+                     std::size_t file_size,
+                     const char* flags)
+{
+  PoolMem to_send;
+  std::size_t data_offset = 0;
+  send_success success;
+
+  if (BitIsSet(FO_SPARSE, flags)) {
+    ser_declare;
+    bool allZeros = false;
+
+    if ((buf.size() == max_buf_size && (file_addr + buf.size() < file_size))
+        || ((file_type == FT_RAW || file_type == FT_FIFO)
+            && (file_size == 0))) {
+      allZeros = IsBufZero(buf.data(), buf.size());
+    }
+
+    if (!allZeros) {
+      // Put file address as first data in buffer
+      data_offset = OFFSET_FADDR_SIZE;
+      to_send.check_size(OFFSET_FADDR_SIZE + buf.size());
+      SerBegin(to_send.addr(), OFFSET_FADDR_SIZE);
+      static_assert(sizeof(file_addr) <= sizeof(std::uint64_t));
+      ser_uint64(static_cast<std::uint64_t>(
+          file_addr)); /* store fileAddr in begin of buffer */
+    } else {
+      // Skip block of all zeros
+      return success;
+    }
+  } else if (BitIsSet(FO_OFFSETS, flags)) {
+    ser_declare;
+    data_offset = OFFSET_FADDR_SIZE;
+    to_send.check_size(OFFSET_FADDR_SIZE + buf.size());
+    SerBegin(to_send.addr(), OFFSET_FADDR_SIZE);
+    ser_uint64(static_cast<std::uint64_t>(
+        offset)); /* store fileAddr in begin of buffer */
+  } else {
+    to_send.check_size(buf.size());
+  }
+
+  success.bytes_read = buf.size();
+
+  memcpy(to_send.addr() + data_offset, buf.data(), buf.size());
+
+  auto locked = sock.lock();
+  auto& sd = *locked;
+  POOLMEM* old_msg
+      = std::exchange(sd->msg, to_send.addr()); /* set correct write buffer */
+  sd->message_length = data_offset + buf.size();
+
+  if (!sd->send()) {
+    PoolMem error(PM_MESSAGE);
+    Mmsg(error, "Network send error to SD. Err=%s\n", sd->bstrerror());
+    return error;
+  }
+
+  Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
+  sd->msg = old_msg;
+
+  success.bytes_send = data_offset + buf.size();
+
+  return success;
+}
+
+
+/**
  * Handle the data just read and send it to the SD after doing any
  * postprocessing needed.
  */
@@ -1018,15 +1104,74 @@ static inline bool SendPlainData(b_ctx& bctx)
   bool retval = false;
   BareosSocket* sd = bctx.jcr->store_bsock;
 
+  std::deque<std::future<send_result>> futures;
+
+  synchronized<BareosSocket*> sock = sd;
+
+  std::size_t file_addr = 0;
+  std::size_t max_buf_size = bctx.rsize;
+
+  auto file_type = bctx.ff_pkt->type;
+  auto file_size = bctx.ff_pkt->statp.st_size;
+  auto* flags = bctx.ff_pkt->flags;
+
   // Read the file data
-  while ((sd->message_length
-          = (uint32_t)bread(&bctx.ff_pkt->bfd, bctx.rbuf, bctx.rsize))
-         > 0) {
-    if (!SendDataToSd(&bctx)) { goto bail_out; }
+  for (;;) {
+    std::vector<char> vec(max_buf_size);
+    ssize_t num_read = bread(&bctx.ff_pkt->bfd, vec.data(), vec.size());
+
+    if (num_read < 0) {
+      // todo: wait out all futures
+      goto bail_out;
+    }
+
+    if (num_read == 0) { break; }
+
+    vec.resize(num_read);
+
+    if (futures.size() > 10) {
+      auto result = futures.front().get();
+      futures.pop_front();
+
+      if (auto* msg = std::get_if<PoolMem>(&result); msg != nullptr) {
+        if (!bctx.jcr->IsJobCanceled()) {
+          Jmsg1(bctx.jcr, M_FATAL, 0, "%s", msg->c_str());
+        }
+        goto bail_out;
+      } else {
+        auto succ = std::get<send_success>(result);
+        bctx.jcr->ReadBytes += succ.bytes_read; /* count bytes read */
+        bctx.jcr->JobBytes += succ.bytes_send;  /* count bytes saved */
+      }
+    }
+
+    futures.push_back(enqueue(
+        bctx.jcr->pool,
+        [&sock, max_buf_size, offset = bctx.ff_pkt->bfd.offset, file_addr,
+         buf = std::move(vec), file_type, file_size, flags]() mutable {
+          return SendData(sock, max_buf_size, offset, file_addr, std::move(buf),
+                          file_type, file_size, flags);
+        }));
+    file_addr += num_read;
   }
   retval = true;
 
 bail_out:
+  for (auto& f : futures) {
+    auto result = f.get();
+
+    if (auto* msg = std::get_if<PoolMem>(&result); msg != nullptr) {
+      if (!bctx.jcr->IsJobCanceled()) {
+        Jmsg1(bctx.jcr, M_FATAL, 0, "%s", msg->c_str());
+      }
+      retval = false;
+    } else {
+      auto succ = std::get<send_success>(result);
+      bctx.jcr->ReadBytes += succ.bytes_read; /* count bytes read */
+      bctx.jcr->JobBytes += succ.bytes_send;  /* count bytes saved */
+    }
+  }
+
   return retval;
 }
 
