@@ -856,7 +856,7 @@ send_result SendData(synchronized<BareosSocket*>& sock,
                      std::size_t max_buf_size,
                      std::size_t offset,
                      std::size_t file_addr,
-                     std::vector<char> buf,
+                     std::shared_ptr<std::vector<char>> buf,
                      int file_type,
                      std::size_t file_size,
                      const char* flags)
@@ -869,16 +869,16 @@ send_result SendData(synchronized<BareosSocket*>& sock,
     ser_declare;
     bool allZeros = false;
 
-    if ((buf.size() == max_buf_size && (file_addr + buf.size() < file_size))
+    if ((buf->size() == max_buf_size && (file_addr + buf->size() < file_size))
         || ((file_type == FT_RAW || file_type == FT_FIFO)
             && (file_size == 0))) {
-      allZeros = IsBufZero(buf.data(), buf.size());
+      allZeros = IsBufZero(buf->data(), buf->size());
     }
 
     if (!allZeros) {
       // Put file address as first data in buffer
       data_offset = OFFSET_FADDR_SIZE;
-      to_send.check_size(OFFSET_FADDR_SIZE + buf.size());
+      to_send.check_size(OFFSET_FADDR_SIZE + buf->size());
       SerBegin(to_send.addr(), OFFSET_FADDR_SIZE);
       static_assert(sizeof(file_addr) <= sizeof(std::uint64_t));
       ser_uint64(static_cast<std::uint64_t>(
@@ -890,23 +890,23 @@ send_result SendData(synchronized<BareosSocket*>& sock,
   } else if (BitIsSet(FO_OFFSETS, flags)) {
     ser_declare;
     data_offset = OFFSET_FADDR_SIZE;
-    to_send.check_size(OFFSET_FADDR_SIZE + buf.size());
+    to_send.check_size(OFFSET_FADDR_SIZE + buf->size());
     SerBegin(to_send.addr(), OFFSET_FADDR_SIZE);
     ser_uint64(static_cast<std::uint64_t>(
         offset)); /* store fileAddr in begin of buffer */
   } else {
-    to_send.check_size(buf.size());
+    to_send.check_size(buf->size());
   }
 
-  success.bytes_read = buf.size();
+  success.bytes_read = buf->size();
 
-  memcpy(to_send.addr() + data_offset, buf.data(), buf.size());
+  memcpy(to_send.addr() + data_offset, buf->data(), buf->size());
 
   auto locked = sock.lock();
   auto& sd = *locked;
   POOLMEM* old_msg
       = std::exchange(sd->msg, to_send.addr()); /* set correct write buffer */
-  sd->message_length = data_offset + buf.size();
+  sd->message_length = data_offset + buf->size();
 
   if (!sd->send()) {
     PoolMem error(PM_MESSAGE);
@@ -917,7 +917,7 @@ send_result SendData(synchronized<BareosSocket*>& sock,
   Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
   sd->msg = old_msg;
 
-  success.bytes_send = data_offset + buf.size();
+  success.bytes_send = data_offset + buf->size();
 
   return success;
 }
@@ -1117,8 +1117,10 @@ static inline bool SendPlainData(b_ctx& bctx)
 
   // Read the file data
   for (;;) {
-    std::vector<char> vec(max_buf_size);
-    ssize_t num_read = bread(&bctx.ff_pkt->bfd, vec.data(), vec.size());
+    std::shared_ptr shared_buf
+        = std::make_shared<std::vector<char>>(max_buf_size);
+    ssize_t num_read
+        = bread(&bctx.ff_pkt->bfd, shared_buf->data(), shared_buf->size());
 
     if (num_read < 0) {
       // todo: wait out all futures
@@ -1127,7 +1129,7 @@ static inline bool SendPlainData(b_ctx& bctx)
 
     if (num_read == 0) { break; }
 
-    vec.resize(num_read);
+    shared_buf->resize(num_read);
 
     if (futures.size() > 10) {
       auto result = futures.front().get();
@@ -1145,13 +1147,40 @@ static inline bool SendPlainData(b_ctx& bctx)
       }
     }
 
-    futures.push_back(enqueue(
-        bctx.jcr->pool,
-        [&sock, max_buf_size, offset = bctx.ff_pkt->bfd.offset, file_addr,
-         buf = std::move(vec), file_type, file_size, flags]() mutable {
-          return SendData(sock, max_buf_size, offset, file_addr, std::move(buf),
-                          file_type, file_size, flags);
-        }));
+    futures.push_back(
+        enqueue(bctx.jcr->pool,
+                [&sock, max_buf_size, offset = bctx.ff_pkt->bfd.offset,
+                 file_addr, shared_buf, file_type, file_size, flags]() mutable {
+                  return SendData(sock, max_buf_size, offset, file_addr,
+                                  shared_buf, file_type, file_size, flags);
+                }));
+
+    std::optional<std::future<void>> checksum, signing;
+
+    if (bctx.digest) {
+      // todo: skip this if the vector is all zero
+      checksum = enqueue(bctx.jcr->pool, [digest = bctx.digest, shared_buf]() {
+        CryptoDigestUpdate(digest,
+                           reinterpret_cast<std::uint8_t*>(shared_buf->data()),
+                           shared_buf->size());
+      });
+    }
+
+    // Update signing digest if requested
+    if (bctx.signing_digest) {
+      // todo: skip this if the vector is all zero
+      signing = enqueue(
+          bctx.jcr->pool, [digest = bctx.signing_digest, shared_buf]() {
+            CryptoDigestUpdate(
+                digest, reinterpret_cast<std::uint8_t*>(shared_buf->data()),
+                shared_buf->size());
+          });
+    }
+
+    if (checksum) { checksum->get(); }
+
+    if (signing) { signing->get(); }
+
     file_addr += num_read;
   }
   retval = true;
