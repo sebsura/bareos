@@ -56,16 +56,13 @@
 namespace directordaemon {
 
 struct tree_freer {
-  void operator()(TREE_ROOT* root) const {
-    FreeTree(root);
-  }
+  void operator()(TREE_ROOT* root) const { FreeTree(root); }
 };
 
 using tree_ptr = std::unique_ptr<TREE_ROOT, tree_freer>;
 
 /* Imported functions */
 extern void PrintBsr(UaContext* ua, RestoreBootstrapRecord* bsr);
-
 
 /* Forward referenced functions */
 static int LastFullHandler(void* ctx, int num_fields, char** row);
@@ -75,8 +72,10 @@ static int FilesetHandler(void* ctx, int num_fields, char** row);
 static bool SelectBackupsBeforeDate(UaContext* ua,
                                     RestoreContext* rx,
                                     char* date);
-
-static tree_ptr BuildDirectoryTree(UaContext* ua, RestoreContext* rx);
+static bool SelectFiles(UaContext* ua,
+                        RestoreContext* rx,
+                        TreeContext& tree,
+                        bool done);
 static void SplitPathAndFilename(UaContext* ua,
                                  RestoreContext* rx,
                                  char* fname);
@@ -105,6 +104,35 @@ static bool CheckAndSetFileregex(UaContext* ua,
                                  RestoreContext* rx,
                                  const char* regex);
 static bool AddAllFindex(RestoreContext* rx);
+
+static bool FillBootstrapFile(UaContext* ua, RestoreContext& rx)
+{
+  if (rx.bsr->JobId) {
+    char ed1[50];
+    if (!AddVolumeInformationToBsr(ua, rx.bsr.get())) {
+      ua->ErrorMsg(T_(
+          "Unable to construct a valid BootStrapRecord. Cannot continue.\n"));
+      return false;
+    }
+    if (!(rx.selected_files = WriteBsrFile(ua, rx))) {
+      ua->WarningMsg(T_("No files selected to be restored.\n"));
+      return false;
+    }
+    DisplayBsrInfo(ua, rx); /* display vols needed, etc */
+
+    if (rx.selected_files == 1) {
+      ua->InfoMsg(T_("\n1 file selected to be restored.\n\n"));
+    } else {
+      ua->InfoMsg(T_("\n%s files selected to be restored.\n\n"),
+                  edit_uint64_with_commas(rx.selected_files, ed1));
+    }
+  } else {
+    ua->WarningMsg(T_("No files selected to be restored.\n"));
+    return false;
+  }
+
+  return true;
+}
 
 // Restore files
 bool RestoreCmd(UaContext* ua, const char*)
@@ -152,6 +180,10 @@ bool RestoreCmd(UaContext* ua, const char*)
     }
   }
 
+  bool done = false;
+  i = FindArg(ua, NT_("done"));
+  if (i >= 0) { done = true; }
+
   i = FindArg(ua, "archive");
   if (i >= 0) {
     rx.job_filter = RestoreContext::JobTypeFilter::Archive;
@@ -181,17 +213,7 @@ bool RestoreCmd(UaContext* ua, const char*)
 
   if (!OpenClientDb(ua, true)) { return false; }
 
-  /* Ensure there is at least one Restore Job */
-  JobResource* job;
-  {
-    foreach_res (job, R_JOB) {
-      if (job->JobType == JT_RESTORE) {
-        if (!rx.restore_job) { rx.restore_job = job; }
-        rx.restore_jobs++;
-      }
-    }
-  }
-  if (!rx.restore_jobs) {
+  if (!FindRestoreJobs(rx)) {
     ua->ErrorMsg(
         T_("No Restore Job Resource found in %s.\n"
            "You must create at least one before running this command.\n"),
@@ -207,14 +229,19 @@ bool RestoreCmd(UaContext* ua, const char*)
   switch (UserSelectJobidsOrFiles(ua, &rx)) {
     case 0: /* error */
       return false;
-    case 1: /* selected by jobid */
+    case 1: /* selected by jobid */ {
       GetAndDisplayBasejobs(ua, &rx);
-      root = BuildDirectoryTree(ua, &rx);
-      if (!root) {
+      auto tree = BuildDirectoryTree(ua, &rx);
+      if (!tree) {
+        ua->SendMsg(T_("Restore not done (Could not build tree).\n"));
+      }
+      root.reset(tree->root);
+      if (!SelectFiles(ua, &rx, tree.value(), done)) {
         ua->SendMsg(T_("Restore not done.\n"));
         return false;
       }
       break;
+    }
     case 2: /* selected by filename, no tree needed */
       break;
     case 3: /* selected by fileregex only, add all findexes */
@@ -226,6 +253,7 @@ bool RestoreCmd(UaContext* ua, const char*)
       break;
   }
 
+  JobResource* job;
   if (rx.restore_jobs == 1) {
     job = rx.restore_job;
   } else {
@@ -240,31 +268,8 @@ bool RestoreCmd(UaContext* ua, const char*)
     ua->InfoMsg(
         T_("Skipping BootStrapRecord creation as we are doing NDMP_NATIVE "
            "restore.\n"));
-
   } else {
-    if (rx.bsr->JobId) {
-      char ed1[50];
-      if (!AddVolumeInformationToBsr(ua, rx.bsr.get())) {
-        ua->ErrorMsg(T_(
-            "Unable to construct a valid BootStrapRecord. Cannot continue.\n"));
-        return false;
-      }
-      if (!(rx.selected_files = WriteBsrFile(ua, rx))) {
-        ua->WarningMsg(T_("No files selected to be restored.\n"));
-        return false;
-      }
-      DisplayBsrInfo(ua, rx); /* display vols needed, etc */
-
-      if (rx.selected_files == 1) {
-        ua->InfoMsg(T_("\n1 file selected to be restored.\n\n"));
-      } else {
-        ua->InfoMsg(T_("\n%s files selected to be restored.\n\n"),
-                    edit_uint64_with_commas(rx.selected_files, ed1));
-      }
-    } else {
-      ua->WarningMsg(T_("No files selected to be restored.\n"));
-      return false;
-    }
+    if (!FillBootstrapFile(ua, rx)) { return false; }
   }
 
   if (!GetClientName(ua, &rx)) { return false; }
@@ -282,6 +287,24 @@ bool RestoreCmd(UaContext* ua, const char*)
 
   ParseUaArgs(ua);
   RunCmd(ua, ua->cmd);
+  return true;
+}
+
+bool FindRestoreJobs(RestoreContext& rx)
+{
+  // Ensure there is at least one Restore Job
+  JobResource* job;
+  {
+    foreach_res (job, R_JOB) {
+      if (job->JobType == JT_RESTORE) {
+        if (!rx.restore_job) { rx.restore_job = job; }
+        rx.restore_jobs++;
+      }
+    }
+  }
+
+  if (!rx.restore_jobs) { return false; }
+
   return true;
 }
 
@@ -1219,13 +1242,14 @@ static bool AddAllFindex(RestoreContext* rx)
 }
 
 
-static tree_ptr BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
+std::optional<TreeContext> BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
 {
-  bool OK = true;
-
   // Build the directory tree containing JobIds user selected
+
+  tree_ptr ptr{new_tree(rx->TotalFiles)};
+
   TreeContext tree;
-  tree.root = new_tree(rx->TotalFiles);
+  tree.root = ptr.get();
   tree.ua = ua;
   tree.all = rx->all;
 
@@ -1242,6 +1266,7 @@ static tree_ptr BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
                       edit_int64(JobId, ed1));
     if (!ua->db->SqlQuery(rx->query, RestoreCountHandler, (void*)rx)) {
       ua->ErrorMsg("%s\n", ua->db->strerror());
+      return std::nullopt;
     }
     if (rx->found) { tree.DeltaCount = rx->JobId / 50; /* print 50 ticks */ }
   }
@@ -1256,6 +1281,7 @@ static tree_ptr BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
                            true /* get delta */, InsertTreeHandler,
                            (void*)&tree)) {
     ua->ErrorMsg("%s", ua->db->strerror());
+    return std::nullopt;
   }
 
   if (*rx->BaseJobIds) {
@@ -1272,6 +1298,7 @@ static tree_ptr BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
          rx->JobIds);
     if (!ua->db->SqlQuery(rx->query, RestoreCountHandler, (void*)rx)) {
       ua->ErrorMsg("%s\n", ua->db->strerror());
+      return std::nullopt;
     }
     // rx->JobId is the PurgedFiles flag
     if (rx->found && rx->JobId > 0) {
@@ -1279,6 +1306,36 @@ static tree_ptr BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
     }
   }
 
+  static_cast<void>(ptr.release());
+  return tree;
+}
+
+void FinishSelection(RestoreContext* rx, TreeContext& tree)
+{
+  // Walk down through the tree finding all files marked to be extracted
+  // making a bootstrap file.
+  for (TREE_NODE* node = FirstTreeNode(tree.root); node;
+       node = NextTreeNode(node)) {
+    Dmsg2(400, "FI=%d node=0x%x\n", node->FileIndex, node);
+    if (node->extract || node->extract_dir) {
+      Dmsg3(400, "JobId=%lld type=%d FI=%d\n", (uint64_t)node->JobId,
+            node->type, node->FileIndex);
+      /* TODO: optimize bsr insertion when jobid are non sorted */
+      AddDeltaListFindex(rx, node->delta_list);
+      AddFindex(rx->bsr.get(), node->JobId, node->FileIndex);
+      if (node->extract && node->type != TreeNodeType::NewDir) {
+        rx->selected_files++; /* count only saved files */
+      }
+    }
+  }
+}
+
+static bool SelectFiles(UaContext* ua,
+                        RestoreContext* rx,
+                        TreeContext& tree,
+                        bool done)
+{
+  bool OK = true;
   if (tree.FileCount == 0) {
     OK = AskForFileregex(ua, rx);
     if (OK) { AddAllFindex(rx); }
@@ -1293,41 +1350,19 @@ static tree_ptr BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
                   edit_uint64_with_commas(tree.cnt, ec1));
     }
 
-    if (FindArg(ua, NT_("done")) < 0) {
+    if (!done) {
       // Let the user interact in selecting which files to restore
       OK = UserSelectFilesFromTree(&tree);
     }
 
-    /* Walk down through the tree finding all files marked to be
-     *  extracted making a bootstrap file. */
-    if (OK) {
-      for (TREE_NODE* node = FirstTreeNode(tree.root); node;
-           node = NextTreeNode(node)) {
-        Dmsg2(400, "FI=%d node=0x%x\n", node->FileIndex, node);
-        if (node->extract || node->extract_dir) {
-          Dmsg3(400, "JobId=%lld type=%d FI=%d\n", (uint64_t)node->JobId,
-                node->type, node->FileIndex);
-          /* TODO: optimize bsr insertion when jobid are non sorted */
-          AddDeltaListFindex(rx, node->delta_list);
-          AddFindex(rx->bsr.get(), node->JobId, node->FileIndex);
-          if (node->extract && node->type != TreeNodeType::NEWDIR) {
-            rx->selected_files++; /* count only saved files */
-          }
-        }
-      }
-    }
+    if (OK) { FinishSelection(rx, tree); }
   }
 
   /* We keep the tree with selected restore files.
    * For NDMP restores its used in the DMA to know what to restore.
    * The tree is freed by the DMA when its done. */
 
-  if (OK) {
-    return tree_ptr{tree.root};
-  } else {
-    FreeTree(tree.root);
-    return nullptr;
-  }
+  return OK;
 }
 
 /**

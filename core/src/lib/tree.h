@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2009 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -60,12 +60,12 @@ struct delta_list {
 /* type values */
 enum class TreeNodeType
 {
-  UNKNOWN = 0,
-  ROOT,     // root node
-  NEWDIR,   // created directory to fill path
-  DIR,      // directory entry
-  DIR_NLS,  // directory -- no leading slash -- win32
-  FILE,     // file entry
+  Unknown = 0,
+  Root,    // root node
+  NewDir,  // created directory to fill path
+  Dir,     // directory entry
+  DirNLS,  // directory -- no leading slash -- win32
+  File,    // file entry
 };
 
 /**
@@ -92,7 +92,7 @@ struct s_tree_node {
   uint32_t JobId{};                         /* JobId */
   int32_t delta_seq{};                      /* current delta sequence */
   uint16_t fname_len{};                     /* filename length */
-  TreeNodeType type{TreeNodeType::UNKNOWN}; /* node type */
+  TreeNodeType type{TreeNodeType::Unknown}; /* node type */
   unsigned int extract : 1;                 /* extract item */
   unsigned int extract_dir : 1;             /* extract dir entry only */
   unsigned int hard_link : 1;               /* set if have hard link */
@@ -136,7 +136,7 @@ struct s_tree_root {
   uint32_t JobId{};                         /* JobId */
   int32_t delta_seq{};                      /* current delta sequence */
   uint16_t fname_len{};                     /* filename length */
-  TreeNodeType type{TreeNodeType::UNKNOWN}; /* node type */
+  TreeNodeType type{TreeNodeType::Unknown}; /* node type */
   unsigned int extract : 1;                 /* extract item */
   unsigned int extract_dir : 1;             /* extract dir entry only */
   unsigned int have_link : 1;               /* set if have hard link */

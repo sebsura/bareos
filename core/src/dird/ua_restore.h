@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -22,6 +22,8 @@
 #ifndef BAREOS_DIRD_UA_RESTORE_H_
 #define BAREOS_DIRD_UA_RESTORE_H_
 
+#include <optional>
+
 #include "lib/tree.h"
 
 namespace directordaemon {
@@ -36,6 +38,11 @@ void FindStorageResource(UaContext* ua,
 void BuildRestoreCommandString(UaContext* ua,
                                const RestoreContext& rx,
                                JobResource* job);
+
+bool FindRestoreJobs(RestoreContext& rx);
+std::optional<TreeContext> BuildDirectoryTree(UaContext* ua,
+                                              RestoreContext* rx);
+void FinishSelection(RestoreContext* rx, TreeContext& tree);
 
 int RestoreCountHandler(void* ctx, int, char** row);
 void AddDeltaListFindex(RestoreContext* rx, struct delta_list* lst);

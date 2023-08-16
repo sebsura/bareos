@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -90,7 +90,7 @@ TREE_ROOT* new_tree(int count)
   MallocBuf(root, size);
   root->cached_path_len = -1;
   root->cached_path = GetPoolMemory(PM_FNAME);
-  root->type = TreeNodeType::ROOT;
+  root->type = TreeNodeType::Root;
   root->fname = "";
   return root;
 }
@@ -244,7 +244,7 @@ TREE_NODE* insert_tree_node(char* path,
   }
 
   node
-      = search_and_insert_tree_node(fname, TreeNodeType::UNKNOWN, root, parent);
+      = search_and_insert_tree_node(fname, TreeNodeType::Unknown, root, parent);
 
   if (q) {    /* if trailing slash on entry */
     *q = '/'; /*  restore it */
@@ -262,7 +262,7 @@ TREE_NODE* make_tree_path(char* path, TREE_ROOT* root)
 {
   TREE_NODE *parent, *node;
   char *fname, *p;
-  TreeNodeType type = TreeNodeType::NEWDIR;
+  TreeNodeType type = TreeNodeType::NewDir;
 
   Dmsg1(100, "make_tree_path: %s\n", path);
 
@@ -281,7 +281,7 @@ TREE_NODE* make_tree_path(char* path, TREE_ROOT* root)
   } else {
     fname = path;
     parent = (TREE_NODE*)root;
-    type = TreeNodeType::DIR_NLS;
+    type = TreeNodeType::DirNLS;
   }
 
   node = search_and_insert_tree_node(fname, type, root, parent);
@@ -349,7 +349,7 @@ static void TreeGetpathItem(TREE_NODE* node, POOLMEM*& path)
   /* Fixup for Win32. If we have a Win32 directory and
    * there is only a / in the buffer, remove it since
    * win32 names don't generally start with / */
-  if (node->type == TreeNodeType::DIR_NLS && IsPathSeparator(path[0])
+  if (node->type == TreeNodeType::DirNLS && IsPathSeparator(path[0])
       && path[1] == '\0') {
     PmStrcpy(path, "");
   }
@@ -358,7 +358,7 @@ static void TreeGetpathItem(TREE_NODE* node, POOLMEM*& path)
   /* Add a slash for all directories unless we are at the root,
    * also add a slash to a soft linked file if it has children
    * i.e. it is linked to a directory. */
-  if ((node->type != TreeNodeType::FILE
+  if ((node->type != TreeNodeType::File
        && !(IsPathSeparator(path[0]) && path[1] == '\0'))
       || (node->soft_link && TreeNodeHasChild(node))) {
     PmStrcat(path, "/");
@@ -443,7 +443,7 @@ TREE_NODE* tree_relcwd(char* path, TREE_ROOT* root, TREE_NODE* node)
     if (match) { break; }
   }
 
-  if (!cd || (cd->type == TreeNodeType::FILE && !TreeNodeHasChild(cd))) {
+  if (!cd || (cd->type == TreeNodeType::File && !TreeNodeHasChild(cd))) {
     return NULL;
   }
 
