@@ -122,7 +122,7 @@ bool makepath(Attributes* attr,
               bool keep_dir_modes)
 {
   struct stat statp;
-  mode_t omask, tmode;
+  mode_t tmode;
   char* path = (char*)apath;
   char* p;
   int len;
@@ -144,8 +144,6 @@ bool makepath(Attributes* attr,
     SetOwnMod(attr, path, owner, group, mode);
     return true;
   }
-  omask = umask(0);
-  umask(omask);
   len = strlen(apath);
   path = (char*)alloca(len + 1);
   bstrncpy(path, apath, len + 1);
@@ -242,6 +240,5 @@ bool makepath(Attributes* attr,
 
   ok = true;
 bail_out:
-  umask(omask);
   return ok;
 }

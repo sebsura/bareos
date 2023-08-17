@@ -337,7 +337,6 @@ bool SetAttributes(JobControlRecord* jcr,
                    Attributes* attr,
                    BareosFilePacket* ofd)
 {
-  mode_t old_mask;
   bool ok = true;
   bool suppress_errors;
 
@@ -370,7 +369,6 @@ bool SetAttributes(JobControlRecord* jcr,
    * simply fall through and we will do it the universal way. */
 #endif
 
-  old_mask = umask(0);
   if (IsBopen(ofd)) {
     boffset_t fsize;
     char ec1[50], ec2[50];
@@ -450,7 +448,6 @@ bail_out:
   if (IsBopen(ofd)) { bclose(ofd); }
 
   PmStrcpy(attr->ofname, "*None*");
-  umask(old_mask);
 
   return ok;
 }
