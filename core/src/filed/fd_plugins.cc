@@ -2112,7 +2112,7 @@ static bRC bareosSetValue(PluginContext* ctx, bVariable var, const void* value)
       break;
     default:
       Jmsg1(jcr, M_ERROR, 0,
-            "Warning: bareosSetValue not fd_implemented for var %d.\n", var);
+            "Warning: bareosSetValue not implemented for var %d.\n", var);
       break;
   }
 

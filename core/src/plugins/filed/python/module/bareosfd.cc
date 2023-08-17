@@ -1296,15 +1296,9 @@ static PyObject* PyBareosGetValue(PyObject*, PyObject* args)
       break;
     }
     case bVarSinceTime: {
-      long value{0};
-      if (bareos_core_functions->getBareosValue(plugin_ctx, (bVariable)var, &value) == bRC_OK) {
-        pRetVal = PyLong_FromLong(value);
-      }
-      /*
       pRetVal = PyLong_FromLong(static_cast<plugin_private_context*>(
                                     plugin_ctx->plugin_private_context)
                                     ->since);
-      */
       break;
     }
     case bVarCheckChanges: {
@@ -1348,16 +1342,11 @@ static PyObject* PyBareosSetValue(PyObject*, PyObject* args)
 
   switch (var) {
     case bVarSinceTime: {
-      long value{PyLong_AsLong(pyValue)};
-      retval = bareos_core_functions->setBareosValue(plugin_ctx, var, &value);
-      break;
-      /*
       static_cast<plugin_private_context*>(plugin_ctx->plugin_private_context)
           ->since
           = PyLong_AsLong(pyValue);
       retval = bRC_OK;
       break;
-      */
     }
     case bVarCheckChanges: {
       bool value = (pyValue == Py_True);
