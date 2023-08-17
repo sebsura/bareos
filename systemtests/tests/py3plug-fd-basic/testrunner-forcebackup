@@ -19,14 +19,20 @@ start_test
 rm -f "$tmp/forcebackup-backup.out" 
 
 cat <<END_OF_DATA >$tmp/bconcmds
-@$out /dev/null
+@$out $tmp/prepare-backup.out
 messages
 setdebug client=bareos-fd level=130 trace=1
-run job=$JobName fileset=PluginForceBackup level=Full yes
+run job=$JobName fileset=PluginSinceTime level=Full yes
+wait
+run job=$JobName fileset=PluginCheckChanges level=Full yes
 wait
 messages
-@$out $tmp/forcebackup-backup.out
-run job=$JobName fileset=PluginForceBackup level=Incremental yes
+@$out $tmp/sincetime-backup.out
+run job=$JobName fileset=PluginSinceTime level=Incremental yes
+wait
+messages
+@$out $tmp/checkchanges-backup.out
+run job=$JobName fileset=PluginCheckChanges level=Incremental yes
 wait
 messages
 END_OF_DATA
@@ -35,7 +41,11 @@ run_bconsole
 check_for_zombie_jobs storage=File
 
 expect_grep "FD Files Written:       1" \
-            "$tmp/forcebackup-backup.out" \
-            "Incremental did not backup file!"
+            "$tmp/sincetime-backup.out" \
+            "Incremental with SinceTime=0 did not backup file!"
+
+expect_grep "FD Files Written:       1" \
+            "$tmp/checkchanges-backup.out" \
+            "Incremental with CheckChanges=false did not backup file!"
 
 end_test

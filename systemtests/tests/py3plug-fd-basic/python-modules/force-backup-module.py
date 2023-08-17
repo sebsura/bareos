@@ -28,6 +28,7 @@ from BareosFdWrapper import *
 
 from bareosfd import (
     bRC_OK,
+    bRC_Error,
     JobMessage,
     DebugMessage,
     M_INFO,
@@ -37,6 +38,7 @@ from bareosfd import (
     SetValue,
     GetValue,
     bVarCheckChanges,
+    bVarSinceTime,
 )
 
 from BareosFdPluginBaseclass import BareosFdPluginBaseclass
@@ -47,17 +49,27 @@ from stat import S_IFREG, S_IRWXU
 
 @BareosPlugin
 class TestForceBackupPlugin(BareosFdPluginBaseclass):
+    # def __init__(self, plugindef):
+    #    return super().__init__(plugindef, ["mode"])
+
     def start_backup_job(self):
-        DebugMessage(100, "enter custom start_backup_job()\n")
-        DebugMessage(100, "check_changes = {}\n".format(GetValue(bVarCheckChanges)))
-        ret = SetValue(bVarCheckChanges, False)
-        DebugMessage(100, "SetValue() returned {}\n".format(ret))
-        DebugMessage(100, "check_changes = {}\n".format(GetValue(bVarCheckChanges)))
+        DebugMessage(123, "enter custom start_backup_job()\n")
+
+        if self.options["mode"] == "since":
+            ret = SetValue(bVarSinceTime, 1)
+            DebugMessage(123, "SetValue(bVarSinceTime) returned {}\n".format(ret))
+        else:
+            ret = SetValue(bVarCheckChanges, False)
+            DebugMessage(123, "SetValue(bVarCheckChanges) returned {}\n".format(ret))
+
+        JobMessage(M_INFO, "bVarSinceTime = {}, bVarCheckChanges = {}\n".format(GetValue(bVarSinceTime), GetValue(bVarCheckChanges)))
         return bRC_OK
 
     def start_backup_file(self, savepkt):
-        DebugMessage(100, "enter custom start_backup_file()\n")
+        DebugMessage(123, "enter custom start_backup_file()\n")
         statp = StatPacket()
+
+        # long long time ago: Friday, 23. October 1981 00:00:00 (CET)
         statp.st_atime = 372639600
         statp.st_mtime = 372639600
         statp.st_ctime = 372639600
@@ -66,7 +78,10 @@ class TestForceBackupPlugin(BareosFdPluginBaseclass):
         savepkt.statp = statp
         savepkt.type = 3  # FT_REG
         savepkt.no_read = False
-        savepkt.fname = "/forced-file"
+        if "filename" in self.options:
+            savepkt.fname = self.options["filename"]
+        else:
+            savepkt.fname = "/forced-file"
         return bRC_OK
 
     def plugin_io_read(self, IOP):
