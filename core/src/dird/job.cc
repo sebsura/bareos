@@ -1770,12 +1770,11 @@ void CreateClones(JobControlRecord* jcr)
  */
 int CreateRestoreBootstrapFile(JobControlRecord* jcr)
 {
-  RestoreContext rx;
   UaContext* ua;
   int files;
 
-  rx.bsr = std::make_unique<RestoreBootstrapRecord>();
-  rx.JobIds = (char*)"";
+  RestoreContext rx;
+
   rx.bsr->JobId = jcr->dir_impl->previous_jr.JobId;
   ua = new_ua_context(jcr);
   if (!AddVolumeInformationToBsr(ua, rx.bsr.get())) {
@@ -1797,7 +1796,6 @@ int CreateRestoreBootstrapFile(JobControlRecord* jcr)
 
 bail_out:
   FreeUaContext(ua);
-  rx.bsr.reset(nullptr);
   return files;
 }
 
