@@ -41,7 +41,6 @@ messages
 @$out $log_home/multi-dir.out
 restore jobid=1 client=bareos-fd fileset=SelfTest where=$tmp/multi-dir/1 directory=$tmp/data/weird-files/ directory=$tmp/data/build/ yes
 restore jobid=1 client=bareos-fd fileset=SelfTest where=$tmp/multi-dir/2 directory=$tmp/data/build/ yes
-restore jobid=1 client=bareos-fd fileset=SelfTest where=$tmp/multi-dir/2 directory=$tmp/data/weird-files/ yes
 wait
 messages
 @$out $log_home/file-and-dir.out
