@@ -209,7 +209,7 @@ typedef enum
   bVarDistName = 17,
   bVarPrevJobName = 18,
   bVarPrefixLinks = 19,
-  bVarCheckChanges = 20
+  bVarCheckChanges = 20,
 } bVariable;
 
 // Events that are passed to plugin
