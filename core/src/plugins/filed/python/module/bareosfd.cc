@@ -1244,7 +1244,7 @@ bail_out:
  */
 static PyObject* PyBareosGetValue(PyObject*, PyObject* args)
 {
-  int var;
+  bVariable var;
   PluginContext* plugin_ctx = plugin_context;
   PyObject* pRetVal = NULL;
 
@@ -1259,8 +1259,7 @@ static PyObject* PyBareosGetValue(PyObject*, PyObject* args)
     case bVarDistName: {
       char* value = NULL;
 
-      if (bareos_core_functions->getBareosValue(plugin_ctx, (bVariable)var,
-                                                &value)
+      if (bareos_core_functions->getBareosValue(plugin_ctx, var, &value)
           == bRC_OK) {
         if (value) { pRetVal = PyUnicode_FromString(value); }
       }
@@ -1274,8 +1273,7 @@ static PyObject* PyBareosGetValue(PyObject*, PyObject* args)
     case bVarPrefixLinks: {
       int value = 0;
 
-      if (bareos_core_functions->getBareosValue(plugin_ctx, (bVariable)var,
-                                                &value)
+      if (bareos_core_functions->getBareosValue(plugin_ctx, var, &value)
           == bRC_OK) {
         pRetVal = PyLong_FromLong(value);
       }
@@ -1288,8 +1286,7 @@ static PyObject* PyBareosGetValue(PyObject*, PyObject* args)
     case bVarRegexWhere: {
       char* value = NULL;
 
-      if (bareos_core_functions->getBareosValue(plugin_ctx, (bVariable)var,
-                                                &value)
+      if (bareos_core_functions->getBareosValue(plugin_ctx, var, &value)
           == bRC_OK) {
         if (value) { pRetVal = PyUnicode_FromString(value); }
       }
@@ -1303,8 +1300,7 @@ static PyObject* PyBareosGetValue(PyObject*, PyObject* args)
     }
     case bVarCheckChanges: {
       bool value{false};
-      if (bareos_core_functions->getBareosValue(plugin_ctx, (bVariable)var,
-                                                &value)
+      if (bareos_core_functions->getBareosValue(plugin_ctx, var, &value)
           == bRC_OK) {
         pRetVal = value ? Py_True : Py_False;
       }

@@ -189,6 +189,7 @@ struct xattr_pkt {
 
 // Bareos Variable Ids
 typedef enum
+    : int
 {
   bVarJobId = 1,
   bVarFDName = 2,
