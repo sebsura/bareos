@@ -52,3 +52,4 @@ else()
 endif()
 
 include(./websocketpp.cmake)
+include(./libjsonrpccpp.cmake)
