@@ -44,7 +44,7 @@ class locked {
 
   template <typename Pred> void wait(std::condition_variable& cv, Pred&& p)
   {
-    cv.wait(lock, p);
+    cv.wait(lock, [this, p = std::move(p)] { return p(this->get()); });
   }
 
  private:
