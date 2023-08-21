@@ -22,78 +22,113 @@
 
 thread_pool::thread_pool(std::size_t num_threads)
 {
-  std::unique_lock stop_threads(m);
-  for (std::size_t i = 0; i < num_threads; ++i) {
-    threads.emplace_back(&pool_work, i, this);
-  }
+  if (num_threads) ensure_num_workers(num_threads);
 }
 
 void thread_pool::enqueue(task&& t)
 {
-  std::unique_lock l{queue_mut};
-  queue.push_back(std::move(t));
-  tasks_submitted += 1;
-  queue_or_death.notify_one();
+  bool task_submitted = false;
+
+  if (auto wlocked = workers.lock(); wlocked->num_actual_workers() > 0) {
+    auto locked = queue.lock();
+    if (locked->has_value()) {
+      locked->value().emplace_back(std::move(t));
+      tasks_submitted += 1;
+      queue_or_death.notify_one();
+      task_submitted = true;
+    }
+  }
+
+  if (!task_submitted) { t(); }
+}
+
+void thread_pool::ensure_num_workers(std::size_t num_threads)
+{
+  auto locked = workers.lock();
+  locked->min_workers = std::max(locked->min_workers, num_threads);
+  for (std::size_t i = locked->threads.size(); i < num_threads; ++i) {
+    locked->threads.emplace_back(&pool_work, i, this);
+  }
 }
 
 void thread_pool::finish()
 {
-  std::unique_lock l{task_mut};
+  auto locked = tasks_completed.lock();
 
-  task_cond.wait(l, [this]() { return tasks_submitted == tasks_completed; });
+  locked.wait(on_task_completion,
+              [this](auto completed) { return completed == tasks_submitted; });
 }
 
 thread_pool::~thread_pool()
 {
-  should_stop = true;
+  queue.lock()->reset();
   queue_or_death.notify_all();
 
-  // wait until all threads are dead (i.e. they released their shared mtx)
-  std::unique_lock l{m};
+  auto locked = workers.lock();
+  locked.wait(worker_death, [this](const auto& pool) {
+    return pool.dead_workers == pool.threads.size();
+  });
 
-  for (auto& thread : threads) { thread.join(); }
+  for (auto& thread : locked->threads) { thread.join(); }
+}
+
+void thread_pool::borrow_thread(task&& t)
+{
+  enqueue([this, t = std::move(t)]() {
+    {
+      auto locked = workers.lock();
+      auto min_left_over_workers
+          = std::max(std::size_t{1}, locked->min_workers);
+      if (locked->num_actual_workers() <= min_left_over_workers) {
+        locked->threads.emplace_back(pool_work, locked->threads.size(), this);
+      }
+      locked->num_borrowed += 1;
+    }
+
+    t();
+
+    {
+      auto locked = workers.lock();
+      locked->num_borrowed -= 1;
+    }
+  });
 }
 
 void thread_pool::pool_work(std::size_t id, thread_pool* pool)
 {
-  auto lock = pool->wait_until_init_complete();
+  // id is kept here for debugging purposes.
+  (void)id;
+  try {
+    for (std::optional my_task = pool->dequeue(); my_task.has_value();
+         my_task = pool->finish_and_dequeue()) {
+      (*my_task)();
+    }
 
-  thread_id my_id{id};
-
-  for (std::optional my_task = pool->dequeue(); !!my_task;
-       my_task = pool->finish_and_dequeue()) {
-    (*my_task)(my_id);
+    pool->workers.lock()->dead_workers += 1;
+    pool->worker_death.notify_one();
+  } catch (...) {
+    pool->workers.lock()->dead_workers += 1;
+    pool->worker_death.notify_one();
+    throw;
   }
 }
 
 auto thread_pool::dequeue() -> std::optional<task>
 {
-  std::unique_lock l(queue_mut);
-  queue_or_death.wait(
-      l, [this]() { return queue.size() > 0 || should_stop.load(); });
-  if (should_stop) { return std::nullopt; }
-  task t = std::move(queue.front());
-  queue.pop_front();
+  auto locked = queue.lock();
+  locked.wait(queue_or_death, [this](std::optional<auto>& queue) {
+    return !queue.has_value() || queue->size() > 0;
+  });
+  if (!locked->has_value()) { return std::nullopt; }
+  task t = std::move(locked->value().front());
+  locked->value().pop_front();
   return t;
 }
 
 auto thread_pool::finish_and_dequeue() -> std::optional<task>
 {
-  {
-    std::unique_lock l{task_mut};
-    tasks_completed += 1;
-  }
-  task_cond.notify_all();
+  *tasks_completed.lock() += 1;
+  on_task_completion.notify_all();
 
   return dequeue();
-}
-
-bool thread_pool::stop_requested()
-{
-  return should_stop.load(std::memory_order_relaxed);
-}
-
-std::shared_lock<std::shared_mutex> thread_pool::wait_until_init_complete()
-{
-  return std::shared_lock{m};
 }
