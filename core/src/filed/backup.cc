@@ -53,9 +53,11 @@
 
 #include "lib/thread_util.h"
 #include "lib/thread_pool.h"
+#include "lib/channel.h"
 
 #include <utility>
 #include <variant>
+#include <limits>
 
 namespace filedaemon {
 
@@ -115,6 +117,9 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   sd = jcr->store_bsock;
 
   jcr->setJobStatusWithPriorityCheck(JS_Running);
+
+  auto num_workers = std::thread::hardware_concurrency() / 2;
+  jcr->fd_impl->pool.ensure_num_workers(num_workers);
 
   Dmsg1(300, "filed: opened data connection %d to stored\n", sd->fd_);
   ClientResource* client = nullptr;
@@ -847,66 +852,86 @@ bail_out:
  * After all checks are done, we just send everything regarding this
  * file to the sd.
  */
-struct send_success {
-  std::size_t bytes_read;
-  std::size_t bytes_send;
+
+template <typename T> class result {
+ public:
+  constexpr result() : data{1, "Not Initialized"} {}
+
+  template <typename Arg0, typename... Args>
+  constexpr result(Arg0 arg0, Args... args)
+      : data(std::forward<Arg0>(arg0), std::forward<Args>(args)...)
+  {
+  }
+
+  bool holds_error() const { return data.index() == 1; }
+  PoolMem* error()
+  {
+    if (holds_error()) {
+      return &std::get<1>(data);
+    } else {
+      return nullptr;
+    }
+  }
+
+  T* value()
+  {
+    if (!holds_error()) {
+      return &std::get<0>(data);
+    } else {
+      return nullptr;
+    }
+  }
+
+  PoolMem& error_unchecked() { return std::get<1>(data); }
+
+  T& value_unchecked() { return std::get<0>(data); }
+
+ private:
+  std::variant<T, PoolMem> data;
 };
-using send_result = std::variant<send_success, PoolMem>;
-send_result SendData(synchronized<BareosSocket*>& sock,
-                     std::size_t max_buf_size,
-                     std::size_t offset,
-                     std::size_t file_addr,
-                     std::shared_ptr<std::vector<char>> buf,
-                     int file_type,
-                     std::size_t file_size,
-                     const char* flags)
+
+using send_result = result<std::size_t>;
+struct compression_ctx {
+  comp_stream_header ch;
+  std::uint32_t algo;
+  int level;
+};
+send_result SendData(BareosSocket* sd,
+                     ssize_t offset,
+                     ssize_t file_addr,
+                     const std::vector<char>& buf)
 {
   PoolMem to_send;
   std::size_t data_offset = 0;
-  send_success success;
+  std::size_t data_len = 0;
 
-  if (BitIsSet(FO_SPARSE, flags)) {
+  if (file_addr >= 0) {
     ser_declare;
-    bool allZeros = false;
 
-    if ((buf->size() == max_buf_size && (file_addr + buf->size() < file_size))
-        || ((file_type == FT_RAW || file_type == FT_FIFO)
-            && (file_size == 0))) {
-      allZeros = IsBufZero(buf->data(), buf->size());
-    }
-
-    if (!allZeros) {
-      // Put file address as first data in buffer
-      data_offset = OFFSET_FADDR_SIZE;
-      to_send.check_size(OFFSET_FADDR_SIZE + buf->size());
-      SerBegin(to_send.addr(), OFFSET_FADDR_SIZE);
-      static_assert(sizeof(file_addr) <= sizeof(std::uint64_t));
-      ser_uint64(static_cast<std::uint64_t>(
-          file_addr)); /* store fileAddr in begin of buffer */
-    } else {
-      // Skip block of all zeros
-      return success;
-    }
-  } else if (BitIsSet(FO_OFFSETS, flags)) {
+    // Put file address as first data in buffer
+    data_offset = OFFSET_FADDR_SIZE;
+    to_send.check_size(OFFSET_FADDR_SIZE + buf.size());
+    SerBegin(to_send.addr(), OFFSET_FADDR_SIZE);
+    static_assert(sizeof(file_addr) <= sizeof(std::uint64_t));
+    ser_uint64(static_cast<std::uint64_t>(
+        file_addr)); /* store fileAddr in begin of buffer */
+  } else if (offset >= 0) {
     ser_declare;
     data_offset = OFFSET_FADDR_SIZE;
-    to_send.check_size(OFFSET_FADDR_SIZE + buf->size());
+    to_send.check_size(OFFSET_FADDR_SIZE + buf.size());
     SerBegin(to_send.addr(), OFFSET_FADDR_SIZE);
     ser_uint64(static_cast<std::uint64_t>(
         offset)); /* store fileAddr in begin of buffer */
   } else {
-    to_send.check_size(buf->size());
+    to_send.check_size(buf.size());
   }
 
-  success.bytes_read = buf->size();
+  data_len = buf.size();
+  memcpy(to_send.addr() + data_offset, buf.data(), data_len);
 
-  memcpy(to_send.addr() + data_offset, buf->data(), buf->size());
-
-  auto locked = sock.lock();
-  auto& sd = *locked;
   POOLMEM* old_msg
       = std::exchange(sd->msg, to_send.addr()); /* set correct write buffer */
-  sd->message_length = data_offset + buf->size();
+  sd->message_length = data_offset + data_len;
 
   if (!sd->send()) {
     PoolMem error(PM_MESSAGE);
@@ -917,9 +942,7 @@ send_result SendData(synchronized<BareosSocket*>& sock,
   Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
   sd->msg = old_msg;
 
-  success.bytes_send = data_offset + buf->size();
-
-  return success;
+  return data_offset + data_len;
 }
 
 
@@ -1098,109 +1121,348 @@ bail_out:
 }
 #endif
 
+struct formatted_data {
+  std::vector<char> data;
+  std::size_t payload_offset;
+
+  formatted_data(std::size_t header_size, std::size_t payload_size)
+      : data(header_size + payload_size), payload_offset(header_size)
+  {
+  }
+
+  const char* payload() const { return data.data() + payload_offset; }
+
+  std::size_t payload_size() const { return data.size() - payload_offset; }
+
+  void resize_payload(std::size_t new_size)
+  {
+    data.resize(new_size + payload_offset);
+  }
+
+  const char* header() const { return data.data(); }
+
+  std::size_t header_size() const { return payload_offset; }
+};
+
+result<std::vector<char>> MakeCompressedData(compression_ctx compctx,
+                                             const std::vector<char>& data)
+{
+  std::vector<char> out(
+      RequiredCompressionOutputBufferSize(compctx.algo, data.size()));
+  std::optional outsize = ThreadlocalCompress(
+      compctx.algo, compctx.level, data.data(), data.size(),
+      out.data() + sizeof(comp_stream_header),
+      out.size() - sizeof(comp_stream_header));
+  if (!outsize) {
+    PoolMem error{"compression error"};
+    return error;
+    // return std::nullopt;
+  }
+
+  // See if we need to generate a compression header.
+
+  if (*outsize > std::numeric_limits<std::uint32_t>::max()) {
+    PoolMem error;
+    Mmsg(error, "Compressed size to big (%lu > %lu)", *outsize,
+         std::numeric_limits<std::uint32_t>::max());
+    return error;
+    // return std::nullopt;
+  }
+
+  {
+    ser_declare;
+
+    // Complete header
+    SerBegin(out.data(), sizeof(comp_stream_header));
+    ser_uint32(compctx.ch.magic);
+    ser_uint32(*outsize);
+    ser_uint16(compctx.ch.level);
+    ser_uint16(compctx.ch.version);
+    SerEnd(out.data(), sizeof(comp_stream_header));
+  }
+
+  out.resize(*outsize + sizeof(comp_stream_header));
+  return out;
+}
+
+struct file_chunk {
+  std::shared_ptr<const std::vector<char>> data{};
+  ssize_t offset{};
+  ssize_t file_addr{};
+
+  file_chunk() = default;
+  file_chunk(std::vector<char>&& data, ssize_t offset, ssize_t file_addr)
+      : data{std::make_shared<const std::vector<char>>(std::move(data))}
+      , offset{offset}
+      , file_addr{file_addr}
+  {
+  }
+  file_chunk(std::shared_ptr<std::vector<char>> data,
+             ssize_t offset,
+             ssize_t file_addr)
+      : data{std::move(data)}, offset{offset}, file_addr{file_addr}
+  {
+  }
+  file_chunk(const file_chunk&) = delete;
+  file_chunk& operator=(const file_chunk&) = delete;
+  file_chunk(file_chunk&& other)
+  {
+    data = std::move(other.data);
+    offset = std::move(other.offset);
+    file_addr = std::move(other.file_addr);
+  }
+  file_chunk& operator=(file_chunk&& other)
+  {
+    data = std::move(other.data);
+    offset = std::move(other.offset);
+    file_addr = std::move(other.file_addr);
+
+    return *this;
+  }
+};
+
+static inline send_result HandleCompressedData(channel::out<file_chunk> c,
+                                               thread_pool& pool,
+                                               BareosSocket* sock,
+                                               compression_ctx comp)
+{
+  using fut_opt_chunk = std::future<result<file_chunk>>;
+  auto [in, out] = channel::CreateBufferedChannel<fut_opt_chunk>(10);
+
+  std::shared_ptr chunks = std::make_shared<decltype(out)>(std::move(out));
+  std::future fut
+      = borrow_thread(pool, [chunks = chunks, sock]() -> send_result {
+          std::size_t accumulated = 0;
+          for (std::optional fut = chunks->get(); fut.has_value();
+               fut = chunks->get()) {
+            result chunk = fut->get();
+
+            if (auto* error = chunk.error()) {
+              return std::move(*error);
+            } else {
+              file_chunk& fchunk = chunk.value_unchecked();
+              result ret = SendData(sock, fchunk.offset, fchunk.file_addr,
+                                    *fchunk.data);
+              if (ret.holds_error()) {
+                return ret;
+              } else {
+                accumulated += ret.value_unchecked();
+              }
+              // if (auto* sendres = std::get_if<std::size_t>(&ret)) {
+              //   accumulated += *sendres;
+              // } else {
+              //   return ret;
+              // }
+            }
+          }
+
+          return accumulated;
+        });
+
+  for (std::optional v = c.get(); v.has_value(); v = c.get()) {
+    ssize_t offset = v->offset;
+    ssize_t file_addr = v->file_addr;
+
+    bool error = false;
+
+    if (!in.put(enqueue(
+            pool,
+            [offset, file_addr, data = v->data, comp]() -> result<file_chunk> {
+              result compressed = MakeCompressedData(comp, *data);
+              if (auto* error = compressed.error()) {
+                return std::move(*error);
+              } else {
+                return file_chunk{std::move(compressed.value_unchecked()),
+                                  offset, file_addr};
+              }
+            }))) {
+      error = true;
+    }
+
+    if (error) break;
+  }
+
+  in.close();
+
+  return fut.get();
+}
+static inline send_result HandleUncompressedData(channel::out<file_chunk> c,
+                                                 BareosSocket* sock)
+{
+  std::size_t accumulated{};
+  for (std::optional v = c.get(); v.has_value(); v = c.get()) {
+    std::size_t offset = v->offset;
+    std::size_t file_addr = v->file_addr;
+
+    result ret = SendData(sock, offset, file_addr, *v->data);
+
+    if (ret.holds_error()) {
+      return ret;
+    } else {
+      accumulated += ret.value_unchecked();
+    }
+
+    // if (auto* sendres = std::get_if<std::size_t>(&ret)) {
+    //   accumulated += *sendres;
+    // } else {
+    //   return ret;
+    // }
+  }
+
+  return accumulated;
+}
+
+
+// Send the content of a file on anything but an EFS filesystem.
+static inline bool SendPlainDataSerially(b_ctx& bctx)
+{
+  BareosSocket* sd = bctx.jcr->store_bsock;
+
+  while ((sd->message_length
+          = (uint32_t)bread(&bctx.ff_pkt->bfd, bctx.rbuf, bctx.rsize))
+         > 0) {
+    if (!SendDataToSd(&bctx)) { return false; }
+  }
+
+  return true;
+}
+
+
 // Send the content of a file on anything but an EFS filesystem.
 static inline bool SendPlainData(b_ctx& bctx)
 {
   bool retval = false;
   BareosSocket* sd = bctx.jcr->store_bsock;
 
-  std::deque<std::future<send_result>> futures;
+  // std::deque<std::future<send_result>> futures;
 
   synchronized<BareosSocket*> sock = sd;
 
-  std::size_t file_addr = 0;
   std::size_t max_buf_size = bctx.rsize;
 
   auto file_type = bctx.ff_pkt->type;
   auto file_size = bctx.ff_pkt->statp.st_size;
   auto* flags = bctx.ff_pkt->flags;
 
-  // Read the file data
-  for (;;) {
-    std::shared_ptr shared_buf
-        = std::make_shared<std::vector<char>>(max_buf_size);
-    ssize_t num_read
-        = bread(&bctx.ff_pkt->bfd, shared_buf->data(), shared_buf->size());
+  // Currently we do not support encryption while doing
+  // parallel sending/checksumming/compression/etc.
+  // This is mostly because the encryption function is weird!
+  // FIXME: change this
+  if (BitIsSet(FO_ENCRYPT, flags)
+      || file_size < static_cast<ssize_t>(max_buf_size)) {
+    return SendPlainDataSerially(bctx);
+  }
 
-    if (num_read < 0) {
-      // todo: wait out all futures
-      goto bail_out;
-    }
+  DIGEST* checksum_digest = bctx.digest;
+  DIGEST* signing_digest = bctx.signing_digest;
+
+  thread_pool& pool = bctx.jcr->fd_impl->pool;
+
+  std::optional<compression_ctx> compctx;
+
+  if (BitIsSet(FO_COMPRESS, bctx.ff_pkt->flags)) {
+    compctx = compression_ctx{bctx.ch, bctx.ff_pkt->Compress_algo,
+                              bctx.ff_pkt->Compress_level};
+  }
+
+  auto [in, out] = channel::CreateBufferedChannel<file_chunk>(10);
+
+  std::shared_ptr chunks = std::make_shared<decltype(out)>(std::move(out));
+
+  std::future fut = borrow_thread(
+      pool, [chunks = std::move(chunks), &pool, sock = sd, compctx]() {
+        if (compctx) {
+          return HandleCompressedData(std::move(*chunks), pool, sock,
+                                      compctx.value());
+        } else {
+          return HandleUncompressedData(std::move(*chunks), sock);
+        }
+      });
+
+  ssize_t file_addr = 0;
+  bool sparse_support = BitIsSet(FO_SPARSE, flags);
+  bool offset_support = BitIsSet(FO_OFFSETS, flags);
+
+  std::optional<std::future<void>> checksum, signing;
+
+  for (;;) {
+    std::shared_ptr vec = std::make_shared<std::vector<char>>(max_buf_size);
+    ssize_t num_read = bread(&bctx.ff_pkt->bfd, vec->data(), vec->size());
+
+    if (num_read < 0) { goto bail_out; }
 
     if (num_read == 0) { break; }
 
-    shared_buf->resize(num_read);
+    if (checksum) { checksum->wait(); }
+    if (signing) { signing->wait(); }
 
-    if (futures.size() > 10) {
-      auto result = futures.front().get();
-      futures.pop_front();
+    ASSERT(vec->size() >= static_cast<std::size_t>(num_read));
 
-      if (auto* msg = std::get_if<PoolMem>(&result); msg != nullptr) {
-        if (!bctx.jcr->IsJobCanceled()) {
-          Jmsg1(bctx.jcr, M_FATAL, 0, "%s", msg->c_str());
-        }
+    vec->resize(num_read);
+
+    bool allZeros = false;
+    if (sparse_support
+        && ((vec->size() == max_buf_size
+             && (file_addr + static_cast<ssize_t>(vec->size()) < file_size))
+            || ((file_type == FT_RAW || file_type == FT_FIFO)
+                && (file_size == 0)))) {
+      allZeros = IsBufZero(vec->data(), vec->size());
+    }
+
+
+    if (!allZeros) {
+      ssize_t offset = offset_support ? bctx.ff_pkt->bfd.offset : -1;
+
+      if (checksum_digest) {
+        checksum = enqueue(pool, [digest = checksum_digest, vec] {
+          CryptoDigestUpdate(digest,
+                             reinterpret_cast<std::uint8_t*>(vec->data()),
+                             vec->size());
+        });
+      }
+
+      // Update signing digest if requested
+      if (signing_digest) {
+        signing = enqueue(pool, [digest = signing_digest, vec] {
+          CryptoDigestUpdate(digest,
+                             reinterpret_cast<std::uint8_t*>(vec->data()),
+                             vec->size());
+        });
+      }
+
+      bctx.jcr->ReadBytes += num_read; /* count bytes read */
+      if (!in.put(std::move(
+              file_chunk{vec, offset, sparse_support ? file_addr : -1}))) {
         goto bail_out;
-      } else {
-        auto succ = std::get<send_success>(result);
-        bctx.jcr->ReadBytes += succ.bytes_read; /* count bytes read */
-        bctx.jcr->JobBytes += succ.bytes_send;  /* count bytes saved */
       }
     }
-
-    futures.push_back(
-        enqueue(bctx.jcr->fd_impl->pool,
-                [&sock, max_buf_size, offset = bctx.ff_pkt->bfd.offset,
-                 file_addr, shared_buf, file_type, file_size, flags]() mutable {
-                  return SendData(sock, max_buf_size, offset, file_addr,
-                                  shared_buf, file_type, file_size, flags);
-                }));
-
-    std::optional<std::future<void>> checksum, signing;
-
-    if (bctx.digest) {
-      // todo: skip this if the vector is all zero
-      checksum = enqueue(
-          bctx.jcr->fd_impl->pool, [digest = bctx.digest, shared_buf]() {
-            CryptoDigestUpdate(
-                digest, reinterpret_cast<std::uint8_t*>(shared_buf->data()),
-                shared_buf->size());
-          });
-    }
-
-    // Update signing digest if requested
-    if (bctx.signing_digest) {
-      // todo: skip this if the vector is all zero
-      signing = enqueue(bctx.jcr->fd_impl->pool, [digest = bctx.signing_digest,
-                                                  shared_buf]() {
-        CryptoDigestUpdate(digest,
-                           reinterpret_cast<std::uint8_t*>(shared_buf->data()),
-                           shared_buf->size());
-      });
-    }
-
-    if (checksum) { checksum->get(); }
-
-    if (signing) { signing->get(); }
 
     file_addr += num_read;
   }
   retval = true;
-
 bail_out:
-  for (auto& f : futures) {
-    auto result = f.get();
 
-    if (auto* msg = std::get_if<PoolMem>(&result); msg != nullptr) {
-      if (!bctx.jcr->IsJobCanceled()) {
-        Jmsg1(bctx.jcr, M_FATAL, 0, "%s", msg->c_str());
-      }
-      retval = false;
-    } else {
-      auto succ = std::get<send_success>(result);
-      bctx.jcr->ReadBytes += succ.bytes_read; /* count bytes read */
-      bctx.jcr->JobBytes += succ.bytes_send;  /* count bytes saved */
-    }
+  if (checksum) { checksum->wait(); }
+  if (signing) { signing->wait(); }
+
+  in.close();
+  auto result = fut.get();
+
+  if (auto* error = result.error()) {
+    Jmsg(bctx.jcr, M_FATAL, 0, "%s", error->c_str());
+    retval = false;
+  } else {
+    bctx.jcr->JobBytes += result.value_unchecked(); /* count bytes saved */
   }
+
+
+  // if (auto* error = std::get_if<PoolMem>(&result)) {
+  //   Jmsg(bctx.jcr, M_FATAL, 0, "%s", error->c_str());
+  //   retval = false;
+  // } else {
+  //   auto bytes_send = std::get<std::size_t>(result);
+  //   bctx.jcr->JobBytes += bytes_send; /* count bytes saved */
+  // }
 
   return retval;
 }
