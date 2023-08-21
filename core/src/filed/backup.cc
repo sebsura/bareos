@@ -1148,7 +1148,7 @@ static inline bool SendPlainData(b_ctx& bctx)
     }
 
     futures.push_back(
-        enqueue(bctx.jcr->pool,
+        enqueue(bctx.jcr->fd_impl->pool,
                 [&sock, max_buf_size, offset = bctx.ff_pkt->bfd.offset,
                  file_addr, shared_buf, file_type, file_size, flags]() mutable {
                   return SendData(sock, max_buf_size, offset, file_addr,
@@ -1159,22 +1159,23 @@ static inline bool SendPlainData(b_ctx& bctx)
 
     if (bctx.digest) {
       // todo: skip this if the vector is all zero
-      checksum = enqueue(bctx.jcr->pool, [digest = bctx.digest, shared_buf]() {
-        CryptoDigestUpdate(digest,
-                           reinterpret_cast<std::uint8_t*>(shared_buf->data()),
-                           shared_buf->size());
-      });
+      checksum = enqueue(
+          bctx.jcr->fd_impl->pool, [digest = bctx.digest, shared_buf]() {
+            CryptoDigestUpdate(
+                digest, reinterpret_cast<std::uint8_t*>(shared_buf->data()),
+                shared_buf->size());
+          });
     }
 
     // Update signing digest if requested
     if (bctx.signing_digest) {
       // todo: skip this if the vector is all zero
-      signing = enqueue(
-          bctx.jcr->pool, [digest = bctx.signing_digest, shared_buf]() {
-            CryptoDigestUpdate(
-                digest, reinterpret_cast<std::uint8_t*>(shared_buf->data()),
-                shared_buf->size());
-          });
+      signing = enqueue(bctx.jcr->fd_impl->pool, [digest = bctx.signing_digest,
+                                                  shared_buf]() {
+        CryptoDigestUpdate(digest,
+                           reinterpret_cast<std::uint8_t*>(shared_buf->data()),
+                           shared_buf->size());
+      });
     }
 
     if (checksum) { checksum->get(); }
