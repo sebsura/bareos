@@ -160,10 +160,8 @@ class JobControlRecord {
   uint32_t JobFiles{};          /**< Number of files written, this job */
   uint32_t JobErrors{};         /**< Number of non-fatal errors this job */
   uint32_t JobWarnings{};       /**< Number of warning messages */
-  uint32_t AverageRate{};       /**< Last average bytes/sec */
-  uint32_t LastRate{};            /**< Last sample bytes/sec */
+  uint32_t AverageRate{};       /**< Average bytes/sec */
   uint64_t JobBytes{};          /**< Number of bytes processed this job */
-  uint64_t LastJobBytes{};      /**< Last sample number bytes */
   uint64_t ReadBytes{};         /**< Bytes read -- before compression */
   FileId_t FileId{};            /**< Last FileId used */
   int32_t JobPriority{};        /**< Job priority */
@@ -171,7 +169,6 @@ class JobControlRecord {
   time_t initial_sched_time{};  /**< Original sched time before any reschedules are done */
   time_t start_time{};          /**< When job actually started */
   time_t run_time{};            /**< Used for computing speed */
-  time_t last_time{};           /**< Last sample time */
   time_t end_time{};            /**< Job end time */
   time_t wait_time_sum{};       /**< Cumulative wait time since job start */
   time_t wait_time{};           /**< Timestamp when job have started to wait */
