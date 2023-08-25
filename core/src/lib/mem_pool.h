@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -64,7 +64,7 @@ enum
 #define PM_MAX PM_RECORD /* Number of types */
 
 class PoolMem {
-  char* mem;
+  char* mem{nullptr};
 
  public:
   PoolMem()
@@ -86,9 +86,21 @@ class PoolMem {
   explicit PoolMem(const std::string& str) : PoolMem(str.c_str()) {}
   ~PoolMem()
   {
-    FreePoolMemory(mem);
+    if (mem) FreePoolMemory(mem);
     mem = NULL;
   }
+
+  PoolMem(PoolMem const&) = delete;
+  PoolMem& operator=(PoolMem const&) = delete;
+  PoolMem(PoolMem&& other) : mem{nullptr} { *this = std::move(other); }
+
+  PoolMem& operator=(PoolMem&& other)
+  {
+    std::swap(other.mem, mem);
+    return *this;
+  }
+
+
   char* c_str() const { return mem; }
   POOLMEM*& addr() { return mem; }
   int size() const { return SizeofPoolMemory(mem); }
