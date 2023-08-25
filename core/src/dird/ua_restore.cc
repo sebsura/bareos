@@ -1165,6 +1165,7 @@ static bool AddAllFindex(RestoreContext* rx)
     if (JobId == last_JobId) { continue; /* eliminate duplicate JobIds */ }
     AddFindexAll(rx->bsr.get(), JobId);
     has_jobid = true;
+    last_JobId = JobId;
   }
   return has_jobid;
 }
