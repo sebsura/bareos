@@ -105,9 +105,12 @@ class JobControlRecord {
   int32_t UseCount() const { return use_count_; }
   void InitMutex(void) { pthread_mutex_init(&mutex_, NULL); }
   void DestroyMutex(void) { pthread_mutex_destroy(&mutex_); }
-  bool IsJobCanceled() { return  JobStatus_ == JS_Canceled
-                              || JobStatus_ == JS_ErrorTerminated
-                              || JobStatus_ == JS_FatalError; }
+  bool IsJobCanceled() {
+    auto cached = JobStatus_.load();
+    return cached == JS_Canceled
+      || cached == JS_ErrorTerminated
+      || cached == JS_FatalError;
+  }
 
   bool IsTerminatedOk() { return JobStatus_ == JS_Terminated || JobStatus_ == JS_Warnings; }
   bool IsIncomplete() { return JobStatus_ == JS_Incomplete; }
