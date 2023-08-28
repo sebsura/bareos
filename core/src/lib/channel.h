@@ -24,8 +24,11 @@
 
 #include <condition_variable>
 #include <optional>
-#include <vector>
+#include <deque>
 #include <utility>
+#include <variant>
+
+#include "lib/thread_util.h"
 
 namespace channel {
 // a simple single consumer/ single producer queue
@@ -35,350 +38,287 @@ namespace channel {
 // interact with either the input or the output.
 // This ensures that there is only one producer (who writes to the input)
 // and one consumer (who reads from the output).
-template <typename T> struct in;
 
-template <typename T> struct out;
+struct failed_to_acquire_lock {};
+struct channel_closed {};
 
-template <typename T> struct data {
-  // this contains the actual queue that the in and
-  // out channel use to communicate
-  friend struct in<T>;
-  friend struct out<T>;
+template <typename T> class queue {
+  struct internal {
+    std::deque<T> data;
+    bool in_dead;
+    bool out_dead;
+  };
 
-  data(std::size_t capacity);
+  synchronized<internal> shared{};
+  std::condition_variable in_update{};
+  std::condition_variable out_update{};
+  std::size_t max_size;
 
- private:
-  std::unique_lock<std::mutex> wait_for_readable();
-  std::unique_lock<std::mutex> wait_for_writable();
+ public:
+  queue(std::size_t max_size) : max_size(max_size) {}
 
-  std::size_t size;
-  const std::size_t capacity;
+  using locked_type = decltype(shared.lock());
 
-  // this should become a span once we switch to c++20
-  std::vector<T> storage;
+  class handle {
+    locked_type locked;
+    std::condition_variable* update;
 
-  std::mutex mutex;
-  std::condition_variable cv;
+   public:
+    handle(locked_type locked, std::condition_variable* update)
+        : locked{std::move(locked)}, update(update)
+    {
+    }
 
-  bool in_alive;
-  bool out_alive;
+    std::deque<T>& data() { return locked->data; }
+
+    ~handle()
+    {
+      if (update) { update->notify_one(); }
+    }
+  };
+
+  std::optional<handle> wait_for_readable()
+  {
+    auto locked = shared.lock();
+    locked.wait(in_update, [](const auto& intern) {
+      return intern.data.size() > 0 || intern.in_dead;
+    });
+    if (locked->data.size() == 0) {
+      return std::nullopt;
+    } else {
+      return std::make_optional<handle>(std::move(locked), &out_update);
+    }
+  }
+
+  std::optional<handle> wait_for_writable()
+  {
+    auto locked = shared.lock();
+    locked.wait(out_update, [max_size = max_size](const auto& intern) {
+      return intern.data.size() < max_size || intern.out_dead;
+    });
+    if (locked->out_dead) {
+      return std::nullopt;
+    } else {
+      return std::make_optional<handle>(std::move(locked), &in_update);
+    }
+  }
+
+  using try_result
+      = std::variant<handle, failed_to_acquire_lock, channel_closed>;
+
+  try_result try_read()
+  {
+    auto locked = shared.try_lock();
+    if (!locked) { return failed_to_acquire_lock{}; }
+    if (locked.value()->data.size() == 0) {
+      if (locked.value()->in_dead) {
+        return channel_closed{};
+      } else {
+        return failed_to_acquire_lock{};
+      }
+    }
+
+    return try_result(std::in_place_type<handle>, std::move(locked).value(),
+                      &out_update);
+  }
+
+  try_result try_write()
+  {
+    auto locked = shared.try_lock();
+    if (!locked) { return failed_to_acquire_lock{}; }
+    if (locked.value()->out_dead) { return channel_closed{}; }
+    if (locked.value()->data.size() >= max_size) {
+      return failed_to_acquire_lock{};
+    }
+
+    return try_result(std::in_place_type<handle>, std::move(locked).value(),
+                      &in_update);
+  }
+
+  void close_in()
+  {
+    shared.lock()->in_dead = true;
+    in_update.notify_one();
+  }
+
+  void close_out()
+  {
+    shared.lock()->out_dead = true;
+    out_update.notify_one();
+  }
 };
 
-template <typename T> struct out {
-  std::optional<T> get();
-  std::optional<T> try_get();
-  std::optional<std::vector<T>> get_all();
-  void close();
-  ~out();
+template <typename T> class in {
+  std::shared_ptr<queue<T>> shared;
+  bool did_close{false};
 
-  out(std::shared_ptr<data<T>> shared);
-  out(const out&) = delete;
-  out& operator=(const out&) = delete;
-
-  out(out&& moved) = default;
-  out& operator=(out&& moved) = default;
-
-  bool empty() const { return closed; }
-
- private:
-  T read_unlocked();
-  std::shared_ptr<data<T>> shared;
-  std::size_t read_pos;
-  bool closed;
-};
-
-template <typename T> struct in {
-  bool put(const T& val);
-  bool put(T&& val);
-  bool try_put(T& val);
-  void close();
-  ~in();
-  in(std::shared_ptr<data<T>> shared);
+ public:
+  in(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)} {}
+  in(in&&) = default;
+  in& operator=(in&&) = default;
   in(const in&) = delete;
   in& operator=(const in&) = delete;
 
-  in(in&& moved) = default;
-  in& operator=(in&& moved) = default;
-  void wait_till_empty();
+  template <typename... Args> bool emplace(Args... args)
+  {
+    if (did_close) { return false; }
+    if (auto handle = shared->wait_for_writable()) {
+      handle->data().emplace_back(std::forward<Args>(args)...);
+      return true;
+    } else {
+      close();
+      return false;
+    }
+  }
 
- private:
-  void write_unlocked(T&& val);
-  void write_unlocked(const T& val);
-  std::shared_ptr<data<T>> shared;
-  std::size_t write_pos;
-  bool closed;
+  template <typename Iter> bool insert(Iter start, Iter end)
+  {
+    if (did_close) { return false; }
+    if (auto handle = shared->wait_for_writable()) {
+      handle->data().insert(handle->data().end(), start, end);
+      return true;
+    } else {
+      close();
+      return false;
+    }
+  }
+
+  template <typename... Args> bool try_emplace(Args... args)
+  {
+    if (did_close) { return false; }
+    auto result = shared->try_write();
+    if (std::holds_alternative<failed_to_acquire_lock>(result)) {
+      return false;
+    } else if (std::holds_alternative<channel_closed>(result)) {
+      close();
+      return false;
+    } else {
+      std::get<typename queue<T>::handle>(result).data().emplace_back(
+          std::forward<Args>(args)...);
+      return true;
+    }
+  }
+
+  template <typename Iter> bool try_insert(Iter start, Iter end)
+  {
+    if (did_close) { return false; }
+    auto result = shared->try_write();
+    if (std::holds_alternative<failed_to_acquire_lock>(result)) {
+      return false;
+    } else if (std::holds_alternative<channel_closed>(result)) {
+      close();
+      return false;
+    } else {
+      auto& data = std::get<typename queue<T>::handle>(result).data();
+      data.insert(data.end(), start, end);
+      return true;
+    }
+  }
+
+  void close()
+  {
+    if (!did_close) {
+      shared->close_in();
+      did_close = true;
+    }
+  }
+
+  bool closed() const { return did_close; }
+
+  ~in()
+  {
+    if (shared) { close(); }
+  }
 };
 
-template <typename T>
-std::pair<in<T>, out<T>> CreateBufferedChannel(std::size_t capacity);
+template <typename T> class out {
+  std::shared_ptr<queue<T>> shared;
+  std::deque<T> cache;
+  bool did_close{false};
 
-static inline std::size_t wrapping_inc(std::size_t num, std::size_t max)
-{
-  std::size_t result = num + 1;
-  if (result == max) { result = 0; }
-  return result;
-}
+ public:
+  out(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)} {}
+  out(out&&) = default;
+  out& operator=(out&&) = default;
+  out(const out&) = delete;
+  out& operator=(const out&) = delete;
 
-template <typename T>
-data<T>::data(std::size_t capacity)
-    : size(0)
-    , capacity(capacity)
-    , storage(capacity)
-    , mutex()
-    , cv()
-    , in_alive(false)
-    , out_alive(false)
-{
-}
-
-template <typename T> T out<T>::read_unlocked()
-{
-  shared->size -= 1;
-  auto old = read_pos;
-  read_pos = wrapping_inc(read_pos, shared->capacity);
-  return std::move(shared->storage[old]);
-}
-
-template <typename T> std::unique_lock<std::mutex> data<T>::wait_for_readable()
-{
-  std::unique_lock lock(mutex);
-  cv.wait(lock,
-          // only wake up if either there is
-          // something in the queue, or
-          // the in announced his death
-          [this] { return this->size > 0 || !this->in_alive; });
-
-  return lock;
-}
-
-template <typename T> std::optional<T> out<T>::get()
-{
-  if (closed) return std::nullopt;
-  std::optional<T> result = std::nullopt;
+  std::optional<T> get()
   {
-    auto lock = shared->wait_for_readable();
+    if (did_close) { return std::nullopt; }
+    update_cache();
 
-    if (this->shared->size > 0) {
-      result = std::move(read_unlocked());
+    if (cache.size() > 0) {
+      std::optional result = std::make_optional<T>(std::move(cache.front()));
+      cache.pop_front();
+      return result;
     } else {
-      // if the in is dead and the queue is empty we also close
-      shared->out_alive = false;
-      closed = true;
+      return std::nullopt;
     }
   }
-  shared->cv.notify_one();
-  return result;
-}
 
-template <typename T> std::optional<std::vector<T>> out<T>::get_all()
-{
-  if (closed) return std::nullopt;
-  std::optional<std::vector<T>> result{std::nullopt};
-  auto lock = shared->wait_for_readable();
-
-  if (shared->size > 0) {
-    std::vector<T>& v = result.emplace();
-    v.reserve(shared->size);
-    while (shared->size > 0) { v.emplace_back(std::move(read_unlocked())); }
-  } else {
-    shared->out_alive = false;
-    closed = true;
-  }
-  shared->cv.notify_one();
-
-  return result;
-}
-
-template <typename T> std::optional<T> out<T>::try_get()
-{
-  if (closed) return std::nullopt;
-  std::optional<T> result = std::nullopt;
-  bool had_lock = false;
-  if (std::unique_lock lock(shared->mutex, std::try_to_lock);
-      lock.owns_lock()) {
-    if (this->shared->size > 0) {
-      result = std::move(read_unlocked());
-    } else if (!shared->in_alive) {
-      // if the in is dead and the queue is empty we also close
-      shared->out_alive = false;
-      closed = true;
-    }
-    had_lock = true;
-  }
-  // only notify waiting threads if we actually did something to
-  // the shared state!
-  if (had_lock) shared->cv.notify_one();
-  return result;
-}
-
-template <typename T> void out<T>::close()
-{
-  if (closed) return;
-
+  std::optional<T> try_get()
   {
-    std::unique_lock lock(shared->mutex);
-    shared->out_alive = false;
-    closed = true;
-  }
-  shared->cv.notify_one();
-}
+    if (did_close) { return std::nullopt; }
+    try_update_cache();
 
-template <typename T> out<T>::~out()
-{
-  if (shared) close();
-}
-
-template <typename T>
-out<T>::out(std::shared_ptr<data<T>> shared_)
-    : shared(shared_), read_pos(0), closed(false)
-{
-  std::unique_lock lock(shared->mutex);
-  shared->out_alive = true;
-}
-
-template <typename T> void in<T>::write_unlocked(T&& val)
-{
-  shared->storage[write_pos] = std::move(val);
-  shared->size += 1;
-  write_pos = wrapping_inc(write_pos, shared->capacity);
-}
-
-template <typename T> void in<T>::write_unlocked(const T& val)
-{
-  shared->storage[write_pos] = val;
-  shared->size += 1;
-  write_pos = wrapping_inc(write_pos, shared->capacity);
-}
-
-template <typename T> bool in<T>::try_put(T& val)
-{
-  if (closed) return false;
-  bool success = false;
-  bool updated = false;
-
-  if (std::unique_lock lock(shared->mutex, std::try_to_lock);
-      lock.owns_lock()) {
-    if (!shared->out_alive) {
-      shared->in_alive = false;
-      closed = true;
-      updated = true;
-    } else if (shared->size < shared->capacity) {
-      write_unlocked(std::move(val));
-      success = true;
-      updated = true;
+    if (cache.size() > 0) {
+      std::optional result = std::make_optional<T>(std::move(cache.front()));
+      cache.pop_front();
+      return result;
+    } else {
+      return std::nullopt;
     }
   }
 
-  if (updated) shared->cv.notify_one();
-  return success;
-}
-
-template <typename T> std::unique_lock<std::mutex> data<T>::wait_for_writable()
-{
-  std::unique_lock lock(mutex);
-  cv.wait(lock,
-          [this] { return this->size < this->capacity || !this->out_alive; });
-  return lock;
-}
-
-template <typename T> bool in<T>::put(const T& val)
-{
-  if (closed) return false;
-  bool success = false;
-  auto lock = shared->wait_for_writable();
-
-  if (shared->out_alive) {
-    // since the out is still alive, we know that
-    // there is some space free in the storage
-    // (otherwise we would still be stuck waiting!)
-    write_unlocked(val);
-    success = true;
-  } else {
-    shared->in_alive = false;
-    closed = true;
-  }
-
-  shared->cv.notify_one();
-  return success;
-}
-
-template <typename T> bool in<T>::put(T&& val)
-{
-  if (closed) return false;
-  bool success = false;
-  auto lock = shared->wait_for_writable();
-
-  if (shared->out_alive) {
-    // since the out is still alive, we know that
-    // there is some space free in the storage
-    write_unlocked(std::move(val));
-    success = true;
-  } else {
-    shared->in_alive = false;
-    closed = true;
-  }
-
-  shared->cv.notify_one();
-  return success;
-}
-
-template <typename T> void in<T>::wait_till_empty()
-{
-  if (closed) return;
-
+  void close()
   {
-    std::unique_lock lock(shared->mutex);
-    shared->cv.wait(lock, [this] {
-      return this->shared->size == 0 || !this->shared->out_alive;
-    });
-
-    if (!shared->out_alive) {
-      shared->in_alive = false;
-      closed = true;
+    if (!did_close) {
+      shared->close_out();
+      did_close = true;
     }
   }
-  shared->cv.notify_one();
-}
 
-template <typename T> void in<T>::close()
-{
-  if (closed) return;
+  bool closed() const { return did_close; }
 
+  ~out()
   {
-    std::unique_lock lock(shared->mutex);
-    shared->in_alive = false;
-    closed = true;
+    if (shared) { close(); }
   }
-  shared->cv.notify_one();
-}
 
-template <typename T> in<T>::~in()
-{
-  if (shared) { close(); }
-}
+ private:
+  void update_cache()
+  {
+    if (cache.empty()) {
+      if (auto handle = shared->wait_for_readable()) {
+        std::swap(handle->data(), cache);
+      } else {
+        // this can only happen if the channel was closed.
+        close();
+      }
+    }
+  }
 
-template <typename T>
-in<T>::in(std::shared_ptr<data<T>> shared_)
-    : shared(shared_), write_pos(0), closed(false)
-{
-  std::unique_lock lock(shared->mutex);
-  shared->in_alive = true;
-}
+  void try_update_cache()
+  {
+    if (cache.empty()) {
+      auto result = shared->try_read();
+      if (std::holds_alternative<failed_to_acquire_lock>(result)) {
+        // intentionally left empty
+      } else if (std::holds_alternative<channel_closed>(result)) {
+        close();
+      } else {
+        std::swap(std::get<typename queue<T>::handle>(result).data(), cache);
+      }
+    }
+  }
+};
 
 template <typename T>
 std::pair<in<T>, out<T>> CreateBufferedChannel(std::size_t capacity)
 {
-  if (capacity == 0) {
-    Dmsg0(100,
-          "Tried to create a channel with zero capacity.  This will cause "
-          "deadlocks."
-          "  Setting capacity to 1.");
-    capacity = 1;
-  }
-  std::shared_ptr<data<T>> shared = std::make_shared<data<T>>(capacity);
-  in<T> in(shared);
-  out<T> out(shared);
-  return {std::move(in), std::move(out)};
+  auto shared = std::make_shared<queue<T>>(capacity);
+  return std::make_pair(shared, shared);
 }
 }  // namespace channel
 

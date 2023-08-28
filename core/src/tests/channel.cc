@@ -42,7 +42,7 @@ template <typename T>
 static void SendDataBlocking(const std::vector<T>* to_send, channel::in<T> in)
 {
   for (auto& elem : *to_send) {
-    ASSERT_TRUE(in.put(elem)) << "channel closed unexpectedly";
+    ASSERT_TRUE(in.emplace(elem)) << "channel closed unexpectedly";
   }
 }
 
@@ -59,8 +59,8 @@ static void SendDataNonBlocking(const std::vector<T>* to_send,
                                 channel::in<T> in)
 {
   for (auto elem : *to_send) {
-    while (!in.try_put(elem)) {
-      ASSERT_FALSE(in.closed) << "channel closed unexpectedly";
+    while (!in.try_emplace(elem)) {
+      ASSERT_FALSE(in.closed()) << "channel closed unexpectedly";
     }
   }
 }
@@ -69,20 +69,21 @@ template <typename T>
 static void ReceiveDataNonBlocking(std::vector<T>* to_receive,
                                    channel::out<T> out)
 {
-  for (std::optional elem = out.try_get(); elem.has_value() || !out.empty();
+  for (std::optional elem = out.try_get(); elem.has_value() || !out.closed();
        elem = out.try_get()) {
     if (elem.has_value()) { to_receive->push_back(elem.value()); }
   }
 }
 
-template <typename T>
-static void ReceiveDataChunked(std::vector<T>* to_receive, channel::out<T> out)
-{
-  for (std::optional elems = out.get_all(); elems.has_value();
-       elems = out.get_all()) {
-    for (auto& elem : elems.value()) { to_receive->push_back(elem); }
-  }
-}
+// template <typename T>
+// static void ReceiveDataChunked(std::vector<T>* to_receive, channel::out<T>
+// out)
+// {
+//   for (std::optional elems = out.get_all(); elems.has_value();
+//        elems = out.get_all()) {
+//     for (auto& elem : elems.value()) { to_receive->push_back(elem); }
+//   }
+// }
 
 std::vector<int> RandomData(std::size_t size)
 {
@@ -115,23 +116,24 @@ TEST(channel, BlockingConsistency)
   }
 }
 
-TEST(channel, ChunkedConsistency)
-{
-  std::size_t size = 100'000;
-  std::vector<int> input = RandomData(size);
-  std::vector<int> output;
-  auto [in, out] = channel::CreateBufferedChannel<int>(40);
-  std::thread sender{&SendDataBlocking<int>, &input, std::move(in)};
-  std::thread receiver{&ReceiveDataChunked<int>, &output, std::move(out)};
+// TEST(channel, ChunkedConsistency)
+// {
+//   std::size_t size = 100'000;
+//   std::vector<int> input = RandomData(size);
+//   std::vector<int> output;
+//   auto [in, out] = channel::CreateBufferedChannel<int>(40);
+//   std::thread sender{&SendDataBlocking<int>, &input, std::move(in)};
+//   std::thread receiver{&ReceiveDataChunked<int>, &output, std::move(out)};
 
-  sender.join();
-  receiver.join();
+//   sender.join();
+//   receiver.join();
 
-  ASSERT_EQ(input.size(), output.size());
-  for (std::size_t i = 0; i < input.size(); ++i) {
-    EXPECT_EQ(input[i], output[i]) << "input and output differ at index " << i;
-  }
-}
+//   ASSERT_EQ(input.size(), output.size());
+//   for (std::size_t i = 0; i < input.size(); ++i) {
+//     EXPECT_EQ(input[i], output[i]) << "input and output differ at index " <<
+//     i;
+//   }
+// }
 
 TEST(channel, NonBlockingConsistency)
 {
@@ -154,22 +156,22 @@ TEST(channel, NonBlockingConsistency)
 TEST(channel, ConsistentState)
 {
   auto [in, out] = channel::CreateBufferedChannel<int>(2);
-  ASSERT_FALSE(in.closed);
-  ASSERT_FALSE(out.closed);
-  ASSERT_TRUE(in.put(1));
-  ASSERT_TRUE(in.put(2));
-  ASSERT_FALSE(in.closed);
-  ASSERT_FALSE(out.closed);
+  ASSERT_FALSE(in.closed());
+  ASSERT_FALSE(out.closed());
+  ASSERT_TRUE(in.emplace(1));
+  ASSERT_TRUE(in.emplace(2));
+  ASSERT_FALSE(in.closed());
+  ASSERT_FALSE(out.closed());
   in.close();
-  EXPECT_TRUE(in.closed);
-  ASSERT_FALSE(out.closed);
+  EXPECT_TRUE(in.closed());
+  ASSERT_FALSE(out.closed());
   EXPECT_TRUE(out.get().has_value());
-  ASSERT_FALSE(out.closed);
+  ASSERT_FALSE(out.closed());
   EXPECT_TRUE(out.get().has_value());
   EXPECT_FALSE(out.get().has_value());
-  EXPECT_TRUE(out.closed);
+  EXPECT_TRUE(out.closed());
 
-  EXPECT_FALSE(in.put(3));
+  EXPECT_FALSE(in.emplace(3));
 }
 
 TEST(channel, NoFalsePutsOrGets)
@@ -183,7 +185,7 @@ TEST(channel, NoFalsePutsOrGets)
 
   std::size_t num_writes = 0;
   for (int i : data_in) {
-    if (in.try_put(i)) { num_writes += 1; }
+    if (in.try_emplace(i)) { num_writes += 1; }
   }
 
   EXPECT_EQ(num_writes, capacity);
@@ -194,7 +196,7 @@ TEST(channel, NoFalsePutsOrGets)
   in.close();
 
   std::vector<int> data_out;
-  for (std::optional i = out.try_get(); i.has_value() || !out.empty();
+  for (std::optional i = out.try_get(); i.has_value() || !out.closed();
        i = out.try_get()) {
     if (i.has_value()) { data_out.push_back(i.value()); }
   }
