@@ -76,8 +76,6 @@ static int FilesetHandler(void* ctx, int num_fields, char** row);
 static bool SelectBackupsBeforeDate(UaContext* ua,
                                     RestoreContext* rx,
                                     char* date);
-static std::optional<TreeContext> BuildDirectoryTree(UaContext* ua,
-                                                     RestoreContext* rx);
 static bool SelectFiles(UaContext* ua,
                         RestoreContext* rx,
                         TreeContext& tree,
