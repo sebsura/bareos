@@ -1162,7 +1162,6 @@ static bool AddAllFindex(RestoreContext* rx)
 std::optional<TreeContext> BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
 {
   // Build the directory tree containing JobIds user selected
-
   tree_ptr ptr{new_tree(rx->TotalFiles)};
 
   TreeContext tree;
