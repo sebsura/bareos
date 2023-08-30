@@ -29,27 +29,40 @@
 template <typename Mutex, template <typename> typename Lock, typename T>
 class locked {
  public:
-  locked(Mutex& mut, T& data) : lock{mut}, data(data) {}
+  locked(Mutex& mut, T* data) : lock{mut}, data(data) {}
+  locked(Lock<Mutex> lock, T* data) : lock{std::move(lock)}, data(data) {}
 
-  locked(Lock<Mutex> lock, T& data) : lock{std::move(lock)}, data(data) {}
+  locked(const locked&) = delete;
+  locked& operator=(const locked&) = delete;
+  locked(locked&& that) : lock(std::move(that.lock)), data(that.data)
+  {
+    that.data = nullptr;
+  }
 
-  const T& get() const { return data; }
-  T& get() { return data; }
+  locked& operator=(locked&& that)
+  {
+    std::swap(lock, that.lock);
+    std::swap(data, that.data);
+    return *this;
+  }
 
-  T* operator->() { return &data; }
-  T& operator*() { return data; }
+  const T& get() const { return *data; }
+  T& get() { return *data; }
 
-  const T* operator->() const { return &data; }
-  const T& operator*() const { return data; }
+  T* operator->() { return data; }
+  T& operator*() { return *data; }
+
+  const T* operator->() const { return data; }
+  const T& operator*() const { return *data; }
 
   template <typename Pred> void wait(std::condition_variable& cv, Pred&& p)
   {
-    cv.wait(lock, p);
+    cv.wait(lock, [this, p = std::move(p)] { return p(*data); });
   }
 
  private:
   Lock<Mutex> lock;
-  T& data;
+  T* data;
 };
 
 template <typename T>
@@ -75,19 +88,19 @@ template <typename T> class synchronized {
     std::unique_lock _{mut};
   }
 
-  unique_locked<T> lock() { return {mut, data}; }
+  [[nodiscard]] unique_locked<T> lock() { return {mut, &data}; }
 
-  std::optional<unique_locked<T>> try_lock()
+  [[nodiscard]] std::optional<unique_locked<T>> try_lock()
   {
     std::unique_lock l(mut, std::try_to_lock);
     if (l.owns_lock()) {
-      return unique_locked<T>{std::move(l), data};
+      return unique_locked<T>{std::move(l), &data};
     } else {
       return std::nullopt;
     }
   }
 
-  unique_locked<const T> lock() const { return {mut, data}; }
+  [[nodiscard]] unique_locked<const T> lock() const { return {mut, &data}; }
 
  private:
   mutable std::mutex mut{};
@@ -101,23 +114,23 @@ template <typename T> class rw_synchronized {
   {
   }
 
-  unique_mut_locked<T> wlock() { return {mut, data}; }
-  std::optional<unique_mut_locked<T>> try_wlock()
+  [[nodiscard]] unique_mut_locked<T> wlock() { return {mut, &data}; }
+  [[nodiscard]] std::optional<unique_mut_locked<T>> try_wlock()
   {
     std::unique_lock l(mut, std::try_to_lock);
     if (l.owns_lock()) {
-      return {std::move(l), data};
+      return {std::move(l), &data};
     } else {
       return std::nullopt;
     }
   }
 
-  shared_const_locked<T> rlock() const { return {mut, data}; }
-  std::optional<shared_const_locked<T>> try_rlock() const
+  [[nodiscard]] shared_const_locked<T> rlock() const { return {mut, &data}; }
+  [[nodiscard]] std::optional<shared_const_locked<T>> try_rlock() const
   {
     std::shared_lock l(mut, std::try_to_lock);
     if (l.owns_lock()) {
-      return {std::move(l), data};
+      return {std::move(l), &data};
     } else {
       return std::nullopt;
     }
