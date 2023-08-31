@@ -131,7 +131,8 @@ class MessageHandler {
     enum class type
     {
       HARDEOF,
-      ERROR
+      // both ERROR and SOCKET_ERROR are taken by windows.h
+      INTERNAL_ERROR
     } type;
 
     std::string msg;
@@ -217,7 +218,7 @@ class MessageHandler {
             result = error{error::type::HARDEOF, fd->bstrerror()};
             cont = false;
           } else {
-            result = error{error::type::ERROR, fd->bstrerror()};
+            result = error{error::type::INTERNAL_ERROR, fd->bstrerror()};
             cont = false;
           }
 
