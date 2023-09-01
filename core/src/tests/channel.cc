@@ -75,16 +75,6 @@ static void ReceiveDataNonBlocking(std::vector<T>* to_receive,
   }
 }
 
-// template <typename T>
-// static void ReceiveDataChunked(std::vector<T>* to_receive, channel::out<T>
-// out)
-// {
-//   for (std::optional elems = out.get_all(); elems.has_value();
-//        elems = out.get_all()) {
-//     for (auto& elem : elems.value()) { to_receive->push_back(elem); }
-//   }
-// }
-
 std::vector<int> RandomData(std::size_t size)
 {
   std::vector<int> vec;
@@ -115,25 +105,6 @@ TEST(channel, BlockingConsistency)
     EXPECT_EQ(input[i], output[i]) << "input and output differ at index " << i;
   }
 }
-
-// TEST(channel, ChunkedConsistency)
-// {
-//   std::size_t size = 100'000;
-//   std::vector<int> input = RandomData(size);
-//   std::vector<int> output;
-//   auto [in, out] = channel::CreateBufferedChannel<int>(40);
-//   std::thread sender{&SendDataBlocking<int>, &input, std::move(in)};
-//   std::thread receiver{&ReceiveDataChunked<int>, &output, std::move(out)};
-
-//   sender.join();
-//   receiver.join();
-
-//   ASSERT_EQ(input.size(), output.size());
-//   for (std::size_t i = 0; i < input.size(); ++i) {
-//     EXPECT_EQ(input[i], output[i]) << "input and output differ at index " <<
-//     i;
-//   }
-// }
 
 TEST(channel, NonBlockingConsistency)
 {

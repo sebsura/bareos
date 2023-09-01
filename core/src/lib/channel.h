@@ -77,7 +77,7 @@ template <typename T> class queue {
     }
   };
 
-  std::optional<handle> wait_for_readable()
+  std::optional<handle> read_lock()
   {
     auto locked = shared.lock();
     locked.wait(in_update, [](const auto& intern) {
@@ -90,7 +90,7 @@ template <typename T> class queue {
     }
   }
 
-  std::optional<handle> wait_for_writable()
+  std::optional<handle> write_lock()
   {
     auto locked = shared.lock();
     locked.wait(out_update, [max_size = max_size](const auto& intern) {
@@ -106,7 +106,7 @@ template <typename T> class queue {
   using try_result
       = std::variant<handle, failed_to_acquire_lock, channel_closed>;
 
-  try_result try_read()
+  try_result try_read_lock()
   {
     auto locked = shared.try_lock();
     if (!locked) { return failed_to_acquire_lock{}; }
@@ -122,7 +122,7 @@ template <typename T> class queue {
                       &out_update);
   }
 
-  try_result try_write()
+  try_result try_write_lock()
   {
     auto locked = shared.try_lock();
     if (!locked) { return failed_to_acquire_lock{}; }
@@ -162,20 +162,8 @@ template <typename T> class in {
   template <typename... Args> bool emplace(Args... args)
   {
     if (did_close) { return false; }
-    if (auto handle = shared->wait_for_writable()) {
+    if (auto handle = shared->write_lock()) {
       handle->data().emplace_back(std::forward<Args>(args)...);
-      return true;
-    } else {
-      close();
-      return false;
-    }
-  }
-
-  template <typename Iter> bool insert(Iter start, Iter end)
-  {
-    if (did_close) { return false; }
-    if (auto handle = shared->wait_for_writable()) {
-      handle->data().insert(handle->data().end(), start, end);
       return true;
     } else {
       close();
@@ -186,7 +174,7 @@ template <typename T> class in {
   template <typename... Args> bool try_emplace(Args... args)
   {
     if (did_close) { return false; }
-    auto result = shared->try_write();
+    auto result = shared->try_write_lock();
     if (std::holds_alternative<failed_to_acquire_lock>(result)) {
       return false;
     } else if (std::holds_alternative<channel_closed>(result)) {
@@ -195,22 +183,6 @@ template <typename T> class in {
     } else {
       std::get<typename queue<T>::handle>(result).data().emplace_back(
           std::forward<Args>(args)...);
-      return true;
-    }
-  }
-
-  template <typename Iter> bool try_insert(Iter start, Iter end)
-  {
-    if (did_close) { return false; }
-    auto result = shared->try_write();
-    if (std::holds_alternative<failed_to_acquire_lock>(result)) {
-      return false;
-    } else if (std::holds_alternative<channel_closed>(result)) {
-      close();
-      return false;
-    } else {
-      auto& data = std::get<typename queue<T>::handle>(result).data();
-      data.insert(data.end(), start, end);
       return true;
     }
   }
@@ -290,7 +262,7 @@ template <typename T> class out {
   void update_cache()
   {
     if (cache.empty()) {
-      if (auto handle = shared->wait_for_readable()) {
+      if (auto handle = shared->read_lock()) {
         std::swap(handle->data(), cache);
       } else {
         // this can only happen if the channel was closed.
@@ -302,7 +274,7 @@ template <typename T> class out {
   void try_update_cache()
   {
     if (cache.empty()) {
-      auto result = shared->try_read();
+      auto result = shared->try_read_lock();
       if (std::holds_alternative<failed_to_acquire_lock>(result)) {
         // intentionally left empty
       } else if (std::holds_alternative<channel_closed>(result)) {
