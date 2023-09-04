@@ -24,7 +24,7 @@
 
 #include <condition_variable>
 #include <optional>
-#include <deque>
+#include <vector>
 #include <utility>
 #include <variant>
 
@@ -44,7 +44,7 @@ struct channel_closed {};
 
 template <typename T> class queue {
   struct internal {
-    std::deque<T> data;
+    std::vector<T> data;
     bool in_dead;
     bool out_dead;
   };
@@ -69,7 +69,7 @@ template <typename T> class queue {
     {
     }
 
-    std::deque<T>& data() { return locked->data; }
+    std::vector<T>& data() { return locked->data; }
 
     ~handle()
     {
@@ -190,6 +190,7 @@ template <typename T> class in {
 
  public:
   in(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)} {}
+  // after move only operator= and ~in are allowed to be called
   in(in&&) = default;
   in& operator=(in&&) = default;
   in(const in&) = delete;
@@ -241,11 +242,13 @@ template <typename T> class in {
 
 template <typename T> class out {
   std::shared_ptr<queue<T>> shared;
-  std::deque<T> cache;
+  std::vector<T> cache;
+  std::size_t cache_iter{0};
   bool did_close{false};
 
  public:
   out(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)} {}
+  // after move only operator= and ~out are allowed to be called
   out(out&&) = default;
   out& operator=(out&&) = default;
   out(const out&) = delete;
@@ -256,9 +259,9 @@ template <typename T> class out {
     if (did_close) { return std::nullopt; }
     update_cache();
 
-    if (cache.size() > 0) {
-      std::optional result = std::make_optional<T>(std::move(cache.front()));
-      cache.pop_front();
+    if (cache.size() > cache_iter) {
+      std::optional result
+          = std::make_optional<T>(std::move(cache[cache_iter++]));
       return result;
     } else {
       return std::nullopt;
@@ -270,9 +273,9 @@ template <typename T> class out {
     if (did_close) { return std::nullopt; }
     try_update_cache();
 
-    if (cache.size() > 0) {
-      std::optional result = std::make_optional<T>(std::move(cache.front()));
-      cache.pop_front();
+    if (cache.size() > cache_iter) {
+      std::optional result
+          = std::make_optional<T>(std::move(cache[cache_iter++]));
       return result;
     } else {
       return std::nullopt;
@@ -282,6 +285,8 @@ template <typename T> class out {
   void close()
   {
     if (!did_close) {
+      cache.clear();
+      cache_iter = 0;
       shared->close_out();
       did_close = true;
     }
@@ -295,11 +300,18 @@ template <typename T> class out {
   }
 
  private:
+  void do_update_cache(std::vector<T>& data)
+  {
+    cache.clear();
+    cache_iter = 0;
+    std::swap(data, cache);
+  }
+
   void update_cache()
   {
-    if (cache.empty()) {
+    if (cache_iter == cache.size()) {
       if (auto handle = shared->read_lock()) {
-        std::swap(handle->data(), cache);
+        do_update_cache(handle->data());
       } else {
         // this can only happen if the channel was closed.
         close();
@@ -309,14 +321,15 @@ template <typename T> class out {
 
   void try_update_cache()
   {
-    if (cache.empty()) {
+    if (cache_iter == cache.size()) {
       auto result = shared->try_read_lock();
       if (std::holds_alternative<failed_to_acquire_lock>(result)) {
         // intentionally left empty
       } else if (std::holds_alternative<channel_closed>(result)) {
         close();
       } else {
-        std::swap(std::get<typename queue<T>::handle>(result).data(), cache);
+        auto& handle = std::get<typename queue<T>::handle>(result);
+        do_update_cache(handle.data());
       }
     }
   }
