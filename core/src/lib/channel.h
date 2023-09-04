@@ -56,6 +56,10 @@ template <typename T> class queue {
 
  public:
   queue(std::size_t max_size) : max_size(max_size) {}
+  queue(const queue&) = delete;
+  queue& operator=(const queue&) = delete;
+  queue(queue&&) = delete;
+  queue& operator=(queue&&) = delete;
 
   using locked_type = decltype(shared.lock());
 
@@ -68,13 +72,14 @@ template <typename T> class queue {
         : locked{std::move(locked)}, update(update)
     {
     }
+    handle(const handle&) = delete;
+    handle& operator=(const handle&) = delete;
+    handle(handle&&) = delete;
+    handle& operator=(handle&&) = delete;
 
     std::vector<T>& data() { return locked->data; }
 
-    ~handle()
-    {
-      if (update) { update->notify_one(); }
-    }
+    ~handle() { update->notify_one(); }
   };
 
   /* the *_lock functions return std::nullopt only if the channel is closed
