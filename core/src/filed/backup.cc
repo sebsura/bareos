@@ -1256,7 +1256,7 @@ static inline bool SendPlainData(b_ctx& bctx)
 
               if (*comp_size > std::numeric_limits<std::uint32_t>::max()) {
                 PoolMem error;
-                Mmsg(error, "Compressed size to big (%lu > %lu)", *comp_size,
+                Mmsg(error, "Compressed size to big (%llu > %llu)", *comp_size,
                      std::numeric_limits<std::uint32_t>::max());
                 return error;
               }
