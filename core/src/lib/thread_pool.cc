@@ -115,9 +115,6 @@ void thread_pool::borrow_thread(task&& t)
   });
 }
 
-
-#include <assert.h>
-
 void thread_pool::pool_work(std::size_t id, thread_pool* pool)
 {
   // id is kept here for debugging purposes.
