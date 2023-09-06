@@ -85,8 +85,6 @@ class Globbing : public testing::Test {
  protected:
   void SetUp() override
   {
-    tree.root = new_tree(1);
-    tree.node = (TREE_NODE*)tree.root;
     me = new DirectorResource;
     ua = new_ua_context(&jcr);
 
@@ -102,7 +100,7 @@ class Globbing : public testing::Test {
 
   JobControlRecord jcr{};
   UaContext* ua{nullptr};
-  TreeContext tree;
+  TreeContext tree{true, ua, 1};
 
   const std::vector<std::string> files
       = {"/some/weirdfiles/normalefile",
