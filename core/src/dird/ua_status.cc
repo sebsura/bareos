@@ -1684,7 +1684,7 @@ static void StatusSlots(UaContext* ua, StorageResource* store)
                           "?", "?");
               continue;
             }
-            FALLTHROUGH_INTENDED;
+            [[fallthrough]];
           case slot_status_t::kSlotStatusFull: {
             /* We get here for all slots with content and for empty
              * slots with their volume loaded in a drive. */
