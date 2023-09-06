@@ -822,7 +822,7 @@ static void StoreFname(LEX* lc, ResourceItem*, int pass, bool)
                     lc->str);
           return;
         }
-        FALLTHROUGH_INTENDED;
+        [[fallthrough]];
       case BCT_QUOTED_STRING: {
         FilesetResource* res_fs = GetStaticFilesetResource();
         if (res_fs->have_MD5) {
@@ -871,7 +871,7 @@ static void StorePluginName(LEX* lc, ResourceItem*, int pass, bool exclude)
                     lc->str);
           return;
         }
-        FALLTHROUGH_INTENDED;
+        [[fallthrough]];
       case BCT_QUOTED_STRING: {
         FilesetResource* res_fs = GetStaticFilesetResource();
 
