@@ -1162,12 +1162,10 @@ static bool AddAllFindex(RestoreContext* rx)
 std::optional<TreeContext> BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
 {
   // Build the directory tree containing JobIds user selected
-  tree_ptr ptr{new_tree(rx->TotalFiles)};
+  TreeContext tree(rx->all, ua, rx->TotalFiles);
 
-  TreeContext tree;
-  tree.root = ptr.get();
-  tree.ua = ua;
-  tree.all = rx->all;
+  // delete tree.root on error return
+  tree_ptr ptr{tree.root};
 
   /* For display purposes, the same JobId, with different volumes may
    * appear more than once, however, we only insert it once. */
