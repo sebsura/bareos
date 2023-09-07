@@ -1595,14 +1595,14 @@ bool MessagesResource::PrintConfig(OutputFormatterResource& send,
   if (!msgres->mail_cmd_.empty()) {
     PoolMem esc;
 
-    EscapeString(esc, msgres->mail_cmd_.c_str(), msgres->mail_cmd_.size());
+    EscapeConfigString(esc, msgres->mail_cmd_.c_str(), msgres->mail_cmd_.size());
     send.KeyQuotedString("MailCommand", esc.c_str());
   }
 
   if (!msgres->operator_cmd_.empty()) {
     PoolMem esc;
 
-    EscapeString(esc, msgres->operator_cmd_.c_str(),
+    EscapeConfigString(esc, msgres->operator_cmd_.c_str(),
                  msgres->operator_cmd_.size());
     send.KeyQuotedString("OperatorCommand", esc.c_str());
   }
@@ -1610,7 +1610,7 @@ bool MessagesResource::PrintConfig(OutputFormatterResource& send,
   if (!msgres->timestamp_format_.empty()) {
     PoolMem esc;
 
-    EscapeString(esc, msgres->timestamp_format_.c_str(),
+    EscapeConfigString(esc, msgres->timestamp_format_.c_str(),
                  msgres->timestamp_format_.size());
     send.KeyQuotedString("TimestampFormat", esc.c_str());
   }
@@ -1839,7 +1839,7 @@ void BareosResource::PrintResourceItem(ResourceItem& item,
       if (p == nullptr) {
         send.KeyQuotedString(item.name, nullptr, inherited);
       } else {
-        EscapeString(temp, p, strlen(p));
+        EscapeConfigString(temp, p, strlen(p));
         send.KeyQuotedString(item.name, temp.c_str(), inherited);
       }
       break;
