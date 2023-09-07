@@ -40,7 +40,7 @@ std::string BuildRestoreCommandString(const RestoreContext& rx,
                                       const char* catalog_resource_name,
                                       const char* restore_bootstrap, bool yes_keyword);
 
-bool FindRestoreJobs(RestoreContext& rx);
+std::vector<directordaemon::JobResource *> GetRestoreJobs();
 std::optional<TreeContext> BuildDirectoryTree(UaContext* ua,
                                               RestoreContext* rx);
 void FinishSelection(RestoreContext* rx, TreeContext& tree);
