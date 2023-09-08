@@ -249,8 +249,8 @@ template <typename T> class input {
 
 template <typename T> class output {
   std::shared_ptr<queue<T>> shared;
-  std::vector<T> cache;
-  std::size_t cache_iter{0};
+  std::vector<T> cache{};
+  typename decltype(cache)::iterator cache_iter = cache.begin();
   bool did_close{false};
 
  public:
@@ -268,9 +268,8 @@ template <typename T> class output {
     if (did_close) { return std::nullopt; }
     update_cache();
 
-    if (cache.size() > cache_iter) {
-      std::optional result
-          = std::make_optional<T>(std::move(cache[cache_iter++]));
+    if (cache_iter != cache.end()) {
+      std::optional result = std::make_optional<T>(std::move(*cache_iter++));
       return result;
     } else {
       return std::nullopt;
@@ -282,9 +281,8 @@ template <typename T> class output {
     if (did_close) { return std::nullopt; }
     try_update_cache();
 
-    if (cache.size() > cache_iter) {
-      std::optional result
-          = std::make_optional<T>(std::move(cache[cache_iter++]));
+    if (cache_iter != cache.end()) {
+      std::optional result = std::make_optional<T>(std::move(*cache_iter++));
       return result;
     } else {
       return std::nullopt;
@@ -295,7 +293,7 @@ template <typename T> class output {
   {
     if (!did_close) {
       cache.clear();
-      cache_iter = 0;
+      cache_iter = cache.begin();
       shared->close_out();
       did_close = true;
     }
@@ -312,13 +310,13 @@ template <typename T> class output {
   void do_update_cache(std::vector<T>& data)
   {
     cache.clear();
-    cache_iter = 0;
     std::swap(data, cache);
+    cache_iter = cache.begin();
   }
 
   void update_cache()
   {
-    if (cache_iter == cache.size()) {
+    if (cache_iter == cache.end()) {
       if (auto handle = shared->output_lock()) {
         do_update_cache(handle->data());
       } else {
@@ -330,7 +328,7 @@ template <typename T> class output {
 
   void try_update_cache()
   {
-    if (cache_iter == cache.size()) {
+    if (cache_iter == cache.end()) {
       auto result = shared->try_output_lock();
       if (std::holds_alternative<failed_to_acquire_lock>(result)) {
         // intentionally left empty
