@@ -81,10 +81,10 @@ template <typename T> class synchronized {
 
   ~synchronized()
   {
-    // obviously nobody should hold the lock while this object is getting
-    // destructed, but we still need to ensure that the thread that
-    // is destroying this object has a synchronized view of the contained data
-    // so that datas destructor can run with no race conditions.
+    /* obviously nobody should hold the lock while this object is getting
+     * destroyed, but we still need to ensure that the thread that
+     * is destroying this object has a synchronized view of the contained data
+     * so that data's destructor can run with no race conditions. */
     std::unique_lock _{mut};
   }
 
