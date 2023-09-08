@@ -39,7 +39,8 @@
 
 
 template <typename T>
-static void SendDataBlocking(const std::vector<T>* to_send, channel::in<T> in)
+static void SendDataBlocking(const std::vector<T>* to_send,
+                             channel::input<T> in)
 {
   for (auto& elem : *to_send) {
     ASSERT_TRUE(in.emplace(elem)) << "channel closed unexpectedly";
@@ -47,7 +48,8 @@ static void SendDataBlocking(const std::vector<T>* to_send, channel::in<T> in)
 }
 
 template <typename T>
-static void ReceiveDataBlocking(std::vector<T>* to_receive, channel::out<T> out)
+static void ReceiveDataBlocking(std::vector<T>* to_receive,
+                                channel::output<T> out)
 {
   for (std::optional elem = out.get(); elem.has_value(); elem = out.get()) {
     to_receive->push_back(elem.value());
@@ -56,7 +58,7 @@ static void ReceiveDataBlocking(std::vector<T>* to_receive, channel::out<T> out)
 
 template <typename T>
 static void SendDataNonBlocking(const std::vector<T>* to_send,
-                                channel::in<T> in)
+                                channel::input<T> in)
 {
   for (auto elem : *to_send) {
     while (!in.try_emplace(elem)) {
@@ -67,7 +69,7 @@ static void SendDataNonBlocking(const std::vector<T>* to_send,
 
 template <typename T>
 static void ReceiveDataNonBlocking(std::vector<T>* to_receive,
-                                   channel::out<T> out)
+                                   channel::output<T> out)
 {
   for (std::optional elem = out.try_get(); elem.has_value() || !out.closed();
        elem = out.try_get()) {

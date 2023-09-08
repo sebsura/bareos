@@ -189,17 +189,17 @@ template <typename T> class queue {
   }
 };
 
-template <typename T> class in {
+template <typename T> class input {
   std::shared_ptr<queue<T>> shared;
   bool did_close{false};
 
  public:
-  in(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)} {}
+  input(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)} {}
   // after move only operator= and ~in are allowed to be called
-  in(in&&) = default;
-  in& operator=(in&&) = default;
-  in(const in&) = delete;
-  in& operator=(const in&) = delete;
+  input(input&&) = default;
+  input& operator=(input&&) = default;
+  input(const input&) = delete;
+  input& operator=(const input&) = delete;
 
   template <typename... Args> bool emplace(Args... args)
   {
@@ -239,25 +239,25 @@ template <typename T> class in {
 
   bool closed() const { return did_close; }
 
-  ~in()
+  ~input()
   {
     if (shared) { close(); }
   }
 };
 
-template <typename T> class out {
+template <typename T> class output {
   std::shared_ptr<queue<T>> shared;
   std::vector<T> cache;
   std::size_t cache_iter{0};
   bool did_close{false};
 
  public:
-  out(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)} {}
+  output(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)} {}
   // after move only operator= and ~out are allowed to be called
-  out(out&&) = default;
-  out& operator=(out&&) = default;
-  out(const out&) = delete;
-  out& operator=(const out&) = delete;
+  output(output&&) = default;
+  output& operator=(output&&) = default;
+  output(const output&) = delete;
+  output& operator=(const output&) = delete;
 
   std::optional<T> get()
   {
@@ -299,7 +299,7 @@ template <typename T> class out {
 
   bool closed() const { return did_close; }
 
-  ~out()
+  ~output()
   {
     if (shared) { close(); }
   }
@@ -341,7 +341,7 @@ template <typename T> class out {
 };
 
 template <typename T>
-std::pair<in<T>, out<T>> CreateBufferedChannel(std::size_t capacity)
+std::pair<input<T>, output<T>> CreateBufferedChannel(std::size_t capacity)
 {
   auto shared = std::make_shared<queue<T>>(capacity);
   return std::make_pair(shared, shared);
