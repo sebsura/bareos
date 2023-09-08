@@ -89,7 +89,7 @@ template <typename T> class queue {
    * from the other side. */
 
 
-  std::optional<handle> read_lock()
+  std::optional<handle> output_lock()
   {
     auto locked = shared.lock();
     if (locked->out_dead) {
@@ -110,7 +110,7 @@ template <typename T> class queue {
     }
   }
 
-  std::optional<handle> write_lock()
+  std::optional<handle> input_lock()
   {
     auto locked = shared.lock();
     locked.wait(out_update, [max_size = max_size](const auto& intern) {
@@ -133,7 +133,7 @@ template <typename T> class queue {
   using try_result
       = std::variant<handle, failed_to_acquire_lock, channel_closed>;
 
-  try_result try_read_lock()
+  try_result try_output_lock()
   {
     auto locked = shared.try_lock();
     if (!locked) { return failed_to_acquire_lock{}; }
@@ -156,7 +156,7 @@ template <typename T> class queue {
                       &out_update);
   }
 
-  try_result try_write_lock()
+  try_result try_input_lock()
   {
     auto locked = shared.try_lock();
     if (!locked) { return failed_to_acquire_lock{}; }
@@ -206,7 +206,7 @@ template <typename T> class input {
   template <typename... Args> bool emplace(Args... args)
   {
     if (did_close) { return false; }
-    if (auto handle = shared->write_lock()) {
+    if (auto handle = shared->input_lock()) {
       handle->data().emplace_back(std::forward<Args>(args)...);
       return true;
     } else {
@@ -218,7 +218,7 @@ template <typename T> class input {
   template <typename... Args> bool try_emplace(Args... args)
   {
     if (did_close) { return false; }
-    auto result = shared->try_write_lock();
+    auto result = shared->try_input_lock();
     if (std::holds_alternative<failed_to_acquire_lock>(result)) {
       return false;
     } else if (std::holds_alternative<channel_closed>(result)) {
@@ -319,7 +319,7 @@ template <typename T> class output {
   void update_cache()
   {
     if (cache_iter == cache.size()) {
-      if (auto handle = shared->read_lock()) {
+      if (auto handle = shared->output_lock()) {
         do_update_cache(handle->data());
       } else {
         // this can only happen if the channel was closed.
@@ -331,7 +331,7 @@ template <typename T> class output {
   void try_update_cache()
   {
     if (cache_iter == cache.size()) {
-      auto result = shared->try_read_lock();
+      auto result = shared->try_output_lock();
       if (std::holds_alternative<failed_to_acquire_lock>(result)) {
         // intentionally left empty
       } else if (std::holds_alternative<channel_closed>(result)) {
