@@ -26,7 +26,7 @@
 #include <optional>
 #include <condition_variable>
 
-template <typename Mutex, template <typename> typename Lock, typename T>
+template <typename T, typename Mutex, template <typename> typename Lock>
 class locked {
  public:
   locked(Mutex& mut, T* data) : lock{mut}, data(data) {}
@@ -65,12 +65,12 @@ class locked {
 };
 
 template <typename T>
-using unique_locked = locked<std::mutex, std::unique_lock, T>;
+using unique_locked = locked<T, std::mutex, std::unique_lock>;
 template <typename T>
 using shared_const_locked
-    = locked<std::shared_mutex, std::shared_lock, const T>;
+    = locked<const T, std::shared_mutex, std::shared_lock>;
 template <typename T>
-using unique_mut_locked = locked<std::shared_mutex, std::unique_lock, T>;
+using unique_mut_locked = locked<T, std::shared_mutex, std::unique_lock>;
 
 template <typename T> class synchronized {
  public:
@@ -78,6 +78,7 @@ template <typename T> class synchronized {
   synchronized(Args... args) : data{std::forward<Args>(args)...}
   {
   }
+
   ~synchronized()
   {
     // obviously nobody should hold the lock while this object is getting
