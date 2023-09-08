@@ -55,7 +55,7 @@ template <typename T> class queue {
   std::size_t max_size;
 
  public:
-  queue(std::size_t max_size) : max_size(max_size) {}
+  explicit queue(std::size_t max_size) : max_size(max_size) {}
   queue(const queue&) = delete;
   queue& operator=(const queue&) = delete;
   queue(queue&&) = delete;
@@ -194,7 +194,9 @@ template <typename T> class input {
   bool did_close{false};
 
  public:
-  input(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)} {}
+  explicit input(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)}
+  {
+  }
   // after move only operator= and ~in are allowed to be called
   input(input&&) = default;
   input& operator=(input&&) = default;
@@ -252,7 +254,9 @@ template <typename T> class output {
   bool did_close{false};
 
  public:
-  output(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)} {}
+  explicit output(std::shared_ptr<queue<T>> shared) : shared{std::move(shared)}
+  {
+  }
   // after move only operator= and ~out are allowed to be called
   output(output&&) = default;
   output& operator=(output&&) = default;
@@ -344,7 +348,9 @@ template <typename T>
 std::pair<input<T>, output<T>> CreateBufferedChannel(std::size_t capacity)
 {
   auto shared = std::make_shared<queue<T>>(capacity);
-  return std::make_pair(shared, shared);
+  auto in = input(shared);
+  auto out = output(shared);
+  return {std::move(in), std::move(out)};
 }
 }  // namespace channel
 
