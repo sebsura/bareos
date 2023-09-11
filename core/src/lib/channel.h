@@ -28,7 +28,7 @@
 #include <utility>
 #include <variant>
 
-#include "lib/thread_util.h"
+#include "thread_util.h"
 
 namespace channel {
 // a simple single consumer/ single producer queue
