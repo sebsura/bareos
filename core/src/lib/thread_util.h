@@ -67,10 +67,9 @@ class locked {
 template <typename T>
 using unique_locked = locked<T, std::mutex, std::unique_lock>;
 template <typename T>
-using shared_const_locked
-    = locked<const T, std::shared_mutex, std::shared_lock>;
+using read_locked = locked<const T, std::shared_mutex, std::shared_lock>;
 template <typename T>
-using unique_mut_locked = locked<T, std::shared_mutex, std::unique_lock>;
+using write_locked = locked<T, std::shared_mutex, std::unique_lock>;
 
 template <typename T> class synchronized {
  public:
@@ -114,8 +113,8 @@ template <typename T> class rw_synchronized {
   {
   }
 
-  [[nodiscard]] unique_mut_locked<T> wlock() { return {mut, &data}; }
-  [[nodiscard]] std::optional<unique_mut_locked<T>> try_wlock()
+  [[nodiscard]] write_locked<T> wlock() { return {mut, &data}; }
+  [[nodiscard]] std::optional<write_locked<T>> try_wlock()
   {
     std::unique_lock l(mut, std::try_to_lock);
     if (l.owns_lock()) {
@@ -125,8 +124,8 @@ template <typename T> class rw_synchronized {
     }
   }
 
-  [[nodiscard]] shared_const_locked<T> rlock() const { return {mut, &data}; }
-  [[nodiscard]] std::optional<shared_const_locked<T>> try_rlock() const
+  [[nodiscard]] read_locked<T> rlock() const { return {mut, &data}; }
+  [[nodiscard]] std::optional<read_locked<T>> try_rlock() const
   {
     std::shared_lock l(mut, std::try_to_lock);
     if (l.owns_lock()) {
