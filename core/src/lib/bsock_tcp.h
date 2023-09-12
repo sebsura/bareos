@@ -62,6 +62,7 @@ class BareosSocketTCP : public BareosSocket {
                     int keepalive_interval);
   bool SendPacket(int32_t* hdr, int32_t pktsiz);
   void DumpNetworkMessageToFile(const char* ptr, int nbytes);
+  bool FlushBuffer();
 
  public:
   BareosSocketTCP();
