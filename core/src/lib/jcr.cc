@@ -271,8 +271,6 @@ static void FreeCommonJcr(JobControlRecord* jcr,
   RemoveJcrFromThreadSpecificData(jcr);
   jcr->SetKillable(false);
 
-  jcr->DestroyMutex();
-
   if (jcr->msg_queue) {
     delete jcr->msg_queue;
     jcr->msg_queue = nullptr;
@@ -341,6 +339,8 @@ static void FreeCommonJcr(JobControlRecord* jcr,
     FreePoolMemory(jcr->comment);
     jcr->comment = nullptr;
   }
+
+  jcr->DestroyMutex();
 
   if (!is_destructor_call) { free(jcr); }
 }
