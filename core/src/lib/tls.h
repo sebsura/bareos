@@ -53,6 +53,9 @@ class Tls {
 
   virtual void SetTlsPskClientContext(const PskCredentials& credentials) = 0;
   virtual void SetTlsPskServerContext(ConfigurationParser* config) = 0;
+  virtual void SetTlsPskServerContext(
+      std::unordered_map<std::string, std::string>* vec)
+      = 0;
 
   virtual bool TlsPostconnectVerifyHost(JobControlRecord* jcr, const char* host)
       = 0;

@@ -497,24 +497,44 @@ unsigned int TlsOpenSslPrivate::psk_server_cb(SSL* ssl,
 
   std::string configured_psk;
 
-  ConfigurationParser* config
-      = static_cast<ConfigurationParser*>(SSL_CTX_get_ex_data(
-          openssl_ctx,
-          TlsOpenSslPrivate::SslCtxExDataIndex::kConfigurationParserPtr));
+  void* ptr = SSL_CTX_get_ex_data(
+      openssl_ctx,
+      TlsOpenSslPrivate::SslCtxExDataIndex::kConfigurationParserPtr);
 
-  if (!config) {
-    Dmsg0(100, "Config not set: kConfigurationParserPtr\n");
-    return result;
-  }
+  if (ptr) {
+    ConfigurationParser* config = static_cast<ConfigurationParser*>(ptr);
 
-  if (!config->GetTlsPskByFullyQualifiedResourceName(config, identity,
-                                                     configured_psk)) {
-    Dmsg0(100, "Error, TLS-PSK credentials not found.\n");
+    if (!config) {
+      Dmsg0(100, "Config not set: kConfigurationParserPtr\n");
+      return result;
+    }
+
+    if (!config->GetTlsPskByFullyQualifiedResourceName(config, identity,
+                                                       configured_psk)) {
+      Dmsg0(100, "Error, TLS-PSK credentials not found.\n");
+    } else {
+      int psklen = Bsnprintf((char*)psk_output, max_psk_len, "%s",
+                             configured_psk.c_str());
+      result = (psklen < 0) ? 0 : psklen;
+      Dmsg1(100, "psk_server_cb. result: %d.\n", result);
+    }
   } else {
-    int psklen = Bsnprintf((char*)psk_output, max_psk_len, "%s",
-                           configured_psk.c_str());
-    result = (psklen < 0) ? 0 : psklen;
-    Dmsg1(100, "psk_server_cb. result: %d.\n", result);
+    void* ptr = SSL_CTX_get_ex_data(
+        openssl_ctx, TlsOpenSslPrivate::SslCtxExDataIndex::kMapPtr);
+    auto* map = static_cast<std::unordered_map<std::string, std::string>*>(ptr);
+    if (!map) {
+      Dmsg0(100, "Config not set: kConfigurationParserPtr\n");
+      return result;
+    }
+
+    if (auto found = map->find(identity); found != map->end()) {
+      int psklen = Bsnprintf((char*)psk_output, max_psk_len, "%s",
+                             found->second.c_str());
+      result = (psklen < 0) ? 0 : psklen;
+      Dmsg1(100, "psk_server_cb. result: %d.\n", result);
+    } else {
+      Dmsg0(100, "Error, TLS-PSK credentials not found.\n");
+    }
   }
   return result;
 }

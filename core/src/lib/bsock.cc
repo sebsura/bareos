@@ -472,6 +472,31 @@ bool BareosSocket::TwoWayAuthenticate(JobControlRecord* jcr,
   return auth_success;
 }
 
+bool BareosSocket::DoTlsHandshakeAsAServer(
+    TlsResource* tls_resource,
+    std::unordered_map<std::string, std::string>* map,
+    JobControlRecord* jcr)
+{
+  if (!tls_resource) {
+    Dmsg1(100, "Bad tls resource.\n");
+    return false;
+  }
+
+  if (!ParameterizeAndInitTlsConnectionAsAServer(tls_resource, map)) {
+    return false;
+  }
+
+  if (!DoTlsHandshakeWithClient(&tls_resource->tls_cert_, jcr)) {
+    return false;
+  }
+
+  if (tls_resource->authenticate_) {   /* tls authentication only? */
+    CloseTlsConnectionAndFreeMemory(); /* yes, shutdown tls */
+  }
+
+  return true;
+}
+
 bool BareosSocket::DoTlsHandshakeAsAServer(ConfigurationParser* config,
                                            JobControlRecord* jcr)
 {
@@ -512,6 +537,32 @@ void BareosSocket::ParameterizeTlsCert(Tls* tls_conn_init,
   tls_conn_init->SetCipherSuites(tls_resource->ciphersuites_);
   tls_conn_init->SetVerifyPeer(tls_resource->tls_cert_.verify_peer_);
   tls_conn_init->SetEnableKtls(tls_resource->enable_ktls_);
+}
+
+bool BareosSocket::ParameterizeAndInitTlsConnectionAsAServer(
+    TlsResource* tls_resource,
+    std::unordered_map<std::string, std::string>* map)
+{
+  tls_conn_init.reset(
+      Tls::CreateNewTlsContext(Tls::TlsImplementationType::kTlsOpenSsl));
+  if (!tls_conn_init) {
+    Qmsg0(BareosSocket::jcr(), M_FATAL, 0,
+          _("TLS connection initialization failed.\n"));
+    return false;
+  }
+
+  tls_conn_init->SetTcpFileDescriptor(fd_);
+  tls_conn_init->SetProtocol(tls_resource->protocol_);
+  ParameterizeTlsCert(tls_conn_init.get(), tls_resource);
+
+  tls_conn_init->SetTlsPskServerContext(map);
+  // tls_conn_init->SetTlsPskServerContext(config);
+
+  if (!tls_conn_init->init()) {
+    tls_conn_init.reset();
+    return false;
+  }
+  return true;
 }
 
 bool BareosSocket::ParameterizeAndInitTlsConnectionAsAServer(

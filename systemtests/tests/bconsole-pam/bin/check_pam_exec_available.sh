@@ -1,7 +1,7 @@
 #!/bin/bash
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2019-2022 Bareos GmbH & Co. KG
+#   Copyright (C) 2019-2023 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -36,6 +36,11 @@ export PAM_WRAPPER_SERVICE_DIR=etc/pam.d/bareos_discover_pam_exec
 
 if ! [ -e "${PAM_WRAPPER_SERVICE_DIR}" ]; then
     echo "PAM service file ${PAM_WRAPPER_SERVICE_DIR} not found"
+    exit 1
+fi
+
+if ! [ -e "${PAM_WRAPPER_LIBRARIES}" ]; then
+    echo "PAM libraries not found"
     exit 1
 fi
 

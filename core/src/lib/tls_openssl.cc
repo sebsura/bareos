@@ -68,6 +68,26 @@ void TlsOpenSsl::SetTlsPskClientContext(const PskCredentials& credentials)
   }
 }
 
+void TlsOpenSsl::SetTlsPskServerContext(
+    std::unordered_map<std::string, std::string>* map)
+{
+  if (!d_->openssl_ctx_) {
+    Dmsg0(50, "Could not prepare TLS_PSK SERVER callback (no SSL_CTX)\n");
+  } else if (!map) {
+    Dmsg0(50, "Could not prepare TLS_PSK SERVER callback (no config)\n");
+  } else {
+    // keep a shared_ptr to the current config, so a reload won't
+    // free the memory we're going to use in the private context
+    // d_->config_table_ = config->GetResourcesContainer();
+    SSL_CTX_set_ex_data(d_->openssl_ctx_,
+                        TlsOpenSslPrivate::SslCtxExDataIndex::kMapPtr,
+                        (void*)map);
+
+    SSL_CTX_set_psk_server_callback(d_->openssl_ctx_,
+                                    TlsOpenSslPrivate::psk_server_cb);
+  }
+}
+
 void TlsOpenSsl::SetTlsPskServerContext(ConfigurationParser* config)
 {
   if (!d_->openssl_ctx_) {

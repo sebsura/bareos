@@ -203,6 +203,9 @@ class BareosSocket {
                                         const char* password,
                                         bool initiated_by_remote);
   bool ParameterizeAndInitTlsConnectionAsAServer(ConfigurationParser* config);
+  bool ParameterizeAndInitTlsConnectionAsAServer(
+      TlsResource* tls,
+      std::unordered_map<std::string, std::string>* map);
   bool DoTlsHandshake(TlsPolicy remote_tls_policy,
                       TlsResource* tls_resource,
                       bool initiated_by_remote,
@@ -211,6 +214,10 @@ class BareosSocket {
                       JobControlRecord* jcr);
   bool DoTlsHandshakeAsAServer(ConfigurationParser* config,
                                JobControlRecord* jcr = nullptr);
+  bool DoTlsHandshakeAsAServer(
+      TlsResource* tls,
+      std::unordered_map<std::string, std::string>* map,
+      JobControlRecord* jcr = nullptr);
   bool SetLocking();   /* in bsock.c */
   void ClearLocking(); /* in bsock.c */
   void SetSourceAddress(dlist<IPADDR>* src_addr_list);

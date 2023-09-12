@@ -60,6 +60,8 @@ bareos_add_benchmark(
   bareossql benchmark::benchmark_main
 )
 
+bareos_add_benchmark(bsock LINK_LIBRARIES bareos benchmark::benchmark_main)
+
 bareos_add_benchmark(
   poolmem_fragmentation LINK_LIBRARIES bareos benchmark::benchmark_main
   Threads::Threads
