@@ -100,7 +100,6 @@ static bool get_date(UaContext* ua, char* date, int date_len);
 static bool InsertTableIntoFindexList(UaContext* ua,
                                       RestoreContext* rx,
                                       char* table);
-static void GetAndDisplayBasejobs(UaContext* ua, RestoreContext* rx);
 static bool CheckAndSetFileregex(UaContext* ua,
                                  RestoreContext* rx,
                                  const char* regex);
@@ -243,7 +242,6 @@ bool RestoreCmd(UaContext* ua, const char*)
     case 0: /* error */
       return false;
     case 1: /* selected by jobid */ {
-      GetAndDisplayBasejobs(ua, &rx);
       std::optional<TreeContext> tree = BuildDirectoryTree(ua, &rx);
       if (!tree) {
         ua->SendMsg(T_("Restore not done (Tree could not be built).\n"));
@@ -354,7 +352,7 @@ std::string BuildRestoreCommandString(const RestoreContext& rx,
 }
 
 // Fill the rx->BaseJobIds and display the list
-static void GetAndDisplayBasejobs(UaContext* ua, RestoreContext* rx)
+static std::string GetAndDisplayBasejobs(UaContext* ua, RestoreContext* rx)
 {
   db_list_ctx jobids;
 
@@ -370,7 +368,7 @@ static void GetAndDisplayBasejobs(UaContext* ua, RestoreContext* rx)
                       jobids.GetAsString().c_str());
     ua->db->ListSqlQuery(ua->jcr, query.c_str(), ua->send, HORZ_LIST, true);
   }
-  rx->BaseJobIds = jobids.GetAsString();
+  return jobids.GetAsString();
 }
 
 static bool HasValue(UaContext* ua, int i)
@@ -1197,9 +1195,10 @@ std::optional<TreeContext> BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
     return std::nullopt;
   }
 
-  if (!rx->BaseJobIds.empty()) {
+  std::string BaseJobIds = GetAndDisplayBasejobs(ua, rx);
+  if (!BaseJobIds.empty()) {
     rx->JobIds.append(",");
-    rx->JobIds.append(rx->BaseJobIds);
+    rx->JobIds.append(BaseJobIds);
   }
 
   /* Look at the first JobId on the list (presumably the oldest) and
