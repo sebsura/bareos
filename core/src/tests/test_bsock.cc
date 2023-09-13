@@ -167,13 +167,13 @@ static void clone_a_client_socket(std::shared_ptr<BareosSocket> UA_sock)
   std::string received_msg;
   std::string orig_msg2("cloned-bareos-socket-0987654321");
   std::unique_ptr<BareosSocket> UA_sock2(UA_sock->clone());
-  UA_sock2->recv();
+  EXPECT_GE(UA_sock2->recv(), 0);
   received_msg = UA_sock2->msg;
   EXPECT_STREQ(orig_msg2.c_str(), received_msg.c_str());
   UA_sock2->close();
 
   std::string orig_msg("bareos-socket-1234567890");
-  UA_sock->recv();
+  EXPECT_GE(UA_sock->recv(), 0);
   received_msg = UA_sock->msg;
   EXPECT_STREQ(orig_msg.c_str(), received_msg.c_str());
 }

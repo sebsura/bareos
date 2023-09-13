@@ -296,7 +296,8 @@ int TlsOpenSslPrivate::OpensslVerifyPeer(int preverify_ok,
 
 int TlsOpenSslPrivate::OpensslBsockReadwrite(BareosSocket* bsock,
                                              char* ptr,
-                                             int nbytes,
+                                             int minbytes,
+                                             int maxbytes,
                                              bool write)
 {
   if (!openssl_) {
@@ -310,21 +311,23 @@ int TlsOpenSslPrivate::OpensslBsockReadwrite(BareosSocket* bsock,
   bsock->ClearTimedOut();
   bsock->SetKillable(false);
 
-  int nleft = nbytes;
+  int nleft = minbytes;
+  int spaceleft = maxbytes;
 
   while (nleft > 0) {
     int nwritten = 0;
     if (write) {
-      nwritten = SSL_write(openssl_, ptr, nleft);
+      nwritten = SSL_write(openssl_, ptr, spaceleft);
     } else {
-      nwritten = SSL_read(openssl_, ptr, nleft);
+      nwritten = SSL_read(openssl_, ptr, spaceleft);
     }
 
     int ssl_error = SSL_get_error(openssl_, nwritten);
     switch (ssl_error) {
       case SSL_ERROR_NONE:
         nleft -= nwritten;
-        if (nleft) { ptr += nwritten; }
+        spaceleft -= nwritten;
+        ptr += nwritten;
         break;
       case SSL_ERROR_SYSCALL:
         if (nwritten == -1) {
@@ -372,7 +375,7 @@ cleanup:
   bsock->timer_start = 0;
   bsock->SetKillable(true);
 
-  return nbytes - nleft;
+  return maxbytes - spaceleft;
 }
 
 bool TlsOpenSslPrivate::OpensslBsockSessionStart(BareosSocket* bsock,

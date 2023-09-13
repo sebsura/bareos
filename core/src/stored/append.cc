@@ -240,6 +240,7 @@ class MessageHandler {
 // Append Data sent from File daemon
 bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
 {
+  bs->MakeReadsBuffered();
   int32_t n, file_index, stream, last_file_index, job_elapsed;
   bool ok = true;
   char buf1[100];
@@ -517,6 +518,7 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
       Dmsg0(650, "Enter bnet_get\n");
     }
     Dmsg2(650, "End read loop with %s. Stat=%d\n", what, n);
+    bs->MakeReadsUnBuffered();
 
     // Restore the original data pointer.
     jcr->sd_impl->dcr->rec->data = rec_data;

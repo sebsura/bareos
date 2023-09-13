@@ -45,7 +45,8 @@ class TlsOpenSslPrivate {
 
   int OpensslBsockReadwrite(BareosSocket* bsock,
                             char* ptr,
-                            int nbytes,
+                            int minbytes,
+                            int maxbytes,
                             bool write);
   bool OpensslBsockSessionStart(BareosSocket* bsock, bool server);
 

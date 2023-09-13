@@ -45,7 +45,7 @@ class TlsOpenSsl : public Tls {
 
   bool TlsBsockAccept(BareosSocket* bsock) override;
   int TlsBsockWriten(BareosSocket* bsock, char* ptr, int32_t nbytes) override;
-  int TlsBsockReadn(BareosSocket* bsock, char* ptr, int32_t nbytes) override;
+  int TlsBsockReadn(BareosSocket* bsock, char* ptr, int32_t minbytes, int32_t maxbytes) override;
   bool TlsBsockConnect(BareosSocket* bsock) override;
   void TlsBsockShutdown(BareosSocket* bsock) override;
 

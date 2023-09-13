@@ -39,7 +39,13 @@ class BareosSocketTCP : public BareosSocket {
   static const int32_t max_packet_size = 1000000;
   static const int32_t max_message_len = max_packet_size - header_length;
 
+  bool buffered{false};
   std::vector<char> buffer;
+
+  bool read_buffered{false};
+  int32_t begin{0};
+  int32_t end{0};
+  std::vector<char> read_buf;
   /* methods -- in bsock_tcp.c */
   void FinInit(JobControlRecord* jcr,
                int sockfd,
@@ -63,6 +69,7 @@ class BareosSocketTCP : public BareosSocket {
   bool SendPacket(int32_t* hdr, int32_t pktsiz);
   void DumpNetworkMessageToFile(const char* ptr, int nbytes);
   bool FlushBuffer();
+  int32_t grab_data(char* ptr, int32_t minbytes, int32_t maxbytes);
 
  public:
   BareosSocketTCP();
@@ -79,6 +86,10 @@ class BareosSocketTCP : public BareosSocket {
                char* service,
                int port,
                bool verbose) override;
+  void MakeWritesBuffered() override;
+  void MakeWritesUnBuffered() override;
+  void MakeReadsBuffered() override;
+  void MakeReadsUnBuffered() override;
   int32_t recv() override;
   bool send() override;
   bool fsend(const char*, ...);

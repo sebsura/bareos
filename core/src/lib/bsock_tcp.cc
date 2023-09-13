@@ -39,6 +39,8 @@
 #include "lib/bsock_tcp.h"
 #include "lib/berrno.h"
 
+#include <cstring>
+
 #ifndef ENODATA /* not defined on BSD systems */
 #  define ENODATA EPIPE
 #endif
@@ -57,13 +59,18 @@
 #  define socketClose(fd) ::close(fd)
 #endif
 
-BareosSocketTCP::BareosSocketTCP() : BareosSocket() {}
+BareosSocketTCP::BareosSocketTCP() : BareosSocket()
+				   , read_buf(1024 * 1024)
+{}
 
 BareosSocketTCP::~BareosSocketTCP() { destroy(); }
 
 BareosSocket* BareosSocketTCP::clone()
 {
   BareosSocketTCP* clone = new BareosSocketTCP(*this);
+  clone->begin = 0;
+  clone->end = 0;
+  clone->buffer.clear();
 
   /* do not use memory buffer from copied socket */
   clone->msg = GetPoolMemory(PM_BSOCK);
@@ -442,13 +449,15 @@ inline bool BareosSocketTCP::FlushBuffer()
 
 bool BareosSocketTCP::SendPacket(int32_t* hdr, int32_t pktsiz)
 {
-  if (buffer.size() >= 1024 * 1024) {
-    if (!FlushBuffer()) { return false; }
-  }
+  if (buffered) {
+    if (buffer.size() >= 1024 * 1024) {
+      if (!FlushBuffer()) { return false; }
+    }
 
-  if (pktsiz < 1024 * 1024) {
-    buffer.insert(buffer.end(), (char*)hdr, (char*)hdr + pktsiz);
-    return true;
+    if (pktsiz < 1024 * 1024) {
+      buffer.insert(buffer.end(), (char*)hdr, (char*)hdr + pktsiz);
+      return true;
+    }
   }
 
   if (!FlushBuffer()) { return false; }
@@ -958,23 +967,19 @@ void BareosSocketTCP::destroy()
   }
 }
 
-/*
- * Read a nbytes from the network.
- * It is possible that the total bytes require in several
- * read requests
- */
-int32_t BareosSocketTCP::read_nbytes(char* ptr, int32_t nbytes)
+int32_t BareosSocketTCP::grab_data(char *ptr, int32_t minbytes, int32_t maxbytes)
 {
-  int32_t nleft, nread;
-
+  ASSERT(maxbytes >= minbytes);
 #ifdef HAVE_TLS
-  if (tls_conn) { return (tls_conn->TlsBsockReadn(this, ptr, nbytes)); }
+  if (tls_conn) { return (tls_conn->TlsBsockReadn(this, ptr, minbytes, maxbytes)); }
 #endif /* HAVE_TLS */
 
-  nleft = nbytes;
+  int32_t nleft = minbytes;
+  int32_t spaceleft = maxbytes;
+
   while (nleft > 0) {
     errno = 0;
-    nread = socketRead(fd_, ptr, nleft);
+    auto nread = socketRead(fd_, ptr, spaceleft);
     if (IsTimedOut() || IsTerminated()) { return -1; }
 
 #ifdef HAVE_WIN32
@@ -1004,8 +1009,56 @@ int32_t BareosSocketTCP::read_nbytes(char* ptr, int32_t nbytes)
     if (nread <= 0) { return -1; /* error, or EOF */ }
 
     nleft -= nread;
+    spaceleft -= nread;
     ptr += nread;
     if (UseBwlimit()) { ControlBwlimit(nread); }
+  }
+
+  return maxbytes - spaceleft;
+}
+
+/*
+ * Read a nbytes from the network.
+ * It is possible that the total bytes require in several
+ * read requests
+ */
+int32_t BareosSocketTCP::read_nbytes(char* ptr, int32_t nbytes)
+{
+  ASSERT(nbytes > 0);
+  ASSERT(end >= begin);
+  int32_t nleft = nbytes;
+
+  if (begin != end) {
+    int32_t from_buffer = std::min(end - begin, nleft);
+    std::memcpy(ptr, read_buf.data() + begin, from_buffer);
+    begin += from_buffer;
+    nleft -= from_buffer;
+    ptr += from_buffer;
+
+    if (nleft == 0) {
+      return nbytes;
+    }
+  }
+
+  ASSERT(begin == end);
+
+  if (read_buffered) {
+    int32_t amount = grab_data(read_buf.data(), nleft, read_buf.size());
+    if (amount < 0) {
+      return amount;
+    }
+
+    int32_t towrite = std::min(amount, nleft);
+    std::memcpy(ptr, read_buf.data(), towrite);
+    nleft -= towrite;
+    begin = towrite;
+    end = amount;
+  } else {
+    int32_t amount = grab_data(ptr, nleft, nleft);
+    if (amount < 0) {
+      return amount;
+    }
+    nleft -= amount;
   }
 
   return nbytes - nleft; /* return >= 0 */
@@ -1098,4 +1151,21 @@ bool BareosSocketTCP::ConnectionReceivedTerminateSignal()
   }
   SetBlocking();
   return terminated;
+}
+
+void BareosSocketTCP::MakeWritesBuffered() {
+  buffered = true;
+}
+
+void BareosSocketTCP::MakeWritesUnBuffered() {
+  if (buffered) { FlushBuffer(); }
+  buffered = false;
+}
+
+void BareosSocketTCP::MakeReadsBuffered() {
+  read_buffered = true;
+}
+
+void BareosSocketTCP::MakeReadsUnBuffered() {
+  read_buffered = false;
 }

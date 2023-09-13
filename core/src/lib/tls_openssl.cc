@@ -356,12 +356,13 @@ void TlsOpenSsl::TlsBsockShutdown(BareosSocket* bsock)
 
 int TlsOpenSsl::TlsBsockWriten(BareosSocket* bsock, char* ptr, int32_t nbytes)
 {
-  return d_->OpensslBsockReadwrite(bsock, ptr, nbytes, true);
+  return d_->OpensslBsockReadwrite(bsock, ptr, nbytes, nbytes, true);
 }
 
-int TlsOpenSsl::TlsBsockReadn(BareosSocket* bsock, char* ptr, int32_t nbytes)
+int TlsOpenSsl::TlsBsockReadn(BareosSocket* bsock, char* ptr, int32_t minbytes,
+			      int32_t max_bytes)
 {
-  return d_->OpensslBsockReadwrite(bsock, ptr, nbytes, false);
+  return d_->OpensslBsockReadwrite(bsock, ptr, minbytes, max_bytes, false);
 }
 bool TlsOpenSsl::KtlsSendStatus() { return d_->KtlsSendStatus(); }
 

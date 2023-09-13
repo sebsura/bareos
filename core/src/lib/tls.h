@@ -67,7 +67,7 @@ class Tls {
   virtual bool TlsBsockAccept(BareosSocket* bsock) = 0;
   virtual int TlsBsockWriten(BareosSocket* bsock, char* ptr, int32_t nbytes)
       = 0;
-  virtual int TlsBsockReadn(BareosSocket* bsock, char* ptr, int32_t nbytes) = 0;
+  virtual int TlsBsockReadn(BareosSocket* bsock, char* ptr, int32_t minbytes, int32_t maxbytes) = 0;
   virtual bool TlsBsockConnect(BareosSocket* bsock) = 0;
   virtual void TlsBsockShutdown(BareosSocket* bsock) = 0;
   virtual void TlsLogConninfo(JobControlRecord* jcr,

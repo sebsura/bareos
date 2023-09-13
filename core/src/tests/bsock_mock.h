@@ -66,6 +66,10 @@ class BareosSocketMock : public BareosSocket {
                     char*,
                     int,
                     bool));
+  MOCK_METHOD0(MakeWritesBuffered, void());
+  MOCK_METHOD0(MakeWritesUnBuffered, void());
+  MOCK_METHOD0(MakeReadsBuffered, void());
+  MOCK_METHOD0(MakeReadsUnBuffered, void());
   MOCK_METHOD0(recv, int32_t());
   MOCK_METHOD0(send, bool());
   MOCK_METHOD2(read_nbytes, int32_t(char*, int32_t));
