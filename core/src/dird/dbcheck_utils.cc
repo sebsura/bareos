@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2021-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2021-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -215,7 +215,11 @@ std::vector<int> get_deletable_storageids(
       storage_ids_to_delete.push_back(
           orphaned_storage_ids_list.Id[orphaned_storage_id]);
     }
+    FreeNameList(&device_names);
   }
+
+  FreeNameList(&volume_names);
+  free(orphaned_storage_ids_list.Id);
   return storage_ids_to_delete;
 }
 
