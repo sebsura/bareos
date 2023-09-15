@@ -59,9 +59,7 @@
 #  define socketClose(fd) ::close(fd)
 #endif
 
-BareosSocketTCP::BareosSocketTCP() : BareosSocket()
-				   , read_buf(1024 * 1024)
-{}
+BareosSocketTCP::BareosSocketTCP() : BareosSocket(), read_buf(1024 * 1024) {}
 
 BareosSocketTCP::~BareosSocketTCP() { destroy(); }
 
@@ -454,7 +452,7 @@ bool BareosSocketTCP::SendPacket(int32_t* hdr, int32_t pktsiz)
       if (!FlushBuffer()) { return false; }
     }
 
-    if (pktsiz < 1024 * 1024) {
+    if (pktsiz < 16 * 1024) {
       buffer.insert(buffer.end(), (char*)hdr, (char*)hdr + pktsiz);
       return true;
     }
@@ -967,11 +965,15 @@ void BareosSocketTCP::destroy()
   }
 }
 
-int32_t BareosSocketTCP::grab_data(char *ptr, int32_t minbytes, int32_t maxbytes)
+int32_t BareosSocketTCP::grab_data(char* ptr,
+                                   int32_t minbytes,
+                                   int32_t maxbytes)
 {
   ASSERT(maxbytes >= minbytes);
 #ifdef HAVE_TLS
-  if (tls_conn) { return (tls_conn->TlsBsockReadn(this, ptr, minbytes, maxbytes)); }
+  if (tls_conn) {
+    return (tls_conn->TlsBsockReadn(this, ptr, minbytes, maxbytes));
+  }
 #endif /* HAVE_TLS */
 
   int32_t nleft = minbytes;
@@ -1035,18 +1037,14 @@ int32_t BareosSocketTCP::read_nbytes(char* ptr, int32_t nbytes)
     nleft -= from_buffer;
     ptr += from_buffer;
 
-    if (nleft == 0) {
-      return nbytes;
-    }
+    if (nleft == 0) { return nbytes; }
   }
 
   ASSERT(begin == end);
 
   if (read_buffered) {
     int32_t amount = grab_data(read_buf.data(), nleft, read_buf.size());
-    if (amount < 0) {
-      return amount;
-    }
+    if (amount < 0) { return amount; }
 
     int32_t towrite = std::min(amount, nleft);
     std::memcpy(ptr, read_buf.data(), towrite);
@@ -1055,9 +1053,7 @@ int32_t BareosSocketTCP::read_nbytes(char* ptr, int32_t nbytes)
     end = amount;
   } else {
     int32_t amount = grab_data(ptr, nleft, nleft);
-    if (amount < 0) {
-      return amount;
-    }
+    if (amount < 0) { return amount; }
     nleft -= amount;
   }
 
@@ -1153,19 +1149,14 @@ bool BareosSocketTCP::ConnectionReceivedTerminateSignal()
   return terminated;
 }
 
-void BareosSocketTCP::MakeWritesBuffered() {
-  buffered = true;
-}
+void BareosSocketTCP::MakeWritesBuffered() { buffered = true; }
 
-void BareosSocketTCP::MakeWritesUnBuffered() {
+void BareosSocketTCP::MakeWritesUnBuffered()
+{
   if (buffered) { FlushBuffer(); }
   buffered = false;
 }
 
-void BareosSocketTCP::MakeReadsBuffered() {
-  read_buffered = true;
-}
+void BareosSocketTCP::MakeReadsBuffered() { read_buffered = true; }
 
-void BareosSocketTCP::MakeReadsUnBuffered() {
-  read_buffered = false;
-}
+void BareosSocketTCP::MakeReadsUnBuffered() { read_buffered = false; }
