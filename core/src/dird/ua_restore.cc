@@ -56,9 +56,7 @@
 namespace directordaemon {
 
 struct tree_freer {
-  void operator()(TREE_ROOT* root) const {
-    FreeTree(root);
-  }
+  void operator()(TREE_ROOT* root) const { FreeTree(root); }
 };
 
 using tree_ptr = std::unique_ptr<TREE_ROOT, tree_freer>;
@@ -76,7 +74,8 @@ static int FilesetHandler(void* ctx, int num_fields, char** row);
 static bool SelectBackupsBeforeDate(UaContext* ua,
                                     RestoreContext* rx,
                                     char* date);
-static std::optional<TreeContext> BuildDirectoryTree(UaContext* ua, RestoreContext* rx);
+static std::optional<TreeContext> BuildDirectoryTree(UaContext* ua,
+                                                     RestoreContext* rx);
 static bool SelectFiles(UaContext* ua,
                         RestoreContext* rx,
                         TreeContext& tree,
@@ -115,8 +114,8 @@ static bool FillBootstrapFile(UaContext* ua, RestoreContext& rx)
   if (rx.bsr->JobId) {
     char ed1[50];
     if (!AddVolumeInformationToBsr(ua, rx.bsr.get())) {
-      ua->ErrorMsg(
-          T_("Unable to construct a valid BootStrapRecord. Cannot continue.\n"));
+      ua->ErrorMsg(T_(
+          "Unable to construct a valid BootStrapRecord. Cannot continue.\n"));
       return false;
     }
     if (!(rx.selected_files = WriteBsrFile(ua, rx))) {
@@ -205,7 +204,6 @@ bool RestoreCmd(UaContext* ua, const char*)
   if (!rx.RegexWhere.empty()) {
     if (!ua->AclAccessOk(Where_ACL, rx.RegexWhere.c_str(), true)) {
       ua->ErrorMsg(T_("\"RegexWhere\" specification not authorized.\n"));
-      ua->ErrorMsg(_("\"RegexWhere\" specification not authorized.\n"));
       return false;
     }
   }
@@ -289,9 +287,8 @@ bool RestoreCmd(UaContext* ua, const char*)
 
   BuildRestoreCommandString(ua, rx, job);
   // Transfer jobids to jcr to for picking up restore objects
-  ua->jcr->JobIds = rx.JobIds;
+  ua->jcr->JobIds = std::move(rx.JobIds);
   ua->jcr->dir_impl->restore_tree_root = root.release();
-  rx.JobIds = nullptr;
 
   ParseUaArgs(ua);
   RunCmd(ua, ua->cmd);
@@ -371,7 +368,7 @@ static void GetAndDisplayBasejobs(UaContext* ua, RestoreContext* rx)
 {
   db_list_ctx jobids;
 
-  if (!ua->db->GetUsedBaseJobids(ua->jcr, rx->JobIds, &jobids)) {
+  if (!ua->db->GetUsedBaseJobids(ua->jcr, rx->JobIds.c_str(), &jobids)) {
     ua->WarningMsg("%s", ua->db->strerror());
   }
 
@@ -397,7 +394,6 @@ void RestoreContext::BuildRegexWhere(char* strip_prefix,
 
 RestoreContext::~RestoreContext()
 {
-  FreeAndNullPoolMemory(JobIds);
   FreeAndNullPoolMemory(BaseJobIds);
   FreeAndNullPoolMemory(fname);
   FreeAndNullPoolMemory(path);
@@ -410,8 +406,6 @@ RestoreContext::RestoreContext()
   path[0] = 0;
   fname = GetPoolMemory(PM_FNAME);
   fname[0] = 0;
-  JobIds = GetPoolMemory(PM_FNAME);
-  JobIds[0] = 0;
   BaseJobIds = GetPoolMemory(PM_FNAME);
   BaseJobIds[0] = 0;
   query = GetPoolMemory(PM_FNAME);
@@ -495,7 +489,6 @@ static bool GetRestoreClientName(UaContext* ua, RestoreContext& rx)
  */
 static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
 {
-  const char* p;
   char date[MAX_TIME_LENGTH];
   bool have_date = false;
   /* Include current second if using current time */
@@ -551,7 +544,7 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
                       "archive",       /* 26 */
                       NULL};
 
-  rx->JobIds[0] = 0;
+  rx->JobIds.clear();
 
   std::vector<char*> files;
   std::vector<char*> dirs;
@@ -574,8 +567,8 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
     switch (j) {
       case 0: /* jobid */
         if (!HasValue(ua, i)) { return 0; }
-        if (*rx->JobIds != 0) { PmStrcat(rx->JobIds, ","); }
-        PmStrcat(rx->JobIds, ua->argv[i]);
+        if (!rx->JobIds.empty()) { rx->JobIds.append(","); }
+        rx->JobIds.append(ua->argv[i]);
         bstrncpy(rx->last_jobid, ua->argv[i], sizeof(rx->last_jobid));
         done = true;
         break;
@@ -645,7 +638,7 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
        * then restore all files and filter by fileregex. Before that we
        * need to select the jobids if none were specified. This makes
        * fileregex behave similarly to the file parameter. */
-      if (*rx->JobIds == 0 && !SelectBackupsBeforeDate(ua, rx, date)) {
+      if (rx->JobIds.empty() && !SelectBackupsBeforeDate(ua, rx, date)) {
         return 0;
       }
       return 3;
@@ -718,7 +711,7 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
         if (!GetCmd(ua, T_("Enter JobId(s), comma separated, to restore: "))) {
           return 0;
         }
-        PmStrcpy(rx->JobIds, ua->cmd);
+        rx->JobIds = ua->cmd;
         break;
       case 3: /* Enter an SQL list command */
         if (!ua->AclAccessOk(Command_ACL, NT_("sqlquery"), true)) {
@@ -788,19 +781,18 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
         break;
 
       case 10: /* Enter directories */
-        if (*rx->JobIds != 0) {
+        if (rx->JobIds.empty()) {
           ua->SendMsg(
               T_("You have already selected the following JobIds: %s\n"),
-              rx->JobIds);
+              rx->JobIds.c_str());
         } else if (GetCmd(
                        ua,
                        T_("Enter JobId(s), comma separated, to restore: "))) {
-          if (*rx->JobIds != 0 && *ua->cmd) { PmStrcat(rx->JobIds, ","); }
           bstrncpy(rx->last_jobid, ua->cmd, sizeof(rx->last_jobid));
-          PmStrcat(rx->JobIds, ua->cmd);
+          rx->JobIds = ua->cmd;
         }
-        if (*rx->JobIds == 0 || *rx->JobIds == '.') {
-          *rx->JobIds = 0;
+        if (rx->JobIds.empty() || rx->JobIds[0] == '.') {
+          rx->JobIds.clear();
           return 0; /* nothing entered, return */
         }
         if (!have_date) { bstrutime(date, sizeof(date), now); }
@@ -839,26 +831,24 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
           jr.JobLevel = L_INCREMENTAL; /* Take Full+Diff+Incr */
           if (!ua->db->AccurateGetJobids(ua->jcr, &jr, &jobids)) { return 0; }
         }
-        PmStrcpy(rx->JobIds, jobids.GetAsString().c_str());
-        Dmsg1(30, "Item 12: jobids = %s\n", rx->JobIds);
+        rx->JobIds = jobids.GetAsString();
+        Dmsg1(30, "Item 12: jobids = %s\n", rx->JobIds.c_str());
         break;
       case 12: /* Cancel or quit */
         return 0;
     }
   }
 
-  POOLMEM* JobIds = GetPoolMemory(PM_FNAME);
-  *JobIds = 0;
+  std::string job_ids{};
   rx->TotalFiles = 0;
   /* Find total number of files to be restored, and filter the JobId
    *  list to contain only ones permitted by the ACL conditions. */
   JobDbRecord jr;
-  for (p = rx->JobIds;;) {
+  for (const char* p = rx->JobIds.c_str();;) {
     char ed1[50];
     int status = GetNextJobidFromList(&p, &JobId);
     if (status < 0) {
       ua->ErrorMsg(T_("Invalid JobId in list.\n"));
-      FreePoolMemory(JobIds);
       return 0;
     }
     if (status == 0) { break; }
@@ -868,7 +858,6 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
     if (!ua->db->GetJobRecord(ua->jcr, &jr)) {
       ua->ErrorMsg(T_("Unable to get Job record for JobId=%s: ERR=%s\n"),
                    edit_int64(JobId, ed1), ua->db->strerror());
-      FreePoolMemory(JobIds);
       return 0;
     }
     if (!ua->AclAccessOk(Job_ACL, jr.Name, true)) {
@@ -877,22 +866,19 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
           edit_int64(JobId, ed1), jr.Name);
       continue;
     }
-    if (*JobIds != 0) { PmStrcat(JobIds, ","); }
-    PmStrcat(JobIds, edit_int64(JobId, ed1));
+    if (!job_ids.empty()) { job_ids.append(","); }
+    job_ids.append(std::to_string(JobId));
     rx->TotalFiles += jr.JobFiles;
   }
-  FreePoolMemory(rx->JobIds);
-  rx->JobIds = JobIds; /* Set ACL filtered list */
-  if (*rx->JobIds == 0) {
+  rx->JobIds = std::move(job_ids); /* Set ACL filtered list */
+  if (rx->JobIds.empty()) {
     ua->WarningMsg(T_("No Jobs selected.\n"));
     return 0;
   }
 
-  if (strchr(rx->JobIds, ',')) {
-    ua->InfoMsg(T_("You have selected the following JobIds: %s\n"), rx->JobIds);
-  } else {
-    ua->InfoMsg(T_("You have selected the following JobId: %s\n"), rx->JobIds);
-  }
+  ua->InfoMsg(T_("You have selected the following %s: %s\n"),
+              rx->JobIds.find(',') != rx->JobIds.npos ? "JobIds" : "JobId",
+              rx->JobIds.c_str());
   return 1;
 }
 
@@ -1026,12 +1012,12 @@ static bool InsertFileIntoFindexList(UaContext* ua,
   SplitPathAndFilename(ua, rx, file);
 
   char filter_name = RestoreContext::FilterIdentifier(rx->job_filter);
-  if (*rx->JobIds == 0) {
+  if (rx->JobIds.empty()) {
     ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_jobid_fileindex, date,
                       rx->path, rx->fname, rx->ClientName.c_str(), filter_name);
   } else {
     ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_jobids_fileindex,
-                      rx->JobIds, date, rx->path, rx->fname,
+                      rx->JobIds.c_str(), date, rx->path, rx->fname,
                       rx->ClientName.c_str(), filter_name);
   }
 
@@ -1059,13 +1045,13 @@ static bool InsertDirIntoFindexList(UaContext* ua,
 {
   StripTrailingJunk(dir);
 
-  if (*rx->JobIds == 0) {
+  if (rx->JobIds.empty()) {
     ua->ErrorMsg(T_("No JobId specified cannot continue.\n"));
     return false;
   } else {
     ua->db->FillQuery(rx->query,
                       BareosDb::SQL_QUERY::uar_jobid_fileindex_from_dir,
-                      rx->JobIds, dir, rx->ClientName.c_str());
+                      rx->JobIds.c_str(), dir, rx->ClientName.c_str());
   }
 
   // Find and insert jobid and File Index
@@ -1213,7 +1199,8 @@ static bool AddAllFindex(RestoreContext* rx)
 {
   bool has_jobid = false;
   JobId_t JobId, last_JobId = 0;
-  for (const char* p = rx->JobIds; GetNextJobidFromList(&p, &JobId) > 0;) {
+  for (const char* p = rx->JobIds.c_str();
+       GetNextJobidFromList(&p, &JobId) > 0;) {
     if (JobId == last_JobId) { continue; /* eliminate duplicate JobIds */ }
     AddFindexAll(rx->bsr.get(), JobId);
     has_jobid = true;
@@ -1233,7 +1220,7 @@ std::optional<TreeContext> BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
   /* For display purposes, the same JobId, with different volumes may
    * appear more than once, however, we only insert it once. */
 
-  const char* p = rx->JobIds;
+  const char* p = rx->JobIds.c_str();
 
   JobId_t JobId;
   if (GetNextJobidFromList(&p, &JobId) > 0) {
@@ -1250,26 +1237,28 @@ std::optional<TreeContext> BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
       return std::nullopt;
     }
 
-    if (counter) { tree.DeltaCount = counter.value() / 50; /* print 50 ticks */ }
+    if (counter) {
+      tree.DeltaCount = counter.value() / 50; /* print 50 ticks */
+    }
   }
 
   ua->InfoMsg(T_("\nBuilding directory tree for JobId(s) %s ...  "),
-              rx->JobIds);
+              rx->JobIds.c_str());
 
   ua->LogAuditEventInfoMsg(T_("Building directory tree for JobId(s) %s"),
-                           rx->JobIds);
+                           rx->JobIds.c_str());
 
-  if (!ua->db->GetFileList(rx->JobIds, false /* do not use md5 */,
+  if (!ua->db->GetFileList(rx->JobIds.c_str(), false /* do not use md5 */,
                            true /* get delta */, InsertTreeHandler,
                            (void*)&tree)) {
     ua->ErrorMsg("%s", ua->db->strerror());
-      FreeTree(tree.root);
-      return std::nullopt;
+    FreeTree(tree.root);
+    return std::nullopt;
   }
 
   if (*rx->BaseJobIds) {
-    PmStrcat(rx->JobIds, ",");
-    PmStrcat(rx->JobIds, rx->BaseJobIds);
+    rx->JobIds.append(",");
+    rx->JobIds.append(rx->BaseJobIds);
   }
 
   /* Look at the first JobId on the list (presumably the oldest) and
@@ -1278,7 +1267,7 @@ std::optional<TreeContext> BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
   if (tree.FileCount != 0) {
     // Find out if any Job is purged
     Mmsg(rx->query, "SELECT SUM(PurgedFiles) FROM Job WHERE JobId IN (%s)",
-         rx->JobIds);
+         rx->JobIds.c_str());
     std::optional<std::uint64_t> counter;
     if (!ua->db->SqlQuery(rx->query, RestoreCountHandler, (void*)&counter)) {
       ua->ErrorMsg("%s\n", ua->db->strerror());
@@ -1557,17 +1546,19 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
   }
 
   // Get the JobIds from that list
-  rx->last_jobid[0] = rx->JobIds[0] = 0;
+  rx->last_jobid[0] = 0;
+  rx->JobIds.clear();
 
   ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_sel_jobid_temp);
   if (!ua->db->SqlQuery(rx->query, JobidHandler, (void*)rx)) {
     ua->WarningMsg("%s\n", ua->db->strerror());
   }
 
-  if (rx->JobIds[0] != 0) {
+  if (!rx->JobIds.empty()) {
     if (FindArg(ua, NT_("copies")) > 0) {
       // Display a list of all copies
-      ua->db->ListCopiesRecords(ua->jcr, "", rx->JobIds, ua->send, HORZ_LIST);
+      ua->db->ListCopiesRecords(ua->jcr, "", rx->JobIds.c_str(), ua->send,
+                                HORZ_LIST);
 
       if (FindArg(ua, NT_("yes")) > 0) {
         ua->pint32_val = 1;
@@ -1577,14 +1568,14 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
       }
 
       if (ua->pint32_val) {
-        PoolMem JobIds(PM_FNAME);
-
         /* Change the list of jobs needed to do the restore to the copies of
          * the Job. */
-        PmStrcpy(JobIds, rx->JobIds);
-        rx->last_jobid[0] = rx->JobIds[0] = 0;
         ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_sel_jobid_copies,
-                          JobIds.c_str());
+                          rx->JobIds.c_str());
+
+        rx->last_jobid[0] = 0;
+        rx->JobIds.clear();
+
         if (!ua->db->SqlQuery(rx->query, JobidHandler, (void*)rx)) {
           ua->WarningMsg("%s\n", ua->db->strerror());
         }
@@ -1593,7 +1584,7 @@ static bool SelectBackupsBeforeDate(UaContext* ua,
 
     // Display a list of Jobs selected for this restore
     ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_list_jobs_by_idlist,
-                      rx->JobIds);
+                      rx->JobIds.c_str());
     ua->db->ListSqlQuery(ua->jcr, rx->query, ua->send, HORZ_LIST, true);
 
     ok = true;
@@ -1641,8 +1632,8 @@ static int JobidHandler(void* ctx, int, char** row)
 
   if (bstrcmp(rx->last_jobid, row[0])) { return 0; /* duplicate id */ }
   bstrncpy(rx->last_jobid, row[0], sizeof(rx->last_jobid));
-  if (rx->JobIds[0] != 0) { PmStrcat(rx->JobIds, ","); }
-  PmStrcat(rx->JobIds, row[0]);
+  if (!rx->JobIds.empty()) { rx->JobIds.append(","); }
+  rx->JobIds.append(row[0]);
   return 0;
 }
 

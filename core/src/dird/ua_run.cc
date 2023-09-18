@@ -2,7 +2,7 @@
 
    Copyright (C) 2001-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -394,10 +394,7 @@ int DoRunCmd(UaContext* ua)
   }
 
   // Transfer JobIds to new restore Job
-  if (ua->jcr->JobIds) {
-    jcr->JobIds = ua->jcr->JobIds;
-    ua->jcr->JobIds = NULL;
-  }
+  if (!ua->jcr->JobIds.empty()) { jcr->JobIds = std::move(ua->jcr->JobIds); }
 
   // Transfer selected restore tree to new restore Job
   if (ua->jcr->dir_impl->restore_tree_root) {

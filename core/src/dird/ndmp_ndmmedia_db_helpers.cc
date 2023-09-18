@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2011-2015 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -164,7 +164,7 @@ bool GetNdmmediaInfoFromDatabase(ndm_media_table* media_tab,
 
   // Find restore JobId
   JobId_t restoreJobId;
-  const char* p = jcr->JobIds;
+  const char* p = jcr->JobIds.c_str();
 
   //  TODO: what happens with multiple IDs?
   if (!GetNextJobidFromList(&p, &restoreJobId)) {
