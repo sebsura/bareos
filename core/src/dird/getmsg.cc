@@ -299,8 +299,9 @@ bool response(JobControlRecord* jcr,
     }
     return false;
   }
-  Jmsg(jcr, M_FATAL, 0, T_("Socket error on %s command: ERR=%s\n"), cmd,
-       BnetStrerror(bs));
+  Jmsg(jcr, M_FATAL, 0,
+       _("Socket error (n = %d) on %s command while expecting '%s': ERR=%s\n"),
+       n, cmd, resp, BnetStrerror(bs));
   return false;
 }
 } /* namespace directordaemon */
