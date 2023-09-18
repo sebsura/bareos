@@ -491,6 +491,607 @@ static inline bool DoBackupXattr(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
   return true;
 }
 
+enum class file_type
+{
+  LNKSAVED = 1,   /**< hard link to file already saved */
+  REGE = 2,       /**< Regular file but empty */
+  REG = 3,        /**< Regular file */
+  LNK = 4,        /**< Soft Link */
+  DIREND = 5,     /**< Directory at end (saved) */
+  SPEC = 6,       /**< Special file -- chr, blk, fifo, sock */
+  NOACCESS = 7,   /**< Not able to access */
+  NOFOLLOW = 8,   /**< Could not follow link */
+  NOSTAT = 9,     /**< Could not stat file */
+  NOCHG = 10,     /**< Incremental option, file not changed */
+  DIRNOCHG = 11,  /**< Incremental option, directory not changed */
+  ISARCH = 12,    /**< Trying to save archive file */
+  NORECURSE = 13, /**< No recursion into directory */
+  NOFSCHG = 14,   /**< Different file system, prohibited */
+  NOOPEN = 15,    /**< Could not open directory */
+  RAW = 16,       /**< Raw block device */
+  FIFO = 17,      /**< Raw fifo device */
+  /* The DIRBEGIN packet is sent to the FD file processing routine so
+   * that it can filter packets, but otherwise, it is not used
+   * or saved */
+  DIRBEGIN = 18,      /**< Directory at beginning (not saved) */
+  INVALIDFS = 19,     /**< File system not allowed for */
+  INVALIDDT = 20,     /**< Drive type not allowed for */
+  REPARSE = 21,       /**< Win NTFS reparse point */
+  PLUGIN = 22,        /**< Plugin generated filename */
+  DELETED = 23,       /**< Deleted file entry */
+  BASE = 24,          /**< Duplicate base file entry */
+  RESTORE_FIRST = 25, /**< Restore this "object" first */
+  JUNCTION = 26,      /**< Win32 Junction point */
+  PLUGIN_CONFIG = 27, /**< Object for Plugin configuration */
+  PLUGIN_CONFIG_FILLED
+  = 28, /**< Object for Plugin configuration filled by Director */
+};
+
+enum class data_stream : int
+{
+  NONE = 0,                 /**< Reserved Non-Stream */
+  UNIX_ATTRIBUTES = 1,      /**< Generic Unix attributes */
+  FILE_DATA = 2,            /**< Standard uncompressed data */
+  MD5_SIGNATURE = 3,        /**< MD5 signature - Deprecated */
+  MD5_DIGEST = 3,           /**< MD5 digest for the file */
+  GZIP_DATA = 4,            /**< GZip compressed file data - Deprecated */
+  UNIX_ATTRIBUTES_EX = 5,   /**< Extended Unix attr for Win32 EX - Deprecated */
+  SPARSE_DATA = 6,          /**< Sparse data stream */
+  SPARSE_GZIP_DATA = 7,     /**< Sparse gzipped data stream - Deprecated */
+  PROGRAM_NAMES = 8,        /**< Program names for program data */
+  PROGRAM_DATA = 9,         /**< Data needing program */
+  SHA1_SIGNATURE = 10,      /**< SHA1 signature - Deprecated */
+  SHA1_DIGEST = 10,         /**< SHA1 digest for the file */
+  WIN32_DATA = 11,          /**< Win32 BackupRead data */
+  WIN32_GZIP_DATA = 12,     /**< Gzipped Win32 BackupRead data - Deprecated */
+  MACOS_FORK_DATA = 13,     /**< Mac resource fork */
+  HFSPLUS_ATTRIBUTES = 14,  /**< Mac OS extra attributes */
+  UNIX_ACCESS_ACL = 15,     /**< Standard ACL attributes on UNIX - Deprecated */
+  UNIX_DEFAULT_ACL = 16,    /**< Default ACL attributes on UNIX - Deprecated */
+  SHA256_DIGEST = 17,       /**< SHA-256 digest for the file */
+  SHA512_DIGEST = 18,       /**< SHA-512 digest for the file */
+  SIGNED_DIGEST = 19,       /**< Signed File Digest, ASN.1, DER Encoded */
+  ENCRYPTED_FILE_DATA = 20, /**< Encrypted, uncompressed data */
+  ENCRYPTED_WIN32_DATA
+  = 21, /**< Encrypted, uncompressed Win32 BackupRead data */
+  ENCRYPTED_SESSION_DATA
+  = 22, /**< Encrypted, Session Data, ASN.1, DER Encoded */
+  ENCRYPTED_FILE_GZIP_DATA = 23, /**< Encrypted, compressed data - Deprecated */
+  ENCRYPTED_WIN32_GZIP_DATA
+  = 24, /**< Encrypted, compressed Win32 BackupRead data - Deprecated */
+  ENCRYPTED_MACOS_FORK_DATA
+  = 25,                /**< Encrypted, uncompressed Mac resource fork */
+  PLUGIN_NAME = 26,    /**< Plugin "file" string */
+  PLUGIN_DATA = 27,    /**< Plugin specific data */
+  RESTORE_OBJECT = 28, /**< Plugin restore object */
+  /* Compressed streams. These streams can handle arbitrary compression
+   * algorithm data as an additional header is stored at the beginning of the
+   * stream. See stream_compressed_header definition for more details. */
+  COMPRESSED_DATA = 29,                /**< Compressed file data */
+  SPARSE_COMPRESSED_DATA = 30,         /**< Sparse compressed data stream */
+  WIN32_COMPRESSED_DATA = 31,          /**< Compressed Win32 BackupRead data */
+  ENCRYPTED_FILE_COMPRESSED_DATA = 32, /**< Encrypted, compressed data */
+  ENCRYPTED_WIN32_COMPRESSED_DATA
+  = 33, /**< Encrypted, compressed Win32 BackupRead data */
+
+  XXH128_DIGEST = 40, /**< xxHash128 digest for the file */
+
+  NDMP_SEPARATOR
+  = 999, /**< NDMP separator between multiple data streams of one job */
+
+  /* The Stream numbers from 1000-1999 are reserved for ACL and extended
+   * attribute streams. Each different platform has its own stream id(s), if a
+   * platform supports multiple stream types it should supply different handlers
+   * for each type it supports and this should be called from the stream
+   * dispatch function. Currently in this reserved space we allocate the
+   * different acl streams from 1000 on and the different extended attributes
+   * streams from 1999 down. So the two naming spaces grow towards each other.
+   */
+  ACL_AIX_TEXT = 1000, /**< AIX specific string representation from acl_get */
+  ACL_DARWIN_ACCESS_ACL = 1001, /**< Darwin (OSX) specific acl_t string
+                                 * representation from acl_to_text (POSIX acl)
+                                 */
+  ACL_FREEBSD_DEFAULT_ACL
+  = 1002, /**< FreeBSD specific acl_t string representation
+           * from acl_to_text (POSIX acl) for default acls.
+           */
+  ACL_FREEBSD_ACCESS_ACL
+  = 1003,                    /**< FreeBSD specific acl_t string representation
+                              * from acl_to_text (POSIX acl) for access acls.
+                              */
+  ACL_HPUX_ACL_ENTRY = 1004, /**< HPUX specific acl_entry string representation
+                              * from acltostr (POSIX acl)
+                              */
+  ACL_IRIX_DEFAULT_ACL = 1005, /**< IRIX specific acl_t string representation
+                                * from acl_to_text (POSIX acl) for default acls.
+                                */
+  ACL_IRIX_ACCESS_ACL = 1006,  /**< IRIX specific acl_t string representation
+                                * from acl_to_text (POSIX acl) for access acls.
+                                */
+  ACL_LINUX_DEFAULT_ACL
+  = 1007,                      /**< Linux specific acl_t string representation
+                                * from acl_to_text (POSIX acl) for default acls.
+                                */
+  ACL_LINUX_ACCESS_ACL = 1008, /**< Linux specific acl_t string representation
+                                * from acl_to_text (POSIX acl) for access acls.
+                                */
+  ACL_TRU64_DEFAULT_ACL
+  = 1009, /**< Tru64 specific acl_t string representation
+           * from acl_to_text (POSIX acl) for default acls.
+           */
+  ACL_TRU64_DEFAULT_DIR_ACL
+  = 1010,                      /**< Tru64 specific acl_t string representation
+                                * from acl_to_text (POSIX acl) for default acls.
+                                */
+  ACL_TRU64_ACCESS_ACL = 1011, /**< Tru64 specific acl_t string representation
+                                * from acl_to_text (POSIX acl) for access acls.
+                                */
+  ACL_SOLARIS_ACLENT
+  = 1012,                 /**< Solaris specific aclent_t string representation
+                           * from acltotext or acl_totext (POSIX acl)
+                           */
+  ACL_SOLARIS_ACE = 1013, /**< Solaris specific ace_t string representation from
+                           * from acl_totext (NFSv4 or ZFS acl)
+                           */
+  ACL_AFS_TEXT = 1014,    /**< AFS specific string representation from pioctl */
+  ACL_AIX_AIXC = 1015,    /**< AIX specific string representation from
+                           * aclx_printStr (POSIX acl)
+                           */
+  ACL_AIX_NFS4 = 1016,    /**< AIX specific string representation from
+                           * aclx_printStr (NFSv4 acl)
+                           */
+  ACL_FREEBSD_NFS4_ACL = 1017, /**< FreeBSD specific acl_t string representation
+                                * from acl_to_text (NFSv4 or ZFS acl)
+                                */
+  ACL_HURD_DEFAULT_ACL
+  = 1018,                     /**< GNU HURD specific acl_t string representation
+                               * from acl_to_text (POSIX acl) for default acls.
+                               */
+  ACL_HURD_ACCESS_ACL = 1019, /**< GNU HURD specific acl_t string representation
+                               * from acl_to_text (POSIX acl) for access acls.
+                               */
+  ACL_PLUGIN = 1020,          /**< Plugin specific acl encoding */
+  XATTR_PLUGIN = 1988,        /**< Plugin specific extended attributes */
+  XATTR_HURD = 1989,          /**< GNU HURD specific extended attributes */
+  XATTR_IRIX = 1990,          /**< IRIX specific extended attributes */
+  XATTR_TRU64 = 1991,         /**< TRU64 specific extended attributes */
+  XATTR_AIX = 1992,           /**< AIX specific extended attributes */
+  XATTR_OPENBSD = 1993,       /**< OpenBSD specific extended attributes */
+  XATTR_SOLARIS_SYS = 1994,   /**< Solaris specific extensible attributes or
+                               * otherwise named extended system attributes.
+                               */
+  XATTR_SOLARIS = 1995,       /**< Solaris specific extented attributes */
+  XATTR_DARWIN = 1996,        /**< Darwin (OSX) specific extended attributes */
+  XATTR_FREEBSD = 1997,       /**< FreeBSD specific extended attributes */
+  XATTR_LINUX = 1998,         /**< Linux specific extended attributes */
+  XATTR_NETBSD = 1999,        /**< NetBSD specific extended attributes */
+};
+
+enum class attr_stream : int
+{
+  DEFAULT = (int)data_stream::UNIX_ATTRIBUTES,
+  WIN32 = (int)data_stream::UNIX_ATTRIBUTES_EX,
+};
+
+enum class digest_stream : int
+{
+  MD5 = (int)data_stream::MD5_DIGEST,
+  SHA1 = (int)data_stream::SHA1_DIGEST,
+  SHA256 = (int)data_stream::SHA256_DIGEST,
+  SHA512 = (int)data_stream::SHA512_DIGEST,
+  XXH128 = (int)data_stream::XXH128_DIGEST,
+  SIGNED = (int)data_stream::SIGNED_DIGEST,
+};
+
+#include "lib/base64.h"
+
+struct bareos_stat {
+  std::uint64_t dev;
+  std::uint64_t ino;
+  std::uint64_t mode;
+  std::uint64_t nlink;
+  std::uint64_t uid;
+  std::uint64_t gid;
+  std::uint64_t rdev;
+  std::uint64_t size;
+  std::uint64_t blksize;
+  std::uint64_t blocks;
+  std::uint64_t atime;
+  std::uint64_t mtime;
+  std::uint64_t ctime;
+  std::uint64_t flags;
+};
+
+struct encoded_meta {
+  attr_stream stream;
+  std::string enc;
+};
+
+class bareos_file {
+ public:
+  file_type type() { return type_; }
+  std::string_view bareos_path() { return path; }
+  const bareos_stat& lstat() { return stat; }
+
+  virtual bool has_data() = 0;
+  virtual data_stream stream() = 0;
+  virtual std::optional<encoded_meta> extra_meta() { return std::nullopt; };
+  virtual BareosFilePacket open() = 0;
+
+ private:
+  file_type type_;
+  std::string path;
+  bareos_stat stat;
+};
+
+struct save_options {
+  bool compress;
+};
+
+enum class save_file_result
+{
+  Error,
+  Success,
+  Skip,
+};
+
+class file_index {
+  struct invalid_index_type {};
+
+ public:
+  static constexpr invalid_index_type INVALID{};
+
+  std::int32_t to_underlying() const { return id; }
+
+  constexpr explicit file_index(std::int32_t id) : id{id} {}
+  constexpr file_index(invalid_index_type) : file_index{0} {}
+
+ private:
+  std::int32_t id;
+};
+
+class bareos_file_ref {
+ public:
+  file_index index() { return idx; }
+  std::string_view bareos_path() { return path; }
+
+  const std::vector<char>& signing() { return encoded_signing; }
+  std::pair<digest_stream, const std::vector<char>&> checksum()
+  {
+    return std::make_pair(digest, std::cref(encoded_checksum));
+  }
+
+ private:
+  std::string path;
+  file_index idx;
+
+  digest_stream digest;
+  std::vector<char> encoded_signing, encoded_checksum;
+};
+
+
+static constexpr file_index INVALID{0};
+
+file_index next_file_index(JobControlRecord* jcr)
+{
+  return file_index{static_cast<std::int32_t>(++jcr->JobFiles)};
+}
+
+encoded_meta EncodeDefaultMeta(const bareos_stat& statp,
+                               file_index link,
+                               data_stream stream)
+{
+  std::string encoded;
+  encoded.resize(16 * 8 + 16);
+  char* p = encoded.data();
+  p += ToBase64((int64_t)statp.dev, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.ino, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.mode, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.nlink, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.uid, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.gid, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.rdev, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.size, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.blksize, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.blocks, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.atime, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.mtime, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.ctime, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)link.to_underlying(), p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)statp.flags, p);
+  *p++ = ' ';
+  p += ToBase64((int64_t)stream, p);
+
+  ASSERT(p < encoded.data() + encoded.size());
+  encoded.resize(p - encoded.data());
+
+  return {attr_stream::DEFAULT, std::move(encoded)};
+}
+
+bool SendMetaInfo(
+    BareosSocket* sd,
+    file_index idx,
+    file_type type,
+    std::string_view name, /* canonical name; i.e. dirs with trailing slash */
+    std::optional<bareos_file_ref> original,
+    std::uint32_t delta_seq,
+    encoded_meta def,
+    std::optional<encoded_meta> extra)
+{
+  attr_stream stream = def.stream;
+  const char* extra_str = "";
+
+  if (extra) {
+    extra_str = extra->enc.c_str();
+    stream = extra->stream;
+  }
+
+  if (!sd->fsend("%ld %ld 0", idx.to_underlying(), stream)) { return false; }
+
+  switch (type) {
+    case file_type::LNK:
+      [[fallthrough]];
+    case file_type::JUNCTION:
+      [[fallthrough]];
+    case file_type::LNKSAVED: {
+      if (!original) { return false; }
+      if (!sd->fsend("%ld %d %s%c%s%c%s%c%s%c%u%c", idx.to_underlying(), type,
+                     std::string{name}.c_str(), 0, def.enc.c_str(), 0,
+                     std::string{original->bareos_path()}, 0, extra_str, 0,
+                     delta_seq, 0)) {
+        return false;
+      }
+    } break;
+    case file_type::DIREND:
+      [[fallthrough]];
+    case file_type::REPARSE: {
+      if (!sd->fsend("%ld %d %s%c%s%c%s%c%s%c%u%c", idx.to_underlying(), type,
+                     std::string{name}.c_str(), 0, def.enc.c_str(), 0, "", 0,
+                     extra_str, 0, delta_seq, 0)) {
+        return false;
+      }
+    } break;
+    default: {
+      if (!sd->fsend("%ld %d %s%c%s%c%s%c%s%c%d%c", idx.to_underlying(), type,
+                     std::string{name}.c_str(), 0, def.enc.c_str(), 0, "", 0,
+                     extra_str, 0, delta_seq, 0)) {
+        return false;
+      }
+    } break;
+  };
+
+  if (!sd->signal(BNET_EOD)) { return false; }
+
+  return true;
+}
+
+// struct file_stream {
+//   BareosSocket* sock;
+//   file_index idx;
+
+//   struct open_stream
+//   {
+//     const file_stream *stream;
+//     open_stream(const file_stream* stream) : stream{stream}
+//     {
+//     }
+
+//     bool write(const std::vector<char>&) {
+
+//     }
+
+//     open_stream(const open_stream&) = delete;
+//     open_stream& operator=(const open_stream&) = delete;
+
+//   private:
+//     ~open_stream() {}
+//   };
+//   file_stream(BareosSocket* sock, file_index idx) : sock{sock}
+// 						  , idx{idx}
+//   {
+
+//     open_stream open(data_stream stream) {
+//       sock->fsend("%ld %d 0", idx.to_underlying(), stream);
+//       return open_stream{this};
+//     }
+
+//     bool close(open_stream open) {
+//       ASSERT(open.stream == this);
+
+
+//     }
+//   }
+
+// };
+
+bool SendData(BareosSocket* sd,
+              data_stream stream,
+              BareosFilePacket* bfd,
+              DIGEST* checksum,
+              DIGEST* signing)
+{
+  (void)sd;
+  (void)bfd;
+  (void)stream;
+  (void)checksum;
+  (void)signing;
+
+  return true;
+}
+
+std::vector<char> TerminateChecksum(DIGEST* checksum)
+{
+  std::vector<char> buffer;
+  buffer.resize(CRYPTO_DIGEST_MAX_SIZE);
+  uint32_t size = buffer.size();
+
+  if (!CryptoDigestFinalize(checksum, (uint8_t*)buffer.data(), &size)) {
+    return {};
+  }
+
+  ASSERT(size <= buffer.size());
+  buffer.resize(size);
+
+  return buffer;
+}
+
+std::vector<char> TerminateSigning(JobControlRecord* jcr,
+                                   X509_KEYPAIR* keypair,
+                                   DIGEST* signing)
+{
+  struct deleter {
+    void operator()(SIGNATURE* sign) const
+    {
+      if (sign) CryptoSignFree(sign);
+    }
+  };
+  auto signature = std::unique_ptr<SIGNATURE, deleter>(crypto_sign_new(jcr));
+  if (!signature) { return {}; }
+
+  if (!CryptoSignAddSigner(signature.get(), signing, keypair)) { return {}; }
+
+  uint32_t size;
+
+  if (!CryptoSignEncode(signature.get(), NULL, &size)) { return {}; }
+
+  std::vector<char> buffer;
+  buffer.resize(size);
+
+  if (!CryptoSignEncode(signature.get(), (uint8_t*)buffer.data(), &size)) {
+    return {};
+  }
+
+  ASSERT(size <= buffer.size());
+  buffer.resize(size);
+
+  return buffer;
+}
+
+bool SendDigest(BareosSocket* sd,
+                file_index idx,
+                digest_stream stream,
+                const std::vector<char>& buffer)
+{
+  if (!sd->fsend("%ld %d 0", idx.to_underlying(), stream)) { return false; }
+
+  PmMemcpy(sd->msg, buffer.data(), buffer.size());
+  sd->message_length = buffer.size();
+  if (!sd->send()) { return false; }
+
+  if (!sd->signal(BNET_EOD)) { return false; }
+
+  return true;
+}
+
+save_file_result SaveFile(JobControlRecord* jcr,
+                          bareos_file* file,
+                          std::optional<std::uint32_t> delta_seq,
+                          std::optional<bareos_file_ref> original,
+                          save_options options)
+{
+  (void)options;
+  if (jcr->IsJobCanceled() || jcr->IsIncomplete()) {
+    return save_file_result::Skip;
+  }
+
+  BareosSocket* sd = jcr->store_bsock;
+
+  Dmsg1(130, "filed: sending %s to stored\n",
+        std::string(file->bareos_path()).c_str());
+
+  file_index fi = next_file_index(jcr);
+  {
+    // encode & send attributes
+    file_index orig_index = file_index::INVALID;
+    if (original) { orig_index = original->index(); }
+
+    auto stats = EncodeDefaultMeta(file->lstat(), orig_index, file->stream());
+
+
+    std::optional extra = file->extra_meta();
+
+    if (!SendMetaInfo(sd, fi, file->type(), file->bareos_path(),
+                      std::move(original), delta_seq.value_or(0),
+                      std::move(stats), std::move(extra))) {
+      if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+        Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+              sd->bstrerror());
+      }
+      return save_file_result::Error;
+    }
+  }
+
+  if (file->has_data()) {
+    DIGEST *checksum = nullptr, *signing = nullptr;
+    digest_stream digest;
+    if (!1 /* setup encryption/checksum */) {
+      return save_file_result::Success;
+    }
+
+    BareosFilePacket bfd = file->open();
+
+    if (!SendData(sd, file->stream(), &bfd, checksum, signing)) {
+      return save_file_result::Error;
+    }
+
+    bclose(&bfd);
+
+    // on apple: send rsrc/finder
+
+    if (checksum) {
+      auto check_encoded = TerminateChecksum(checksum);
+      if (check_encoded.size()) {
+        if (!SendDigest(sd, fi, digest, check_encoded)) {
+          // todo: handle error case here
+        }
+      } else {
+        // todo: handle error case here
+      }
+    }
+
+    if (signing) {
+      auto sign_encoded
+          = TerminateSigning(jcr, jcr->fd_impl->crypto.pki_keypair, signing);
+      if (sign_encoded.size()) {
+        if (!SendDigest(sd, fi, digest_stream::SIGNED, sign_encoded)) {
+          // todo: handle error case here
+        }
+      } else {
+        // todo: handle error case here
+      }
+    }
+
+    if (checksum) { CryptoDigestFree(checksum); }
+    if (signing) { CryptoDigestFree(signing); }
+  }
+
+  if (file->type() == file_type::LNKSAVED && original) {
+    auto [stream, check_encoded] = original->checksum();
+    auto sign_encoded = original->signing();
+
+    if (check_encoded.size()) { SendDigest(sd, fi, stream, check_encoded); }
+    if (sign_encoded.size()) {
+      SendDigest(sd, fi, digest_stream::SIGNED, sign_encoded);
+    }
+  }
+
+  return save_file_result::Success;
+}
+
 /**
  * Called here by find() for each file included.
  * This is a callback. The original is FindFiles() above.
@@ -499,8 +1100,7 @@ static inline bool DoBackupXattr(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
  *
  * Returns: 1 if OK
  *          0 if error
- *         -1 to ignore file/directory (not used here)
- */
+ *         -1 to ignore file/directory (not used here) */
 int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 {
   bool do_read = false;
