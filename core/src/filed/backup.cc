@@ -113,6 +113,14 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 
   sd = jcr->store_bsock;
   // sd->MakeReadsBuffered();
+
+  struct make_unbuffered {
+    BareosSocket* sock;
+
+    ~make_unbuffered() { sock->MakeWritesUnBuffered(); }
+  };
+
+  make_unbuffered unbuf{sd};
   sd->MakeWritesBuffered();
 
   jcr->setJobStatusWithPriorityCheck(JS_Running);
