@@ -167,6 +167,13 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 
   // enable the use of some workers
   auto num_workers = std::thread::hardware_concurrency() / 2;
+  if (client && client->IsMemberPresent("NumBackupWorkers")) {
+    if (client->num_backup_worker_threads == 0) {
+      num_workers = 1;  // need at least one worker
+    } else {
+      num_workers = client->num_backup_worker_threads;
+    }
+  }
   jcr->fd_impl->pool.ensure_num_workers(num_workers);
 
   // Subroutine SaveFile() is called for each file

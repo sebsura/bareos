@@ -128,6 +128,8 @@ class ClientResource
   char* log_timestamp_format = nullptr; /* Timestamp format to use in generic
                                  logging messages */
   uint64_t max_bandwidth_per_job = 0;   /* Bandwidth limitation (global) */
+
+  uint32_t num_backup_worker_threads = 0;
 };
 
 
