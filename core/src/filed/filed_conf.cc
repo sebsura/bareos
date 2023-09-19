@@ -96,6 +96,7 @@ static ResourceItem cli_items[] = {
   {"SdConnectTimeout", CFG_TYPE_TIME, ITEM(res_client, SDConnectTimeout), 0, CFG_ITEM_DEFAULT, "1800" /* 30 minutes */, NULL, NULL},
   {"HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_client, heartbeat_interval), 0, CFG_ITEM_DEFAULT, "0", NULL, NULL},
   {"MaximumNetworkBufferSize", CFG_TYPE_PINT32, ITEM(res_client, max_network_buffer_size), 0, 0, NULL, NULL, NULL},
+  {"NumBackupWorkers", CFG_TYPE_PINT32, ITEM(res_client, num_backup_worker_threads), 0, 0, NULL, NULL, NULL},
   {"PkiSignatures", CFG_TYPE_BOOL, ITEM(res_client, pki_sign), 0, CFG_ITEM_DEFAULT, "false", NULL, "Enable Data Signing."},
   {"PkiEncryption", CFG_TYPE_BOOL, ITEM(res_client, pki_encrypt), 0, CFG_ITEM_DEFAULT, "false", NULL, "Enable Data Encryption."},
   {"PkiKeyPair", CFG_TYPE_DIR, ITEM(res_client, pki_keypair_file), 0, 0, NULL, NULL,
