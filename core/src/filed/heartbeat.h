@@ -24,7 +24,38 @@
 #ifndef BAREOS_FILED_HEARTBEAT_H_
 #define BAREOS_FILED_HEARTBEAT_H_
 
+#include <thread>
+
 namespace filedaemon {
+
+class heartbeat_sender
+{
+  std::atomic<bool> stop_requested{false};
+  std::atomic<bool> stopped{false};
+  time_t interval;
+  std::thread thread;
+
+protected:
+  void send_heartbeat(BareosSocket* sock);
+
+public:
+  heartbeat_sender(BareosSocket* sock, time_t interval);
+  ~heartbeat_sender();
+};
+
+class heartbeat_receiver
+{
+  std::atomic<bool> stop_requested{false};
+  std::atomic<bool> stopped{false};
+  std::thread thread;
+
+protected:
+  void receive_heartbeat(BareosSocket* sock);
+
+public:
+  heartbeat_receiver(BareosSocket* sock);
+  ~heartbeat_receiver();
+};
 
 void StartHeartbeatMonitor(JobControlRecord* jcr);
 void StopHeartbeatMonitor(JobControlRecord* jcr);

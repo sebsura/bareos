@@ -36,6 +36,8 @@
 #include "lib/bsock.h"
 #include "lib/watchdog.h"
 
+#include "heartbeat.h"
+
 namespace filedaemon {
 
 #define WAIT_INTERVAL 5
@@ -230,5 +232,83 @@ void StartDirHeartbeat(JobControlRecord* jcr)
 void StopDirHeartbeat(JobControlRecord* jcr)
 {
   if (me->heartbeat_interval) { StopHeartbeatMonitor(jcr); }
+}
+
+static void run_heartbeat_receiver(heartbeat_receiver* hb,
+				   void (heartbeat_receiver::* recv)(BareosSocket*),
+				   BareosSocket* sock)
+{
+  (hb->*recv)(sock);
+}
+
+heartbeat_receiver::heartbeat_receiver(BareosSocket* sock)
+  : thread{run_heartbeat_receiver, this, &heartbeat_receiver::receive_heartbeat, sock}
+{
+}
+
+void heartbeat_receiver::receive_heartbeat(BareosSocket* sock)
+{
+  sock->suppress_error_msgs_ = true;
+  while (!sock->IsStop() && !stop_requested) {
+    int n = BnetWaitDataIntr(sock, WAIT_INTERVAL);
+    if (n < 0 || sock->IsStop()) { break; }
+    if (n == 1) { /* input waiting */
+      sock->recv(); /* read it -- probably heartbeat from sd */
+      if (sock->IsStop()) { break; }
+      if (sock->message_length <= 0) {
+        Dmsg1(100, "Got BNET_SIG %d from SD\n", sock->message_length);
+      } else {
+        Dmsg2(100, "Got %d bytes from SD. MSG=%s\n", sock->message_length,
+              sock->msg);
+      }
+    }
+    Dmsg2(200, "wait_intr=%d stop=%d\n", n, IsBnetStop(sock));
+  }
+  sock->close();
+  stopped = true;
+}
+
+heartbeat_receiver::~heartbeat_receiver()
+{
+  stop_requested = true;
+  thread.join();
+}
+
+void run_heartbeat_sender(heartbeat_sender* hb,
+			  void (heartbeat_sender::* send)(BareosSocket*),
+			  BareosSocket* sock)
+{
+  (hb->*send)(sock);
+}
+
+
+heartbeat_sender::heartbeat_sender(BareosSocket* sock, time_t interval)
+  : interval{interval}
+  , thread{run_heartbeat_sender, this, &heartbeat_sender::send_heartbeat, sock}
+{
+}
+
+void heartbeat_sender::send_heartbeat(BareosSocket* sock)
+{
+  sock->suppress_error_msgs_ = true;
+
+  time_t next_heartbeat = time(nullptr);
+  while (!sock->IsStop() && !stop_requested) {
+    time_t now = time(nullptr);
+    if (now >= next_heartbeat) {
+      sock->signal(BNET_HEARTBEAT);
+      if (sock->IsStop()) { break; }
+      next_heartbeat = now + interval;
+    }
+    Bmicrosleep(next_heartbeat - now, 0);
+  }
+  sock->close();
+  stopped = true;
+}
+
+heartbeat_sender::~heartbeat_sender()
+{
+  stop_requested = true;
+  thread.join();
 }
 } /* namespace filedaemon */
