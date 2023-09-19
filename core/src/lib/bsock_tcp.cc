@@ -69,6 +69,7 @@ BareosSocket* BareosSocketTCP::clone()
   clone->begin = 0;
   clone->end = 0;
   clone->buffer.clear();
+  ASSERT(!buffered);
 
   /* do not use memory buffer from copied socket */
   clone->msg = GetPoolMemory(PM_BSOCK);
