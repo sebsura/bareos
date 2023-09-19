@@ -445,7 +445,7 @@ static var_rc_t operate_var(var_t*,
  */
 int VariableExpansion(JobControlRecord* jcr, char* inp, POOLMEM*& exp)
 {
-  var_t* var_ctx;
+  var_t* var_ctx = nullptr;
   var_rc_t status;
   char* outp;
   int in_len, out_len;
