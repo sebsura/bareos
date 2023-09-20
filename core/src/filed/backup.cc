@@ -751,24 +751,60 @@ class file_index {
   std::int32_t id;
 };
 
+template <typename T>
+struct span
+{
+  T* array{nullptr};
+  std::size_t count{0};
+
+  span() = default;
+  span(T* array, std::size_t count) : array{array}
+				    , count{count}
+  {
+  }
+
+  span(std::vector<T>& vec) : array{vec.data()}
+			    , count{vec.size()}
+  {
+  }
+
+  std::size_t size() const {
+    return count;
+  }
+
+  T* data() { return array; }
+  T* begin() { return array; }
+  T* end() { return array + count; }
+
+  span<const T> as_const() {
+    return span<const T>{array, count};
+  }
+};
+
 class bareos_file_ref {
  public:
   file_index index() { return idx; }
   std::string_view bareos_path() { return path; }
 
-  const std::vector<char>& signing() { return encoded_signing; }
-  std::pair<digest_stream, const std::vector<char>&> checksum()
+  span<const char> signing() { return encoded_signing; }
+  std::pair<digest_stream, span<const char>> checksum()
   {
     return std::make_pair(digest, std::cref(encoded_checksum));
   }
 
   bareos_file_ref(std::string path,
-		  file_index idx) : path{std::move(path)}
-				  , idx{idx}
+		  file_index idx,
+		  span<const char> checksum,
+		  span<const char> signing) : path{std::move(path)}
+					    , idx{idx}
+					    , encoded_signing{signing}
+					    , encoded_checksum{checksum}
   {}
 
   bareos_file_ref(std::string path) : bareos_file_ref(std::move(path),
-						      file_index::INVALID)
+						      file_index::INVALID,
+						      {},
+						      {})
   {}
 
  private:
@@ -776,7 +812,7 @@ class bareos_file_ref {
   file_index idx;
 
   digest_stream digest;
-  std::vector<char> encoded_signing, encoded_checksum;
+  span<const char> encoded_checksum;
 };
 
 
@@ -1063,7 +1099,7 @@ std::vector<char> TerminateSigning(JobControlRecord* jcr,
 bool SendDigest(BareosSocket* sd,
                 file_index idx,
                 digest_stream stream,
-                const std::vector<char>& buffer)
+                span<const char> buffer)
 {
   if (!sd->fsend("%ld %d 0", idx.to_underlying(), stream)) { return false; }
 
@@ -1144,7 +1180,6 @@ save_file_result SaveFile(JobControlRecord* jcr,
                           std::optional<bareos_file_ref> original,
                           save_options options)
 {
-  (void)options;
   if (jcr->IsJobCanceled() || jcr->IsIncomplete()) {
     return save_file_result::Skip;
   }
@@ -1208,7 +1243,7 @@ save_file_result SaveFile(JobControlRecord* jcr,
     if (checksum) {
       auto check_encoded = TerminateChecksum(checksum);
       if (check_encoded.size()) {
-        if (!SendDigest(sd, fi, DigestStream(checksum), check_encoded)) {
+        if (!SendDigest(sd, fi, DigestStream(checksum), span{check_encoded}.as_const())) {
 	  if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
 	    Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
 		  sd->bstrerror());
@@ -1224,7 +1259,7 @@ save_file_result SaveFile(JobControlRecord* jcr,
       auto sign_encoded
           = TerminateSigning(jcr, options.signing_key, signing);
       if (sign_encoded.size()) {
-        if (!SendDigest(sd, fi, digest_stream::SIGNED, sign_encoded)) {
+        if (!SendDigest(sd, fi, digest_stream::SIGNED, span{sign_encoded}.as_const())) {
 	  if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
 	    Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
 		  sd->bstrerror());
@@ -1342,6 +1377,7 @@ struct test_file : bareos_file
   BareosFilePacket open() override
   {
     BareosFilePacket bfd;
+    binit(&bfd);
     int noatime = BitIsSet(FO_NOATIME, ff->flags) ? O_NOATIME : 0;
     bopen(&bfd, ff->fname, O_RDONLY | O_BINARY | noatime, 0,
 	  ff->statp.st_rdev);
@@ -1410,7 +1446,8 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   } break;
   case file_type::LNKSAVED: {
     original.emplace(ff_pkt->link,
-		     file_index{ff_pkt->LinkFI});
+		     file_index{ff_pkt->LinkFI},
+		     ff_pkt->linked->digest);
   } break;
   default: {} break;
   }
