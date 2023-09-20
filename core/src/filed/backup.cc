@@ -683,8 +683,6 @@ enum class digest_stream : int
   SIGNED = (int)data_stream::SIGNED_DIGEST,
 };
 
-#include "lib/base64.h"
-
 struct bareos_stat {
   std::uint64_t dev;
   std::uint64_t ino;
@@ -718,14 +716,17 @@ class bareos_file {
   virtual std::optional<encoded_meta> extra_meta() { return std::nullopt; };
   virtual BareosFilePacket open() = 0;
 
+  bareos_file(file_type type_,
+	      std::string path,
+	      bareos_stat stat) : type_{type_}
+				, path{std::move(path)}
+				, stat{stat}
+  {}
+
  private:
   file_type type_;
   std::string path;
   bareos_stat stat;
-};
-
-struct save_options {
-  bool compress;
 };
 
 enum class save_file_result
@@ -761,6 +762,15 @@ class bareos_file_ref {
     return std::make_pair(digest, std::cref(encoded_checksum));
   }
 
+  bareos_file_ref(std::string path,
+		  file_index idx) : path{std::move(path)}
+				  , idx{idx}
+  {}
+
+  bareos_file_ref(std::string path) : bareos_file_ref(std::move(path),
+						      file_index::INVALID)
+  {}
+
  private:
   std::string path;
   file_index idx;
@@ -775,6 +785,50 @@ static constexpr file_index INVALID{0};
 file_index next_file_index(JobControlRecord* jcr)
 {
   return file_index{static_cast<std::int32_t>(++jcr->JobFiles)};
+}
+
+static uint8_t const base64_digits[64]
+    = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+       'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+       'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+       'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+       '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
+
+/* Convert a value to base64 characters.
+ * The result is stored in where, which
+ * must be at least 8 characters long.
+ *
+ * Returns the number of characters
+ * stored (not including the EOS).
+ */
+static int ToBase64(int64_t value, char* where)
+{
+  uint64_t val;
+  int i = 0;
+  int n;
+
+  /* Handle negative values */
+  if (value < 0) {
+    where[i++] = '-';
+    value = -value;
+  }
+
+  /* Determine output size */
+  val = value;
+  do {
+    val >>= 6;
+    i++;
+  } while (val);
+  n = i;
+
+  /* Output characters */
+  val = value;
+  where[i] = 0;
+  do {
+    where[--i] = base64_digits[val & (uint64_t)0x3F];
+    val >>= 6;
+  } while (val);
+  return n;
 }
 
 encoded_meta EncodeDefaultMeta(const bareos_stat& statp,
@@ -851,7 +905,7 @@ bool SendMetaInfo(
       if (!original) { return false; }
       if (!sd->fsend("%ld %d %s%c%s%c%s%c%s%c%u%c", idx.to_underlying(), type,
                      std::string{name}.c_str(), 0, def.enc.c_str(), 0,
-                     std::string{original->bareos_path()}, 0, extra_str, 0,
+                     std::string{original->bareos_path()}.c_str(), 0, extra_str, 0,
                      delta_seq, 0)) {
         return false;
       }
@@ -919,16 +973,41 @@ bool SendMetaInfo(
 // };
 
 bool SendData(BareosSocket* sd,
+	      file_index idx,
               data_stream stream,
+	      std::size_t bufsize,
               BareosFilePacket* bfd,
               DIGEST* checksum,
               DIGEST* signing)
 {
-  (void)sd;
-  (void)bfd;
-  (void)stream;
-  (void)checksum;
-  (void)signing;
+  if (!sd->fsend("%ld %d 0", idx.to_underlying(), stream)) {
+    return false;
+  }
+
+  sd->msg = CheckPoolMemorySize(sd->msg, bufsize);
+  // Read the file data
+  while ((sd->message_length
+          = (uint32_t)bread(bfd, sd->msg, bufsize))
+         > 0) {
+    // Update checksum if requested
+    if (checksum) {
+      CryptoDigestUpdate(checksum, (const uint8_t*)sd->msg, sd->message_length);
+    }
+
+    // Update signing digest if requested
+    if (signing) {
+      CryptoDigestUpdate(signing, (const uint8_t*)sd->msg, sd->message_length);
+    }
+
+    Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
+    if (!sd->send()) {
+      return false;
+    }
+  }
+
+  if (!sd->signal(BNET_EOD)) {
+    return false;
+  }
 
   return true;
 }
@@ -997,6 +1076,68 @@ bool SendDigest(BareosSocket* sd,
   return true;
 }
 
+enum class checksum_type : int {
+  MD5 = (int)digest_stream::MD5,
+  SHA1 = (int)digest_stream::SHA1,
+  SHA256 = (int)digest_stream::SHA256,
+  SHA512 = (int)digest_stream::SHA512,
+  XXH128 = (int)digest_stream::XXH128,
+};
+
+DIGEST* SetupChecksum(JobControlRecord* jcr, checksum_type type)
+{
+  switch (type) {
+  case checksum_type::MD5: {
+    return crypto_digest_new(jcr, CRYPTO_DIGEST_MD5);
+  } break;
+  case checksum_type::SHA1: {
+    return crypto_digest_new(jcr, CRYPTO_DIGEST_SHA1);
+  } break;
+  case checksum_type::SHA256: {
+    return crypto_digest_new(jcr, CRYPTO_DIGEST_SHA256);
+  } break;
+  case checksum_type::SHA512: {
+    return crypto_digest_new(jcr, CRYPTO_DIGEST_SHA512);
+  } break;
+  case checksum_type::XXH128: {
+    return crypto_digest_new(jcr, CRYPTO_DIGEST_XXH128);
+  } break;
+  }
+
+  return nullptr;
+}
+
+DIGEST* SetupSigning(JobControlRecord* jcr)
+{
+#ifdef HAVE_SHA2
+  crypto_digest_t signing_algorithm = CRYPTO_DIGEST_SHA256;
+#else
+  crypto_digest_t signing_algorithm = CRYPTO_DIGEST_SHA1;
+#endif
+
+    return crypto_digest_new(jcr, signing_algorithm);
+}
+
+struct save_options {
+  bool compress;
+  std::optional<checksum_type> checksum;
+  X509_KEYPAIR* signing_key;
+};
+
+digest_stream DigestStream(DIGEST* digest)
+{
+  switch (digest->type) {
+  case CRYPTO_DIGEST_MD5: return digest_stream::MD5;
+  case CRYPTO_DIGEST_SHA1: return digest_stream::SHA1;
+  case CRYPTO_DIGEST_SHA256: return digest_stream::SHA256;
+  case CRYPTO_DIGEST_SHA512: return digest_stream::SHA512;
+  case CRYPTO_DIGEST_XXH128: return digest_stream::XXH128;
+  default: {
+    __builtin_unreachable();
+  }
+  }
+};
+
 save_file_result SaveFile(JobControlRecord* jcr,
                           bareos_file* file,
                           std::optional<std::uint32_t> delta_seq,
@@ -1021,7 +1162,6 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
     auto stats = EncodeDefaultMeta(file->lstat(), orig_index, file->stream());
 
-
     std::optional extra = file->extra_meta();
 
     if (!SendMetaInfo(sd, fi, file->type(), file->bareos_path(),
@@ -1036,15 +1176,28 @@ save_file_result SaveFile(JobControlRecord* jcr,
   }
 
   if (file->has_data()) {
+    // todo: this should be an raii type
     DIGEST *checksum = nullptr, *signing = nullptr;
-    digest_stream digest;
-    if (!1 /* setup encryption/checksum */) {
-      return save_file_result::Success;
+    if (options.checksum) {
+      checksum = SetupChecksum(jcr, *options.checksum);
+      if (!checksum) {
+	return save_file_result::Success;
+      }
+    }
+    if (options.signing_key) {
+      signing = SetupSigning(jcr);
+      if (!signing) {
+	return save_file_result::Success;
+      }
     }
 
     BareosFilePacket bfd = file->open();
 
-    if (!SendData(sd, file->stream(), &bfd, checksum, signing)) {
+    if (!SendData(sd, fi, file->stream(), jcr->buf_size, &bfd, checksum, signing)) {
+      if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+        Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+              sd->bstrerror());
+      }
       return save_file_result::Error;
     }
 
@@ -1055,7 +1208,11 @@ save_file_result SaveFile(JobControlRecord* jcr,
     if (checksum) {
       auto check_encoded = TerminateChecksum(checksum);
       if (check_encoded.size()) {
-        if (!SendDigest(sd, fi, digest, check_encoded)) {
+        if (!SendDigest(sd, fi, DigestStream(checksum), check_encoded)) {
+	  if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+	    Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+		  sd->bstrerror());
+	  }
           // todo: handle error case here
         }
       } else {
@@ -1065,9 +1222,13 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
     if (signing) {
       auto sign_encoded
-          = TerminateSigning(jcr, jcr->fd_impl->crypto.pki_keypair, signing);
+          = TerminateSigning(jcr, options.signing_key, signing);
       if (sign_encoded.size()) {
         if (!SendDigest(sd, fi, digest_stream::SIGNED, sign_encoded)) {
+	  if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+	    Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+		  sd->bstrerror());
+	  }
           // todo: handle error case here
         }
       } else {
@@ -1075,6 +1236,7 @@ save_file_result SaveFile(JobControlRecord* jcr,
       }
     }
 
+    // this should always happen -> raii
     if (checksum) { CryptoDigestFree(checksum); }
     if (signing) { CryptoDigestFree(signing); }
   }
@@ -1092,6 +1254,102 @@ save_file_result SaveFile(JobControlRecord* jcr,
   return save_file_result::Success;
 }
 
+bareos_stat NativeToBareos(struct stat statp)
+{
+  return bareos_stat {
+    .dev = statp.st_dev,
+    .ino = statp.st_ino,
+    .mode = statp.st_mode,
+    .nlink = statp.st_nlink,
+    .uid = statp.st_uid,
+    .gid = statp.st_gid,
+    .rdev = statp.st_rdev,
+    .size = (uint64_t)statp.st_size,
+    .blksize = (uint64_t)statp.st_blksize,
+    .blocks = (uint64_t)statp.st_blocks,
+    .atime = statp.st_atime,
+    .mtime = statp.st_mtime,
+    .ctime = statp.st_ctime,
+    .flags = 0,
+  };
+}
+
+file_type NativeToBareos(int type)
+{
+  switch (type) {
+  case FT_LNKSAVED: return file_type::LNKSAVED;
+  case FT_REGE: return file_type::REGE;
+  case FT_REG: return file_type::REG;
+  case FT_LNK: return file_type::LNK;
+  case FT_DIREND: return file_type::DIREND;
+  case FT_SPEC: return file_type::SPEC;
+  case FT_NOACCESS: return file_type::NOACCESS;
+  case FT_NOFOLLOW: return file_type::NOFOLLOW;
+  case FT_NOSTAT: return file_type::NOSTAT;
+  case FT_NOCHG: return file_type::NOCHG;
+  case FT_DIRNOCHG: return file_type::DIRNOCHG;
+  case FT_ISARCH: return file_type::ISARCH;
+  case FT_NORECURSE: return file_type::NORECURSE;
+  case FT_NOFSCHG: return file_type::NOFSCHG;
+  case FT_NOOPEN: return file_type::NOOPEN;
+  case FT_RAW: return file_type::RAW;
+  case FT_FIFO: return file_type::FIFO;
+  case FT_DIRBEGIN: return file_type::DIRBEGIN;
+  case FT_INVALIDFS: return file_type::INVALIDFS;
+  case FT_INVALIDDT: return file_type::INVALIDDT;
+  case FT_REPARSE: return file_type::REPARSE;
+  case FT_PLUGIN: return file_type::PLUGIN;
+  case FT_DELETED: return file_type::DELETED;
+  case FT_BASE: return file_type::BASE;
+  case FT_RESTORE_FIRST: return file_type::RESTORE_FIRST;
+  case FT_JUNCTION: return file_type::JUNCTION;
+  case FT_PLUGIN_CONFIG: return file_type::PLUGIN_CONFIG;
+  case FT_PLUGIN_CONFIG_FILLED: return file_type::PLUGIN_CONFIG_FILLED;
+  };
+
+  return file_type::REG;
+}
+
+struct test_file : bareos_file
+{
+  FindFilesPacket* ff;
+  test_file(FindFilesPacket* ff_) : bareos_file(
+					       NativeToBareos(ff_->type),
+					       ff_->fname,
+					       NativeToBareos(ff_->statp)
+					      )
+  {
+    ff = ff_;
+  }
+
+  bool has_data() override
+  {
+    switch (ff->type) {
+    case FT_REGE: [[fallthrough]];
+    case FT_REG: [[fallthrough]];
+    case FT_RAW: {
+      return true;
+    } break;
+    }
+    return false;
+  }
+
+  data_stream stream() override
+  {
+    return (data_stream)SelectDataStream(ff);
+  }
+
+  BareosFilePacket open() override
+  {
+    BareosFilePacket bfd;
+    int noatime = BitIsSet(FO_NOATIME, ff->flags) ? O_NOATIME : 0;
+    bopen(&bfd, ff->fname, O_RDONLY | O_BINARY | noatime, 0,
+	  ff->statp.st_rdev);
+
+    return bfd;
+  }
+};
+
 /**
  * Called here by find() for each file included.
  * This is a callback. The original is FindFiles() above.
@@ -1103,6 +1361,94 @@ save_file_result SaveFile(JobControlRecord* jcr,
  *         -1 to ignore file/directory (not used here) */
 int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 {
+#if 1
+  switch (ff_pkt->type) {
+    case FT_DIRBEGIN:
+      jcr->fd_impl->num_files_examined--; /* correct file count */
+      return 1;                           /* not used */
+    case FT_NOFSCHG:
+      ff_pkt->type = FT_DIREND; /* Backup only the directory entry */
+      break;
+    case FT_INVALIDFS:
+      ff_pkt->type = FT_DIREND; /* Backup only the directory entry */
+      break;
+    case FT_SPEC:
+      if (S_ISSOCK(ff_pkt->statp.st_mode)) {
+        return 1;
+      }
+      break;
+    case FT_NOACCESS: {
+      jcr->JobErrors++;
+      return 1;
+    }
+    case FT_NOFOLLOW: {
+      jcr->JobErrors++;
+      return 1;
+    }
+    case FT_NOSTAT: {
+      jcr->JobErrors++;
+      return 1;
+    }
+    case FT_DIRNOCHG:
+    case FT_NOCHG:
+      return 1;
+    case FT_ISARCH:
+      return 1;
+    case FT_NOOPEN: {
+      jcr->JobErrors++;
+      return 1;
+    }
+  }
+  test_file f{ff_pkt};
+
+  std::optional<bareos_file_ref> original;
+  switch (f.type()) {
+  case file_type::JUNCTION:
+    [[fallthrough]];
+  case file_type::LNK: {
+    original.emplace(ff_pkt->link);
+  } break;
+  case file_type::LNKSAVED: {
+    original.emplace(ff_pkt->link,
+		     file_index{ff_pkt->LinkFI});
+  } break;
+  default: {} break;
+  }
+
+  std::optional<checksum_type> chk;
+  if (BitIsSet(FO_MD5, ff_pkt->flags)) {
+    chk = checksum_type::MD5;
+  } else if (BitIsSet(FO_SHA1, ff_pkt->flags)) {
+    chk = checksum_type::SHA1;
+  } else if (BitIsSet(FO_SHA256, ff_pkt->flags)) {
+    chk = checksum_type::SHA256;
+  } else if (BitIsSet(FO_SHA512, ff_pkt->flags)) {
+    chk = checksum_type::SHA512;
+  } else if (BitIsSet(FO_XXH128, ff_pkt->flags)) {
+    chk = checksum_type::XXH128;
+  }
+  auto res = SaveFile(jcr,
+		      &f,
+		      std::nullopt,
+		      std::move(original),
+		      save_options{ .compress = BitIsSet(FO_COMPRESS, ff_pkt->flags),
+				    .checksum = chk,
+				    .signing_key = jcr->fd_impl->crypto.pki_keypair,
+		      });
+
+  switch (res) {
+  case save_file_result::Error:  {
+    return 0;
+  } break;
+  case save_file_result::Success:  {
+    return 1;
+  } break;
+  case save_file_result::Skip:  {
+    return -1;
+  } break;
+  };
+  return 0;
+#else
   bool do_read = false;
   bool plugin_started = false;
   bool do_plugin_set = false;
@@ -1435,6 +1781,7 @@ bail_out:
   if (bsctx.signing_digest) { CryptoDigestFree(bsctx.signing_digest); }
 
   return rtnstat;
+#endif
 }
 
 /**
