@@ -265,6 +265,7 @@ void heartbeat_receiver::receive_heartbeat(BareosSocket* sock)
     Dmsg2(200, "wait_intr=%d stop=%d\n", n, IsBnetStop(sock));
   }
   sock->close();
+  delete sock;
   stopped = true;
 }
 
@@ -303,6 +304,7 @@ void heartbeat_sender::send_heartbeat(BareosSocket* sock)
     Bmicrosleep(next_heartbeat - now, 0);
   }
   sock->close();
+  delete sock;
   stopped = true;
 }
 
