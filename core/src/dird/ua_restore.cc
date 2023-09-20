@@ -1279,7 +1279,6 @@ static bool SelectFiles(UaContext* ua,
 
     if (OK) { FinishSelection(rx, tree); }
   }
-
   return OK;
 }
 
