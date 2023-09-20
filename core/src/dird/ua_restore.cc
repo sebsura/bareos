@@ -1270,10 +1270,6 @@ static bool SelectFiles(UaContext* ua,
     if (OK) { FinishSelection(rx, tree); }
   }
 
-  /* We keep the tree with selected restore files.
-   * For NDMP restores its used in the DMA to know what to restore.
-   * The tree is freed by the DMA when its done. */
-
   return OK;
 }
 
