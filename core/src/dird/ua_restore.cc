@@ -197,10 +197,8 @@ bool RestoreCmd(UaContext* ua, const char*)
   }
 
   if (strip_prefix || add_suffix || add_prefix) {
-    rx.BuildRegexWhere(strip_prefix, add_suffix, add_prefix);
+    rx.RegexWhere = BuildRegexWhere(strip_prefix, add_prefix, add_suffix);
   }
-
-  /* TODO: add acl for regexwhere ? */
 
   if (!rx.RegexWhere.empty()) {
     if (!ua->AclAccessOk(Where_ACL, rx.RegexWhere.c_str(), true)) {
@@ -373,15 +371,6 @@ static void GetAndDisplayBasejobs(UaContext* ua, RestoreContext* rx)
     ua->db->ListSqlQuery(ua->jcr, query.c_str(), ua->send, HORZ_LIST, true);
   }
   rx->BaseJobIds = jobids.GetAsString();
-}
-
-void RestoreContext::BuildRegexWhere(char* strip_prefix,
-                                     char* add_prefix,
-                                     char* add_suffix)
-{
-  int len = BregexpGetBuildWhereSize(strip_prefix, add_prefix, add_suffix);
-  bregexp_build_where(RegexWhere.data(), len, strip_prefix, add_prefix,
-                      add_suffix);
 }
 
 void RestoreContext::GetFilenameAndPath(UaContext* ua, char* pathname)
