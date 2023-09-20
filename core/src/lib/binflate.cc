@@ -36,7 +36,7 @@
  *  same size as the input buffer, it should work (at least
  *  for text).
  */
-int Zdeflate(char* in, int in_len, char* out, int& out_len)
+int Zdeflate(const char* in, int in_len, char* out, int& out_len)
 {
 #ifdef HAVE_LIBZ
   z_stream strm;

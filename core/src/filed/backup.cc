@@ -786,7 +786,6 @@ class bareos_file_ref {
   file_index index() { return idx; }
   std::string_view bareos_path() { return path; }
 
-  span<const char> signing() { return encoded_signing; }
   std::pair<digest_stream, span<const char>> checksum()
   {
     return std::make_pair(digest, std::cref(encoded_checksum));
@@ -794,11 +793,11 @@ class bareos_file_ref {
 
   bareos_file_ref(std::string path,
 		  file_index idx,
-		  span<const char> checksum,
-		  span<const char> signing) : path{std::move(path)}
-					    , idx{idx}
-					    , encoded_signing{signing}
-					    , encoded_checksum{checksum}
+		  digest_stream stream,
+		  span<const char> checksum) : path{std::move(path)}
+					     , idx{idx}
+					     , digest{stream}
+					     , encoded_checksum{checksum}
   {}
 
   bareos_file_ref(std::string path) : bareos_file_ref(std::move(path),
@@ -1278,12 +1277,8 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
   if (file->type() == file_type::LNKSAVED && original) {
     auto [stream, check_encoded] = original->checksum();
-    auto sign_encoded = original->signing();
 
     if (check_encoded.size()) { SendDigest(sd, fi, stream, check_encoded); }
-    if (sign_encoded.size()) {
-      SendDigest(sd, fi, digest_stream::SIGNED, sign_encoded);
-    }
   }
 
   return save_file_result::Success;
@@ -1386,6 +1381,81 @@ struct test_file : bareos_file
   }
 };
 
+enum class plugin_object_type : int
+{
+  TEST
+};
+
+struct plugin_object
+{
+  plugin_object_type type() { return {}; }
+  int index() { return 0; }
+  int length() { return 0; }
+  const char* name() { return nullptr; }
+  const char* file_name() { return nullptr; }
+
+  span<const char> data() { return {}; }
+};
+
+int SavePluginObject(JobControlRecord* jcr,
+		     plugin_object obj)
+{
+  if (jcr->IsJobCanceled() || jcr->IsIncomplete()) {
+    return -1;
+    //return save_file_result::Skip;
+  }
+
+  BareosSocket* sd = jcr->store_bsock;
+
+  file_index fi = next_file_index(jcr);
+  sd->fsend("%ld %d 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
+
+  auto data = obj.data();
+  int comp_len;
+  int comp = 0;
+  const char* obj_data = data.data();
+  if (data.size() > 1000) {
+    // Big object, compress it
+    comp_len = compressBound(data.size());
+    POOLMEM* comp_obj = GetMemory(comp_len);
+    // FIXME: check Zdeflate error
+    Zdeflate(data.data(), data.size(), comp_obj, comp_len);
+    if (comp_len < ff_pkt->object_len) {
+      obj_data = comp_obj;
+      comp = 1; /* zlib level 9 compression */
+      Dmsg2(100, "Object compressed from %d to %d bytes\n",
+	    data.size(), comp_len);
+    } else {
+      // Uncompressed object smaller, use it
+      comp_len = data.size();
+      FreePoolMemory(comp_len);
+    }
+  }
+  // comp_len = ff_pkt->object_len;
+  // ff_pkt->object_compression = 0;
+
+  // if (ff_pkt->object_len > 1000) {
+  // }
+
+  sd->message_length = Mmsg(sd->msg, "%d %d %d %d %d %d %s%c%s%c", fi.to_underlying(),
+			    obj.type(), obj.index(), comp_len, obj.length(),
+			    comp, obj.file_name(), 0,
+			    obj.name(), 0);
+  sd->msg = CheckPoolMemorySize(sd->msg, sd->message_length + comp_len + 2);
+  memcpy(sd->msg + sd->message_length, obj_data, comp_len);
+
+  if (comp) {
+    FreePoolMemory(obj_data);
+  }
+  // Note we send one extra byte so Dir can store zero after object
+  sd->message_length += comp_len + 1;
+  sd->send();
+
+
+  sd->signal(BNET_EOD);
+  return -1;
+}
+
 /**
  * Called here by find() for each file included.
  * This is a callback. The original is FindFiles() above.
@@ -1399,41 +1469,46 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 {
 #if 1
   switch (ff_pkt->type) {
-    case FT_DIRBEGIN:
-      jcr->fd_impl->num_files_examined--; /* correct file count */
-      return 1;                           /* not used */
-    case FT_NOFSCHG:
-      ff_pkt->type = FT_DIREND; /* Backup only the directory entry */
-      break;
-    case FT_INVALIDFS:
-      ff_pkt->type = FT_DIREND; /* Backup only the directory entry */
-      break;
-    case FT_SPEC:
-      if (S_ISSOCK(ff_pkt->statp.st_mode)) {
-        return 1;
-      }
-      break;
-    case FT_NOACCESS: {
-      jcr->JobErrors++;
+  case FT_DIRBEGIN:
+    jcr->fd_impl->num_files_examined--; /* correct file count */
+    return 1;                           /* not used */
+  case FT_NOFSCHG:
+    ff_pkt->type = FT_DIREND; /* Backup only the directory entry */
+    break;
+  case FT_INVALIDFS:
+    ff_pkt->type = FT_DIREND; /* Backup only the directory entry */
+    break;
+  case FT_SPEC:
+    if (S_ISSOCK(ff_pkt->statp.st_mode)) {
       return 1;
     }
-    case FT_NOFOLLOW: {
-      jcr->JobErrors++;
-      return 1;
-    }
-    case FT_NOSTAT: {
-      jcr->JobErrors++;
-      return 1;
-    }
-    case FT_DIRNOCHG:
-    case FT_NOCHG:
-      return 1;
-    case FT_ISARCH:
-      return 1;
-    case FT_NOOPEN: {
-      jcr->JobErrors++;
-      return 1;
-    }
+    break;
+  case FT_NOACCESS: {
+    jcr->JobErrors++;
+    return 1;
+  }
+  case FT_NOFOLLOW: {
+    jcr->JobErrors++;
+    return 1;
+  }
+  case FT_NOSTAT: {
+    jcr->JobErrors++;
+    return 1;
+  }
+  case FT_DIRNOCHG:
+  case FT_NOCHG:
+    return 1;
+  case FT_ISARCH:
+    return 1;
+  case FT_NOOPEN: {
+    jcr->JobErrors++;
+    return 1;
+  }
+  case FT_RESTORE_FIRST: [[fallthrough]];
+  case FT_PLUGIN_CONFIG: [[fallthrough]];
+  case FT_PLUGIN_CONFIG_FILLED: {
+    return SavePluginObject(jcr, {});
+  } break;
   }
   test_file f{ff_pkt};
 
@@ -1447,7 +1522,9 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   case file_type::LNKSAVED: {
     original.emplace(ff_pkt->link,
 		     file_index{ff_pkt->LinkFI},
-		     ff_pkt->linked->digest);
+		     (digest_stream)ff_pkt->digest_stream,
+		     span{ff_pkt->digest,
+			  ff_pkt->digest_len}.as_const());
   } break;
   default: {} break;
   }
