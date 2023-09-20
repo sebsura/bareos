@@ -638,7 +638,6 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
         return 0;
       case 0: /* list last 20 Jobs run */
       {
-        PoolMem query;
         ua->db->FillQuery(query, BareosDb::SQL_QUERY::uar_list_jobs,
                           filter_name);
         if (!ua->AclAccessOk(Command_ACL, NT_("sqlquery"), true)) {

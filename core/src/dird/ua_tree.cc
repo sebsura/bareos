@@ -442,7 +442,7 @@ int MarkElement(const char* element,
           = SplitPathAndFilename(tree_getpath(node).c_str());
 
       if (fnmatch(fullpath_pattern.c_str(), node_path.c_str(), 0) == 0) {
-        if (fnmatch(filename_pattern.c_str(), node->fname, 0) == 0) {
+        if (fnmatch(filename_pattern.c_str(), node->fname.c_str(), 0) == 0) {
           count += SetExtract(ua, node, tree, extract);
         }
       }
@@ -451,7 +451,7 @@ int MarkElement(const char* element,
     TREE_NODE* node;
     // Only a pattern without a / so do things relative to CWD.
     foreach_child (node, tree->node) {
-      if (fnmatch(element, node->fname, 0) == 0) {
+      if (fnmatch(element, node->fname.c_str(), 0) == 0) {
         count += SetExtract(ua, node, tree, extract);
       }
     }
@@ -508,7 +508,7 @@ static int Markdircmd(UaContext* ua, TreeContext* tree)
   for (int i = 1; i < ua->argc; i++) {
     StripTrailingSlash(ua->argk[i]);
     foreach_child (node, tree->node) {
-      if (fnmatch(ua->argk[i], node->fname, 0) == 0) {
+      if (fnmatch(ua->argk[i], node->fname.c_str(), 0) == 0) {
         if (node->type == TreeNodeType::Dir
             || node->type == TreeNodeType::DirNLS) {
           node->extract_dir = true;
@@ -558,7 +558,7 @@ static int findcmd(UaContext* ua, TreeContext* tree)
 
   for (int i = 1; i < ua->argc; i++) {
     for (node = FirstTreeNode(tree->root); node; node = NextTreeNode(node)) {
-      if (fnmatch(ua->argk[i], node->fname, 0) == 0) {
+      if (fnmatch(ua->argk[i], node->fname.c_str(), 0) == 0) {
         const char* tag;
 
         std::string cwd = tree_getpath(node);
@@ -583,8 +583,8 @@ static int DotLsdircmd(UaContext* ua, TreeContext* tree)
   if (!TreeNodeHasChild(tree->node)) { return 1; }
 
   foreach_child (node, tree->node) {
-    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
-      if (TreeNodeHasChild(node)) { ua->SendMsg("%s/\n", node->fname); }
+    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname.c_str(), 0) == 0) {
+      if (TreeNodeHasChild(node)) { ua->SendMsg("%s/\n", node->fname.c_str()); }
     }
   }
 
@@ -609,8 +609,9 @@ static int DotLscmd(UaContext* ua, TreeContext* tree)
   if (!TreeNodeHasChild(tree->node)) { return 1; }
 
   foreach_child (node, tree->node) {
-    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
-      ua->SendMsg("%s%s\n", node->fname, TreeNodeHasChild(node) ? "/" : "");
+    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname.c_str(), 0) == 0) {
+      ua->SendMsg("%s%s\n", node->fname.c_str(),
+                  TreeNodeHasChild(node) ? "/" : "");
     }
   }
 
@@ -623,7 +624,7 @@ static int lscmd(UaContext* ua, TreeContext* tree)
 
   if (!TreeNodeHasChild(tree->node)) { return 1; }
   foreach_child (node, tree->node) {
-    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
+    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname.c_str(), 0) == 0) {
       const char* tag;
       if (node->extract) {
         tag = "*";
@@ -632,7 +633,7 @@ static int lscmd(UaContext* ua, TreeContext* tree)
       } else {
         tag = "";
       }
-      ua->SendMsg("%s%s%s\n", tag, node->fname,
+      ua->SendMsg("%s%s%s\n", tag, node->fname.c_str(),
                   TreeNodeHasChild(node) ? "/" : "");
     }
   }
@@ -645,9 +646,10 @@ static int DotLsmarkcmd(UaContext* ua, TreeContext* tree)
   TREE_NODE* node;
   if (!TreeNodeHasChild(tree->node)) { return 1; }
   foreach_child (node, tree->node) {
-    if ((ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0)
+    if ((ua->argc == 1 || fnmatch(ua->argk[1], node->fname.c_str(), 0) == 0)
         && (node->extract || node->extract_dir)) {
-      ua->SendMsg("%s%s\n", node->fname, TreeNodeHasChild(node) ? "/" : "");
+      ua->SendMsg("%s%s\n", node->fname.c_str(),
+                  TreeNodeHasChild(node) ? "/" : "");
     }
   }
   return 1;
@@ -672,7 +674,7 @@ static void rlsmark(UaContext* ua, TREE_NODE* tnode, int level)
   indent[j] = 0;
 
   foreach_child (node, tnode) {
-    if ((ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0)
+    if ((ua->argc == 1 || fnmatch(ua->argk[1], node->fname.c_str(), 0) == 0)
         && (node->extract || node->extract_dir)) {
       const char* tag;
       if (node->extract) {
@@ -682,7 +684,7 @@ static void rlsmark(UaContext* ua, TREE_NODE* tnode, int level)
       } else {
         tag = "";
       }
-      ua->SendMsg("%s%s%s%s\n", indent, tag, node->fname,
+      ua->SendMsg("%s%s%s%s\n", indent, tag, node->fname.c_str(),
                   TreeNodeHasChild(node) ? "/" : "");
       if (TreeNodeHasChild(node)) { rlsmark(ua, node, level + 1); }
     }
@@ -748,7 +750,7 @@ static int DoDircmd(UaContext* ua, TreeContext* tree, bool dot_cmd)
   struct stat statp;
 
   if (!TreeNodeHasChild(tree->node)) {
-    ua->SendMsg(T_("Node %s has no children.\n"), tree->node->fname);
+    ua->SendMsg(T_("Node %s has no children.\n"), tree->node->fname.c_str());
     return 1;
   }
 
@@ -756,7 +758,7 @@ static int DoDircmd(UaContext* ua, TreeContext* tree, bool dot_cmd)
 
   foreach_child (node, tree->node) {
     const char* tag;
-    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
+    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname.c_str(), 0) == 0) {
       if (node->extract) {
         tag = "*";
       } else if (node->extract_dir) {
@@ -970,7 +972,7 @@ static int UnMarkdircmd(UaContext* ua, TreeContext* tree)
   for (int i = 1; i < ua->argc; i++) {
     StripTrailingSlash(ua->argk[i]);
     foreach_child (node, tree->node) {
-      if (fnmatch(ua->argk[i], node->fname, 0) == 0) {
+      if (fnmatch(ua->argk[i], node->fname.c_str(), 0) == 0) {
         if (node->type == TreeNodeType::Dir
             || node->type == TreeNodeType::DirNLS) {
           node->extract_dir = false;
