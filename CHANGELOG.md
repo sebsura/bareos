@@ -1,162 +1,259 @@
+# Change Log
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](http://keepachangelog.com/)
+and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased]
-
-### Added
-- add openssl 3 ulc [PR #1683]
-- Add backport tool [PR #1639]
-- Add FreeBSD 13.3 and 14.0 [PR #1765]
+## [1.4.1] - 2021-11-25
+### Fixed
+- Fedora CI build by updating to Catch v2.13.7
+- Typo in README (#313)
 
 ### Changed
-- github actions: PyPi: install setuptools [PR #1589]
-- restore: add fileregex parameter [PR #1587]
-- scripts: force cd / for all PostgreSQL scripts [PR #1607]
-- Improve python plugin configuration [PR #1605]
-- macOS: fix linking problem for macOS >= 14 [PR #1592]
-- dird: remove optimize_for_size/optimize_for_speed [PR #1612]
-- build: introduce Fedora 39 [PR #1614]
-- libcloud: modularize systemtest [PR #1609]
-- filedaemon: remove ovirt plugin [PR #1617]
-- vadp-dumper: fix multithreaded backup/restore issues [PR #1593]
-- VMware Plugin: Run bareos_vadp_dumper with optimized parameters to increase backup performance [PR #1630]
-- pkglists: update SUSE to have vmware packages [PR #1632]
-- backup report: show negative compression [PR #1598]
-- core: add build patch for `sprintf` in macos builds [PR #1636]
-- python-bareos: use socket.create_connection() to allow AF_INET6 [PR #1646]
-- Improve FreeBSD build [PR #1538]
-- core: sql_* add leading space to sql construct [PR #1656]
-- plugins: postgresql fix missing pg_backup_stop() call [PR #1655]
-- filed: fix vss during client initiated connections [PR #1665]
-- bareos-config: fix output of deploy_config [PR #1672]
-- Disable automated package-tests for SLES 12 [PR #1671]
-- Make BareosDirPluginPrometheusExporter.py work with python3 [PR #1647]
-- Improve FreeBSD dependencies [PR #1670]
-- python-bareos: integrate usage of config files [PR #1678]
-- cmake: cleanup [PR #1661]
-- bnet-server-tcp: split socket creation from listening for unittests [PR #1649]
-- webui: Backup Unit Report fixes [PR #1696]
-- windows: fix calculation of "job_metadata.xml" object size [PR #1695]
-- stored: fix storage daemon crash if passive client is unreachable, create better session keys [PR #1688]
-- bareos-triggerjob: fix parameter handling [PR #1708]
-- fvec: add mmap based vector  [PR #1662]
-- core: fix various data races (connection_pool/heartbeat_thread) [PR #1685]
-- filed: skip stripped top level directories [PR #1686]
-- jcr: fix some compiler warnings [PR #1648]
-- build: Fix debugsource RPM package generation [PR #1713]
-- Bugfix: Clean up error handling in LDAP plugin, fix dependencies [PR #1717]
-- crypto_wrap: replace aes wrap with openssl aes wrap algorithm [PR #1718]
-- dbcheck: fix dbcheck crash if password is not set in catalog resource [PR #1710]
-- Require python3 explicit [PR #1719]
-- cmake: put generated files into CMAKE_BINARY_DIR [PR #1707]
-- increase warning level on C/C++ compiler [PR #1689]
-- VMware Plugin: Backup and Restore NVRAM [PR #1727]
-- doc: add backtick around *.?* description  [PR #1752]
-- PR template: remove backport hints [PR #1762]
-- python-bareos: use TLS-PSK from core ssl module (available since Python >= 3.13) [PR #1756]
-- [percona-xtrabackup] prevent High memory usage for no reason (IO_CLOSE) [PR #1724]
-- docs: improve handling of ResourceItem descriptions [PR #1761]
-- pr-tool: give hint about commit headline length limits [PR #1763]
-- stored: fix some sd error messages; add additional check during restore; split up always-incremental-consolidate test [PR #1722]
-- Generate LICENSE.txt from LICENSE.template [PR #1753]
-- Allow cross-building for Windows on newer compiler [PR #1772]
-- cats: fix subscription view missing mariabackup plugin [PR #1767]
-- contrib: add reschedule_job_as_full.sh [PR #1786]
+- Vendoring catch library instead of downloading from github
 
-### Removed
-- plugins: remove old deprecated postgres plugin [PR #1606]
-- Remove EOL platforms [PR #1684]
+## [1.4.0] - 2021-10-23
+### Fixed
+- Deprecation warnings for Jsoncpp (#312)
+- Compatibility with newer libmicrohttpd versions (>= 0.9.71) (#298 #299)
+- Typo in diagram (#293)
+- File descriptor leaks in connectors
 
-### Documentation
-- docs: improvements for droplet, jobdefs [PR #1581]
-- docs: fix Pool explanation for migration jobs [PR #1728]
-- github: introduce template for issues [PR #1716]
-- docs: improve pluginAPI docs [PR #1805]
+### Changed
+- Moved from travis-ci to circleci (#311)
+- Use `.empty()` checks instead of `.size() == 0`
+
+## [1.3.0] - 2020-01-13
+### Added
+- Linux SerialPort client and server connector(#286)
+- Build example for Centos 7 (#267)
+- `Json::Value` example code (#281)
+- IPv6 Support for `HttpServer` (#275)
+- Added data field in error handler in JS stub generator
 
 ### Fixed
-- dird: fix `purge oldest volume` [PR #1628]
-- Fix continuation on colons in plugin baseclass [PR #1637]
-- plugins: fix cancel handling crash [PR #1595]
-- Fix bareos_tasks plugin for pgsql [PR #1659]
-- core: Fix compile errors on GCC 14 [PR #1687]
-- stored: fix authentication race condition / deadlock [PR #1732]
-- Fix warning about missing delcandidates table in director [PR #1721]
-- stored: fix not counting files correctly in mac jobs when autoxflate is enabled [PR #1745]
-- cats: fixes BigSqlQuery header fetching [PR #1746]
-- Fix issue #1780 libpng icc profil [PR #1788]
+- Incorrect README sections (#280)
+- Incorrect INTERFACE_LINK_LIBRARIES (#253)
+- `HttpClient` Response Code checking (#278)
 
-[PR #1538]: https://github.com/bareos/bareos/pull/1538
-[PR #1581]: https://github.com/bareos/bareos/pull/1581
-[PR #1587]: https://github.com/bareos/bareos/pull/1587
-[PR #1589]: https://github.com/bareos/bareos/pull/1589
-[PR #1592]: https://github.com/bareos/bareos/pull/1592
-[PR #1593]: https://github.com/bareos/bareos/pull/1593
-[PR #1595]: https://github.com/bareos/bareos/pull/1595
-[PR #1598]: https://github.com/bareos/bareos/pull/1598
-[PR #1605]: https://github.com/bareos/bareos/pull/1605
-[PR #1606]: https://github.com/bareos/bareos/pull/1606
-[PR #1607]: https://github.com/bareos/bareos/pull/1607
-[PR #1609]: https://github.com/bareos/bareos/pull/1609
-[PR #1612]: https://github.com/bareos/bareos/pull/1612
-[PR #1614]: https://github.com/bareos/bareos/pull/1614
-[PR #1617]: https://github.com/bareos/bareos/pull/1617
-[PR #1628]: https://github.com/bareos/bareos/pull/1628
-[PR #1630]: https://github.com/bareos/bareos/pull/1630
-[PR #1632]: https://github.com/bareos/bareos/pull/1632
-[PR #1636]: https://github.com/bareos/bareos/pull/1636
-[PR #1637]: https://github.com/bareos/bareos/pull/1637
-[PR #1639]: https://github.com/bareos/bareos/pull/1639
-[PR #1646]: https://github.com/bareos/bareos/pull/1646
-[PR #1647]: https://github.com/bareos/bareos/pull/1647
-[PR #1648]: https://github.com/bareos/bareos/pull/1648
-[PR #1649]: https://github.com/bareos/bareos/pull/1649
-[PR #1655]: https://github.com/bareos/bareos/pull/1655
-[PR #1656]: https://github.com/bareos/bareos/pull/1656
-[PR #1659]: https://github.com/bareos/bareos/pull/1659
-[PR #1661]: https://github.com/bareos/bareos/pull/1661
-[PR #1662]: https://github.com/bareos/bareos/pull/1662
-[PR #1665]: https://github.com/bareos/bareos/pull/1665
-[PR #1670]: https://github.com/bareos/bareos/pull/1670
-[PR #1671]: https://github.com/bareos/bareos/pull/1671
-[PR #1672]: https://github.com/bareos/bareos/pull/1672
-[PR #1678]: https://github.com/bareos/bareos/pull/1678
-[PR #1683]: https://github.com/bareos/bareos/pull/1683
-[PR #1684]: https://github.com/bareos/bareos/pull/1684
-[PR #1685]: https://github.com/bareos/bareos/pull/1685
-[PR #1686]: https://github.com/bareos/bareos/pull/1686
-[PR #1687]: https://github.com/bareos/bareos/pull/1687
-[PR #1688]: https://github.com/bareos/bareos/pull/1688
-[PR #1689]: https://github.com/bareos/bareos/pull/1689
-[PR #1695]: https://github.com/bareos/bareos/pull/1695
-[PR #1696]: https://github.com/bareos/bareos/pull/1696
-[PR #1707]: https://github.com/bareos/bareos/pull/1707
-[PR #1708]: https://github.com/bareos/bareos/pull/1708
-[PR #1710]: https://github.com/bareos/bareos/pull/1710
-[PR #1713]: https://github.com/bareos/bareos/pull/1713
-[PR #1716]: https://github.com/bareos/bareos/pull/1716
-[PR #1717]: https://github.com/bareos/bareos/pull/1717
-[PR #1718]: https://github.com/bareos/bareos/pull/1718
-[PR #1719]: https://github.com/bareos/bareos/pull/1719
-[PR #1721]: https://github.com/bareos/bareos/pull/1721
-[PR #1722]: https://github.com/bareos/bareos/pull/1722
-[PR #1724]: https://github.com/bareos/bareos/pull/1724
-[PR #1727]: https://github.com/bareos/bareos/pull/1727
-[PR #1728]: https://github.com/bareos/bareos/pull/1728
-[PR #1732]: https://github.com/bareos/bareos/pull/1732
-[PR #1745]: https://github.com/bareos/bareos/pull/1745
-[PR #1746]: https://github.com/bareos/bareos/pull/1746
-[PR #1752]: https://github.com/bareos/bareos/pull/1752
-[PR #1753]: https://github.com/bareos/bareos/pull/1753
-[PR #1756]: https://github.com/bareos/bareos/pull/1756
-[PR #1761]: https://github.com/bareos/bareos/pull/1761
-[PR #1762]: https://github.com/bareos/bareos/pull/1762
-[PR #1763]: https://github.com/bareos/bareos/pull/1763
-[PR #1765]: https://github.com/bareos/bareos/pull/1765
-[PR #1767]: https://github.com/bareos/bareos/pull/1767
-[PR #1772]: https://github.com/bareos/bareos/pull/1772
-[PR #1786]: https://github.com/bareos/bareos/pull/1786
-[PR #1788]: https://github.com/bareos/bareos/pull/1788
-[PR #1805]: https://github.com/bareos/bareos/pull/1805
-[unreleased]: https://github.com/bareos/bareos/tree/master
+## [v1.2.0] - 2019-03-29
+### Added
+- The `HttpServer` connector now has a `BindLocalhost` method (#261)
+
+### Fixed
+- Don't precompress and honor GnuInstallDir for manpage of jsonrpcstub (#252)
+- Arch Linux CI build (base image changed)
+- brew CI build (no longer has `--ssl` flag for libmicrohttpd)
+- Catching `Jsoncpp::Exception` for `.parse()` invocations
+- Compile issue when building static only (#263)
+- Update catch2 to 2.7.0 and fix include path (#251)
+- Removed deprecated jsoncpp invocations
+
+
+## [v1.1.1] - 2018-10-31
+### Fixed
+- Build issue on RHEL7 (#244, #246)
+- Build with empty install prefix (#226)
+- GnuInstallDirs handling for library targets (#239)
+- Disabled libcurl signal handlers (#210)
+- Terrible performance for socket based connectors (#229)
+- Library versioning error (1.1.0 release actually specified 1.0.0)
+
+### Added
+- Missing documentation about python stubgenerator (#222)
+- Parameter to enable omitEndingLineFeed() (#213)
+- Documentation in examples about throwing server side errors (#249)
+
+### Changed
+- Updated CI images to use Ubuntu 18.04 instead of 17.04
+- Disabled FileDescriptor connectors by default
+- Removed custom FindCURL cmake module (#237)
+- Parameter handling of procedures without params in stubgenerator
+
+## [v1.1.0] - 2018-01-04
+### Fixed
+- Fix missing hiredis libs when using only REDIS_CLIENT
+- Fix running tests in parallel (#204)
+- Fix fetching new version of catch, if it is not installed locally
+- Disable UnixDomainSocket Connectors by default, they introduce flaky tests
+- Merged MSVC related PR.
+
+## [v1.0.0] - 2017-08-27
+### Fixed
+- Typo in ERROR_CLIENT_CONNECTOR exception
+- Integration testsuite when run without HTTP
+- dev/testcoverage.sh script which did not create the build directory
+- Indentation in CMakeLists.txt files
+- Positional parameters with more than 10 items
+- C++11 deprecated dynamic exception specifiers have been removed
+- libmicrohttpd legacy detection for `EPOLL`
+
+### Added
+- File descriptor client and server connector
+- Redis client and server connector
+- Docker based build system for testing on multiple distributions
+- Python client stubgenerator
+- CI Integration for OSX build
+- `StreamReader` and `StreamWriter` classes to handle the buffering
+- [Makefile](Makefile) for developer/contributor related functions
+
+### Removed
+- Method `BatchResponse::getResult(Json::Value& id)`
+- Method `AbstractServerConnector::SendResponse()`
+- Scripts dev/ci.sh, dev/createpackage.sh, dev/installdeps.sh
+- `dev/coverage.sh` in favor of `make coverage`
+- Windows support, which will hopefully come back soon
+
+### Changed
+- Migrated from coveralls.io to codecov.io
+- Changed maintainer e-mail address
+- Use libmicrohttpd's EPOLL where possible (lmhd >= 0.9.52)
+- Added `set -e` to testcoverage.sh script
+- Changelog format to [keepachangelog.com](http://keepachangelog.com/en/0.3.0/)
+- Refactored all socket-based client and server connectors to reduce code duplication
+- Changed interfaces for `AbstractServerConnector` to avoid the ugly `void *` backpointer
+
+## [v0.7.0] - 2016-08-10
+### Fixed
+- armhf compatibility
+- Invalid client id field handling (removed int only check)
+- Security issues in unixdomainsocket connectors
+- Missing CURL include directive
+- Parallel build which failed due to failing CATCH dependency
+- Handling 64-bit ids
+- Invalid parameter check
+- Invalid pointer handling in HTTP-Server
+
+### Added
+- TCP Server + Client connectors
+
+## Changed
+- Requiring C++11 support (gcc >= 4.8)
+
+## [v0.6.0] - 2015-06-27
+### Added
+- pkg-config files for all shared libraries
+- UNIX Socket client + server connector
+- multiarch support
+
+### Changed
+- unit testing framework to catch
+- allow disabling shared library build
+- split out shared/static library for stubgenerator
+
+## [v0.5.0] - 2015-04-07
+### Fixed
+- building tests with examples disabled.
+- unnecessary rebuilds of stubs on each `make` call.
+
+### Added
+- `--version` option to jsonrpcstub.
+- msvc support.
+- data field support for JsonRpcException.
+- contributions guide: https://github.com/cinemast/libjson-rpc-cpp#contributions
+- HttpClient uses Http Keep-Alive, which improves performance drastically.
+- multiarch support.
+
+### Changed
+- Made static library build optional (via `BUILD_STATIC_LIBS`).
+
+## [v0.4.2] - 2015-01-21
+### Fixed
+- Some spelling mistakes.
+- HttpServer with Threading option in SSL startup.
+
+### Changed
+- Use CMAKE versioning in manpage.
+- Improved include scheme of jsoncpp.
+
+## [v0.4.1] - 2014-12-01
+### Added
+- coverity scan support
+- [API compatibility report](http://upstream.rosalinux.ru/versions/libjson-rpc-cpp.html)
+- Stubgenerator option for protocol switches (JSON-RPC 1.0 & 2.0)
+
+### Changed
+- Improved manpage
+
+## [v0.4] - 2014-11-21
+### Fixed
+- Memory leaks
+
+### Added
+- Full WIN32 build support
+- JavaScript client stub support
+- Improved test coverage (100% line coverage)
+
+### Changed
+- Switched Http Server to libmicrohttpd
+- Removed TCP Client/Server implementation due to security and codestyle problems.
+- Removed dirty pointer stuff in bindAndAddX() methods.
+- Using call by value in generated stubs for primitive data types.
+
+## [v0.3.2] - 2014-10-26
+### Fixed
+- Minor bugs
+
+### Added
+- Testcases for client + server -> higher testcoverage
+- JSON-RPC 1 Client + Server support
+
+### Changed
+- Refactorings in server for JSON-RPC 1 support
+- Hiding irrelevant API headers from installation
+- Renamed AbstractClientConnector to IClientConnector (please regenearte your client stubs after upgrading)
+- Reactivated dev/testcoverage.sh to measure testcoverage.
+
+## [v0.3.1] - 2014-10-22
+### Fixed
+- Minor bugs
+
+### Added
+- Experimental Javascript client to stubgenerator
+
+### Changed
+- Changed SOVERSION
+- Adapted HTTP Server to enable CORS.
+
+## [v0.3] - 2014-10-19
+### Fixed
+- Renamed .so files to avoid collisions with makerbot's libjsonrpc.
+- Invalid Batchcalls in Client and Server caused runtime exceptions.
+
+### Added
+- Namespace/package support for generated stub classes.
+- CMake options to enable/disable Stubgenerator, Examples, Connectors and Testsuite.
+- Boost-test based unit testing suite, which makes testing more flexible.
+
+### Changed
+- Split up server and client into separate libraries
+- Lot's of refactorings in the build system and stubgenerator.
+- Removed Autotools support (because of all the changes in this release).
+- Removed embedded libjson-cpp.
+- Simplified spec format: a procedure specification without `return` field is a notification.
+
+# [v0.2.1] - 2013-07-27
+### Added
+- Support for positional parameters. (see at [example specification](https://github.com/cinemast/libjson-rpc-cpp/blob/master/src/example/spec.json) how to declare them)
+
+## [0.2] - 2013-05-29
+### Fixed
+- Minor bugs
+
+### Added
+- Stub generator for client and server.
+- SpecificationWriter to generate Specifications from RPC-Server definitions.
+- SpecificationParser to parse a Specification file and generate Methods for the RPC-Server.
+- Automated testing after build phase (using `make test`)
+
+### Changed
+- Refactored architecture.
+- Removed mandatory configuration files (making it more compatible for embedded use cases).
+- Updated JsonCPP library
+- Update Mongoose library
+- Enable SSL Support (provided by mongoose)
+- Embedding dependent libraries (to avoid naming conflicts)
+
+## [0.1] - 2013-02-07
+### Added
+- Initial release
