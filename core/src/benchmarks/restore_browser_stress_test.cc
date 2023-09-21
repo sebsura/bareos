@@ -527,12 +527,12 @@ struct tree_builder {
       key <<= 32;
       key |= meta.findex;
 
-      HL_ENTRY* entry = root->hardlinks.lookup(key);
-      if (entry && entry->node) {
-	meta.original = m[entry->node];
-      } else {
-	meta.original = -1;
-      }
+      // HL_ENTRY* entry = root->originals.(key);
+      // if (entry && entry->node) {
+      // 	meta.original = m[entry->node];
+      // } else {
+      // 	meta.original = -1;
+      // }
     }
   }
 
@@ -756,18 +756,18 @@ TREE_ROOT* load_tree(struct tree tree)
     current.hard_link = meta.hard_link;
     current.soft_link = meta.soft_link;
 
-    if (meta.original < 0) {
-      auto* entry = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
-      entry->key = (((uint64_t)meta.jobid) << 32) + meta.findex;
-      entry->node = &current;
-      root->hardlinks.insert(entry->key, entry);
-    } else {
-      // Then add hardlink entry to linked node.
-      auto* entry = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
-      entry->key = (((uint64_t)meta.jobid) << 32) + meta.findex;
-      entry->node = &nodes[meta.original];
-      root->hardlinks.insert(entry->key, entry);
-    }
+    // if (meta.original < 0) {
+    //   auto* entry = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
+    //   entry->key = (((uint64_t)meta.jobid) << 32) + meta.findex;
+    //   entry->node = &current;
+    //   root->hardlinks.insert(entry->key, entry);
+    // } else {
+    //   // Then add hardlink entry to linked node.
+    //   auto* entry = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
+    //   entry->key = (((uint64_t)meta.jobid) << 32) + meta.findex;
+    //   entry->node = &nodes[meta.original];
+    //   root->hardlinks.insert(entry->key, entry);
+    // }
   }
 
   return root;

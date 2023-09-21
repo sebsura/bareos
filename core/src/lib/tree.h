@@ -90,6 +90,7 @@ struct s_tree_node {
   unsigned int loaded : 1;      /* set when the dir is in the tree */
   struct s_tree_node* parent{};
   struct s_tree_node* next{};      /* next hash of FileIndex */
+  struct s_tree_node* original{};  /* original file (if hardlink) */
   struct delta_list* delta_list{}; /* delta parts for this node */
   uint64_t fhinfo{};               /* NDMP Fh_info */
   uint64_t fhnode{};               /* NDMP Fh_node */
@@ -133,6 +134,7 @@ struct s_tree_root {
   unsigned int loaded : 1;      /* set when the dir is in the tree */
   struct s_tree_node* parent{};
   struct s_tree_node* next{};      /* next hash of FileIndex */
+  struct s_tree_node* original{};
   struct delta_list* delta_list{}; /* delta parts for this node */
 
   /* The above ^^^ must be identical to a TREE_NODE structure */
@@ -144,7 +146,8 @@ struct s_tree_root {
   int cached_path_len{};       /* length of cached path */
   char* cached_path{};         /* cached current path */
   TREE_NODE* cached_parent{};  /* cached parent for above path */
-  HardlinkTable hardlinks;     /* references to first occurence of hardlinks */
+  std::unordered_map<std::uint64_t, s_tree_node*> originals;
+  /* references to first occurence of hardlinks */
 };
 typedef struct s_tree_root TREE_ROOT;
 

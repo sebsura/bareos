@@ -226,7 +226,7 @@ int InsertTreeHandler(void* ctx, int, char** row)
   int FileIndex;
   int32_t delta_seq;
   JobId_t JobId;
-  HL_ENTRY* entry = NULL;
+  //HL_ENTRY* entry = NULL;
   int32_t LinkFI;
 
   Dmsg4(150, "Path=%s%s FI=%s JobId=%s\n", row[0], row[1], row[2], row[3]);
@@ -312,26 +312,28 @@ int InsertTreeHandler(void* ctx, int, char** row)
     if (statp.st_nlink > 1 && type != TN_DIR && type != TN_DIR_NLS) {
       if (!LinkFI) {
         // First occurence - file hardlinked to
-        entry = (HL_ENTRY*)tree->root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
-        entry->key = (((uint64_t)JobId) << 32) + FileIndex;
-        entry->node = node;
-        tree->root->hardlinks.insert(entry->key, entry);
+	std::uint64_t key = (((uint64_t)JobId) << 32) + FileIndex;
+	tree->root->originals.emplace(key, node);
       } else {
         // See if we are optimizing for speed or size.
         if (!me->optimize_for_size && me->optimize_for_speed) {
           // Hardlink to known file index: lookup original file
           uint64_t file_key = (((uint64_t)JobId) << 32) + LinkFI;
-          HL_ENTRY* first_hl
-              = (HL_ENTRY*)tree->root->hardlinks.lookup(file_key);
+	  if (auto found = tree->root->originals.find(file_key);
+	      found != tree->root->originals.end()) {
+	    node->original = found->second;
+	  }
+          // HL_ENTRY* first_hl
+          //     = (HL_ENTRY*)tree->root->hardlinks.lookup(file_key);
 
-          if (first_hl && first_hl->node) {
-            // Then add hardlink entry to linked node.
-            entry = (HL_ENTRY*)tree->root->hardlinks.hash_malloc(
-                sizeof(HL_ENTRY));
-            entry->key = (((uint64_t)JobId) << 32) + FileIndex;
-            entry->node = first_hl->node;
-            tree->root->hardlinks.insert(entry->key, entry);
-          }
+          // if (first_hl && first_hl->node) {
+          //   // Then add hardlink entry to linked node.
+          //   entry = (HL_ENTRY*)tree->root->hardlinks.hash_malloc(
+          //       sizeof(HL_ENTRY));
+          //   entry->key = (((uint64_t)JobId) << 32) + FileIndex;
+          //   entry->node = first_hl->node;
+          //   tree->root->hardlinks.insert(entry->key, entry);
+          // }
         }
       }
     }
@@ -384,14 +386,12 @@ static int SetExtract(UaContext* ua,
     }
   } else {
     if (extract) {
-      uint64_t key = 0;
       bool is_hardlinked = false;
 
       // See if we are optimizing for speed or size.
       if (!me->optimize_for_size && me->optimize_for_speed) {
         if (node->hard_link) {
           // Every hardlink is in hashtable, and it points to linked file.
-          key = (((uint64_t)node->JobId) << 32) + node->FileIndex;
           is_hardlinked = true;
         }
       } else {
@@ -413,25 +413,33 @@ static int SetExtract(UaContext* ua,
 
             DecodeStat(fdbr.LStat, &statp, sizeof(statp),
                        &LinkFI); /* decode stat pkt */
-            key = (((uint64_t)node->JobId) << 32)
-                  + LinkFI; /* lookup by linked file's fileindex */
             is_hardlinked = true;
           }
           FreePoolMemory(cwd);
         }
       }
 
-      if (is_hardlinked) {
-        /* If we point to a hard linked file, find that file in hardlinks
-         * hashmap, and mark it to be restored as well. */
-        HL_ENTRY* entry = (HL_ENTRY*)tree->root->hardlinks.lookup(key);
-        if (entry && entry->node) {
-          n = entry->node;
-          // if this is our first time marking it, then add to the count
-          if (!n->extract) { count += 1; }
-          n->extract = true;
-          n->extract_dir = (n->type == TN_DIR || n->type == TN_DIR_NLS);
-        }
+      if (is_hardlinked && node->original) {
+	if (!node->original->extract) { count += 1; }
+	node->original->extract = true;
+	node->original->extract_dir = (node->original->type == TN_DIR || node->original->type == TN_DIR_NLS);
+	//   if (auto found = tree->root->originals.find(key);
+	//       found != tree->root->originals.end()) {
+	//     auto& original = found->second;
+	//     if (!original.extract) { count += 1; }
+	//     original.extract = true;
+	//     original.extract_dir = (original.type == TN_DIR || original.type == TN_DIR_NLS);
+	//   }
+        // /* If we point to a hard linked file, find that file in hardlinks
+        //  * hashmap, and mark it to be restored as well. */
+        // HL_ENTRY* entry = (HL_ENTRY*)tree->root->hardlinks.lookup(key);
+        // if (entry && entry->node) {
+        //   n = entry->node;
+        //   // if this is our first time marking it, then add to the count
+        //   if (!n->extract) { count += 1; }
+        //   n->extract = true;
+        //   n->extract_dir = (n->type == TN_DIR || n->type == TN_DIR_NLS);
+        // }
       }
     }
   }

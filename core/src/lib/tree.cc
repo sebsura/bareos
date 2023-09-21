@@ -155,7 +155,7 @@ void FreeTree(TREE_ROOT* root)
 {
   struct s_mem *mem, *rel;
 
-  std::destroy_at(&root->hardlinks);
+  std::destroy_at(&root->originals);
   for (mem = root->mem; mem;) {
     rel = mem;
     mem = mem->next;
