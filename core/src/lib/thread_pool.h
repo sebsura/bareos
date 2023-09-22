@@ -38,6 +38,7 @@
 #include <exception>
 
 #include "lib/thread_util.h"
+#include "include/baconfig.h"
 
 struct worker_pool {
   std::vector<std::thread> threads{};
@@ -139,5 +140,53 @@ auto borrow_thread(thread_pool& pool, F&& f)
   return fut;
 }
 
+
+struct tpool {
+  enum class work_unit
+  {
+    FREE,
+    WORKING,
+    CLOSED,
+  };
+
+  std::vector<synchronized<work_unit>*> units;
+  std::vector<std::thread> threads{};
+
+  template <typename F> void borrow_threads(std::size_t size, F&& f)
+  {
+    std::vector<size_t> free_threads;
+    free_threads.reserve(threads.size());
+    for (std::size_t i = 0; i < threads.size() && free_threads.size() <= size;
+         ++i) {
+      if (*units[i]->lock() == work_unit::FREE) { free_threads.push_back(i); }
+    }
+
+    if (free_threads.size() < size) {
+      std::size_t num_new_hires = size - free_threads.size();
+
+      for (std::size_t i = 0; i < num_new_hires; ++i) {
+        free_threads.push_back(i);
+        add_thread();
+      }
+    }
+
+    ASSERT(free_threads.size() == size);
+
+    // todo: push f here
+    for (auto index : free_threads) {
+      *units[index]->lock() = work_unit::WORKING;
+    }
+  }
+
+
+ private:
+  void add_thread()
+  {
+    auto* sync = new synchronized<work_unit>{work_unit::FREE};
+    units.push_back(sync);
+  }
+
+  void pool_wait(synchronized<work_unit>& unit) { (void)unit; }
+};
 
 #endif  // BAREOS_LIB_THREAD_POOL_H_
