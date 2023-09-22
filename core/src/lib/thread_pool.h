@@ -143,7 +143,7 @@ auto borrow_thread(thread_pool& pool, F&& f)
 
 
 struct tpool {
-  template <typename F> void borrow_threads(std::size_t size, F&& f)
+  std::vector<std::size_t> find_free_threads(std::size_t size)
   {
     std::vector<size_t> free_threads;
     free_threads.reserve(threads.size());
@@ -163,7 +163,17 @@ struct tpool {
 
     ASSERT(free_threads.size() == size);
 
-    // todo: push f here
+    return free_threads;
+  }
+
+  template <typename F> void borrow_thread(F&& f)
+  {
+    std::vector worker = find_free_threads(1);
+    units[worker[0]]->lock()->submit(std::move(f));
+  }
+  template <typename F> void borrow_threads(std::size_t size, F&& f)
+  {
+    std::vector free_threads = find_free_threads(size);
     for (auto index : free_threads) { units[index]->lock()->submit(f); }
   }
 

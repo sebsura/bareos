@@ -166,8 +166,8 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   }
 
   // enable the use of some workers
-  auto num_workers = std::thread::hardware_concurrency() / 2;
-  jcr->fd_impl->pool.ensure_num_workers(num_workers);
+  // auto num_workers = std::thread::hardware_concurrency() / 2;
+  // jcr->fd_impl->pool.ensure_num_workers(num_workers);
 
   // Subroutine SaveFile() is called for each file
   if (!FindFiles(jcr, (FindFilesPacket*)jcr->fd_impl->ff, SaveFile,
@@ -1098,7 +1098,8 @@ static inline bool SendPlainData(b_ctx& bctx)
 
   size_t bytes_read{0};
 
-  thread_pool& pool = bctx.jcr->fd_impl->pool;
+  tpool& pool = bctx.jcr->fd_impl->pool;
+  // work_group<> compress_group;
 
   std::optional<std::future<void>> update_digest;
 
@@ -1109,23 +1110,47 @@ static inline bool SendPlainData(b_ctx& bctx)
   // FIXME(ssura): We have to wrap out in a shared_ptr, because borrow_thread
   //               needs a copyable function.  Once we move to
   //               move_only_function we can remove this.
-  std::shared_ptr chunks = std::make_shared<decltype(out)>(std::move(out));
-  std::future<result<std::size_t>> bytes_send_fut = borrow_thread(
-      pool, [chunks = std::move(chunks), sd]() mutable -> result<size_t> {
+  // std::shared_ptr chunks = std::make_shared<decltype(out)>(std::move(out));
+  std::promise<result<std::size_t>> promise{};
+  std::future bytes_send_fut = promise.get_future();
+  pool.borrow_thread(
+      [prom = std::move(promise), out = std::move(out), sd]() mutable {
         std::size_t accumulated = 0;
-        for (std::optional fut = chunks->get(); fut.has_value();
-             fut = chunks->get()) {
+        for (std::optional fut = out.get(); fut.has_value(); fut = out.get()) {
           result p = fut->get();
-          if (p.holds_error()) { return std::move(p.error_unchecked()); }
+          if (p.holds_error()) {
+            prom.set_value(std::move(p.error_unchecked()));
+            return;
+          }
 
           auto [msg, size] = std::move(p.value_unchecked());
           result ret = SendData(sd, msg.addr(), size);
-          if (ret.holds_error()) { return ret; }
+          if (ret.holds_error()) {
+            prom.set_value(ret);
+            return;
+          }
 
           accumulated += ret.value_unchecked();
         }
-        return accumulated;
+        prom.set_value(accumulated);
+        return;
       });
+  // std::future<result<std::size_t>> bytes_send_fut = borrow_thread(
+  //     pool, [chunks = std::move(chunks), sd]() mutable -> result<size_t> {
+  //       std::size_t accumulated = 0;
+  //       for (std::optional fut = chunks->get(); fut.has_value();
+  //            fut = chunks->get()) {
+  //         result p = fut->get();
+  //         if (p.holds_error()) { return std::move(p.error_unchecked()); }
+
+  //         auto [msg, size] = std::move(p.value_unchecked());
+  //         result ret = SendData(sd, msg.addr(), size);
+  //         if (ret.holds_error()) { return ret; }
+
+  //         accumulated += ret.value_unchecked();
+  //       }
+  //       return accumulated;
+  //     });
 
 
   // Read the file data
@@ -1161,7 +1186,11 @@ static inline bool SendPlainData(b_ctx& bctx)
 
     if (!skip_block) {
       if (checksum || signing) {
-        update_digest.emplace(enqueue(pool, [checksum, signing, buf]() {
+        std::promise<void> p;
+        update_digest.emplace(p.get_future());
+
+        pool.borrow_thread([checksum, signing, buf,
+                            p = std::move(p)]() mutable {
           // Update checksum if requested
           if (checksum) {
             CryptoDigestUpdate(checksum, (uint8_t*)buf->data(), buf->size());
@@ -1171,7 +1200,20 @@ static inline bool SendPlainData(b_ctx& bctx)
           if (signing) {
             CryptoDigestUpdate(signing, (uint8_t*)buf->data(), buf->size());
           }
-        }));
+
+          p.set_value();
+        });
+        // update_digest.emplace(enqueue(pool, [checksum, signing, buf]() {
+        //   // Update checksum if requested
+        //   if (checksum) {
+        //     CryptoDigestUpdate(checksum, (uint8_t*)buf->data(), buf->size());
+        //   }
+
+        //   // Update signing digest if requested
+        //   if (signing) {
+        //     CryptoDigestUpdate(signing, (uint8_t*)buf->data(), buf->size());
+        //   }
+        // }));
       }
 
       std::optional<uint64_t> header;
