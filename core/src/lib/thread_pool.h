@@ -38,6 +38,7 @@
 #include <exception>
 
 #include "lib/thread_util.h"
+#include "lib/channel.h"
 #include "include/baconfig.h"
 
 struct worker_pool {
@@ -142,30 +143,20 @@ auto borrow_thread(thread_pool& pool, F&& f)
 
 
 struct tpool {
-  enum class work_unit
-  {
-    FREE,
-    WORKING,
-    CLOSED,
-  };
-
-  std::vector<synchronized<work_unit>*> units;
-  std::vector<std::thread> threads{};
-
   template <typename F> void borrow_threads(std::size_t size, F&& f)
   {
     std::vector<size_t> free_threads;
     free_threads.reserve(threads.size());
     for (std::size_t i = 0; i < threads.size() && free_threads.size() <= size;
          ++i) {
-      if (*units[i]->lock() == work_unit::FREE) { free_threads.push_back(i); }
+      if (units[i]->lock()->is_waiting()) { free_threads.push_back(i); }
     }
 
     if (free_threads.size() < size) {
       std::size_t num_new_hires = size - free_threads.size();
 
       for (std::size_t i = 0; i < num_new_hires; ++i) {
-        free_threads.push_back(i);
+        free_threads.push_back(threads.size());
         add_thread();
       }
     }
@@ -173,20 +164,121 @@ struct tpool {
     ASSERT(free_threads.size() == size);
 
     // todo: push f here
-    for (auto index : free_threads) {
-      *units[index]->lock() = work_unit::WORKING;
+    for (auto index : free_threads) { units[index]->lock()->submit(f); }
+  }
+
+  ~tpool()
+  {
+    for (auto sync : units) { sync->lock()->close(); }
+
+    for (auto& thread : threads) { thread.join(); }
+  }
+
+ private:
+  class work_unit {
+   public:
+    template <typename F> void submit(F f)
+    {
+      ASSERT(state == work_state::WAITING);
+      fun = std::move(f);
+      state = work_state::WORKING;
+      state_changed.notify_all();
+    }
+
+    void close()
+    {
+      state = work_state::CLOSED;
+      state_changed.notify_all();
+    }
+
+    bool is_waiting() const { return state == work_state::WAITING; }
+
+    bool is_closed() const { return state == work_state::CLOSED; }
+
+    void do_work()
+    {
+      ASSERT(state == work_state::WORKING);
+      ASSERT(fun.has_value());
+      fun.value()();
+      fun.reset();
+      state = work_state::WAITING;
+      state_changed.notify_all();
+    }
+
+    std::condition_variable state_changed;
+
+   private:
+    enum class work_state
+    {
+      WORKING,
+      WAITING,
+      CLOSED
+    };
+    work_state state{work_state::WAITING};
+    std::optional<std::function<void()>> fun;
+  };
+
+  std::vector<synchronized<work_unit>*> units;
+  std::vector<std::thread> threads{};
+
+  void add_thread()
+  {
+    auto* sync = new synchronized<work_unit>();
+    units.push_back(sync);
+    threads.emplace_back(
+        [](tpool* pool, synchronized<work_unit>* unit) {
+          pool->pool_work(*unit);
+        },
+        this, sync);
+  }
+
+  void pool_work(synchronized<work_unit>& unit)
+  {
+    auto locked = unit.lock();
+    for (;;) {
+      locked.wait(locked->state_changed,
+                  [](const work_unit& w) { return !w.is_waiting(); });
+
+      if (locked->is_closed()) { return; }
+
+      locked->do_work();
+    }
+  }
+};
+
+template <typename T> struct work_group {
+  using task = std::packaged_task<void()>;
+
+  void work_until_completion()
+  {
+    std::optional<task> my_task;
+    while (my_task = task_out.lock()->get(), my_task != std::nullopt) {
+      my_task->operator()();
     }
   }
 
-
- private:
-  void add_thread()
+  template <typename F,
+            std::enable_if_t<std::is_same_v<T, std::invoke_result_t<F>>, bool>
+            = true>
+  std::future<T> submit(F&& f)
   {
-    auto* sync = new synchronized<work_unit>{work_unit::FREE};
-    units.push_back(sync);
+    task t{std::move(f)};
+    std::future ret = t.get_future();
+    task_in.emplace(std::move(t));
+    return ret;
   }
 
-  void pool_wait(synchronized<work_unit>& unit) { (void)unit; }
+  channel::input<task> task_in;
+  synchronized<channel::output<task>> task_out;
+
+  work_group(channel::channel_pair<task> tasks)
+      : task_in{std::move(tasks.first)}, task_out{std::move(tasks.second)}
+  {
+  }
+  work_group(std::size_t cap)
+      : work_group(channel::CreateBufferedChannel<task>(cap))
+  {
+  }
 };
 
 #endif  // BAREOS_LIB_THREAD_POOL_H_
