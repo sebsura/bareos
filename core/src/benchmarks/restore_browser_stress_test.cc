@@ -517,7 +517,7 @@ struct tree_builder {
     return span<char>(reinterpret_cast<const char*>(&val), sizeof(val));
   }
 
-  using node_map = std::unordered_map<const TREE_NODE*, std::size_t>;
+  using node_map = std::unordered_map<std::size_t, const TREE_NODE*>;
 
   tree_builder(TREE_ROOT* root) {
     node_map m;
@@ -527,12 +527,12 @@ struct tree_builder {
       key <<= 32;
       key |= meta.findex;
 
-      // HL_ENTRY* entry = root->originals.(key);
-      // if (entry && entry->node) {
-      // 	meta.original = m[entry->node];
-      // } else {
-      // 	meta.original = -1;
-      // }
+      if (entry && ) {
+	if (m[i]->original)
+	meta.original = m[entry->node];
+      } else {
+	meta.original = -1;
+      }
     }
   }
 
@@ -559,9 +559,11 @@ struct tree_builder {
       meta.delta_seq= node->delta_seq;
       meta.fhnode = node->fhnode;
       meta.fhinfo = node->fhinfo;
-
-
-
+      if (node->original) {
+	meta.original = ??;
+      } else {
+	meta.original = -1;
+      }
     }
 
     std::size_t start = nodes.size();
@@ -756,18 +758,12 @@ TREE_ROOT* load_tree(struct tree tree)
     current.hard_link = meta.hard_link;
     current.soft_link = meta.soft_link;
 
-    // if (meta.original < 0) {
-    //   auto* entry = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
-    //   entry->key = (((uint64_t)meta.jobid) << 32) + meta.findex;
-    //   entry->node = &current;
-    //   root->hardlinks.insert(entry->key, entry);
-    // } else {
-    //   // Then add hardlink entry to linked node.
-    //   auto* entry = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
-    //   entry->key = (((uint64_t)meta.jobid) << 32) + meta.findex;
-    //   entry->node = &nodes[meta.original];
-    //   root->hardlinks.insert(entry->key, entry);
-    // }
+    if (meta.original < 0) {
+      std::uint64_t key = (((uint64_t)meta.jobid) << 32) + meta.findex;
+      root->originals.emplace(key, &current);
+    } else {
+      current.original = &nodes[meta.original];
+    }
   }
 
   return root;
