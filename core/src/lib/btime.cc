@@ -46,7 +46,7 @@
 #include "include/bareos.h"
 #include "lib/btime.h"
 #include <math.h>
-#include "../../../third-party/date/include/date/date.h"
+#include "date/date.h"
 
 #include <sstream>
 #include <iomanip>
