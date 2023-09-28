@@ -115,7 +115,6 @@ static char* bstrftime_internal(char* dt,
   return dt;
 }
 
-
 char* bstrftime(char* dt, int maxlen, utime_t utime)
 {
   return bstrftime_internal(dt, maxlen, utime, kBareosDefaultTimestampFormat);
@@ -124,6 +123,20 @@ char* bstrftime(char* dt, int maxlen, utime_t utime)
 char* bstrftime_filename(char* dt, int maxlen, utime_t utime)
 {
   return bstrftime_internal(dt, maxlen, utime, kBareosFilenameTimestampFormat);
+}
+
+std::string bstrftime(utime_t tim)
+{
+  std::vector<char> buf(MAX_TIME_LENGTH);
+  bstrftime(buf.data(), MAX_TIME_LENGTH, tim);
+  return std::string{buf.data()};
+}
+
+std::string bstrftime_filename(utime_t tim)
+{
+  std::vector<char> buf(MAX_TIME_LENGTH);
+  bstrftime_filename(buf.data(), MAX_TIME_LENGTH, tim);
+  return std::string{buf.data()};
 }
 
 
