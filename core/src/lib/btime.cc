@@ -115,12 +115,12 @@ static char* bstrftime_internal(char* dt,
   return dt;
 }
 
-char* bstrftime(char* dt, int maxlen, utime_t utime)
+static char* bstrftime(char* dt, int maxlen, utime_t utime)
 {
   return bstrftime_internal(dt, maxlen, utime, kBareosDefaultTimestampFormat);
 }
 
-char* bstrftime_filename(char* dt, int maxlen, utime_t utime)
+static char* bstrftime_filename(char* dt, int maxlen, utime_t utime)
 {
   return bstrftime_internal(dt, maxlen, utime, kBareosFilenameTimestampFormat);
 }
