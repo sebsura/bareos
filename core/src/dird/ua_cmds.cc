@@ -1950,13 +1950,11 @@ bail_out:
 // Print time
 static bool time_cmd(UaContext* ua, const char*)
 {
-  char sdt[50];
   time_t ttime = time(NULL);
 
   ua->send->ObjectStart("time");
 
-  bstrftime(sdt, sizeof(sdt), ttime);
-  ua->send->ObjectKeyValue("full", sdt, "%s\n");
+  ua->send->ObjectKeyValue("full", bstrftime(ttime).data(), "%s\n");
 
   /* bstrftime(sdt, sizeof(sdt), ttime, "%Y"); */
   /* ua->send->ObjectKeyValue("year", sdt); */
