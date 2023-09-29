@@ -88,13 +88,12 @@ bool BareosDb::MarkFileRecord(JobControlRecord* jcr,
  */
 bool BareosDb::UpdateJobStartRecord(JobControlRecord* jcr, JobDbRecord* jr)
 {
-  char dt[MAX_TIME_LENGTH];
   time_t stime;
   btime_t JobTDate;
   char ed1[50], ed2[50], ed3[50], ed4[50], ed5[50];
 
   stime = jr->StartTime;
-  bstrftime(dt, sizeof(dt), stime);
+  auto dt = bstrftime(stime);
   JobTDate = (btime_t)stime;
 
   DbLocker _{this};
@@ -102,7 +101,7 @@ bool BareosDb::UpdateJobStartRecord(JobControlRecord* jcr, JobDbRecord* jr)
        "UPDATE Job SET JobStatus='%c',Level='%c',StartTime='%s',"
        "ClientId=%s,JobTDate=%s,PoolId=%s,FileSetId=%s,VolSessionId=%lu,"
        "VolSessionTime=%lu WHERE JobId=%s",
-       (char)(jcr->getJobStatus()), (char)(jr->JobLevel), dt,
+       (char)(jcr->getJobStatus()), (char)(jr->JobLevel), dt.data(),
        edit_int64(jr->ClientId, ed1), edit_uint64(JobTDate, ed2),
        edit_int64(jr->PoolId, ed3), edit_int64(jr->FileSetId, ed4),
        jcr->VolSessionId, jcr->VolSessionTime, edit_int64(jr->JobId, ed5));
