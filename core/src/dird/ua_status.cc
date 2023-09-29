@@ -415,7 +415,8 @@ static bool show_scheduled_preview(UaContext*,
         }
       }
 
-      Mmsg(temp, "%-*s  %-22.22s  ", *max_date_len, dt, sched->resource_name_);
+      Mmsg(temp, "%-*s  %-22.22s  ", *max_date_len, dt.data(),
+           sched->resource_name_);
       PmStrcat(overview, temp.c_str());
 
       if (run->level) {
