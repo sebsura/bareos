@@ -32,6 +32,7 @@ int TmWoy(time_t stime);
 
 void Blocaltime(const time_t* time, struct tm* tm);
 
+//[[deprecated]] char* bstrftime(char* dt, int maxlen, utime_t utime);
 char* bstrftime(char* dt, int maxlen, utime_t utime);
 /* char* bstrftime_filename(char* dt, int maxlen, utime_t utime); */
 
