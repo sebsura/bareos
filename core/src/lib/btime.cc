@@ -127,14 +127,14 @@ char* bstrftime_filename(char* dt, int maxlen, utime_t utime)
 
 std::string bstrftime(utime_t tim)
 {
-  std::vector<char> buf(MAX_TIME_LENGTH);
+  std::vector<char> buf(MAX_TIME_LENGTH, '\0');
   bstrftime(buf.data(), MAX_TIME_LENGTH, tim);
   return std::string{buf.data()};
 }
 
 std::string bstrftime_filename(utime_t tim)
 {
-  std::vector<char> buf(MAX_TIME_LENGTH);
+  std::vector<char> buf(MAX_TIME_LENGTH, '\0');
   bstrftime_filename(buf.data(), MAX_TIME_LENGTH, tim);
   return std::string{buf.data()};
 }

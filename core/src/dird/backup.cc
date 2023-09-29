@@ -890,7 +890,6 @@ void UpdateBootstrapFile(JobControlRecord* jcr)
  */
 void GenerateBackupSummary(JobControlRecord *jcr, ClientDbRecord *cr, int msg_type, const char *TermMsg)
 {
-   char sdt[50], edt[50], schedt[50], gdt[50];
    char ec1[30], ec2[30], ec3[30], ec4[30], ec5[30], compress[50];
    char ec6[30], ec7[30], ec8[30], elapsed[50];
    double kbps, compression;
@@ -905,11 +904,11 @@ void GenerateBackupSummary(JobControlRecord *jcr, ClientDbRecord *cr, int msg_ty
             secure_erase_status,
             compress_algo_list;
 
-   bstrftime(schedt, sizeof(schedt), jcr->dir_impl->jr.SchedTime);
-   bstrftime(sdt, sizeof(sdt), jcr->dir_impl->jr.StartTime);
-   bstrftime(edt, sizeof(edt), jcr->dir_impl->jr.EndTime);
-   RunTime = jcr->dir_impl->jr.EndTime - jcr->dir_impl->jr.StartTime;
-   bstrftime(gdt, sizeof(gdt),
+  auto schedt =  bstrftime(jcr->dir_impl->jr.SchedTime);
+  auto sdt =  bstrftime( jcr->dir_impl->jr.StartTime);
+  auto edt =  bstrftime( jcr->dir_impl->jr.EndTime);
+  RunTime = jcr->dir_impl->jr.EndTime - jcr->dir_impl->jr.StartTime;
+  auto gdt =   bstrftime(
               jcr->dir_impl->res.client->GraceTime +
               jcr->dir_impl->res.client->SoftQuotaGracePeriod);
 
@@ -1019,10 +1018,10 @@ void GenerateBackupSummary(JobControlRecord *jcr, ClientDbRecord *cr, int msg_ty
 
    if (jcr->dir_impl->HasQuota) {
       if (jcr->dir_impl->res.client->GraceTime != 0) {
-         bstrftime(gdt, sizeof(gdt), jcr->dir_impl->res.client->GraceTime +
+         gdt = bstrftime(jcr->dir_impl->res.client->GraceTime +
                                       jcr->dir_impl->res.client->SoftQuotaGracePeriod);
       } else {
-         bstrncpy(gdt, "Soft Quota not exceeded", sizeof(gdt));
+         gdt = "Soft Quota not exceeded";
       }
       Mmsg(quota_info, _(
            "  Quota Used:             %s (%sB)\n"
@@ -1038,7 +1037,7 @@ void GenerateBackupSummary(JobControlRecord *jcr, ClientDbRecord *cr, int msg_ty
            edit_uint64_with_suffix(jcr->dir_impl->res.client->SoftQuota, ec6),
            edit_uint64_with_commas(jcr->dir_impl->res.client->HardQuota, ec7),
            edit_uint64_with_suffix(jcr->dir_impl->res.client->HardQuota, ec8),
-           gdt);
+           gdt.data());
    }
 
    switch (jcr->getJobProtocol()) {
@@ -1149,9 +1148,9 @@ void GenerateBackupSummary(JobControlRecord *jcr, ClientDbRecord *cr, int msg_ty
         jcr->dir_impl->res.pool->resource_name_, jcr->dir_impl->res.pool_source,
         jcr->dir_impl->res.catalog->resource_name_, jcr->dir_impl->res.catalog_source,
         jcr->dir_impl->res.write_storage->resource_name_, jcr->dir_impl->res.wstore_source,
-        schedt,
-        sdt,
-        edt,
+        schedt.data(),
+        sdt.data(),
+        edt.data(),
         edit_utime(RunTime, elapsed, sizeof(elapsed)),
         jcr->JobPriority,
         statistics.c_str(),
