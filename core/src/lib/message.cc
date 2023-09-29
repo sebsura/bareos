@@ -600,7 +600,7 @@ void DispatchMessage(JobControlRecord* jcr,
 {
   std::string dt;
   POOLMEM* mcmd;
-  int len, dtlen;
+  int len;
   MessagesResource* msgs;
   Bpipe* bpipe;
   const char* mode;
@@ -676,7 +676,6 @@ void DispatchMessage(JobControlRecord* jcr,
        * Otherwise apply the global setting in log_timestamp_format. */
       if (dt_conversion) {
         if (!d->timestamp_format_.empty()) { dt = bstrftime(mtime) + " "; }
-        dtlen = dt.length();
       }
 
       switch (d->dest_code_) {
@@ -699,7 +698,9 @@ void DispatchMessage(JobControlRecord* jcr,
           if (con_fd) {
             Pw(con_lock); /* get write lock on console message file */
             errno = 0;
-            if (dtlen) { (void)fwrite(dt.data(), dtlen, 1, con_fd); }
+            if (dt.length()) {
+              (void)fwrite(dt.data(), dt.length(), 1, con_fd);
+            }
             len = strlen(msg);
             if (len > 0) {
               (void)fwrite(msg, len, 1, con_fd);
@@ -767,7 +768,7 @@ void DispatchMessage(JobControlRecord* jcr,
             FreePoolMemory(name);
           }
           fputs(dt.data(), d->file_pointer_);
-          len = strlen(msg) + dtlen;
+          len = strlen(msg) + dt.length();
           if (len > d->max_len_) {
             d->max_len_ = len; /* keep max line length */
           }
