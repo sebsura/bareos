@@ -1059,9 +1059,8 @@ static void ListRunningJobs(UaContext* ua)
       case JS_WaitStartTime:
         emsg = (char*)GetPoolMemory(PM_FNAME);
         if (jcr->sched_time) {
-          char dt[MAX_TIME_LENGTH];
-          bstrftime(dt, sizeof(dt), jcr->sched_time);
-          Mmsg(emsg, _("is waiting for its start time at %s"), dt);
+          Mmsg(emsg, _("is waiting for its start time at %s"),
+               bstrftime(jcr->sched_time).data());
         } else {
           Mmsg(emsg, _("is waiting for its start time"));
         }
@@ -1176,7 +1175,7 @@ static void ListRunningJobs(UaContext* ua)
 
 static void ListTerminatedJobs(UaContext* ua)
 {
-  char dt[MAX_TIME_LENGTH], b1[30], b2[30];
+  char b1[30], b2[30];
   char level[10];
 
   if (RecentJobResultsList::IsEmpty()) {
@@ -1207,7 +1206,6 @@ static void ListTerminatedJobs(UaContext* ua)
 
     if (!ua->AclAccessOk(Job_ACL, JobName)) { continue; }
 
-    bstrftime(dt, sizeof(dt), je.end_time);
     switch (je.JobType) {
       case JT_ADMIN:
       case JT_ARCHIVE:
@@ -1243,16 +1241,18 @@ static void ListTerminatedJobs(UaContext* ua)
         termstat = _("Other");
         break;
     }
+
+    auto jendtime = bstrftime(je.end_time);
     if (ua->api) {
       ua->SendMsg(_("%6d\t%-6s\t%8s\t%10s\t%-7s\t%-8s\t%s\n"), je.JobId, level,
                   edit_uint64_with_commas(je.JobFiles, b1),
-                  edit_uint64_with_suffix(je.JobBytes, b2), termstat, dt,
-                  JobName);
+                  edit_uint64_with_suffix(je.JobBytes, b2), termstat,
+                  jendtime.data(), JobName);
     } else {
       ua->SendMsg(_("%6d  %-6s %8s %10s  %-7s  %-8s %s\n"), je.JobId, level,
                   edit_uint64_with_commas(je.JobFiles, b1),
-                  edit_uint64_with_suffix(je.JobBytes, b2), termstat, dt,
-                  JobName);
+                  edit_uint64_with_suffix(je.JobBytes, b2), termstat,
+                  jendtime.data(), JobName);
     }
   }
   if (!ua->api) ua->SendMsg(_("\n"));
@@ -1264,7 +1264,6 @@ static void ListConnectedClients(UaContext* ua)
   Connection* connection = NULL;
   alist<Connection*>* connections = NULL;
   const char* separator = "====================";
-  char dt[MAX_TIME_LENGTH];
 
   ua->send->Decoration("\n");
   ua->send->Decoration("Client Initiated Connections (waiting for jobs):\n");
@@ -1276,8 +1275,8 @@ static void ListConnectedClients(UaContext* ua)
   ua->send->ArrayStart("client-connection");
   foreach_alist (connection, connections) {
     ua->send->ObjectStart();
-    bstrftime(dt, sizeof(dt), connection->ConnectTime());
-    ua->send->ObjectKeyValue("ConnectTime", dt, "%-20s");
+    ua->send->ObjectKeyValue(
+        "ConnectTime", bstrftime(connection->ConnectTime()).data(), "%-20s");
     ua->send->ObjectKeyValue("protocol_version", connection->protocol_version(),
                              "%-20d");
     ua->send->ObjectKeyValue("authenticated", connection->authenticated(),
