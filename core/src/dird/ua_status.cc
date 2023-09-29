@@ -341,16 +341,15 @@ static void DoAllStatus(UaContext* ua)
 void ListDirStatusHeader(UaContext* ua)
 {
   int len;
-  char dt[MAX_TIME_LENGTH];
   PoolMem msg(PM_FNAME);
 
   ua->SendMsg(_("%s Version: %s (%s) %s\n"), my_name,
               kBareosVersionStrings.Full, kBareosVersionStrings.Date,
               kBareosVersionStrings.GetOsInfo());
-  bstrftime(dt, sizeof(dt), daemon_start_time);
   ua->SendMsg(_("Daemon started %s. Jobs: run=%d, running=%d db:postgresql, %s "
                 "binary\n"),
-              dt, num_jobs_run, JobCount(), kBareosVersionStrings.BinaryInfo);
+              bstrftime(daemon_start_time).data(), num_jobs_run, JobCount(),
+              kBareosVersionStrings.BinaryInfo);
 
   if (me->secure_erase_cmdline) {
     ua->SendMsg(_(" secure erase command='%s'\n"), me->secure_erase_cmdline);
@@ -375,7 +374,6 @@ static bool show_scheduled_preview(UaContext*,
                                    time_t time_to_check)
 {
   int date_len;
-  char dt[MAX_TIME_LENGTH];
   time_t runtime;
   RunResource* run;
   PoolMem temp(PM_NAME);
@@ -399,8 +397,8 @@ static bool show_scheduled_preview(UaContext*,
        * As we use locale specific strings for weekday and month we
        * need to keep track of the longest data string used. */
       runtime = mktime(&tm);
-      bstrftime(dt, sizeof(dt), runtime);
-      date_len = strlen(dt);
+      auto dt = bstrftime(runtime);
+      date_len = dt.length();
       if (date_len > *max_date_len) {
         if (*max_date_len == 0) {
           /* When the datelen changes during the loop the locale generates a
@@ -526,7 +524,8 @@ static bool DoSubscriptionStatus(UaContext* ua)
   }
 
   char now[30] = {0};
-  bstrftime(now, sizeof(now), (utime_t)time(NULL));
+  auto nowstring = bstrftime(time(0));
+  bstrncpy(now, nowstring.data(), 30);
 
   if (kw_all || kw_detail) {
     ua->send->ObjectKeyValue(
@@ -811,7 +810,6 @@ struct sched_pkt {
 
 static void PrtRuntime(UaContext* ua, sched_pkt* sp)
 {
-  char dt[MAX_TIME_LENGTH];
   const char* level_ptr;
   bool ok = false;
   bool CloseDb = false;
@@ -836,7 +834,7 @@ static void PrtRuntime(UaContext* ua, sched_pkt* sp)
     }
     if (!ok) { bstrncpy(mr.VolumeName, "*unknown*", sizeof(mr.VolumeName)); }
   }
-  bstrftime(dt, sizeof(dt), sp->runtime);
+  auto sruntime = bstrftime(sp->runtime);
   switch (sp->job->JobType) {
     case JT_ADMIN:
     case JT_ARCHIVE:
@@ -849,12 +847,12 @@ static void PrtRuntime(UaContext* ua, sched_pkt* sp)
   }
   if (ua->api) {
     ua->SendMsg(_("%-14s\t%-8s\t%3d\t%-18s\t%-18s\t%s\n"), level_ptr,
-                job_type_to_str(sp->job->JobType), sp->priority, dt,
-                sp->job->resource_name_, mr.VolumeName);
+                job_type_to_str(sp->job->JobType), sp->priority,
+                sruntime.data(), sp->job->resource_name_, mr.VolumeName);
   } else {
     ua->SendMsg(_("%-14s %-8s %3d  %-18s %-18s %s\n"), level_ptr,
-                job_type_to_str(sp->job->JobType), sp->priority, dt,
-                sp->job->resource_name_, mr.VolumeName);
+                job_type_to_str(sp->job->JobType), sp->priority,
+                sruntime.data(), sp->job->resource_name_, mr.VolumeName);
   }
   if (CloseDb) { DbSqlClosePooledConnection(jcr, jcr->db); }
   jcr->db = ua->db; /* restore ua db to jcr */
@@ -951,7 +949,6 @@ static void ListRunningJobs(UaContext* ua)
   int njobs = 0;
   const char* msg;
   char* emsg; /* edited message */
-  char dt[MAX_TIME_LENGTH];
   char level[10];
   bool pool_mem = false;
 
@@ -963,8 +960,8 @@ static void ListRunningJobs(UaContext* ua)
        * jobs in the status output.
        */
       if (jcr->is_JobType(JT_CONSOLE) && !ua->api) {
-        bstrftime(dt, sizeof(dt), jcr->start_time);
-        ua->SendMsg(_("Console connected at %s\n"), dt);
+        ua->SendMsg(_("Console connected at %s\n"),
+                    bstrftime(jcr->start_time).data());
       }
       continue;
     }

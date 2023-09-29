@@ -1196,7 +1196,6 @@ static bool DisplayJobParameters(UaContext* ua,
 {
   char ec1[30];
   JobResource* job = rc.job;
-  char dt[MAX_TIME_LENGTH];
   const char* verify_list = rc.verify_list;
 
   Dmsg1(800, "JobType=%c\n", jcr->getJobType());
@@ -1380,7 +1379,7 @@ static bool DisplayJobParameters(UaContext* ua,
                   ? jcr->dir_impl->res.write_storage->resource_name_
                   : _("*None*"),
               jcr->dir_impl->res.wstore_source,
-              bstrftime(dt, sizeof(dt), jcr->sched_time), jcr->JobPriority,
+              bstrftime(jcr->sched_time).data(), jcr->JobPriority,
               jcr->dir_impl->plugin_options ? "Plugin Options: " : "",
               jcr->dir_impl->plugin_options ? jcr->dir_impl->plugin_options
                                             : "",
