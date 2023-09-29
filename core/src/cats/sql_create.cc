@@ -722,8 +722,8 @@ bool BareosDb::CreateFilesetRecord(JobControlRecord* jcr, FileSetDbRecord* fsr)
   if (fsr->CreateTime == 0 && fsr->cCreateTime[0] == 0) {
     fsr->CreateTime = time(NULL);
   }
-
-  bstrftime(fsr->cCreateTime, sizeof(fsr->cCreateTime), fsr->CreateTime);
+  auto dt = bstrftime(fsr->CreateTime);
+  bstrncpy(fsr->cCreateTime, dt.data(), sizeof(fsr->cCreateTime));
   if (fsr->FileSetText) {
     PoolMem esc_filesettext(PM_MESSAGE);
 
