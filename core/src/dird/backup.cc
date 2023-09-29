@@ -811,7 +811,7 @@ void UpdateBootstrapFile(JobControlRecord* jcr)
     int got_pipe = 0;
     Bpipe* bpipe = nullptr;
     VolumeParameters* VolParams = nullptr;
-    char edt[50], ed1[50], ed2[50];
+    char ed1[50], ed2[50];
     POOLMEM* fname = GetPoolMemory(PM_FNAME);
 
     fname = edit_job_codes(jcr, fname, jcr->dir_impl->res.job->WriteBootstrap,
@@ -836,8 +836,8 @@ void UpdateBootstrapFile(JobControlRecord* jcr)
         }
       }
       /* Start output with when and who wrote it */
-      bstrftime(edt, sizeof(edt), time(nullptr));
-      fprintf(fd, "# %s - %s - %s%s\n", edt, jcr->dir_impl->jr.Job,
+      auto edt = bstrftime(time(nullptr));
+      fprintf(fd, "# %s - %s - %s%s\n", edt.data(), jcr->dir_impl->jr.Job,
               JobLevelToString(jcr->getJobLevel()), jcr->dir_impl->since);
       for (int i = 0; i < VolCount; i++) {
         /* Write the record */
