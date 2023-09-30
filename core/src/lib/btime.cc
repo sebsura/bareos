@@ -139,6 +139,12 @@ std::string bstrftime_filename(utime_t tim)
   return std::string{buf.data()};
 }
 
+std::string bstrftime(utime_t tim, const char* format)
+{
+  std::vector<char> buf(MAX_TIME_LENGTH, '\0');
+  bstrftime_internal(buf.data(), MAX_TIME_LENGTH, tim, format);
+  return std::string{buf.data()};
+}
 
 utime_t StrToUtime(const char* str)
 {

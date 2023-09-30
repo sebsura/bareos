@@ -39,6 +39,7 @@ void Blocaltime(const time_t* time, struct tm* tm);
 
 std::string bstrftime(utime_t tim);
 std::string bstrftime_filename(utime_t tim);
+std::string bstrftime(utime_t tim, const char* format);
 
 utime_t StrToUtime(const char* str);
 
