@@ -188,7 +188,7 @@ endif()
 # date/include/date/date.h:7261:37: note: 'S' declared here
 #  7261 |                         long double S;
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
-   AND CMAKE_CXX_COMPILER_VERSION MATCHES "^13")
+   AND CMAKE_CXX_COMPILER_VERSION MATCHES "^1[23]")
   set_target_properties (
     bareos PROPERTIES LINK_FLAGS "-Wno-maybe-uninitialized"
   )
