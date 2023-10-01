@@ -47,6 +47,7 @@
 #include "lib/version.h"
 #include "include/auth_types.h"
 #include "include/jcr.h"
+#include "include/timestamp_format.h"
 
 namespace storagedaemon {
 

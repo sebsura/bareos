@@ -51,7 +51,7 @@
 #include "lib/address_conf.h"
 #include "lib/output_formatter_resource.h"
 #include "lib/tls_resource_items.h"
-
+#include "include/timestamp_format.h"
 #include <cassert>
 
 namespace filedaemon {

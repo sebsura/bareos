@@ -65,6 +65,7 @@
 #include "lib/tls_resource_items.h"
 #include "lib/output_formatter_resource.h"
 #include "lib/version.h"
+#include "include/timestamp_format.h"
 
 #include <cassert>
 
@@ -1059,9 +1060,7 @@ static void PropagateResource(ResourceItem* items,
               *new_list = new alist<const char*>(10, owned_by_alist);
             }
 
-            foreach_alist (str, orig_list) {
-              (*new_list)->append(strdup(str));
-            }
+            foreach_alist (str, orig_list) { (*new_list)->append(strdup(str)); }
 
             dest->SetMemberPresent(items[i].name);
             SetBit(i, dest->inherit_content_);
@@ -1083,9 +1082,7 @@ static void PropagateResource(ResourceItem* items,
               *new_list = new alist<BareosResource*>(10, not_owned_by_alist);
             }
 
-            foreach_alist (res, orig_list) {
-              (*new_list)->append(res);
-            }
+            foreach_alist (res, orig_list) { (*new_list)->append(res); }
 
             dest->SetMemberPresent(items[i].name);
             SetBit(i, dest->inherit_content_);
@@ -1109,9 +1106,7 @@ static void PropagateResource(ResourceItem* items,
               *new_list = new alist<const char*>(10, owned_by_alist);
             }
 
-            foreach_alist (str, orig_list) {
-              (*new_list)->append(strdup(str));
-            }
+            foreach_alist (str, orig_list) { (*new_list)->append(strdup(str)); }
 
             dest->SetMemberPresent(items[i].name);
             SetBit(i, dest->inherit_content_);
@@ -2442,9 +2437,7 @@ static bool PopulateJobdefaults()
   bool retval = true;
 
   // Propagate the content of a JobDefs to another.
-  foreach_res (jobdefs, R_JOBDEFS) {
-    PropagateJobdefs(R_JOBDEFS, jobdefs);
-  }
+  foreach_res (jobdefs, R_JOBDEFS) { PropagateJobdefs(R_JOBDEFS, jobdefs); }
 
   // Propagate the content of the JobDefs to the actual Job.
   foreach_res (job, R_JOB) {
