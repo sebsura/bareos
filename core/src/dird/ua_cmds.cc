@@ -1950,12 +1950,9 @@ bail_out:
 // Print time
 static bool time_cmd(UaContext* ua, const char*)
 {
-  time_t ttime = time(NULL);
-
   ua->send->ObjectStart("time");
-  ua->send->ObjectKeyValue("full", bstrftime(ttime).data(), "%s\n");
+  ua->send->ObjectKeyValue("full", bstrftime(time(0)).data(), "%s\n");
   ua->send->ObjectEnd("time");
-
   return true;
 }
 
