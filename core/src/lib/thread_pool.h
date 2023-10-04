@@ -141,15 +141,52 @@ auto borrow_thread(thread_pool& pool, F&& f)
   return fut;
 }
 
+#include <memory>
+
+class task {
+  struct impl_base {
+    virtual void operator()() = 0;
+    virtual ~impl_base() = default;
+  };
+
+  template <typename F>
+  struct impl : impl_base, F {
+    impl(F&& f) : F(std::move(f))
+    {}
+
+    void operator()() override {
+        F::operator()();
+    }
+  };
+
+public:
+  template <typename F,
+  std::enable_if_t<!std::is_reference_v<F>, bool> = true,
+  std::enable_if_t<!std::is_same_v<F, task>, bool> = true>
+  task(F&& f) : ptr{new impl<F>(std::move(f))}
+  {
+  }
+
+  task(task&&) = default;
+  task& operator=(task&&) = default;
+
+  void operator()() {
+    ptr->operator()();
+  }
+
+private:
+  std::unique_ptr<impl_base> ptr;
+};
 
 struct tpool {
   std::vector<std::size_t> find_free_threads(std::size_t size)
   {
     std::vector<size_t> free_threads;
     free_threads.reserve(threads.size());
-    for (std::size_t i = 0; i < threads.size() && free_threads.size() <= size;
+    for (std::size_t i = 0; i < threads.size() && free_threads.size() < size;
          ++i) {
-      if (units[i]->lock()->is_waiting()) { free_threads.push_back(i); }
+      if (auto locked = units[i]->try_lock();
+	  locked && locked.value()->is_waiting()) { free_threads.push_back(i); }
     }
 
     if (free_threads.size() < size) {
@@ -198,6 +235,7 @@ struct tpool {
     void close()
     {
       state = work_state::CLOSED;
+      fun.reset();
       state_changed.notify_all();
     }
 
@@ -225,7 +263,7 @@ struct tpool {
       CLOSED
     };
     work_state state{work_state::WAITING};
-    std::optional<std::function<void()>> fun;
+    std::optional<task> fun;
   };
 
   std::vector<synchronized<work_unit>*> units;
@@ -256,9 +294,7 @@ struct tpool {
   }
 };
 
-template <typename T> struct work_group {
-  using task = std::packaged_task<void()>;
-
+struct work_group {
   void work_until_completion()
   {
     std::optional<task> my_task;
@@ -268,14 +304,30 @@ template <typename T> struct work_group {
   }
 
   template <typename F,
-            std::enable_if_t<std::is_same_v<T, std::invoke_result_t<F>>, bool>
-            = true>
+            typename T = std::invoke_result_t<F>>
   std::future<T> submit(F&& f)
   {
-    task t{std::move(f)};
-    std::future ret = t.get_future();
+    std::promise<T> prom;
+    std::future ret = prom.get_future();
+    task t{[prom = std::move(prom), f = std::move(f)]() mutable {
+      try {
+	if constexpr (std::is_same_v<T, void>) {
+	  f();
+	  prom.set_value();
+	} else {
+	  prom.set_value(f());
+	}
+      } catch (...) {
+	prom.set_exception(std::current_exception());
+      }
+    }};
+
     task_in.emplace(std::move(t));
     return ret;
+  }
+
+  void shutdown() {
+    task_in.close();
   }
 
   channel::input<task> task_in;
@@ -288,6 +340,10 @@ template <typename T> struct work_group {
   work_group(std::size_t cap)
       : work_group(channel::CreateBufferedChannel<task>(cap))
   {
+  }
+
+  ~work_group() {
+    shutdown();
   }
 };
 

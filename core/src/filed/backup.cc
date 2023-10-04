@@ -1099,7 +1099,17 @@ static inline bool SendPlainData(b_ctx& bctx)
   size_t bytes_read{0};
 
   tpool& pool = bctx.jcr->fd_impl->pool;
-  // work_group<> compress_group;
+  work_group compute_group(20);
+  std::size_t num_workers = 5;
+  //std::latch compute_latch(5);
+  std::condition_variable compute_fin;
+  synchronized<std::size_t> latch{num_workers};
+  pool.borrow_threads(num_workers, [&latch, &compute_group, &compute_fin] {
+    compute_group.work_until_completion();
+
+    *latch.lock() -= 1;
+    compute_fin.notify_one();
+  });
 
   std::optional<std::future<void>> update_digest;
 
@@ -1126,7 +1136,7 @@ static inline bool SendPlainData(b_ctx& bctx)
           auto [msg, size] = std::move(p.value_unchecked());
           result ret = SendData(sd, msg.addr(), size);
           if (ret.holds_error()) {
-            prom.set_value(ret);
+            prom.set_value(std::move(ret));
             return;
           }
 
@@ -1135,23 +1145,6 @@ static inline bool SendPlainData(b_ctx& bctx)
         prom.set_value(accumulated);
         return;
       });
-  // std::future<result<std::size_t>> bytes_send_fut = borrow_thread(
-  //     pool, [chunks = std::move(chunks), sd]() mutable -> result<size_t> {
-  //       std::size_t accumulated = 0;
-  //       for (std::optional fut = chunks->get(); fut.has_value();
-  //            fut = chunks->get()) {
-  //         result p = fut->get();
-  //         if (p.holds_error()) { return std::move(p.error_unchecked()); }
-
-  //         auto [msg, size] = std::move(p.value_unchecked());
-  //         result ret = SendData(sd, msg.addr(), size);
-  //         if (ret.holds_error()) { return ret; }
-
-  //         accumulated += ret.value_unchecked();
-  //       }
-  //       return accumulated;
-  //     });
-
 
   // Read the file data
   for (;;) {
@@ -1186,11 +1179,7 @@ static inline bool SendPlainData(b_ctx& bctx)
 
     if (!skip_block) {
       if (checksum || signing) {
-        std::promise<void> p;
-        update_digest.emplace(p.get_future());
-
-        pool.borrow_thread([checksum, signing, buf,
-                            p = std::move(p)]() mutable {
+        update_digest.emplace(compute_group.submit([checksum, signing, buf]() mutable {
           // Update checksum if requested
           if (checksum) {
             CryptoDigestUpdate(checksum, (uint8_t*)buf->data(), buf->size());
@@ -1200,20 +1189,7 @@ static inline bool SendPlainData(b_ctx& bctx)
           if (signing) {
             CryptoDigestUpdate(signing, (uint8_t*)buf->data(), buf->size());
           }
-
-          p.set_value();
-        });
-        // update_digest.emplace(enqueue(pool, [checksum, signing, buf]() {
-        //   // Update checksum if requested
-        //   if (checksum) {
-        //     CryptoDigestUpdate(checksum, (uint8_t*)buf->data(), buf->size());
-        //   }
-
-        //   // Update signing digest if requested
-        //   if (signing) {
-        //     CryptoDigestUpdate(signing, (uint8_t*)buf->data(), buf->size());
-        //   }
-        // }));
+        }));
       }
 
       std::optional<uint64_t> header;
@@ -1223,8 +1199,7 @@ static inline bool SendPlainData(b_ctx& bctx)
         header = offset;
       }
 
-      std::future copy_fut = enqueue(
-          pool,
+      std::future copy_fut = compute_group.submit(
           [header, buf,
            compctx]() mutable -> result<std::pair<PoolMem, std::size_t>> {
             auto header_size = header ? OFFSET_FADDR_SIZE : 0;
@@ -1287,7 +1262,9 @@ static inline bool SendPlainData(b_ctx& bctx)
   }
   retval = true;
 
-bail_out:
+ bail_out:
+  compute_group.shutdown();
+  latch.lock().wait(compute_fin, [](int num){ return num == 0; });
   in.close();
   if (update_digest) { update_digest->wait(); }
   result sendres = bytes_send_fut.get();
