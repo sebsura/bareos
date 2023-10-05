@@ -142,12 +142,20 @@ struct findFOPTS {
   std::vector<std::string> base{};     /**< List of base names */
   std::vector<std::string> fstype{};   /**< File system type limitation */
   std::vector<std::string> Drivetype{}; /**< Drive type limitation */
+
+  ~findFOPTS() {
+    if (plugin) { free(plugin); }
+    for (auto& reg : regex) { regfree(&reg); }
+    for (auto& reg : regexdir) { regfree(&reg); }
+    for (auto& reg : regexfile) { regfree(&reg); }
+    if (size_match) { free(size_match); }
+  }
 };
 
 // This is either an include item or an exclude item
 struct findIncludeExcludeItem {
   findFOPTS* current_opts;        /**< Points to current options structure */
-  alist<findFOPTS*> opts_list;    /**< Options list */
+  std::vector<findFOPTS> opts;    /**< Options list */
   dlist<dlistString> name_list;   /**< Filename list -- holds dlistString */
   dlist<dlistString> plugin_list; /**< Plugin list -- holds dlistString */
   alist<const char*> ignoredir;   /**< Ignore directories with this file(s) */

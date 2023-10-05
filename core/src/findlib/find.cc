@@ -122,7 +122,7 @@ int FindFiles(JobControlRecord* jcr,
   /* This is the new way */
   findFILESET* fileset = ff->fileset;
   if (fileset) {
-    int i, j;
+    int i;
     /* TODO: We probably need be move the initialization in the fileset loop,
      * at this place flags options are "concatenated" accross Include {} blocks
      * (not only Options{} blocks inside a Include{}) */
@@ -142,29 +142,26 @@ int FindFiles(JobControlRecord* jcr,
 
       /* By setting all options, we in effect OR the global options which is
        * what we want. */
-      for (j = 0; j < incexe->opts_list.size(); j++) {
-        findFOPTS* fo;
-
-        fo = (findFOPTS*)incexe->opts_list.get(j);
-        CopyBits(FO_MAX, fo->flags, ff->flags);
-        ff->Compress_algo = fo->Compress_algo;
-        ff->Compress_level = fo->Compress_level;
-        ff->StripPath = fo->StripPath;
-        ff->size_match = fo->size_match;
-        ff->fstypes = &fo->fstype;
-        ff->drivetypes = &fo->Drivetype;
-        if (fo->plugin != NULL) {
-          ff->plugin = fo->plugin; /* TODO: generate a plugin event ? */
+      for (auto& fo : incexe->opts) {
+        CopyBits(FO_MAX, fo.flags, ff->flags);
+        ff->Compress_algo = fo.Compress_algo;
+        ff->Compress_level = fo.Compress_level;
+        ff->StripPath = fo.StripPath;
+        ff->size_match = fo.size_match;
+        ff->fstypes = &fo.fstype;
+        ff->drivetypes = &fo.Drivetype;
+        if (fo.plugin != NULL) {
+          ff->plugin = fo.plugin; /* TODO: generate a plugin event ? */
           ff->opt_plugin = true;
         }
-        bstrncat(ff->VerifyOpts, fo->VerifyOpts,
+        bstrncat(ff->VerifyOpts, fo.VerifyOpts,
                  sizeof(ff->VerifyOpts)); /* TODO: Concat or replace? */
-        if (fo->AccurateOpts[0]) {
-          bstrncpy(ff->AccurateOpts, fo->AccurateOpts,
+        if (fo.AccurateOpts[0]) {
+          bstrncpy(ff->AccurateOpts, fo.AccurateOpts,
                    sizeof(ff->AccurateOpts));
         }
-        if (fo->BaseJobOpts[0]) {
-          bstrncpy(ff->BaseJobOpts, fo->BaseJobOpts, sizeof(ff->BaseJobOpts));
+        if (fo.BaseJobOpts[0]) {
+          bstrncpy(ff->BaseJobOpts, fo.BaseJobOpts, sizeof(ff->BaseJobOpts));
         }
       }
 
@@ -282,24 +279,23 @@ bool AcceptFile(FindFilesPacket* ff)
     basename = ff->fname;
   }
 
-  for (int j = 0; j < incexe->opts_list.size(); j++) {
-    findFOPTS* fo = (findFOPTS*)incexe->opts_list.get(j);
-    CopyBits(FO_MAX, fo->flags, ff->flags);
-    ff->Compress_algo = fo->Compress_algo;
-    ff->Compress_level = fo->Compress_level;
-    ff->fstypes = &fo->fstype;
-    ff->drivetypes = &fo->Drivetype;
+  for (auto& fo : incexe->opts) {
+    CopyBits(FO_MAX, fo.flags, ff->flags);
+    ff->Compress_algo = fo.Compress_algo;
+    ff->Compress_level = fo.Compress_level;
+    ff->fstypes = &fo.fstype;
+    ff->drivetypes = &fo.Drivetype;
 
     const int fnm_flags
         = (BitIsSet(FO_IGNORECASE, ff->flags) ? FNM_CASEFOLD : 0)
           | (BitIsSet(FO_ENHANCEDWILD, ff->flags) ? FNM_PATHNAME : 0);
 
-    bool do_exclude = BitIsSet(FO_EXCLUDE, ff->flags);
+    const bool do_exclude = BitIsSet(FO_EXCLUDE, ff->flags);
 
     if (S_ISDIR(ff->statp.st_mode)) {
       // wild matches
       if (std::optional match
-          = FindMatch(match_func, fo->wilddir, ff->fname, fnmode | fnm_flags);
+          = FindMatch(match_func, fo.wilddir, ff->fname, fnmode | fnm_flags);
           match.has_value()) {
         if (do_exclude) {
           Dmsg2(debuglevel, "Exclude wilddir: %s file=%s\n", match.value(),
@@ -308,7 +304,7 @@ bool AcceptFile(FindFilesPacket* ff)
         return !do_exclude;
       }
       if (std::optional match
-          = FindMatch(match_func, fo->wild, ff->fname, fnmode | fnm_flags);
+          = FindMatch(match_func, fo.wild, ff->fname, fnmode | fnm_flags);
           match.has_value()) {
         if (do_exclude) {
           Dmsg2(debuglevel, "Exclude wild: %s file=%s\n", match.value(),
@@ -317,14 +313,14 @@ bool AcceptFile(FindFilesPacket* ff)
         return !do_exclude;
       }
       // regex matches
-      if (std::optional match = FindRegexMatch(fo->regexdir, ff->fname);
+      if (std::optional match = FindRegexMatch(fo.regexdir, ff->fname);
           match.has_value()) {
         if (do_exclude) {
           Dmsg2(debuglevel, "Exclude regexdir: file=%s\n", ff->fname);
         }
         return !do_exclude;
       }
-      if (std::optional match = FindRegexMatch(fo->regex, ff->fname);
+      if (std::optional match = FindRegexMatch(fo.regex, ff->fname);
           match.has_value()) {
         if (do_exclude) {
           Dmsg2(debuglevel, "Exclude regex: file=%s\n", ff->fname);
@@ -334,7 +330,7 @@ bool AcceptFile(FindFilesPacket* ff)
     } else {
       // wild matches
       if (std::optional match
-          = FindMatch(match_func, fo->wildfile, ff->fname, fnmode | fnm_flags);
+          = FindMatch(match_func, fo.wildfile, ff->fname, fnmode | fnm_flags);
           match.has_value()) {
         if (do_exclude) {
           Dmsg2(debuglevel, "Exclude wildfile: %s file=%s\n", match.value(),
@@ -343,7 +339,7 @@ bool AcceptFile(FindFilesPacket* ff)
         return !do_exclude;
       }
       if (std::optional match
-          = FindMatch(match_func, fo->wildbase, basename, fnmode | fnm_flags);
+          = FindMatch(match_func, fo.wildbase, basename, fnmode | fnm_flags);
           match.has_value()) {
         if (do_exclude) {
           Dmsg2(debuglevel, "Exclude wildbase: %s file=%s\n", match.value(),
@@ -352,7 +348,7 @@ bool AcceptFile(FindFilesPacket* ff)
         return !do_exclude;
       }
       if (std::optional match
-          = FindMatch(match_func, fo->wild, ff->fname, fnmode | fnm_flags);
+          = FindMatch(match_func, fo.wild, ff->fname, fnmode | fnm_flags);
           match.has_value()) {
         if (do_exclude) {
           Dmsg2(debuglevel, "Exclude wild: %s file=%s\n", match.value(),
@@ -361,14 +357,14 @@ bool AcceptFile(FindFilesPacket* ff)
         return !do_exclude;
       }
       // regex matches
-      if (std::optional match = FindRegexMatch(fo->regexfile, ff->fname);
+      if (std::optional match = FindRegexMatch(fo.regexfile, ff->fname);
           match.has_value()) {
         if (do_exclude) {
           Dmsg2(debuglevel, "Exclude regexfile: file=%s\n", ff->fname);
         }
         return !do_exclude;
       }
-      if (std::optional match = FindRegexMatch(fo->regex, ff->fname);
+      if (std::optional match = FindRegexMatch(fo.regex, ff->fname);
           match.has_value()) {
         if (do_exclude) {
           Dmsg2(debuglevel, "Exclude regex: file=%s\n", ff->fname);
@@ -378,10 +374,10 @@ bool AcceptFile(FindFilesPacket* ff)
     }
 
     // If we have an empty Options clause with exclude, then exclude the file
-    if (BitIsSet(FO_EXCLUDE, ff->flags) && fo->regex.size() == 0
-        && fo->wild.size() == 0 && fo->regexdir.size() == 0
-        && fo->wilddir.size() == 0 && fo->regexfile.size() == 0
-        && fo->wildfile.size() == 0 && fo->wildbase.size() == 0) {
+    if (BitIsSet(FO_EXCLUDE, ff->flags) && fo.regex.size() == 0
+        && fo.wild.size() == 0 && fo.regexdir.size() == 0
+        && fo.wilddir.size() == 0 && fo.regexfile.size() == 0
+        && fo.wildfile.size() == 0 && fo.wildbase.size() == 0) {
       Dmsg1(debuglevel, "Empty options, rejecting: %s\n", ff->fname);
       return false; /* reject file */
     }
@@ -393,22 +389,12 @@ bool AcceptFile(FindFilesPacket* ff)
     findIncludeExcludeItem* incexe
         = (findIncludeExcludeItem*)fileset->exclude_list.get(i);
 
-    for (int j = 0; j < incexe->opts_list.size(); j++) {
-      findFOPTS* fo = (findFOPTS*)incexe->opts_list.get(j);
-      const int fnm_flags
-          = BitIsSet(FO_IGNORECASE, fo->flags) ? FNM_CASEFOLD : 0;
-      if (std::optional match
-          = FindMatch(fnmatch, fo->wild, ff->fname, fnmode | fnm_flags);
-          match.has_value()) {
-        Dmsg2(debuglevel, "Reject wild1: %s\n", ff->fname);
-        return false; /* reject file */
-      }
-    }
     const int fnm_flags
         = (incexe->current_opts != NULL
            && BitIsSet(FO_IGNORECASE, incexe->current_opts->flags))
               ? FNM_CASEFOLD
               : 0;
+
     foreach_dlist (node, &incexe->name_list) {
       char* fname = node->c_str();
 
@@ -534,10 +520,7 @@ findFOPTS* start_options(FindFilesPacket* ff)
 
   if (state != state_options) {
     ff->fileset->state = state_options;
-    findFOPTS* fo = (findFOPTS*)malloc(sizeof(findFOPTS));
-    new (fo) findFOPTS{};
-    incexe->current_opts = fo;
-    incexe->opts_list.append(fo);
+    incexe->current_opts = &incexe->opts.emplace_back();
   }
 
   return incexe->current_opts;
@@ -546,11 +529,6 @@ findFOPTS* start_options(FindFilesPacket* ff)
 // Used by plugins to define a new options block
 void NewOptions(FindFilesPacket* ff, findIncludeExcludeItem* incexe)
 {
-  findFOPTS* fo;
-
-  fo = (findFOPTS*)malloc(sizeof(findFOPTS));
-  new (fo) findFOPTS{};
-  incexe->current_opts = fo;
-  incexe->opts_list.prepend(fo);
+  incexe->current_opts = &*incexe->opts.emplace(incexe->opts.begin());
   ff->fileset->state = state_options;
 }

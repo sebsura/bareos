@@ -50,15 +50,13 @@ bool AdjustCompressionBuffers(JobControlRecord* jcr)
   uint32_t compress_buf_size = 0;
 
   if (fileset) {
-    int i, j;
+    int i;
 
     for (i = 0; i < fileset->include_list.size(); i++) {
       findIncludeExcludeItem* incexe
           = (findIncludeExcludeItem*)fileset->include_list.get(i);
-      for (j = 0; j < incexe->opts_list.size(); j++) {
-        findFOPTS* fo = (findFOPTS*)incexe->opts_list.get(j);
-
-        if (!SetupCompressionBuffers(jcr, fo->Compress_algo,
+      for (auto& fo : incexe->opts) {
+        if (!SetupCompressionBuffers(jcr, fo.Compress_algo,
                                      &compress_buf_size)) {
           return false;
         }

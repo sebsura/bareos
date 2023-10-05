@@ -98,14 +98,12 @@ bail_out:
  */
 static inline bool IncludeBlockIsRecursive(findIncludeExcludeItem* incexe)
 {
-  int i;
-  findFOPTS* fo;
   bool recursive = true;
 
-  for (i = 0; i < incexe->opts_list.size(); i++) {
-    fo = (findFOPTS*)incexe->opts_list.get(i);
-
-    recursive = !BitIsSet(FO_NO_RECURSION, fo->flags);
+  if (incexe->opts.empty()) {
+    return true;
+  } else {
+    return !BitIsSet(FO_NO_RECURSION, incexe->opts.back().flags);
   }
 
   return recursive;
@@ -117,19 +115,15 @@ static inline bool IncludeBlockIsRecursive(findIncludeExcludeItem* incexe)
  */
 static inline bool IncludeBlockHasPatterns(findIncludeExcludeItem* incexe)
 {
-  int i;
   bool has_find_patterns = false;
-  findFOPTS* fo;
 
-  for (i = 0; i < incexe->opts_list.size(); i++) {
-    fo = (findFOPTS*)incexe->opts_list.get(i);
-
+  for (auto& fo : incexe->opts) {
     /*
      * See if this is an exclude block.
      * e.g. exclude = yes is set then we
      * should still check for shadowing.
      */
-    if (BitIsSet(FO_EXCLUDE, fo->flags)) { continue; }
+    if (BitIsSet(FO_EXCLUDE, fo.flags)) { continue; }
 
     /*
      * See if the include block has any interesting
@@ -145,8 +139,8 @@ static inline bool IncludeBlockHasPatterns(findIncludeExcludeItem* incexe)
      * - regexfile = entries
      * - wildfile = entries
      */
-    if (fo->regex.size() > 0 || fo->regexdir.size() > 0 || fo->wild.size() > 0
-        || fo->wilddir.size() > 0) {
+    if (fo.regex.size() > 0 || fo.regexdir.size() > 0 || fo.wild.size() > 0
+        || fo.wilddir.size() > 0) {
       has_find_patterns = true;
     }
   }
@@ -162,16 +156,11 @@ static inline bool IncludeBlockHasPatterns(findIncludeExcludeItem* incexe)
 static inline b_fileset_shadow_type IncludeBlockGetShadowType(
     findIncludeExcludeItem* incexe)
 {
-  int i;
-  findFOPTS* fo;
-  b_fileset_shadow_type shadow_type = check_shadow_none;
-
-  for (i = 0; i < incexe->opts_list.size(); i++) {
-    fo = (findFOPTS*)incexe->opts_list.get(i);
-
-    shadow_type = fo->shadow_type;
+  if (incexe->opts.empty()) {
+    return check_shadow_none;
+  } else {
+    return incexe->opts.back().shadow_type;
   }
-  return shadow_type;
 }
 
 // See if there is any local shadowing within an include block.

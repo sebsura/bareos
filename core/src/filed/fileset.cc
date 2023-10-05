@@ -187,40 +187,50 @@ void SetIncexe(JobControlRecord* jcr, findIncludeExcludeItem* incexe)
 }
 
 // Add a regex to the current fileset
-int AddRegexToFileset(JobControlRecord* jcr, const char* item, int type)
+static inline int PushRegex(JobControlRecord* jcr,
+		     std::vector<regex_t>& vec, const char* item,
+		     bool ignore_case)
 {
-  findFOPTS* current_opts = start_options(jcr->fd_impl->ff);
-  std::vector<regex_t>* vec;
-  if (type == ' ') {
-    vec = &current_opts->regex;
-  } else if (type == 'D') {
-    vec = &current_opts->regexdir;
-  } else if (type == 'F') {
-    vec = &current_opts->regexfile;
-  } else {
-    return state_error;
-  }
-
-  regex_t* preg = &vec->emplace_back();
+  regex_t* preg = &vec.emplace_back();
 
   int rc;
-  char prbuf[500];
 
-  if (BitIsSet(FO_IGNORECASE, current_opts->flags)) {
+  if (ignore_case) {
     rc = regcomp(preg, item, REG_EXTENDED | REG_ICASE);
   } else {
     rc = regcomp(preg, item, REG_EXTENDED);
   }
 
   if (rc != 0) {
+    char prbuf[500];
     regerror(rc, preg, prbuf, sizeof(prbuf));
     regfree(preg);
-    vec->pop_back();
+    vec.pop_back();
     Jmsg(jcr, M_FATAL, 0, _("REGEX %s compile error. ERR=%s\n"), item, prbuf);
     return state_error;
   }
 
   return state_options;
+}
+
+int AddRegexToFileset(JobControlRecord* jcr, const char* item, int type)
+{
+  findFOPTS* current_opts = start_options(jcr->fd_impl->ff);
+  bool ignore_case = BitIsSet(FO_IGNORECASE, current_opts->flags);
+  switch (type) {
+  case ' ': {
+    return PushRegex(jcr, current_opts->regex, item, ignore_case);
+  } break;
+  case 'D': {
+    return PushRegex(jcr, current_opts->regexdir, item, ignore_case);
+  } break;
+  case 'F': {
+    return PushRegex(jcr, current_opts->regexfile, item, ignore_case);
+  } break;
+  default: {
+    return state_error;
+  }
+  }
 }
 
 // Add a wild card to the current fileset
@@ -654,11 +664,9 @@ bool TermFileset(JobControlRecord* jcr)
     findIncludeExcludeItem* incexe
         = (findIncludeExcludeItem*)fileset->include_list.get(i);
 
-    for (int j = 0; j < incexe->opts_list.size(); j++) {
-      findFOPTS* fo = (findFOPTS*)incexe->opts_list.get(j);
-
-      if (fo->plugin) {
-        GeneratePluginEvent(jcr, bEventPluginCommand, (void*)fo->plugin);
+    for (auto& fo : incexe->opts) {
+      if (fo.plugin) {
+        GeneratePluginEvent(jcr, bEventPluginCommand, (void*)fo.plugin);
       }
     }
   }

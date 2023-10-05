@@ -284,23 +284,13 @@ void CleanupFileset(JobControlRecord* jcr)
 {
   findFILESET* fileset;
   findIncludeExcludeItem* incexe;
-  findFOPTS* fo;
 
   fileset = jcr->fd_impl->ff->fileset;
   if (fileset) {
     // Delete FileSet Include lists
     for (int i = 0; i < fileset->include_list.size(); i++) {
       incexe = (findIncludeExcludeItem*)fileset->include_list.get(i);
-      for (int j = 0; j < incexe->opts_list.size(); j++) {
-        fo = (findFOPTS*)incexe->opts_list.get(j);
-        if (fo->plugin) { free(fo->plugin); }
-        for (auto& regex : fo->regex) { regfree(&regex); }
-        for (auto& regex : fo->regexdir) { regfree(&regex); }
-        for (auto& regex : fo->regexfile) { regfree(&regex); }
-        if (fo->size_match) { free(fo->size_match); }
-        fo->~findFOPTS();
-      }
-      incexe->opts_list.destroy();
+      std::destroy_at(&incexe->opts);
       incexe->name_list.destroy();
       incexe->plugin_list.destroy();
       incexe->ignoredir.destroy();
@@ -310,15 +300,7 @@ void CleanupFileset(JobControlRecord* jcr)
     // Delete FileSet Exclude lists
     for (int i = 0; i < fileset->exclude_list.size(); i++) {
       incexe = (findIncludeExcludeItem*)fileset->exclude_list.get(i);
-      for (int j = 0; j < incexe->opts_list.size(); j++) {
-        fo = (findFOPTS*)incexe->opts_list.get(j);
-        for (auto& regex : fo->regex) { regfree(&regex); }
-        for (auto& regex : fo->regexdir) { regfree(&regex); }
-        for (auto& regex : fo->regexfile) { regfree(&regex); }
-        if (fo->size_match) { free(fo->size_match); }
-        fo->~findFOPTS();
-      }
-      incexe->opts_list.destroy();
+      std::destroy_at(&incexe->opts);
       incexe->name_list.destroy();
       incexe->plugin_list.destroy();
       incexe->ignoredir.destroy();
@@ -1498,10 +1480,8 @@ static void LogFlagStatus(JobControlRecord* jcr,
       findIncludeExcludeItem* incexe
           = (findIncludeExcludeItem*)fileset->include_list.get(i);
 
-      for (int j = 0; j < incexe->opts_list.size() && !found; j++) {
-        findFOPTS* fo = (findFOPTS*)incexe->opts_list.get(j);
-
-        if (BitIsSet(flag, fo->flags)) { found = true; }
+      for (auto& fo : incexe->opts) {
+        if (BitIsSet(flag, fo.flags)) { found = true; }
       }
     }
   }
@@ -1531,11 +1511,9 @@ static inline void ClearFlagInFileset(JobControlRecord* jcr,
       findIncludeExcludeItem* incexe
           = (findIncludeExcludeItem*)fileset->include_list.get(i);
 
-      for (int j = 0; j < incexe->opts_list.size(); j++) {
-        findFOPTS* fo = (findFOPTS*)incexe->opts_list.get(j);
-
-        if (BitIsSet(flag, fo->flags)) {
-          ClearBit(flag, fo->flags);
+      for (auto& fo : incexe->opts) {
+        if (BitIsSet(flag, fo.flags)) {
+          ClearBit(flag, fo.flags);
           cleared_flag = true;
         }
       }
@@ -1561,12 +1539,10 @@ static inline void ClearCompressionFlagInFileset(JobControlRecord* jcr)
       findIncludeExcludeItem* incexe
           = (findIncludeExcludeItem*)fileset->include_list.get(i);
 
-      for (int j = 0; j < incexe->opts_list.size(); j++) {
-        findFOPTS* fo = (findFOPTS*)incexe->opts_list.get(j);
-
+      for (auto& fo : incexe->opts) {
         // See if a compression flag is set in this option block.
-        if (BitIsSet(FO_COMPRESS, fo->flags)) {
-          switch (fo->Compress_algo) {
+        if (BitIsSet(FO_COMPRESS, fo.flags)) {
+          switch (fo.Compress_algo) {
 #if defined(HAVE_LIBZ)
             case COMPRESS_GZIP:
               break;
@@ -1586,9 +1562,9 @@ static inline void ClearCompressionFlagInFileset(JobControlRecord* jcr)
                    "%s compression support requested in fileset but not "
                    "available on this platform. Disabling "
                    "...\n",
-                   cmprs_algo_to_text(fo->Compress_algo));
-              ClearBit(FO_COMPRESS, fo->flags);
-              fo->Compress_algo = 0;
+                   cmprs_algo_to_text(fo.Compress_algo));
+              ClearBit(FO_COMPRESS, fo.flags);
+              fo.Compress_algo = 0;
               break;
           }
         }
@@ -1612,12 +1588,10 @@ bool GetWantedCryptoCipher(JobControlRecord* jcr, crypto_cipher_t* cipher)
       findIncludeExcludeItem* incexe
           = (findIncludeExcludeItem*)fileset->include_list.get(i);
 
-      for (int j = 0; j < incexe->opts_list.size(); j++) {
-        findFOPTS* fo = (findFOPTS*)incexe->opts_list.get(j);
+      for (auto& fo : incexe->opts) {
+        if (BitIsSet(FO_FORCE_ENCRYPT, fo.flags)) { force_encrypt = true; }
 
-        if (BitIsSet(FO_FORCE_ENCRYPT, fo->flags)) { force_encrypt = true; }
-
-        if (fo->Encryption_cipher != CRYPTO_CIPHER_NONE) {
+        if (fo.Encryption_cipher != CRYPTO_CIPHER_NONE) {
           // Make sure we have not found a cipher definition before.
           if (wanted_cipher != CRYPTO_CIPHER_NONE) {
             Jmsg(jcr, M_FATAL, 0,
@@ -1639,7 +1613,7 @@ bool GetWantedCryptoCipher(JobControlRecord* jcr, crypto_cipher_t* cipher)
             jcr->fd_impl->crypto.pki_encrypt = true;
           }
 
-          wanted_cipher = (crypto_cipher_t)fo->Encryption_cipher;
+          wanted_cipher = (crypto_cipher_t)fo.Encryption_cipher;
         }
       }
     }
