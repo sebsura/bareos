@@ -1243,59 +1243,60 @@ static inline bool SendPlainData(b_ctx& bctx)
                                  shared_msg->data_size);
             }
           }));
-
-      std::future copy_fut
-          = (compctx) ? compute_group.submit(
-                [shared_msg,
-                 compctx
-                 = compctx.value()]() mutable -> result<shared_message> {
-                  auto data_size = RequiredCompressionOutputBufferSize(
-                      compctx.algorithm, shared_msg->data_size);
-                  message msg(shared_msg->header_size);
-                  msg.reserve(data_size);
-                  result comp_size = ThreadlocalCompress(
-                      compctx.algorithm, compctx.level, shared_msg->data(),
-                      shared_msg->data_size,
-                      msg.data() + sizeof(comp_stream_header),
-                      data_size - sizeof(comp_stream_header));
-
-                  if (comp_size.holds_error()) {
-                    return std::move(comp_size.error_unchecked());
-                  }
-
-                  auto csize = comp_size.value_unchecked();
-
-                  if (csize > std::numeric_limits<std::uint32_t>::max()) {
-                    PoolMem error;
-                    Mmsg(error, "Compressed size to big (%llu > %llu)", csize,
-                         std::numeric_limits<std::uint32_t>::max());
-                    return error;
-                  }
-
-                  {
-                    // Write compression header
-                    ser_declare;
-                    SerBegin(msg.data(), sizeof(comp_stream_header));
-                    ser_uint32(compctx.ch.magic);
-                    ser_uint32(csize);
-                    ser_uint16(compctx.ch.level);
-                    ser_uint16(compctx.ch.version);
-                    SerEnd(msg.data(), sizeof(comp_stream_header));
-                  }
-
-                  msg.data_size = csize + sizeof(comp_stream_header);
-
-                  return shared_message{new message{std::move(msg)}};
-                })
-                      : [shared_msg]() {
-                          std::promise<result<shared_message>> prom;
-                          prom.set_value(std::move(shared_msg));
-                          return prom.get_future();
-                        }();
-
-      // Send the buffer to the Storage daemon
-      if (!in.emplace(std::move(copy_fut))) { goto bail_out; }
     }
+
+    std::future copy_fut
+        = (compctx) ? compute_group.submit(
+              [shared_msg,
+               compctx = compctx.value()]() mutable -> result<shared_message> {
+                auto data_size = RequiredCompressionOutputBufferSize(
+                    compctx.algorithm, shared_msg->data_size);
+                message msg(shared_msg->header_size);
+                std::memcpy(msg.header(), shared_msg->header(),
+                            shared_msg->header_size);
+                msg.reserve(data_size);
+                result comp_size = ThreadlocalCompress(
+                    compctx.algorithm, compctx.level, shared_msg->data(),
+                    shared_msg->data_size,
+                    msg.data() + sizeof(comp_stream_header),
+                    data_size - sizeof(comp_stream_header));
+
+                if (comp_size.holds_error()) {
+                  return std::move(comp_size.error_unchecked());
+                }
+
+                auto csize = comp_size.value_unchecked();
+
+                if (csize > std::numeric_limits<std::uint32_t>::max()) {
+                  PoolMem error;
+                  Mmsg(error, "Compressed size to big (%llu > %llu)", csize,
+                       std::numeric_limits<std::uint32_t>::max());
+                  return error;
+                }
+
+                {
+                  // Write compression header
+                  ser_declare;
+                  SerBegin(msg.data(), sizeof(comp_stream_header));
+                  ser_uint32(compctx.ch.magic);
+                  ser_uint32(csize);
+                  ser_uint16(compctx.ch.level);
+                  ser_uint16(compctx.ch.version);
+                  SerEnd(msg.data(), sizeof(comp_stream_header));
+                }
+
+                msg.data_size = csize + sizeof(comp_stream_header);
+
+                return shared_message{new message{std::move(msg)}};
+              })
+                    : [shared_msg]() {
+                        std::promise<result<shared_message>> prom;
+                        prom.set_value(std::move(shared_msg));
+                        return prom.get_future();
+                      }();
+
+    // Send the buffer to the Storage daemon
+    if (!in.emplace(std::move(copy_fut))) { goto bail_out; }
   }
 end_read_loop:
   retval = true;
