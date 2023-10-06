@@ -1054,6 +1054,29 @@ static result<std::size_t> SendData(BareosSocket* sd,
   return size;
 }
 
+struct message {
+  PoolMem backing{PM_MESSAGE};
+  std::size_t header_size{0};
+  std::size_t data_size{0};
+
+  message(std::size_t header_size) : header_size{header_size} {}
+
+  void reserve(std::size_t max_data_size)
+  {
+    backing.check_size(header_size + max_data_size);
+  }
+
+  char* header() { return backing.addr(); }
+
+  char* data() { return backing.addr() + header_size; }
+
+  const char* header() const { return backing.c_str(); }
+
+  const char* data() const { return backing.c_str() + header_size; }
+
+  std::size_t size() const { return header_size + data_size; }
+};
+
 // Send the content of a file on anything but an EFS filesystem.
 static inline bool SendPlainData(b_ctx& bctx)
 {
@@ -1093,15 +1116,11 @@ static inline bool SendPlainData(b_ctx& bctx)
     };
   }
 
-  DIGEST* checksum = bctx.digest;
-  DIGEST* signing = bctx.signing_digest;
-
-  size_t bytes_read{0};
-
   tpool& pool = bctx.jcr->fd_impl->pool;
   work_group compute_group(20);
   std::size_t num_workers = 5;
-  //std::latch compute_latch(5);
+
+  // FIXME(ssura): this should become a std::latch once C++20 arrives
   std::condition_variable compute_fin;
   synchronized<std::size_t> latch{num_workers};
   pool.borrow_threads(num_workers, [&latch, &compute_group, &compute_fin] {
@@ -1111,16 +1130,16 @@ static inline bool SendPlainData(b_ctx& bctx)
     compute_fin.notify_one();
   });
 
-  std::optional<std::future<void>> update_digest;
+  using shared_message = std::shared_ptr<const message>;
 
   // FIXME(ssura): How big should the buffer be ?
-  auto [in, out] = channel::CreateBufferedChannel<
-      std::future<result<std::pair<PoolMem, std::size_t>>>>(5);
+  auto [in, out]
+      = channel::CreateBufferedChannel<std::future<result<shared_message>>>(
+          num_workers);
 
   // FIXME(ssura): We have to wrap out in a shared_ptr, because borrow_thread
   //               needs a copyable function.  Once we move to
   //               move_only_function we can remove this.
-  // std::shared_ptr chunks = std::make_shared<decltype(out)>(std::move(out));
   std::promise<result<std::size_t>> promise{};
   std::future bytes_send_fut = promise.get_future();
   pool.borrow_thread(
@@ -1133,8 +1152,13 @@ static inline bool SendPlainData(b_ctx& bctx)
             return;
           }
 
-          auto [msg, size] = std::move(p.value_unchecked());
-          result ret = SendData(sd, msg.addr(), size);
+          auto size = p.value_unchecked()->size();
+          auto& msg = p.value_unchecked()->backing;
+
+          // technically we are overwriting part of message here
+          // but its only the "size" field of the message, which is not
+          // read/written to otherwise after making it a shared_message.
+          result ret = SendData(sd, msg.c_str(), size);
           if (ret.holds_error()) {
             prom.set_value(std::move(ret));
             return;
@@ -1146,18 +1170,56 @@ static inline bool SendPlainData(b_ctx& bctx)
         return;
       });
 
+  DIGEST* checksum = bctx.digest;
+  DIGEST* signing = bctx.signing_digest;
+
+  std::optional<std::future<void>> update_digest;
+
+  std::uint64_t bytes_read{0};
+  std::uint64_t offset{0};
+
+  std::uint64_t& header = *(support_sparse ? &bytes_read : &offset);
+
+  static_assert(sizeof(header) == OFFSET_FADDR_SIZE);
+  const std::size_t header_size
+      = (support_sparse || support_offsets) ? sizeof(header) : 0;
+
   // Read the file data
   for (;;) {
-    std::shared_ptr buf = std::make_shared<std::vector<char>>();
-    buf->resize(max_buf_size);
-    ssize_t read_bytes = bread(&bfd, buf->data(), buf->size());
+    message msg(header_size);
+    msg.reserve(max_buf_size);
+    for (bool skip_block = true; skip_block;) {
+      skip_block = false;
+      ssize_t read_bytes = bread(&bfd, msg.data(), max_buf_size);
+      offset = bfd.offset;
 
-    if (read_bytes <= 0) break;
+      if (read_bytes <= 0) { goto end_read_loop; }
 
-    auto offset = bfd.offset;
+      msg.data_size = read_bytes;
 
-    ASSERT(static_cast<std::size_t>(read_bytes) <= max_buf_size);
-    buf->resize(read_bytes);
+      bool unsized_file
+          = (file_type == FT_RAW || file_type == FT_FIFO) && (file_size == 0);
+      if (support_sparse
+          && ((msg.data_size == max_buf_size
+               && (bytes_read + max_buf_size < (uint64_t)file_size))
+              || unsized_file)
+          && IsBufZero(msg.data(), max_buf_size)) {
+        skip_block = true;
+      } else {
+        if (msg.header_size) {
+          ASSERT(msg.header_size == OFFSET_FADDR_SIZE);
+          ser_declare;
+          SerBegin(msg.header(), OFFSET_FADDR_SIZE);
+          ser_uint64(header); /* store offset in begin of buffer */
+          SerEnd(msg.header(), OFFSET_FADDR_SIZE);
+        }
+      }
+
+      bytes_read += read_bytes;
+    }
+    ASSERT(msg.data_size > 0);
+
+    shared_message shared_msg{new message{std::move(msg)}};
 
     if (update_digest) {
       // updating the digest has to be done serially
@@ -1166,105 +1228,81 @@ static inline bool SendPlainData(b_ctx& bctx)
       update_digest->wait();
     }
 
-    bool skip_block = false;
-
-    if (support_sparse
-        && ((buf->size() == max_buf_size
-             && (bytes_read + buf->size() < (uint64_t)file_size))
-            || ((file_type == FT_RAW || file_type == FT_FIFO)
-                && (file_size == 0)))
-        && IsBufZero(buf->data(), max_buf_size)) {
-      skip_block = true;
-    }
-
-    if (!skip_block) {
-      if (checksum || signing) {
-        update_digest.emplace(compute_group.submit([checksum, signing, buf]() mutable {
-          // Update checksum if requested
-          if (checksum) {
-            CryptoDigestUpdate(checksum, (uint8_t*)buf->data(), buf->size());
-          }
-
-          // Update signing digest if requested
-          if (signing) {
-            CryptoDigestUpdate(signing, (uint8_t*)buf->data(), buf->size());
-          }
-        }));
-      }
-
-      std::optional<uint64_t> header;
-      if (support_sparse) {
-        header = bytes_read;
-      } else if (support_offsets) {
-        header = offset;
-      }
-
-      std::future copy_fut = compute_group.submit(
-          [header, buf,
-           compctx]() mutable -> result<std::pair<PoolMem, std::size_t>> {
-            auto header_size = header ? OFFSET_FADDR_SIZE : 0;
-            auto data_size = compctx ? RequiredCompressionOutputBufferSize(
-                                 compctx->algorithm, buf->size())
-                                     : buf->size();
-            auto total_size = header_size + data_size;
-            PoolMem msg;
-            msg.check_size(total_size);
-            char* header_data = header ? msg.c_str() : nullptr;
-            char* file_data = msg.c_str() + header_size;
-            if (header) {
-              ser_declare;
-              SerBegin(header_data, OFFSET_FADDR_SIZE);
-              ser_uint64(header.value()); /* store offset in begin of buffer */
-              SerEnd(header_data, OFFSET_FADDR_SIZE);
+    if (checksum || signing) {
+      update_digest.emplace(
+          compute_group.submit([checksum, signing, shared_msg]() mutable {
+            // Update checksum if requested
+            if (checksum) {
+              CryptoDigestUpdate(checksum, (uint8_t*)shared_msg->data(),
+                                 shared_msg->data_size);
             }
-            if (compctx) {
-              result comp_size = ThreadlocalCompress(
-                  compctx->algorithm, compctx->level, buf->data(), buf->size(),
-                  file_data + sizeof(comp_stream_header),
-                  data_size - sizeof(comp_stream_header));
 
-              if (comp_size.holds_error()) {
-                return std::move(comp_size.error_unchecked());
-              }
-
-              auto csize = comp_size.value_unchecked();
-
-              if (csize > std::numeric_limits<std::uint32_t>::max()) {
-                PoolMem error;
-                Mmsg(error, "Compressed size to big (%llu > %llu)", csize,
-                     std::numeric_limits<std::uint32_t>::max());
-                return error;
-              }
-
-              {
-                // Write compression header
-                ser_declare;
-                SerBegin(file_data, sizeof(comp_stream_header));
-                ser_uint32(compctx->ch.magic);
-                ser_uint32(csize);
-                ser_uint16(compctx->ch.level);
-                ser_uint16(compctx->ch.version);
-                SerEnd(file_data, sizeof(comp_stream_header));
-              }
-
-              total_size = header_size + csize + sizeof(comp_stream_header);
-            } else {
-              std::memcpy(file_data, buf->data(), buf->size());
+            // Update signing digest if requested
+            if (signing) {
+              CryptoDigestUpdate(signing, (uint8_t*)shared_msg->data(),
+                                 shared_msg->data_size);
             }
-            return std::make_pair(std::move(msg), total_size);
-          });
+          }));
+
+      std::future copy_fut
+          = (compctx) ? compute_group.submit(
+                [shared_msg,
+                 compctx
+                 = compctx.value()]() mutable -> result<shared_message> {
+                  auto data_size = RequiredCompressionOutputBufferSize(
+                      compctx.algorithm, shared_msg->data_size);
+                  message msg(shared_msg->header_size);
+                  msg.reserve(data_size);
+                  result comp_size = ThreadlocalCompress(
+                      compctx.algorithm, compctx.level, shared_msg->data(),
+                      shared_msg->data_size,
+                      msg.data() + sizeof(comp_stream_header),
+                      data_size - sizeof(comp_stream_header));
+
+                  if (comp_size.holds_error()) {
+                    return std::move(comp_size.error_unchecked());
+                  }
+
+                  auto csize = comp_size.value_unchecked();
+
+                  if (csize > std::numeric_limits<std::uint32_t>::max()) {
+                    PoolMem error;
+                    Mmsg(error, "Compressed size to big (%llu > %llu)", csize,
+                         std::numeric_limits<std::uint32_t>::max());
+                    return error;
+                  }
+
+                  {
+                    // Write compression header
+                    ser_declare;
+                    SerBegin(msg.data(), sizeof(comp_stream_header));
+                    ser_uint32(compctx.ch.magic);
+                    ser_uint32(csize);
+                    ser_uint16(compctx.ch.level);
+                    ser_uint16(compctx.ch.version);
+                    SerEnd(msg.data(), sizeof(comp_stream_header));
+                  }
+
+                  msg.data_size = csize + sizeof(comp_stream_header);
+
+                  return shared_message{new message{std::move(msg)}};
+                })
+                      : [shared_msg]() {
+                          std::promise<result<shared_message>> prom;
+                          prom.set_value(std::move(shared_msg));
+                          return prom.get_future();
+                        }();
 
       // Send the buffer to the Storage daemon
       if (!in.emplace(std::move(copy_fut))) { goto bail_out; }
     }
-
-    bytes_read += buf->size(); /* count bytes read */
   }
+end_read_loop:
   retval = true;
 
- bail_out:
+bail_out:
   compute_group.shutdown();
-  latch.lock().wait(compute_fin, [](int num){ return num == 0; });
+  latch.lock().wait(compute_fin, [](int num) { return num == 0; });
   in.close();
   if (update_digest) { update_digest->wait(); }
   result sendres = bytes_send_fut.get();
