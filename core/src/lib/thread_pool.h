@@ -42,31 +42,18 @@
 #include "lib/channel.h"
 #include "include/baconfig.h"
 
+/* this class is basically std::function<void(void)>; except that
+ * it does not require the function to be copyable.
+ * We can change this to be an alias for std::move_only_function<void(void)>
+ * once it becomes available (C++23). */
 class task {
-  // impl_base + impl are used to type erase F
-  struct impl_base {
-    virtual void operator()() = 0;
-    virtual ~impl_base() = default;
-  };
-
-  template <typename F>
-  struct impl : impl_base, F {
-    impl(F&& f) : F(std::move(f))
-    {}
-
-    // using F::operator(); does not seem to work :(
-    void operator()() override {
-        F::operator()();
-    }
-  };
-
-public:
-  // ensure that we cannot wrap a task with a task;
-  // this is needed to disamiguate between creating a task
-  // and move-constructing one.
+ public:
+  /* ensure that we cannot wrap a task with a task;
+   * this is needed to disamiguate between creating a task
+   * and move-constructing one. */
   template <typename F,
-  typename = std::enable_if_t<!std::is_reference_v<F>>,
-  typename = std::enable_if_t<!std::is_same_v<F, task>>>
+            typename = std::enable_if_t<!std::is_reference_v<F>>,
+            typename = std::enable_if_t<!std::is_same_v<F, task>>>
   task(F&& f) : ptr{new impl<F>(std::move(f))}
   {
   }
@@ -74,11 +61,25 @@ public:
   task(task&&) = default;
   task& operator=(task&&) = default;
 
-  void operator()() {
-    ptr->operator()();
-  }
+  void operator()() { ptr->operator()(); }
 
-private:
+ private:
+  // impl_base + impl are used to type erase F
+  struct impl_base {
+    virtual void operator()() = 0;
+    virtual ~impl_base() = default;
+  };
+
+  template <typename F>
+  struct impl
+      : impl_base
+      , F {
+    impl(F&& f) : F(std::move(f)) {}
+
+    // using F::operator(); does not work :(
+    void operator()() override { F::operator()(); }
+  };
+
   std::unique_ptr<impl_base> ptr;
 };
 
@@ -94,9 +95,8 @@ struct tpool {
   // f needs to be copyable here
   template <typename F> void borrow_threads(std::size_t size, F&& f)
   {
-    with_free_threads(size, [f = std::move(f)](work_unit& unit) mutable {
-      unit.submit(f);
-    });
+    with_free_threads(
+        size, [f = std::move(f)](work_unit& unit) mutable { unit.submit(f); });
   }
 
   ~tpool()
@@ -107,24 +107,24 @@ struct tpool {
   }
 
  private:
-  template <typename F>
-  void with_free_threads(std::size_t size, F f)
+  template <typename F> void with_free_threads(std::size_t size, F f)
   {
     std::size_t found = 0;
-    for (std::size_t i = 0; i < threads.size() && found < size;
-         ++i) {
+    for (std::size_t i = 0; i < threads.size() && found < size; ++i) {
       if (auto locked = units[i]->try_lock();
-	  locked && locked.value()->is_waiting()) {
-	f(*locked.value());
-	found += 1;
+          locked && locked.value()->is_waiting()) {
+        f(*locked.value());
+        found += 1;
       }
     }
 
     // if there were not enough free threads, we need to create new ones
     for (std::size_t i = found; i < size; ++i) {
+      auto idx = threads.size();
       add_thread();
-      ASSERT(i == threads.size() - 1);
-      f(*units[i]->lock());
+
+      ASSERT(idx == threads.size() - 1);
+      f(*units[idx]->lock());
     }
   }
 
@@ -209,22 +209,21 @@ struct work_group {
     }
   }
 
-  template <typename F,
-            typename T = std::invoke_result_t<F>>
+  template <typename F, typename T = std::invoke_result_t<F>>
   std::future<T> submit(F&& f)
   {
     std::promise<T> prom;
     std::future ret = prom.get_future();
     task t{[prom = std::move(prom), f = std::move(f)]() mutable {
       try {
-	if constexpr (std::is_same_v<T, void>) {
-	  f();
-	  prom.set_value();
-	} else {
-	  prom.set_value(f());
-	}
+        if constexpr (std::is_same_v<T, void>) {
+          f();
+          prom.set_value();
+        } else {
+          prom.set_value(f());
+        }
       } catch (...) {
-	prom.set_exception(std::current_exception());
+        prom.set_exception(std::current_exception());
       }
     }};
 
@@ -232,9 +231,7 @@ struct work_group {
     return ret;
   }
 
-  void shutdown() {
-    task_in.close();
-  }
+  void shutdown() { task_in.close(); }
 
   channel::input<task> task_in;
   synchronized<channel::output<task>> task_out;
@@ -248,9 +245,7 @@ struct work_group {
   {
   }
 
-  ~work_group() {
-    shutdown();
-  }
+  ~work_group() { shutdown(); }
 };
 
 #endif  // BAREOS_LIB_THREAD_POOL_H_
