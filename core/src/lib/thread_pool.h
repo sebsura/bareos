@@ -36,114 +36,14 @@
 #include <future>
 #include <type_traits>
 #include <exception>
+#include <memory>
 
 #include "lib/thread_util.h"
 #include "lib/channel.h"
 #include "include/baconfig.h"
 
-struct worker_pool {
-  std::vector<std::thread> threads{};
-  std::size_t num_borrowed{0};
-  std::size_t min_workers{0};
-  std::size_t dead_workers{0};
-
-  std::size_t num_actual_workers() const
-  {
-    return threads.size() - num_borrowed - dead_workers;
-  }
-};
-
-class thread_pool {
- public:
-  // fixme(ssura): change this to std::move_only_function (c++23)
-  using task = std::function<void()>;
-
-  thread_pool(std::size_t num_threads = 0);
-
-  void ensure_num_workers(std::size_t num_threads);
-  void finish();   // wait until all submitted tasks are accomplished
-  ~thread_pool();  // stops as fast as possible; dropping outstanding tasks
-
-  void enqueue(task&& t);  // queue task to be worked on by worker threads;
-                           // should not block
-  void borrow_thread(task&& t);  // steal thread to work on task t; can block
-
- private:
-  std::condition_variable worker_death;
-  synchronized<worker_pool> workers{};
-
-  std::condition_variable queue_or_death;
-  synchronized<std::optional<std::deque<task>>> queue{std::in_place};
-
-  std::size_t tasks_submitted{0};
-  std::condition_variable on_task_completion;
-  synchronized<std::size_t> tasks_completed{0u};
-
-  static void pool_work(std::size_t id, thread_pool* pool);
-  static void borrow_then_pool_work(task&& t,
-                                    std::size_t id,
-                                    thread_pool* pool);
-
-  std::optional<task> dequeue();
-  std::optional<task> finish_and_dequeue();
-};
-
-template <typename F>
-auto enqueue(thread_pool& pool, F&& f) -> std::future<std::invoke_result_t<F>>
-{
-  using result_type = std::invoke_result_t<F>;
-  // todo(ssura): in c++23 we can use std::move_only_function
-  //              and pass the promise directly into the function.
-  //              currently this approach does not work because
-  //              std::function requires the function to be copyable,
-  //              but std::promise obviously is not.
-  std::shared_ptr p = std::make_shared<std::promise<result_type>>();
-  std::future fut = p->get_future();
-  pool.enqueue([f = std::move(f), mp = std::move(p)]() mutable {
-    try {
-      if constexpr (std::is_same_v<result_type, void>) {
-        f();
-        mp->set_value();
-      } else {
-        mp->set_value(f());
-      }
-    } catch (...) {
-      mp->set_exception(std::current_exception());
-    }
-  });
-  return fut;
-}
-
-template <typename F>
-auto borrow_thread(thread_pool& pool, F&& f)
-    -> std::future<std::invoke_result_t<F>>
-{
-  using result_type = std::invoke_result_t<F>;
-  // todo(ssura): in c++23 we can use std::move_only_function
-  //              and pass the promise directly into the function.
-  //              currently this approach does not work because
-  //              std::function requires the function to be copyable,
-  //              but std::promise obviously is not.
-  std::shared_ptr p = std::make_shared<std::promise<result_type>>();
-  std::future fut = p->get_future();
-  pool.borrow_thread([f = std::move(f), mp = std::move(p)]() mutable {
-    try {
-      if constexpr (std::is_same_v<result_type, void>) {
-        f();
-        mp->set_value();
-      } else {
-        mp->set_value(f());
-      }
-    } catch (...) {
-      mp->set_exception(std::current_exception());
-    }
-  });
-  return fut;
-}
-
-#include <memory>
-
 class task {
+  // impl_base + impl are used to type erase F
   struct impl_base {
     virtual void operator()() = 0;
     virtual ~impl_base() = default;
@@ -154,15 +54,19 @@ class task {
     impl(F&& f) : F(std::move(f))
     {}
 
+    // using F::operator(); does not seem to work :(
     void operator()() override {
         F::operator()();
     }
   };
 
 public:
+  // ensure that we cannot wrap a task with a task;
+  // this is needed to disamiguate between creating a task
+  // and move-constructing one.
   template <typename F,
-  std::enable_if_t<!std::is_reference_v<F>, bool> = true,
-  std::enable_if_t<!std::is_same_v<F, task>, bool> = true>
+  typename = std::enable_if_t<!std::is_reference_v<F>>,
+  typename = std::enable_if_t<!std::is_same_v<F, task>>>
   task(F&& f) : ptr{new impl<F>(std::move(f))}
   {
   }
@@ -179,39 +83,20 @@ private:
 };
 
 struct tpool {
-  std::vector<std::size_t> find_free_threads(std::size_t size)
-  {
-    std::vector<size_t> free_threads;
-    free_threads.reserve(threads.size());
-    for (std::size_t i = 0; i < threads.size() && free_threads.size() < size;
-         ++i) {
-      if (auto locked = units[i]->try_lock();
-	  locked && locked.value()->is_waiting()) { free_threads.push_back(i); }
-    }
-
-    if (free_threads.size() < size) {
-      std::size_t num_new_hires = size - free_threads.size();
-
-      for (std::size_t i = 0; i < num_new_hires; ++i) {
-        free_threads.push_back(threads.size());
-        add_thread();
-      }
-    }
-
-    ASSERT(free_threads.size() == size);
-
-    return free_threads;
-  }
-
+  // f does not need to be copyable
   template <typename F> void borrow_thread(F&& f)
   {
-    std::vector worker = find_free_threads(1);
-    units[worker[0]]->lock()->submit(std::move(f));
+    with_free_threads(1, [f = std::move(f)](work_unit& unit) mutable {
+      unit.submit(std::move(f));
+    });
   }
+
+  // f needs to be copyable here
   template <typename F> void borrow_threads(std::size_t size, F&& f)
   {
-    std::vector free_threads = find_free_threads(size);
-    for (auto index : free_threads) { units[index]->lock()->submit(f); }
+    with_free_threads(size, [f = std::move(f)](work_unit& unit) mutable {
+      unit.submit(f);
+    });
   }
 
   ~tpool()
@@ -222,6 +107,27 @@ struct tpool {
   }
 
  private:
+  template <typename F>
+  void with_free_threads(std::size_t size, F f)
+  {
+    std::size_t found = 0;
+    for (std::size_t i = 0; i < threads.size() && found < size;
+         ++i) {
+      if (auto locked = units[i]->try_lock();
+	  locked && locked.value()->is_waiting()) {
+	f(*locked.value());
+	found += 1;
+      }
+    }
+
+    // if there were not enough free threads, we need to create new ones
+    for (std::size_t i = found; i < size; ++i) {
+      add_thread();
+      ASSERT(i == threads.size() - 1);
+      f(*units[i]->lock());
+    }
+  }
+
   class work_unit {
    public:
     template <typename F> void submit(F f)
