@@ -51,6 +51,8 @@
 #include "lib/serial.h"
 #include "lib/compression.h"
 
+#include <tracy/Tracy.hpp>
+
 namespace filedaemon {
 
 #ifdef HAVE_DARWIN_OS
@@ -101,8 +103,11 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  * reacts accordingly (at the moment it has nothing to do
  * except echo the heartbeat to the Director).
  */
+
+const char* BlastName = "Blasting";
 bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 {
+  FrameMarkStart(BlastName);
   BareosSocket* sd;
   bool ok = true;
 
@@ -207,6 +212,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   CleanupCompression(jcr);
   CryptoSessionEnd(jcr);
 
+  FrameMarkEnd(BlastName);
   Dmsg1(100, "end blast_data ok=%d\n", ok);
   return ok;
 }
@@ -503,6 +509,8 @@ static inline bool DoBackupXattr(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
  */
 int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 {
+  ZoneScopedN("Sending");
+  ZoneText(ff_pkt->fname, strlen(ff_pkt->fname));
   bool do_read = false;
   bool plugin_started = false;
   bool do_plugin_set = false;
@@ -881,19 +889,24 @@ static inline bool SendDataToSd(b_ctx* bctx)
   // Uncompressed cipher input length
   bctx->cipher_input_len = sd->message_length;
 
-  // Update checksum if requested
-  if (bctx->digest) {
-    CryptoDigestUpdate(bctx->digest, (uint8_t*)bctx->rbuf, sd->message_length);
-  }
+  {
+    ZoneScopedN("Checksum");
+    // Update checksum if requested
+    if (bctx->digest) {
+      CryptoDigestUpdate(bctx->digest, (uint8_t*)bctx->rbuf,
+                         sd->message_length);
+    }
 
-  // Update signing digest if requested
-  if (bctx->signing_digest) {
-    CryptoDigestUpdate(bctx->signing_digest, (uint8_t*)bctx->rbuf,
-                       sd->message_length);
+    // Update signing digest if requested
+    if (bctx->signing_digest) {
+      CryptoDigestUpdate(bctx->signing_digest, (uint8_t*)bctx->rbuf,
+                         sd->message_length);
+    }
   }
 
   // Compress the data.
   if (BitIsSet(FO_COMPRESS, bctx->ff_pkt->flags)) {
+    ZoneScopedN("Compression");
     if (!CompressData(bctx->jcr, bctx->ff_pkt->Compress_algo, bctx->rbuf,
                       bctx->jcr->store_bsock->message_length, bctx->cbuf,
                       bctx->max_compress_len, &bctx->compress_len)) {
@@ -922,10 +935,12 @@ static inline bool SendDataToSd(b_ctx* bctx)
 
   // Encrypt the data.
   need_more_data = false;
-  if (BitIsSet(FO_ENCRYPT, bctx->ff_pkt->flags)
-      && !EncryptData(bctx, &need_more_data)) {
-    if (need_more_data) { return true; }
-    return false;
+  if (BitIsSet(FO_ENCRYPT, bctx->ff_pkt->flags)) {
+    ZoneScopedN("Encryption");
+    if (!EncryptData(bctx, &need_more_data)) {
+      if (need_more_data) { return true; }
+      return false;
+    }
   }
 
   // Send the buffer to the Storage daemon
@@ -935,12 +950,16 @@ static inline bool SendDataToSd(b_ctx* bctx)
   }
   sd->msg = bctx->wbuf; /* set correct write buffer */
 
-  if (!sd->send()) {
-    if (!bctx->jcr->IsJobCanceled()) {
-      Jmsg1(bctx->jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-            sd->bstrerror());
+  {
+    ZoneScopedN("sd comm");
+    ZoneValue(sd->message_length);
+    if (!sd->send()) {
+      if (!bctx->jcr->IsJobCanceled()) {
+        Jmsg1(bctx->jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+              sd->bstrerror());
+      }
+      return false;
     }
-    return false;
   }
 
   Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
@@ -1019,9 +1038,14 @@ static inline bool SendPlainData(b_ctx& bctx)
   BareosSocket* sd = bctx.jcr->store_bsock;
 
   // Read the file data
-  while ((sd->message_length
-          = (uint32_t)bread(&bctx.ff_pkt->bfd, bctx.rbuf, bctx.rsize))
-         > 0) {
+  for (;;) {
+    {
+      ZoneScopedN("Read");
+      sd->message_length
+          = (uint32_t)bread(&bctx.ff_pkt->bfd, bctx.rbuf, bctx.rsize);
+      ZoneValue(sd->message_length);
+    }
+    if (sd->message_length == 0) break;
     if (!SendDataToSd(&bctx)) { goto bail_out; }
   }
   retval = true;
