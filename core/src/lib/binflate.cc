@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2018 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -73,7 +73,7 @@ int Zdeflate(const char* in, int in_len, char* out, int& out_len)
  *  and output buffer and an output length sufficiently long
  *  or there will be an error.  This uncompresses in one call.
  */
-int Zinflate(char* in, int in_len, char* out, int& out_len)
+int Zinflate(const char* in, int in_len, char* out, int& out_len)
 {
 #ifdef HAVE_LIBZ
   z_stream strm;
