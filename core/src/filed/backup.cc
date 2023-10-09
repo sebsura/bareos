@@ -53,6 +53,8 @@
 
 #include "lib/channel.h"
 
+#include <tracy/Tracy.hpp>
+
 #include <cstring>
 
 namespace filedaemon {
@@ -94,6 +96,8 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
 static void CloseVssBackupSession(JobControlRecord* jcr);
 #endif
 
+static const char* Send = "Sending to Sd!";
+
 /**
  * Find all the requested files and send them
  * to the Storage daemon.
@@ -107,6 +111,7 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  */
 bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 {
+  FrameMarkStart(Send);
   BareosSocket* sd;
   bool ok = true;
 
@@ -216,6 +221,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   CryptoSessionEnd(jcr);
 
   Dmsg1(100, "end blast_data ok=%d\n", ok);
+  FrameMarkEnd(Send);
   return ok;
 }
 
@@ -889,15 +895,19 @@ static inline bool SendDataToSd(b_ctx* bctx)
   // Uncompressed cipher input length
   bctx->cipher_input_len = sd->message_length;
 
-  // Update checksum if requested
-  if (bctx->digest) {
-    CryptoDigestUpdate(bctx->digest, (uint8_t*)bctx->rbuf, sd->message_length);
-  }
+  {
+    ZoneScopedN("Checksum (Serial)");
+    // Update checksum if requested
+    if (bctx->digest) {
+      CryptoDigestUpdate(bctx->digest, (uint8_t*)bctx->rbuf,
+                         sd->message_length);
+    }
 
-  // Update signing digest if requested
-  if (bctx->signing_digest) {
-    CryptoDigestUpdate(bctx->signing_digest, (uint8_t*)bctx->rbuf,
-                       sd->message_length);
+    // Update signing digest if requested
+    if (bctx->signing_digest) {
+      CryptoDigestUpdate(bctx->signing_digest, (uint8_t*)bctx->rbuf,
+                         sd->message_length);
+    }
   }
 
   // Compress the data.
@@ -943,12 +953,15 @@ static inline bool SendDataToSd(b_ctx* bctx)
   }
   sd->msg = bctx->wbuf; /* set correct write buffer */
 
-  if (!sd->send()) {
-    if (!bctx->jcr->IsJobCanceled()) {
-      Jmsg1(bctx->jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-            sd->bstrerror());
+  {
+    ZoneScopedN("Send To Sd (Serial)");
+    if (!sd->send()) {
+      if (!bctx->jcr->IsJobCanceled()) {
+        Jmsg1(bctx->jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+              sd->bstrerror());
+      }
+      return false;
     }
-    return false;
   }
 
   Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
@@ -1026,9 +1039,13 @@ static inline bool SendPlainDataSerially(b_ctx& bctx)
   BareosSocket* sd = bctx.jcr->store_bsock;
 
   // Read the file data
-  while ((sd->message_length
-          = (uint32_t)bread(&bctx.ff_pkt->bfd, bctx.rbuf, bctx.rsize))
-         > 0) {
+  for (;;) {
+    {
+      ZoneScopedN("Read (Serial)");
+      sd->message_length
+          = (uint32_t)bread(&bctx.ff_pkt->bfd, bctx.rbuf, bctx.rsize);
+    }
+    if (sd->message_length <= 0) break;
     if (!SendDataToSd(&bctx)) { goto bail_out; }
   }
   retval = true;
@@ -1090,8 +1107,12 @@ static inline bool SendPlainData(b_ctx& bctx)
   // parallel sending/checksumming/compression/etc.
   // This is mostly because EncryptData() is weird!
   // FIXME(ssura): change this
+  ZoneScopedN("Sending");
+  ZoneText(bctx.ff_pkt->fname, strlen(bctx.ff_pkt->fname));
+  // return SendPlainDataSerially(bctx);
   if (BitIsSet(FO_ENCRYPT, flags)) { return SendPlainDataSerially(bctx); }
-  if (file_size < 128 * 1024) { return SendPlainDataSerially(bctx); }
+  //  if (file_size < 128 * 1024) { return SendPlainDataSerially(bctx); }
+
 
   bool retval = false;
   BareosSocket* sd = bctx.jcr->store_bsock;
@@ -1145,7 +1166,9 @@ static inline bool SendPlainData(b_ctx& bctx)
   pool.borrow_thread(
       [prom = std::move(promise), out = std::move(out), sd]() mutable {
         std::size_t accumulated = 0;
-        for (std::optional fut = out.get(); fut.has_value(); fut = out.get()) {
+        for (;;) {
+          std::optional fut = out.get();
+          if (!fut) break;
           result p = fut->get();
           if (p.holds_error()) {
             prom.set_value(std::move(p.error_unchecked()));
@@ -1154,6 +1177,9 @@ static inline bool SendPlainData(b_ctx& bctx)
 
           auto size = p.value_unchecked()->size();
           auto& msg = p.value_unchecked()->backing;
+
+          ZoneScopedN("sd comm");
+          ZoneValue(size);
 
           // technically we are overwriting part of message here
           // but its only the "size" field of the message, which is not
@@ -1188,35 +1214,40 @@ static inline bool SendPlainData(b_ctx& bctx)
   for (;;) {
     message msg(header_size);
     msg.reserve(max_buf_size);
-    for (bool skip_block = true; skip_block;) {
-      skip_block = false;
-      ssize_t read_bytes = bread(&bfd, msg.data(), max_buf_size);
-      offset = bfd.offset;
+    {
+      ZoneScopedN("Read");
+      for (bool skip_block = true; skip_block;) {
+        skip_block = false;
+        ssize_t read_bytes = bread(&bfd, msg.data(), max_buf_size);
+        offset = bfd.offset;
 
-      if (read_bytes <= 0) { goto end_read_loop; }
+        if (read_bytes <= 0) { break; }
 
-      msg.data_size = read_bytes;
+        msg.data_size = read_bytes;
 
-      bool unsized_file
-          = (file_type == FT_RAW || file_type == FT_FIFO) && (file_size == 0);
-      if (support_sparse
-          && ((msg.data_size == max_buf_size
-               && (bytes_read + max_buf_size < (uint64_t)file_size))
-              || unsized_file)
-          && IsBufZero(msg.data(), max_buf_size)) {
-        skip_block = true;
-      } else {
-        if (msg.header_size) {
-          ASSERT(msg.header_size == OFFSET_FADDR_SIZE);
-          ser_declare;
-          SerBegin(msg.header(), OFFSET_FADDR_SIZE);
-          ser_uint64(header); /* store offset in begin of buffer */
-          SerEnd(msg.header(), OFFSET_FADDR_SIZE);
+        bool unsized_file
+            = (file_type == FT_RAW || file_type == FT_FIFO) && (file_size == 0);
+        if (support_sparse
+            && ((msg.data_size == max_buf_size
+                 && (bytes_read + max_buf_size < (uint64_t)file_size))
+                || unsized_file)
+            && IsBufZero(msg.data(), max_buf_size)) {
+          skip_block = true;
+        } else {
+          if (msg.header_size) {
+            ASSERT(msg.header_size == OFFSET_FADDR_SIZE);
+            ser_declare;
+            SerBegin(msg.header(), OFFSET_FADDR_SIZE);
+            ser_uint64(header); /* store offset in begin of buffer */
+            SerEnd(msg.header(), OFFSET_FADDR_SIZE);
+          }
         }
-      }
 
-      bytes_read += read_bytes;
+        bytes_read += read_bytes;
+      }
+      ZoneValue(msg.data_size);
     }
+    if (msg.data_size == 0) { break; }
     ASSERT(msg.data_size > 0);
 
     shared_message shared_msg{new message{std::move(msg)}};
@@ -1231,6 +1262,7 @@ static inline bool SendPlainData(b_ctx& bctx)
     if (checksum || signing) {
       update_digest.emplace(
           compute_group.submit([checksum, signing, shared_msg]() mutable {
+            ZoneScopedN("Checksum");
             // Update checksum if requested
             if (checksum) {
               CryptoDigestUpdate(checksum, (uint8_t*)shared_msg->data(),
@@ -1249,6 +1281,7 @@ static inline bool SendPlainData(b_ctx& bctx)
         = (compctx) ? compute_group.submit(
               [shared_msg,
                compctx = compctx.value()]() mutable -> result<shared_message> {
+                ZoneScopedN("Compressing");
                 auto data_size = RequiredCompressionOutputBufferSize(
                     compctx.algorithm, shared_msg->data_size);
                 message msg(shared_msg->header_size);
@@ -1298,15 +1331,17 @@ static inline bool SendPlainData(b_ctx& bctx)
     // Send the buffer to the Storage daemon
     if (!in.emplace(std::move(copy_fut))) { goto bail_out; }
   }
-end_read_loop:
   retval = true;
 
 bail_out:
-  compute_group.shutdown();
-  latch.lock().wait(compute_fin, [](int num) { return num == 0; });
-  in.close();
-  if (update_digest) { update_digest->wait(); }
-  result sendres = bytes_send_fut.get();
+  result sendres = [&]() {
+    ZoneScopedN("Wait for end");
+    compute_group.shutdown();
+    in.close();
+    latch.lock().wait(compute_fin, [](int num) { return num == 0; });
+    if (update_digest) { update_digest->wait(); }
+    return bytes_send_fut.get();
+  }();
   if (auto* error = sendres.error()) {
     if (!bctx.jcr->IsJobCanceled()) {
       Jmsg1(bctx.jcr, M_FATAL, 0, "%s\n", error->c_str());
@@ -1319,6 +1354,7 @@ bail_out:
     bctx.jcr->ReadBytes += bytes_read; /* count bytes read */
   }
   sd->msg = bctx.msgsave; /* restore read buffer */
+
   return retval;
 }
 
