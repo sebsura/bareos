@@ -403,7 +403,7 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
     }
   }
 
-  if (!ok && !jcr->is_JobStatus(JS_Incomplete)) {
+  if (!ok && !jcr->IsIncomplete()) {
     DiscardDataSpool(jcr->sd_impl->dcr);
   } else {
     // Note: if commit is OK, the device will remain blocked
@@ -427,7 +427,7 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
        job_elapsed / 3600, job_elapsed % 3600 / 60, job_elapsed % 60,
        edit_uint64_with_suffix(jcr->JobBytes / job_elapsed, ec));
 
-  if ((!ok || jcr->IsJobCanceled()) && !jcr->is_JobStatus(JS_Incomplete)) {
+  if ((!ok || jcr->IsJobCanceled()) && !jcr->IsIncomplete()) {
     DiscardAttributeSpool(jcr);
   } else {
     CommitAttributeSpool(jcr);

@@ -339,7 +339,7 @@ static bool DespoolData(DeviceControlRecord* dcr, bool commit)
   /* If this Job is incomplete, we need to backup the FileIndex
    *  to the last correctly saved file so that the JobMedia
    *  LastIndex is correct. */
-  if (jcr->is_JobStatus(JS_Incomplete)) {
+  if (jcr->IsIncomplete()) {
     dcr->VolLastIndex = dir->get_FileIndex();
     Dmsg1(100, "======= Set FI=%ld\n", dir->get_FileIndex());
   }
@@ -756,7 +756,7 @@ bool CommitAttributeSpool(JobControlRecord* jcr)
       goto bail_out;
     }
 
-    if (jcr->is_JobStatus(JS_Incomplete)) {
+    if (jcr->IsIncomplete()) {
       data_end = dir->get_data_end();
 
       // Check and truncate to last valid data_end if necssary
