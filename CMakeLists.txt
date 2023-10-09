@@ -120,7 +120,13 @@ endif()
 
 if(BUILD_BAREOS_BINARIES)
   project(bareos C CXX)
+
+  option(TRACY_ENABLE "" ON)
+  option(TRACY_ON_DEMAND "" ON)
+  option(TRACY_STATIC "" OFF)
+
   add_subdirectory(third-party EXCLUDE_FROM_ALL)
+  add_subdirectory(third-party/tracy)
   add_subdirectory(core)
   if(ENABLE_WEBUI)
     add_subdirectory(webui)
