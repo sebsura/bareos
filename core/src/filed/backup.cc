@@ -78,11 +78,13 @@ const bool have_xattr = false;
 
 /* Forward referenced functions */
 
+#if 0
 static int send_data(JobControlRecord* jcr,
                      int stream,
                      FindFilesPacket* ff_pkt,
                      DIGEST* digest,
                      DIGEST* signature_digest);
+#endif
 bool EncodeAndSendAttributes(JobControlRecord* jcr,
                              FindFilesPacket* ff_pkt,
                              int& data_stream);
@@ -211,12 +213,13 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   return ok;
 }
 
+#if 0
 // Save OSX specific resource forks and finder info.
-static inline bool SaveRsrcAndFinder(b_save_ctx& bsctx)
+static inline bool SaveRsrcAndFinder(b_save_ctx& bsctx,
+				     BareosSocket* sd)
 {
   char flags[FOPTS_BYTES];
   int rsrc_stream;
-  BareosSocket* sd = bsctx.jcr->store_bsock;
   bool retval = false;
 
   if (bsctx.ff_pkt->hfsinfo.rsrclength > 0) {
@@ -270,6 +273,7 @@ static inline bool SaveRsrcAndFinder(b_save_ctx& bsctx)
 bail_out:
   return retval;
 }
+#endif
 
 /**
  * Setup for digest handling. If this fails, the digest will be set to NULL
@@ -343,6 +347,7 @@ bail_out:
   return retval;
 }
 
+#if 0
 // Terminate the signing digest and send it to the Storage daemon
 static inline bool TerminateSigningDigest(b_save_ctx& bsctx)
 {
@@ -433,6 +438,8 @@ static inline bool TerminateDigest(b_save_ctx& bsctx)
 bail_out:
   return retval;
 }
+
+#endif
 
 static inline bool DoBackupAcl(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
 {
@@ -1159,6 +1166,7 @@ digest_stream DigestStream(DIGEST* digest)
 };
 
 save_file_result SaveFile(JobControlRecord* jcr,
+                          BareosSocket* sd,
                           bareos_file* file,
                           std::optional<std::uint32_t> delta_seq,
                           std::optional<bareos_file_ref> original,
@@ -1167,8 +1175,6 @@ save_file_result SaveFile(JobControlRecord* jcr,
   if (jcr->IsJobCanceled() || jcr->IsIncomplete()) {
     return save_file_result::Skip;
   }
-
-  BareosSocket* sd = jcr->store_bsock;
 
   Dmsg1(130, "filed: sending %s to stored\n",
         std::string(file->bareos_path()).c_str());
@@ -1403,14 +1409,12 @@ struct plugin_object {
   span<const char> data() { return {}; }
 };
 
-int SavePluginObject(JobControlRecord* jcr, plugin_object obj)
+int SavePluginObject(JobControlRecord* jcr, BareosSocket* sd, plugin_object obj)
 {
   if (jcr->IsJobCanceled() || jcr->IsIncomplete()) {
     return -1;
     // return save_file_result::Skip;
   }
-
-  BareosSocket* sd = jcr->store_bsock;
 
   file_index fi = next_file_index(jcr);
   sd->fsend("%ld %d 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
@@ -1470,6 +1474,7 @@ int SavePluginObject(JobControlRecord* jcr, plugin_object obj)
 int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 {
 #if 1
+  BareosSocket* sd = jcr->store_bsock;
   switch (ff_pkt->type) {
     case FT_DIRBEGIN:
       jcr->fd_impl->num_files_examined--; /* correct file count */
@@ -1509,7 +1514,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     case FT_PLUGIN_CONFIG:
       [[fallthrough]];
     case FT_PLUGIN_CONFIG_FILLED: {
-      return SavePluginObject(jcr, {});
+      return SavePluginObject(jcr, sd, {});
     } break;
   }
   test_file f{ff_pkt};
@@ -1542,7 +1547,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   } else if (BitIsSet(FO_XXH128, ff_pkt->flags)) {
     chk = checksum_type::XXH128;
   }
-  auto res = SaveFile(jcr, &f, std::nullopt, std::move(original),
+  auto res = SaveFile(jcr, sd, &f, std::nullopt, std::move(original),
                       save_options{
                           .compress = BitIsSet(FO_COMPRESS, ff_pkt->flags),
                           .checksum = chk,
@@ -1898,6 +1903,7 @@ bail_out:
 #endif
 }
 
+#if 0
 /**
  * Handle the data just read and send it to the SD after doing any
  * postprocessing needed.
@@ -2012,6 +2018,8 @@ static inline bool SendDataToSd(b_ctx* bctx)
   return true;
 }
 
+#endif
+
 #ifdef HAVE_WIN32
 // Callback method for ReadEncryptedFileRaw()
 static DWORD WINAPI send_efs_data(PBYTE pbData,
@@ -2073,6 +2081,7 @@ bail_out:
 }
 #endif
 
+#if 0
 // Send the content of a file on anything but an EFS filesystem.
 static inline bool SendPlainData(b_ctx& bctx)
 {
@@ -2090,7 +2099,9 @@ static inline bool SendPlainData(b_ctx& bctx)
 bail_out:
   return retval;
 }
+#endif
 
+#if 0
 /**
  * Send data read from an already open file descriptor.
  *
@@ -2109,9 +2120,9 @@ static int send_data(JobControlRecord* jcr,
 {
   b_ctx bctx;
   BareosSocket* sd = jcr->store_bsock;
-#ifdef FD_NO_SEND_TEST
+#  ifdef FD_NO_SEND_TEST
   return 1;
-#endif
+#  endif
 
   // Setup backup context.
   memset(&bctx, 0, sizeof(b_ctx));
@@ -2148,14 +2159,14 @@ static int send_data(JobControlRecord* jcr,
       || BitIsSet(FO_OFFSETS, ff_pkt->flags)) {
     bctx.rbuf += OFFSET_FADDR_SIZE;
     bctx.rsize -= OFFSET_FADDR_SIZE;
-#ifdef HAVE_FREEBSD_OS
+#  ifdef HAVE_FREEBSD_OS
     // To read FreeBSD partitions, the read size must be a multiple of 512.
     bctx.rsize = (bctx.rsize / 512) * 512;
-#endif
+#  endif
   }
 
   // A RAW device read on win32 only works if the buffer is a multiple of 512
-#ifdef HAVE_WIN32
+#  ifdef HAVE_WIN32
   if (S_ISBLK(ff_pkt->statp.st_mode)) { bctx.rsize = (bctx.rsize / 512) * 512; }
 
   if (ff_pkt->statp.st_rdev & FILE_ATTRIBUTE_ENCRYPTED) {
@@ -2163,9 +2174,9 @@ static int send_data(JobControlRecord* jcr,
   } else {
     if (!SendPlainData(bctx)) { goto bail_out; }
   }
-#else
+#  else
   if (!SendPlainData(bctx)) { goto bail_out; }
-#endif
+#  endif
 
   if (sd->message_length < 0) { /* error */
     BErrNo be;
@@ -2225,6 +2236,7 @@ bail_out:
 
   return 0;
 }
+#endif
 
 bool EncodeAndSendAttributes(JobControlRecord* jcr,
                              FindFilesPacket* ff_pkt,
