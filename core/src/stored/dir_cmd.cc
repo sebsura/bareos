@@ -1578,7 +1578,9 @@ class ReplicateCmdConnectState {
         || state_ == ReplicateCmdState::kError) {
       if (!jcr_) { return; }
       if (jcr_->dir_bsock) {
-        jcr_->dir_bsock->fsend(BADcmd, "replicate", jcr_->dir_bsock->msg);
+        PoolMem msg;
+        msg.strcpy(jcr_->dir_bsock->msg);
+        jcr_->dir_bsock->fsend(BADcmd, "replicate", msg.c_str());
       }
       jcr_->store_bsock = nullptr;
     }
