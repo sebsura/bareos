@@ -105,10 +105,8 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  */
 bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 {
-  BareosSocket* sd;
   bool ok = true;
-
-  sd = jcr->store_bsock;
+  BareosSocket* sd = jcr->store_bsock;
 
   jcr->setJobStatusWithPriorityCheck(JS_Running);
 
@@ -146,6 +144,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   }
 
   StartHeartbeatMonitor(jcr);
+  Bmicrosleep(3, 0);
 
   if (have_acl) {
     jcr->fd_impl->acl_data = std::make_unique<AclData>();
@@ -163,12 +162,18 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
     jcr->fd_impl->xattr_data->u.build->content = GetPoolMemory(PM_MESSAGE);
   }
 
+  jcr->store_bsock = nullptr;
+  jcr->fd_impl->send_ctx.emplace(sd);
+
   // Subroutine SaveFile() is called for each file
   if (!FindFiles(jcr, (FindFilesPacket*)jcr->fd_impl->ff, SaveFile,
                  PluginSave)) {
     ok = false; /* error */
     jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
   }
+
+  jcr->fd_impl->send_ctx.reset();
+  jcr->store_bsock = sd;
 
   if (have_acl && jcr->fd_impl->acl_data->u.build->nr_errors > 0) {
     Jmsg(jcr, M_WARNING, 0,
@@ -906,7 +911,7 @@ encoded_meta EncodeDefaultMeta(const bareos_stat& statp,
 }
 
 bool SendMetaInfo(
-    BareosSocket* sd,
+    send_context& sctx,
     file_index idx,
     file_type type,
     std::string_view name, /* canonical name; i.e. dirs with trailing slash */
@@ -923,7 +928,7 @@ bool SendMetaInfo(
     stream = extra->stream;
   }
 
-  if (!sd->fsend("%ld %ld 0", idx.to_underlying(), stream)) { return false; }
+  if (!sctx.format("%ld %ld 0", idx.to_underlying(), stream)) { return false; }
 
   switch (type) {
     case file_type::LNK:
@@ -932,32 +937,32 @@ bool SendMetaInfo(
       [[fallthrough]];
     case file_type::LNKSAVED: {
       if (!original) { return false; }
-      if (!sd->fsend("%ld %d %s%c%s%c%s%c%s%c%u%c", idx.to_underlying(), type,
-                     std::string{name}.c_str(), 0, def.enc.c_str(), 0,
-                     std::string{original->bareos_path()}.c_str(), 0, extra_str,
-                     0, delta_seq, 0)) {
+      if (!sctx.format("%ld %d %s%c%s%c%s%c%s%c%u%c", idx.to_underlying(), type,
+                       std::string{name}.c_str(), 0, def.enc.c_str(), 0,
+                       std::string{original->bareos_path()}.c_str(), 0,
+                       extra_str, 0, delta_seq, 0)) {
         return false;
       }
     } break;
     case file_type::DIREND:
       [[fallthrough]];
     case file_type::REPARSE: {
-      if (!sd->fsend("%ld %d %s%c%s%c%s%c%s%c%u%c", idx.to_underlying(), type,
-                     std::string{name}.c_str(), 0, def.enc.c_str(), 0, "", 0,
-                     extra_str, 0, delta_seq, 0)) {
+      if (!sctx.format("%ld %d %s%c%s%c%s%c%s%c%u%c", idx.to_underlying(), type,
+                       std::string{name}.c_str(), 0, def.enc.c_str(), 0, "", 0,
+                       extra_str, 0, delta_seq, 0)) {
         return false;
       }
     } break;
     default: {
-      if (!sd->fsend("%ld %d %s%c%s%c%s%c%s%c%d%c", idx.to_underlying(), type,
-                     std::string{name}.c_str(), 0, def.enc.c_str(), 0, "", 0,
-                     extra_str, 0, delta_seq, 0)) {
+      if (!sctx.format("%ld %d %s%c%s%c%s%c%s%c%d%c", idx.to_underlying(), type,
+                       std::string{name}.c_str(), 0, def.enc.c_str(), 0, "", 0,
+                       extra_str, 0, delta_seq, 0)) {
         return false;
       }
     } break;
   };
 
-  if (!sd->signal(BNET_EOD)) { return false; }
+  if (!sctx.signal(BNET_EOD)) { return false; }
 
   return true;
 }
@@ -1001,7 +1006,7 @@ bool SendMetaInfo(
 
 // };
 
-bool SendData(BareosSocket* sd,
+bool SendData(send_context& sctx,
               file_index idx,
               data_stream stream,
               std::size_t bufsize,
@@ -1009,27 +1014,33 @@ bool SendData(BareosSocket* sd,
               DIGEST* checksum,
               DIGEST* signing)
 {
-  if (!sd->fsend("%ld %d 0", idx.to_underlying(), stream)) { return false; }
+  if (!sctx.format("%ld %d 0", idx.to_underlying(), stream)) { return false; }
 
-  sd->msg = CheckPoolMemorySize(sd->msg, bufsize);
   // Read the file data
-  while ((sd->message_length = (uint32_t)bread(bfd, sd->msg, bufsize)) > 0) {
-    // Update checksum if requested
-    if (checksum) {
-      CryptoDigestUpdate(checksum, (const uint8_t*)sd->msg, sd->message_length);
-    }
+  for (;;) {
+    POOLMEM* msg = GetMemory(bufsize);
+    auto message_length = bread(bfd, msg, bufsize);
+    if (message_length < 0) {
+      FreePoolMemory(msg);
+      return false;
+    } else if (message_length == 0) {
+      FreePoolMemory(msg);
+      break;
+    } else {
+      if (checksum) {
+        CryptoDigestUpdate(checksum, (const uint8_t*)msg, message_length);
+      }
 
-    // Update signing digest if requested
-    if (signing) {
-      CryptoDigestUpdate(signing, (const uint8_t*)sd->msg, sd->message_length);
-    }
+      // Update signing digest if requested
+      if (signing) {
+        CryptoDigestUpdate(signing, (const uint8_t*)msg, message_length);
+      }
 
-    Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
-    if (!sd->send()) { return false; }
+      Dmsg1(130, "Send data to SD len=%d\n", message_length);
+      if (!sctx.send(msg, message_length)) { return false; }
+    }
   }
-
-  if (!sd->signal(BNET_EOD)) { return false; }
-
+  if (!sctx.signal(BNET_EOD)) { return false; }
   return true;
 }
 
@@ -1081,18 +1092,16 @@ std::vector<char> TerminateSigning(JobControlRecord* jcr,
   return buffer;
 }
 
-bool SendDigest(BareosSocket* sd,
+bool SendDigest(send_context& sctx,
                 file_index idx,
                 digest_stream stream,
                 span<const char> buffer)
 {
-  if (!sd->fsend("%ld %d 0", idx.to_underlying(), stream)) { return false; }
+  if (!sctx.format("%ld %d 0", idx.to_underlying(), stream)) { return false; }
 
-  PmMemcpy(sd->msg, buffer.data(), buffer.size());
-  sd->message_length = buffer.size();
-  if (!sd->send()) { return false; }
+  if (!sctx.send(buffer.data(), buffer.size())) { return false; }
 
-  if (!sd->signal(BNET_EOD)) { return false; }
+  if (!sctx.signal(BNET_EOD)) { return false; }
 
   return true;
 }
@@ -1166,7 +1175,6 @@ digest_stream DigestStream(DIGEST* digest)
 };
 
 save_file_result SaveFile(JobControlRecord* jcr,
-                          BareosSocket* sd,
                           bareos_file* file,
                           std::optional<std::uint32_t> delta_seq,
                           std::optional<bareos_file_ref> original,
@@ -1175,6 +1183,13 @@ save_file_result SaveFile(JobControlRecord* jcr,
   if (jcr->IsJobCanceled() || jcr->IsIncomplete()) {
     return save_file_result::Skip;
   }
+
+  if (!jcr->fd_impl->send_ctx) {
+    Jmsg1(jcr, M_FATAL, 0, "Send context not initialised.");
+    return save_file_result::Error;
+  }
+
+  auto& sctx = jcr->fd_impl->send_ctx.value();
 
   Dmsg1(130, "filed: sending %s to stored\n",
         std::string(file->bareos_path()).c_str());
@@ -1189,12 +1204,12 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
     std::optional extra = file->extra_meta();
 
-    if (!SendMetaInfo(sd, fi, file->type(), file->bareos_path(),
+    if (!SendMetaInfo(sctx, fi, file->type(), file->bareos_path(),
                       std::move(original), delta_seq.value_or(0),
                       std::move(stats), std::move(extra))) {
       if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
         Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-              sd->bstrerror());
+              sctx.error());
       }
       return save_file_result::Error;
     }
@@ -1214,11 +1229,11 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
     BareosFilePacket bfd = file->open();
 
-    if (!SendData(sd, fi, file->stream(), jcr->buf_size, &bfd, checksum,
+    if (!SendData(sctx, fi, file->stream(), jcr->buf_size, &bfd, checksum,
                   signing)) {
       if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
         Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-              sd->bstrerror());
+              sctx.error());
       }
       return save_file_result::Error;
     }
@@ -1230,11 +1245,11 @@ save_file_result SaveFile(JobControlRecord* jcr,
     if (checksum) {
       auto check_encoded = TerminateChecksum(checksum);
       if (check_encoded.size()) {
-        if (!SendDigest(sd, fi, DigestStream(checksum),
+        if (!SendDigest(sctx, fi, DigestStream(checksum),
                         span{check_encoded}.as_const())) {
           if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
             Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-                  sd->bstrerror());
+                  sctx.error());
           }
           // todo: handle error case here
         }
@@ -1246,11 +1261,11 @@ save_file_result SaveFile(JobControlRecord* jcr,
     if (signing) {
       auto sign_encoded = TerminateSigning(jcr, options.signing_key, signing);
       if (sign_encoded.size()) {
-        if (!SendDigest(sd, fi, digest_stream::SIGNED,
+        if (!SendDigest(sctx, fi, digest_stream::SIGNED,
                         span{sign_encoded}.as_const())) {
           if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
             Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-                  sd->bstrerror());
+                  sctx.error());
           }
           // todo: handle error case here
         }
@@ -1267,7 +1282,7 @@ save_file_result SaveFile(JobControlRecord* jcr,
   if (file->type() == file_type::LNKSAVED && original) {
     auto [stream, check_encoded] = original->checksum();
 
-    if (check_encoded.size()) { SendDigest(sd, fi, stream, check_encoded); }
+    if (check_encoded.size()) { SendDigest(sctx, fi, stream, check_encoded); }
   }
 
   return save_file_result::Success;
@@ -1409,18 +1424,21 @@ struct plugin_object {
   span<const char> data() { return {}; }
 };
 
-int SavePluginObject(JobControlRecord* jcr, BareosSocket* sd, plugin_object obj)
+int SavePluginObject(JobControlRecord* jcr, plugin_object obj)
 {
+  auto& sctx = jcr->fd_impl->send_ctx;
+
   if (jcr->IsJobCanceled() || jcr->IsIncomplete()) {
     return -1;
     // return save_file_result::Skip;
   }
 
   file_index fi = next_file_index(jcr);
-  sd->fsend("%ld %d 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
+  sctx->format("%ld %ld 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
+  // sd->fsend("%ld %d 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
 
   auto data = obj.data();
-  int comp_len;
+  int comp_len = data.size();
   int comp = 0;
   const char* obj_data = data.data();
   if (data.size() > 1000) {
@@ -1441,24 +1459,27 @@ int SavePluginObject(JobControlRecord* jcr, BareosSocket* sd, plugin_object obj)
     }
   }
 
-  sd->message_length
-      = Mmsg(sd->msg, "%d %d %d %d %d %d %s%c%s%c", fi.to_underlying(),
-             obj.type(), obj.index(), comp_len, obj.length(), comp,
-             obj.file_name(), 0, obj.name(), 0);
-  sd->msg = CheckPoolMemorySize(sd->msg, sd->message_length + comp_len + 2);
-  memcpy(sd->msg + sd->message_length, obj_data, comp_len);
+  POOLMEM* mem = GetPoolMemory(PM_MESSAGE);
+
+  auto message_length
+      = Mmsg(mem, "%d %d %d %d %d %d %s%c%s%c", fi.to_underlying(), obj.type(),
+             obj.index(), comp_len, obj.length(), comp, obj.file_name(), 0,
+             obj.name(), 0);
+
+  mem = CheckPoolMemorySize(mem, message_length + comp_len + 2);
+  std::memcpy(mem + message_length, obj_data, comp_len);
+
+  // Note we send one extra byte so Dir can store zero after object
+  message_length += comp_len + 1;
+  sctx->send(mem, message_length);
 
   if (comp) {
     // if comp is 1, then obj_data points to compressed object data
     // which was saved in POOLMEM.
     FreePoolMemory((POOLMEM*)obj_data);
   }
-  // Note we send one extra byte so Dir can store zero after object
-  sd->message_length += comp_len + 1;
-  sd->send();
 
-
-  sd->signal(BNET_EOD);
+  sctx->signal(BNET_EOD);
   return -1;
 }
 
@@ -1474,7 +1495,6 @@ int SavePluginObject(JobControlRecord* jcr, BareosSocket* sd, plugin_object obj)
 int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 {
 #if 1
-  BareosSocket* sd = jcr->store_bsock;
   switch (ff_pkt->type) {
     case FT_DIRBEGIN:
       jcr->fd_impl->num_files_examined--; /* correct file count */
@@ -1514,7 +1534,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     case FT_PLUGIN_CONFIG:
       [[fallthrough]];
     case FT_PLUGIN_CONFIG_FILLED: {
-      return SavePluginObject(jcr, sd, {});
+      return SavePluginObject(jcr, {});
     } break;
   }
   test_file f{ff_pkt};
@@ -1547,7 +1567,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   } else if (BitIsSet(FO_XXH128, ff_pkt->flags)) {
     chk = checksum_type::XXH128;
   }
-  auto res = SaveFile(jcr, sd, &f, std::nullopt, std::move(original),
+  auto res = SaveFile(jcr, &f, std::nullopt, std::move(original),
                       save_options{
                           .compress = BitIsSet(FO_COMPRESS, ff_pkt->flags),
                           .checksum = chk,
