@@ -1551,13 +1551,14 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 		      });
 
   switch (res) {
-  case save_file_result::Error:  {
+  case save_file_result::Error: {
     return 0;
   } break;
-  case save_file_result::Success:  {
+  case save_file_result::Success: {
+    ff_pkt->FileIndex = jcr->JobFiles;
     return 1;
   } break;
-  case save_file_result::Skip:  {
+  case save_file_result::Skip: {
     return -1;
   } break;
   };
