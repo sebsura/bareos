@@ -51,7 +51,138 @@
 #include "lib/serial.h"
 #include "lib/compression.h"
 
+#include "lib/channel.h"
+
+#include <tracy/Tracy.hpp>
+
+#include <cstring>
+
 namespace filedaemon {
+
+class send_context {
+  using signal_type = int32_t;
+  struct data_type {
+    POOLMEM* msg_start{nullptr};
+    std::size_t length{0};
+
+    data_type() = default;
+    data_type(POOLMEM* msg_start, std::size_t length)
+        : msg_start{msg_start}, length{length}
+    {
+    }
+    data_type(const data_type&) = delete;
+    data_type(data_type&& other)
+    {
+      std::swap(msg_start, other.msg_start);
+      std::swap(length, other.length);
+    }
+
+    ~data_type()
+    {
+      if (msg_start) { FreeMemory(msg_start); }
+    }
+  };
+  using packet = std::variant<signal_type, data_type>;
+
+  BareosSocket* sd;
+  channel::input<packet> in;
+  channel::output<packet> out;
+
+  std::thread sender;
+
+  send_context(std::pair<channel::input<packet>, channel::output<packet>> cpair,
+               BareosSocket* sd)
+      : sd{sd}
+      , in{std::move(cpair.first)}
+      , out{std::move(cpair.second)}
+      , sender{send_work, this}
+  {
+  }
+
+  static void send_work(send_context* ctx) { ctx->do_send_work(); }
+
+  void do_send_work()
+  {
+    for (;;) {
+      std::optional msg = out.get();
+
+      if (!msg) { break; }
+
+      {
+        ZoneScopedN("Send");
+        if (auto* signal = std::get_if<signal_type>(&msg.value())) {
+          ZoneValue(4);
+          sd->signal(*signal);
+        } else {
+          auto& data = std::get<data_type>(msg.value());
+
+          POOLMEM* msgsave = sd->msg;
+          sd->msg = data.msg_start;
+          sd->message_length = data.length;
+          ZoneValue(data.length);
+          if (!sd->send()) {
+            sd->msg = msgsave;
+            out.close();
+            break;
+          }
+          sd->msg = msgsave;
+        }
+      }
+    }
+  }
+
+ public:
+  bool send(POOLMEM* data, std::size_t size)
+  {
+    return in.emplace(std::in_place_type<data_type>, data, size);
+  }
+
+  bool send(const char* data, std::size_t size)
+  {
+    POOLMEM* mem = GetMemory(size);
+    std::memcpy(mem, data, size);
+    return in.emplace(std::in_place_type<data_type>, mem, size);
+  }
+
+  bool format(const char* fmt, ...)
+  {
+    POOLMEM* msg = GetPoolMemory(PM_MESSAGE);
+    int len, maxlen;
+    va_list ap;
+
+    while (1) {
+      maxlen = SizeofPoolMemory(msg) - 1;
+      va_start(ap, fmt);
+      len = Bvsnprintf(msg, maxlen, fmt, ap);
+      va_end(ap);
+
+      if (len < 0 || len >= (maxlen - 5)) {
+        msg = ReallocPoolMemory(msg, maxlen + maxlen / 2);
+        continue;
+      }
+
+      break;
+    }
+
+    return send(msg, len);
+  }
+
+  bool signal(int32_t signal) { return in.emplace(signal); }
+
+  const char* error() { return sd->bstrerror(); }
+
+  send_context(BareosSocket* sd)
+      : send_context(channel::CreateBufferedChannel<packet>(20), sd)
+  {
+  }
+
+  ~send_context()
+  {
+    in.close();
+    sender.join();
+  }
+};
+
 
 #ifdef HAVE_DARWIN_OS
 const bool have_darwin_os = true;
@@ -92,6 +223,8 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
 static void CloseVssBackupSession(JobControlRecord* jcr);
 #endif
 
+static const char* Send = "Sending to Sd!";
+
 /**
  * Find all the requested files and send them
  * to the Storage daemon.
@@ -105,6 +238,7 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  */
 bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 {
+  FrameMarkStart(Send);
   bool ok = true;
   BareosSocket* sd = jcr->store_bsock;
 
@@ -163,7 +297,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   }
 
   jcr->store_bsock = nullptr;
-  jcr->fd_impl->send_ctx.emplace(sd);
+  jcr->fd_impl->send_ctx = new send_context{sd};
 
   // Subroutine SaveFile() is called for each file
   if (!FindFiles(jcr, (FindFilesPacket*)jcr->fd_impl->ff, SaveFile,
@@ -172,7 +306,8 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
     jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
   }
 
-  jcr->fd_impl->send_ctx.reset();
+  delete (send_context*)jcr->fd_impl->send_ctx;
+  jcr->fd_impl->send_ctx = nullptr;
   jcr->store_bsock = sd;
 
   if (have_acl && jcr->fd_impl->acl_data->u.build->nr_errors > 0) {
@@ -215,6 +350,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   CryptoSessionEnd(jcr);
 
   Dmsg1(100, "end blast_data ok=%d\n", ok);
+  FrameMarkEnd(Send);
   return ok;
 }
 
@@ -1019,7 +1155,12 @@ bool SendData(send_context& sctx,
   // Read the file data
   for (;;) {
     POOLMEM* msg = GetMemory(bufsize);
-    auto message_length = bread(bfd, msg, bufsize);
+    ssize_t message_length = 0;
+    {
+      ZoneScopedN("Read");
+      message_length = bread(bfd, msg, bufsize);
+      ZoneValue(message_length);
+    }
     if (message_length < 0) {
       FreePoolMemory(msg);
       return false;
@@ -1027,17 +1168,23 @@ bool SendData(send_context& sctx,
       FreePoolMemory(msg);
       break;
     } else {
-      if (checksum) {
-        CryptoDigestUpdate(checksum, (const uint8_t*)msg, message_length);
-      }
+      {
+        ZoneScopedN("Checksum");
+        if (checksum) {
+          CryptoDigestUpdate(checksum, (const uint8_t*)msg, message_length);
+        }
 
-      // Update signing digest if requested
-      if (signing) {
-        CryptoDigestUpdate(signing, (const uint8_t*)msg, message_length);
+        // Update signing digest if requested
+        if (signing) {
+          CryptoDigestUpdate(signing, (const uint8_t*)msg, message_length);
+        }
       }
 
       Dmsg1(130, "Send data to SD len=%d\n", message_length);
-      if (!sctx.send(msg, message_length)) { return false; }
+      {
+        ZoneScopedN("Put");
+        if (!sctx.send(msg, message_length)) { return false; }
+      }
     }
   }
   if (!sctx.signal(BNET_EOD)) { return false; }
@@ -1189,7 +1336,7 @@ save_file_result SaveFile(JobControlRecord* jcr,
     return save_file_result::Error;
   }
 
-  auto& sctx = jcr->fd_impl->send_ctx.value();
+  send_context& sctx = *(send_context*)jcr->fd_impl->send_ctx;
 
   Dmsg1(130, "filed: sending %s to stored\n",
         std::string(file->bareos_path()).c_str());
@@ -1228,15 +1375,19 @@ save_file_result SaveFile(JobControlRecord* jcr,
     }
 
     BareosFilePacket bfd = file->open();
-
-    if (!SendData(sctx, fi, file->stream(), jcr->buf_size, &bfd, checksum,
-                  signing)) {
-      if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
-        Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-              sctx.error());
+    {
+      // ZoneScopeN("File Send");
+      // ZoneText(file->bareos_path());
+      if (!SendData(sctx, fi, file->stream(), jcr->buf_size, &bfd, checksum,
+                    signing)) {
+        if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+          Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+                sctx.error());
+        }
+        return save_file_result::Error;
       }
-      return save_file_result::Error;
     }
+
 
     bclose(&bfd);
 
@@ -1426,7 +1577,7 @@ struct plugin_object {
 
 int SavePluginObject(JobControlRecord* jcr, plugin_object obj)
 {
-  auto& sctx = jcr->fd_impl->send_ctx;
+  send_context& sctx = *(send_context*)jcr->fd_impl->send_ctx;
 
   if (jcr->IsJobCanceled() || jcr->IsIncomplete()) {
     return -1;
@@ -1434,7 +1585,7 @@ int SavePluginObject(JobControlRecord* jcr, plugin_object obj)
   }
 
   file_index fi = next_file_index(jcr);
-  sctx->format("%ld %ld 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
+  sctx.format("%ld %ld 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
   // sd->fsend("%ld %d 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
 
   auto data = obj.data();
@@ -1471,7 +1622,7 @@ int SavePluginObject(JobControlRecord* jcr, plugin_object obj)
 
   // Note we send one extra byte so Dir can store zero after object
   message_length += comp_len + 1;
-  sctx->send(mem, message_length);
+  sctx.send(mem, message_length);
 
   if (comp) {
     // if comp is 1, then obj_data points to compressed object data
@@ -1479,7 +1630,7 @@ int SavePluginObject(JobControlRecord* jcr, plugin_object obj)
     FreePoolMemory((POOLMEM*)obj_data);
   }
 
-  sctx->signal(BNET_EOD);
+  sctx.signal(BNET_EOD);
   return -1;
 }
 
@@ -1968,15 +2119,19 @@ static inline bool SendDataToSd(b_ctx* bctx)
   // Uncompressed cipher input length
   bctx->cipher_input_len = sd->message_length;
 
-  // Update checksum if requested
-  if (bctx->digest) {
-    CryptoDigestUpdate(bctx->digest, (uint8_t*)bctx->rbuf, sd->message_length);
-  }
+  {
+    ZoneScopedN("Checksum (Serial)");
+    // Update checksum if requested
+    if (bctx->digest) {
+      CryptoDigestUpdate(bctx->digest, (uint8_t*)bctx->rbuf,
+                         sd->message_length);
+    }
 
-  // Update signing digest if requested
-  if (bctx->signing_digest) {
-    CryptoDigestUpdate(bctx->signing_digest, (uint8_t*)bctx->rbuf,
-                       sd->message_length);
+    // Update signing digest if requested
+    if (bctx->signing_digest) {
+      CryptoDigestUpdate(bctx->signing_digest, (uint8_t*)bctx->rbuf,
+                         sd->message_length);
+    }
   }
 
   // Compress the data.
@@ -2022,12 +2177,15 @@ static inline bool SendDataToSd(b_ctx* bctx)
   }
   sd->msg = bctx->wbuf; /* set correct write buffer */
 
-  if (!sd->send()) {
-    if (!bctx->jcr->IsJobCanceled()) {
-      Jmsg1(bctx->jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-            sd->bstrerror());
+  {
+    ZoneScopedN("Send To Sd (Serial)");
+    if (!sd->send()) {
+      if (!bctx->jcr->IsJobCanceled()) {
+        Jmsg1(bctx->jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+              sd->bstrerror());
+      }
+      return false;
     }
-    return false;
   }
 
   Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
@@ -2109,9 +2267,13 @@ static inline bool SendPlainData(b_ctx& bctx)
   BareosSocket* sd = bctx.jcr->store_bsock;
 
   // Read the file data
-  while ((sd->message_length
-          = (uint32_t)bread(&bctx.ff_pkt->bfd, bctx.rbuf, bctx.rsize))
-         > 0) {
+  for (;;) {
+    {
+      ZoneScopedN("Read (Serial)");
+      sd->message_length
+          = (uint32_t)bread(&bctx.ff_pkt->bfd, bctx.rbuf, bctx.rsize);
+    }
+    if (sd->message_length <= 0) break;
     if (!SendDataToSd(&bctx)) { goto bail_out; }
   }
   retval = true;

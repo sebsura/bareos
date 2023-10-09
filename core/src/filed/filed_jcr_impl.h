@@ -41,124 +41,6 @@ namespace filedaemon {
 class BareosAccurateFilelist;
 }
 
-class send_context {
-  using signal_type = int32_t;
-  struct data_type {
-    POOLMEM* msg_start{nullptr};
-    std::size_t length{0};
-
-    data_type() = default;
-    data_type(POOLMEM* msg_start, std::size_t length)
-        : msg_start{msg_start}, length{length}
-    {
-    }
-    data_type(const data_type&) = delete;
-    data_type(data_type&& other)
-    {
-      std::swap(msg_start, other.msg_start);
-      std::swap(length, other.length);
-    }
-
-    ~data_type()
-    {
-      if (msg_start) { FreeMemory(msg_start); }
-    }
-  };
-  using packet = std::variant<signal_type, data_type>;
-
-  BareosSocket* sd;
-  channel::input<packet> in;
-  channel::output<packet> out;
-
-  std::thread sender;
-
-  send_context(std::pair<channel::input<packet>, channel::output<packet>> cpair,
-               BareosSocket* sd)
-      : sd{sd}
-      , in{std::move(cpair.first)}
-      , out{std::move(cpair.second)}
-      , sender{send_work, this}
-  {
-  }
-
-  static void send_work(send_context* ctx) { ctx->do_send_work(); }
-
-  void do_send_work()
-  {
-    for (;;) {
-      std::optional msg = out.get();
-      if (!msg) { break; }
-
-      if (auto* signal = std::get_if<signal_type>(&msg.value())) {
-        sd->signal(*signal);
-      } else {
-        auto& data = std::get<data_type>(msg.value());
-
-        POOLMEM* msgsave = sd->msg;
-        sd->msg = data.msg_start;
-        sd->message_length = data.length;
-        if (!sd->send()) {
-          sd->msg = msgsave;
-          out.close();
-          break;
-        }
-        sd->msg = msgsave;
-      }
-    }
-  }
-
- public:
-  bool send(POOLMEM* data, std::size_t size)
-  {
-    return in.emplace(std::in_place_type<data_type>, data, size);
-  }
-
-  bool send(const char* data, std::size_t size)
-  {
-    POOLMEM* mem = GetMemory(size);
-    std::memcpy(mem, data, size);
-    return in.emplace(std::in_place_type<data_type>, mem, size);
-  }
-
-  bool format(const char* fmt, ...)
-  {
-    POOLMEM* msg = GetPoolMemory(PM_MESSAGE);
-    int len, maxlen;
-    va_list ap;
-
-    while (1) {
-      maxlen = SizeofPoolMemory(msg) - 1;
-      va_start(ap, fmt);
-      len = Bvsnprintf(msg, maxlen, fmt, ap);
-      va_end(ap);
-
-      if (len < 0 || len >= (maxlen - 5)) {
-        msg = ReallocPoolMemory(msg, maxlen + maxlen / 2);
-        continue;
-      }
-
-      break;
-    }
-
-    return send(msg, len);
-  }
-
-  bool signal(int32_t signal) { return in.emplace(signal); }
-
-  const char* error() { return sd->bstrerror(); }
-
-  send_context(BareosSocket* sd)
-      : send_context(channel::CreateBufferedChannel<packet>(20), sd)
-  {
-  }
-
-  ~send_context()
-  {
-    in.close();
-    sender.join();
-  }
-};
-
 /* clang-format off */
 struct CryptoContext {
   bool pki_sign{};                /**< Enable PKI Signatures? */
@@ -211,7 +93,8 @@ struct FiledJcrImpl {
   VSSClient* pVSSClient{};        /**< VSS Client Instance */
 #endif
 
-  std::optional<send_context> send_ctx;
+  void* send_ctx;
+  //std::optional<send_context> send_ctx;
 };
 /* clang-format on */
 
