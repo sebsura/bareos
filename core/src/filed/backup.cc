@@ -321,57 +321,6 @@ bail_out:
 
 #endif
 
-static inline bool DoBackupAcl(JobControlRecord* jcr, AclData* data)
-{
-  bacl_exit_code retval;
-
-  if (jcr->IsPlugin()) {
-    retval = PluginBuildAclStreams(jcr, data);
-  } else {
-    retval = BuildAclStreams(jcr, data);
-  }
-
-  switch (retval) {
-    case bacl_exit_fatal:
-      return false;
-    case bacl_exit_error:
-      Jmsg(jcr, M_ERROR, 0, "%s", jcr->errmsg);
-      jcr->fd_impl->acl_data->u.build->nr_errors++;
-      break;
-    case bacl_exit_ok:
-      break;
-  }
-
-  return true;
-}
-
-static inline bool DoBackupXattr(JobControlRecord* jcr, XattrData* data)
-{
-  BxattrExitCode retval;
-
-  if (jcr->IsPlugin()) {
-    retval = PluginBuildXattrStreams(jcr, data);
-  } else {
-    retval = BuildXattrStreams(jcr, data);
-  }
-
-  switch (retval) {
-    case BxattrExitCode::kErrorFatal:
-      return false;
-    case BxattrExitCode::kWarning:
-      Jmsg(jcr, M_WARNING, 0, "%s", jcr->errmsg);
-      break;
-    case BxattrExitCode::kError:
-      Jmsg(jcr, M_ERROR, 0, "%s", jcr->errmsg);
-      jcr->fd_impl->xattr_data->u.build->nr_errors++;
-      break;
-    case BxattrExitCode::kSuccess:
-      break;
-  }
-
-  return true;
-}
-
 enum class file_type
 {
   LNKSAVED = 1,   /**< hard link to file already saved */
@@ -657,6 +606,92 @@ class file_index {
  private:
   std::int32_t id;
 };
+
+static inline bool DoBackupAcl(JobControlRecord* jcr,
+                               send_context& sctx,
+                               file_index fi,
+                               AclData* data)
+{
+  bacl_exit_code retval;
+
+  data->start_saving();
+  if (jcr->IsPlugin()) {
+    retval = PluginBuildAclStreams(jcr, data);
+  } else {
+    retval = BuildAclStreams(jcr, data);
+  }
+  std::vector msgs = data->reap_saved();
+
+  switch (retval) {
+    case bacl_exit_fatal:
+      return false;
+    case bacl_exit_error:
+      Jmsg(jcr, M_ERROR, 0, "%s", jcr->errmsg);
+      data->u.build->nr_errors++;
+      [[fallthrough]];
+    case bacl_exit_ok: {
+    } break;
+  }
+
+  for (auto& msg : msgs) {
+    if (!sctx.format("%ld %d 0", fi.to_underlying(), msg.stream)
+        // think of a way to remove the copy
+        || !sctx.send((const char*)msg.content.data(), msg.content.size())
+        || !sctx.signal(BNET_EOD)) {
+      return false;
+    } else {
+      jcr->JobBytes += msg.content.size();
+    }
+  }
+
+  return true;
+}
+
+static inline bool DoBackupXattr(JobControlRecord* jcr,
+                                 send_context& sctx,
+                                 file_index fi,
+                                 XattrData* data)
+{
+  BxattrExitCode retval;
+
+  data->start_saving();
+  if (jcr->IsPlugin()) {
+    retval = PluginBuildXattrStreams(jcr, data);
+  } else {
+    retval = BuildXattrStreams(jcr, data);
+  }
+
+  std::vector msgs = data->reap_saved();
+
+  switch (retval) {
+    case BxattrExitCode::kErrorFatal:
+      return false;
+    case BxattrExitCode::kWarning:
+      Jmsg(jcr, M_WARNING, 0, "%s", jcr->errmsg);
+      break;
+    case BxattrExitCode::kError:
+      Jmsg(jcr, M_ERROR, 0, "%s", jcr->errmsg);
+      data->u.build->nr_errors++;
+      break;
+      [[fallthrough]];
+    case BxattrExitCode::kSuccess: {
+    } break;
+  }
+
+  for (auto& msg : msgs) {
+    if (!sctx.format("%ld %d 0", fi.to_underlying(), msg.stream)
+        // todo: think of a way to remove the copy
+        || !sctx.send((const char*)msg.content.data(), msg.content.size())
+        || !sctx.signal(BNET_EOD)) {
+      return false;
+    } else {
+      jcr->JobBytes += msg.content.size();
+    }
+  }
+
+  return true;
+}
+
 
 template <typename T> struct span {
   T* array{nullptr};
@@ -1274,7 +1309,9 @@ save_file_result SaveFile(JobControlRecord* jcr,
         data->filetype = (int)file->type();
         data->last_fname = bpath.c_str();  // TODO: probably systempath here ?
         data->next_dev = file->lstat().dev;
-        if (!DoBackupAcl(jcr, data)) { return save_file_result::Error; }
+        if (!DoBackupAcl(jcr, sctx, fi, data)) {
+          return save_file_result::Error;
+        }
       }
     }
 
@@ -1284,7 +1321,9 @@ save_file_result SaveFile(JobControlRecord* jcr,
         data->last_fname = bpath.c_str();  // TODO: probably systempath here ?
         data->next_dev = file->lstat().dev;
         data->ignore_acls = options.acl;
-        if (!DoBackupXattr(jcr, data)) { return save_file_result::Error; }
+        if (!DoBackupXattr(jcr, sctx, fi, data)) {
+          return save_file_result::Error;
+        }
       }
     }
 
@@ -1838,7 +1877,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
       return 0;
     } break;
     case save_file_result::Success: {
-      // ff_pkt->FileIndex = jcr->JobFiles;
+      ff_pkt->FileIndex = jcr->JobFiles;
       return 1;
     } break;
     case save_file_result::Skip: {

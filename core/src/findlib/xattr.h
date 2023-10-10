@@ -87,6 +87,30 @@ struct XattrData {
     struct xattr_build_data_t* build;
     struct xattr_parse_data_t* parse;
   } u;
+
+  // this is a bad hack, because the xattr/acl is too hard to change
+  struct xattr_msg {
+    int stream{};
+    std::vector<char> content{};
+
+    xattr_msg() = default;
+    xattr_msg(int stream, std::vector<char> content)
+        : stream{stream}, content{std::move(content)}
+    {
+    }
+  };
+
+  std::vector<xattr_msg>* saved{nullptr};
+
+  void start_saving() { saved = new std::vector<xattr_msg>(); }
+
+  std::vector<xattr_msg> reap_saved()
+  {
+    std::vector v = std::move(*saved);
+    delete saved;
+    saved = nullptr;
+    return v;
+  }
 };
 
 // Maximum size of the XATTR stream this prevents us from blowing up the filed.

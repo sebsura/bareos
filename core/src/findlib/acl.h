@@ -96,6 +96,28 @@ struct AclData {
     struct acl_build_data_t* build;
     struct acl_parse_data_t* parse;
   } u;
+
+  struct acl_msg {
+    int stream;
+    std::vector<char> content;
+    acl_msg() = default;
+    acl_msg(int stream, std::vector<char> content)
+        : stream{stream}, content{std::move(content)}
+    {
+    }
+  };
+
+  std::vector<acl_msg>* saved{nullptr};
+
+  void start_saving() { saved = new std::vector<acl_msg>(); }
+
+  std::vector<acl_msg> reap_saved()
+  {
+    std::vector v = std::move(*saved);
+    delete saved;
+    saved = nullptr;
+    return v;
+  }
 };
 
 bacl_exit_code SendAclStream(JobControlRecord* jcr,

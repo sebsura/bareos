@@ -103,6 +103,14 @@ BxattrExitCode SendXattrStream(JobControlRecord* jcr,
     return BxattrExitCode::kSuccess;
   }
 
+  if (xattr_data->saved) {
+    auto* build = xattr_data->u.build;
+    xattr_data->saved->emplace_back(
+        stream, std::vector<char>{build->content,
+                                  build->content + build->content_length});
+    return BxattrExitCode::kSuccess;
+  }
+
   // Send header
   if (!sd->fsend("%ld %d 0", jcr->JobFiles, stream)) {
     Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),

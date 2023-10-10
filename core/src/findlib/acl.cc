@@ -102,6 +102,14 @@ bacl_exit_code SendAclStream(JobControlRecord* jcr,
   // Sanity check
   if (acl_data->u.build->content_length <= 0) { return bacl_exit_ok; }
 
+  if (acl_data->saved) {
+    auto* build = acl_data->u.build;
+    acl_data->saved->emplace_back(
+        stream, std::vector<char>{build->content,
+                                  build->content + build->content_length + 1});
+    return bacl_exit_ok;
+  }
+
   // Send header
   if (!sd->fsend("%ld %d 0", jcr->JobFiles, stream)) {
     Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
