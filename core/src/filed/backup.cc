@@ -964,13 +964,14 @@ bool SendPlainData(send_context& sctx,
 
       POOLMEM* send_msg = msg;
       if (options.compress) {
+#if 0
         auto& c = options.compress.value();
         std::size_t max_size
-            = RequiredCompressionOutputBufferSize(c.algo, bufsize);
+	  = RequiredCompressionOutputBufferSize(c.algo, bufsize);
         POOLMEM* compressed = GetMemory(max_size);
 
         auto compressed_length = ThreadlocalCompress(
-            c.algo, c.level, compressed, max_size, send_msg, message_length);
+						     c.algo, c.level, compressed, max_size, send_msg, message_length);
 
         if (!compressed_length) {
           Dmsg1(50, "compression error\n");
@@ -980,6 +981,7 @@ bool SendPlainData(send_context& sctx,
         FreePoolMemory(msg);
         send_msg = compressed;
         message_length = compressed_length;
+#endif
       }
 
       Dmsg1(130, "Send data to SD len=%d\n", message_length);
@@ -1225,8 +1227,8 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
     BareosFilePacket bfd = file->open();
 
-    if (!SendData(sctx, fi, file->stream(), jcr->buf_size, &bfd, checksum,
-                  signing)) {
+    if (!SendData(sctx, send_options{}, fi, file->stream(), jcr->buf_size, &bfd,
+                  checksum, signing)) {
       if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
         Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
               sctx.error());
@@ -1238,6 +1240,7 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
     bclose(&bfd);
 
+#if 0
     std::optional rsrc_bfd = file->open_rsrc();
     if (rsrc_bfd) {
       auto rsrc_stream = options.encrypt
@@ -1255,13 +1258,15 @@ save_file_result SaveFile(JobControlRecord* jcr,
       bclose(&rsrc_bfd.value());
     }
 
-    // if (!SendFinder(sctx, fi, finder_info, checksum, signing)) {
-    //   if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
-    //     Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-    //           sctx.error());
-    //   }
-    //   return save_file_result::Error;
-    // }
+    if (!SendFinder(sctx, fi, finder_info, checksum, signing)) {
+      if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+        Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+              sctx.error());
+      }
+      return save_file_result::Error;
+    }
+#endif
+
     // Save ACLs when requested and available for anything not being a symlink.
     if constexpr (have_acl) {
       if (options.acl) {
@@ -1827,19 +1832,18 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     } break;
   }
 
-  auto res = SaveFile(jcr, &f, std::nullopt, std::move(original),
-                      opts);
+  auto res = SaveFile(jcr, &f, std::nullopt, std::move(original), opts);
   switch (res) {
-  case save_file_result::Error: {
-    return 0;
-  } break;
-  case save_file_result::Success: {
-    //ff_pkt->FileIndex = jcr->JobFiles;
-    return 1;
-  } break;
-  case save_file_result::Skip: {
-    return -1;
-  } break;
+    case save_file_result::Error: {
+      return 0;
+    } break;
+    case save_file_result::Success: {
+      // ff_pkt->FileIndex = jcr->JobFiles;
+      return 1;
+    } break;
+    case save_file_result::Skip: {
+      return -1;
+    } break;
   };
 #  else
   ((submit_context*)jcr->fd_impl->submit_ctx)
