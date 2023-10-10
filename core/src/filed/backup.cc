@@ -554,6 +554,31 @@ enum class data_stream : int
   XATTR_NETBSD = 1999,        /**< NetBSD specific extended attributes */
 };
 
+enum class acl_stream : int
+{
+  AIX_TEXT = (int)data_stream::ACL_AIX_TEXT,
+  DARWIN_ACCESS = (int)data_stream::ACL_DARWIN_ACCESS_ACL,
+  FREEBSD_DEFAULT = (int)data_stream::ACL_FREEBSD_DEFAULT_ACL,
+  FREEBSD_ACCESS = (int)data_stream::ACL_FREEBSD_ACCESS_ACL,
+  HPUX_ENTRY = (int)data_stream::ACL_HPUX_ACL_ENTRY,
+  IRIX_DEFAULT = (int)data_stream::ACL_IRIX_DEFAULT_ACL,
+  IRIX_ACCESS = (int)data_stream::ACL_IRIX_ACCESS_ACL,
+  LINUX_DEFAULT = (int)data_stream::ACL_LINUX_DEFAULT_ACL,
+  LINUX_ACCESS = (int)data_stream::ACL_LINUX_ACCESS_ACL,
+  TRU64_DEFAULT = (int)data_stream::ACL_TRU64_DEFAULT_ACL,
+  TRU64_DEFAULT_DIR = (int)data_stream::ACL_TRU64_DEFAULT_DIR_ACL,
+  TRU64_ACCESS = (int)data_stream::ACL_TRU64_ACCESS_ACL,
+  SOLARISENT = (int)data_stream::ACL_SOLARIS_ACLENT,
+  SOLARIS_ACE = (int)data_stream::ACL_SOLARIS_ACE,
+  AFS_TEXT = (int)data_stream::ACL_AFS_TEXT,
+  AIX_AIXC = (int)data_stream::ACL_AIX_AIXC,
+  AIX_NFS4 = (int)data_stream::ACL_AIX_NFS4,
+  FREEBSD_NFS4 = (int)data_stream::ACL_FREEBSD_NFS4_ACL,
+  HURD_DEFAULT = (int)data_stream::ACL_HURD_DEFAULT_ACL,
+  HURD_ACCESS = (int)data_stream::ACL_HURD_ACCESS_ACL,
+  PLUGIN = (int)data_stream::ACL_PLUGIN,
+};
+
 enum class attr_stream : int
 {
   DEFAULT = (int)data_stream::UNIX_ATTRIBUTES,
