@@ -1114,8 +1114,12 @@ static inline bool SendPlainData(b_ctx& bctx)
   }
 
   auto& threadpool = bctx.jcr->fd_impl->threads;
-  work_group compute_group(20);
-  const std::size_t num_workers = std::thread::hardware_concurrency() / 2;
+  const std::size_t num_workers
+      = (me && me->IsMemberPresent("MaximumWorkThreadsPerJob"))
+            ? me->MaxWorkerThreads
+            : 1;
+
+  work_group compute_group(num_workers * 3);
 
   // FIXME(ssura): this should become a std::latch once C++20 arrives
   std::condition_variable compute_fin;
