@@ -92,132 +92,6 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
 static void CloseVssBackupSession(JobControlRecord* jcr);
 #endif
 
-/**
- * Find all the requested files and send them
- * to the Storage daemon.
- *
- * Note, we normally carry on a one-way
- * conversation from this point on with the SD, sfd_imply blasting
- * data to him.  To properly know what is going on, we
- * also run a "heartbeat" monitor which reads the socket and
- * reacts accordingly (at the moment it has nothing to do
- * except echo the heartbeat to the Director).
- */
-bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
-{
-  bool ok = true;
-  BareosSocket* sd = jcr->store_bsock;
-
-  jcr->setJobStatusWithPriorityCheck(JS_Running);
-
-  Dmsg1(300, "filed: opened data connection %d to stored\n", sd->fd_);
-  ClientResource* client = nullptr;
-  {
-    ResLocker _{my_config};
-    client = (ClientResource*)my_config->GetNextRes(R_CLIENT, NULL);
-  }
-  uint32_t buf_size;
-  if (client) {
-    buf_size = client->max_network_buffer_size;
-  } else {
-    buf_size = 0; /* use default */
-  }
-  if (!sd->SetBufferSize(buf_size, BNET_SETBUF_WRITE)) {
-    jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
-    Jmsg(jcr, M_FATAL, 0, _("Cannot set buffer size FD->SD.\n"));
-    return false;
-  }
-
-  jcr->buf_size = sd->message_length;
-
-  if (!AdjustCompressionBuffers(jcr)) { return false; }
-
-  if (!CryptoSessionStart(jcr, cipher)) { return false; }
-
-  SetFindOptions((FindFilesPacket*)jcr->fd_impl->ff, jcr->fd_impl->incremental,
-                 jcr->fd_impl->since_time);
-
-  // In accurate mode, we overload the find_one check function
-  if (jcr->accurate) {
-    SetFindChangedFunction((FindFilesPacket*)jcr->fd_impl->ff,
-                           AccurateCheckFile);
-  }
-
-  StartHeartbeatMonitor(jcr);
-  Bmicrosleep(3, 0);
-
-  if (have_acl) {
-    jcr->fd_impl->acl_data = std::make_unique<AclData>();
-    jcr->fd_impl->acl_data->u.build
-        = (acl_build_data_t*)malloc(sizeof(acl_build_data_t));
-    memset(jcr->fd_impl->acl_data->u.build, 0, sizeof(acl_build_data_t));
-    jcr->fd_impl->acl_data->u.build->content = GetPoolMemory(PM_MESSAGE);
-  }
-
-  if (have_xattr) {
-    jcr->fd_impl->xattr_data = std::make_unique<XattrData>();
-    jcr->fd_impl->xattr_data->u.build
-        = (xattr_build_data_t*)malloc(sizeof(xattr_build_data_t));
-    memset(jcr->fd_impl->xattr_data->u.build, 0, sizeof(xattr_build_data_t));
-    jcr->fd_impl->xattr_data->u.build->content = GetPoolMemory(PM_MESSAGE);
-  }
-
-  jcr->store_bsock = nullptr;
-  jcr->fd_impl->send_ctx.emplace(sd);
-
-  // Subroutine SaveFile() is called for each file
-  if (!FindFiles(jcr, (FindFilesPacket*)jcr->fd_impl->ff, SaveFile,
-                 PluginSave)) {
-    ok = false; /* error */
-    jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
-  }
-
-  jcr->fd_impl->send_ctx.reset();
-  jcr->store_bsock = sd;
-
-  if (have_acl && jcr->fd_impl->acl_data->u.build->nr_errors > 0) {
-    Jmsg(jcr, M_WARNING, 0,
-         _("Encountered %ld acl errors while doing backup\n"),
-         jcr->fd_impl->acl_data->u.build->nr_errors);
-  }
-  if (have_xattr && jcr->fd_impl->xattr_data->u.build->nr_errors > 0) {
-    Jmsg(jcr, M_WARNING, 0,
-         _("Encountered %ld xattr errors while doing backup\n"),
-         jcr->fd_impl->xattr_data->u.build->nr_errors);
-  }
-
-#if defined(WIN32_VSS)
-  CloseVssBackupSession(jcr);
-#endif
-
-  AccurateFinish(jcr); /* send deleted or base file list to SD */
-
-  StopHeartbeatMonitor(jcr);
-
-  sd->signal(BNET_EOD); /* end of sending data */
-
-  if (have_acl && jcr->fd_impl->acl_data) {
-    FreePoolMemory(jcr->fd_impl->acl_data->u.build->content);
-    free(jcr->fd_impl->acl_data->u.build);
-  }
-
-  if (have_xattr && jcr->fd_impl->xattr_data) {
-    FreePoolMemory(jcr->fd_impl->xattr_data->u.build->content);
-    free(jcr->fd_impl->xattr_data->u.build);
-  }
-
-  if (jcr->fd_impl->big_buf) {
-    free(jcr->fd_impl->big_buf);
-    jcr->fd_impl->big_buf = NULL;
-  }
-
-  CleanupCompression(jcr);
-  CryptoSessionEnd(jcr);
-
-  Dmsg1(100, "end blast_data ok=%d\n", ok);
-  return ok;
-}
-
 #if 0
 // Save OSX specific resource forks and finder info.
 static inline bool SaveRsrcAndFinder(b_save_ctx& bsctx,
@@ -727,11 +601,13 @@ class bareos_file {
   virtual data_stream stream() = 0;
   virtual std::optional<encoded_meta> extra_meta() { return std::nullopt; };
   virtual BareosFilePacket open() = 0;
+  virtual ~bareos_file() = default;
 
   bareos_file(file_type type_, std::string path, bareos_stat stat)
       : type_{type_}, path{std::move(path)}, stat{stat}
   {
   }
+
 
  private:
   file_type type_;
@@ -1155,6 +1031,7 @@ struct save_options {
   X509_KEYPAIR* signing_key;
 };
 
+
 digest_stream DigestStream(DIGEST* digest)
 {
   switch (digest->type) {
@@ -1288,6 +1165,190 @@ save_file_result SaveFile(JobControlRecord* jcr,
   return save_file_result::Success;
 }
 
+class submit_context {
+  using packet = std::pair<std::unique_ptr<bareos_file>, save_options>;
+  JobControlRecord* jcr;
+  channel::input<packet> in;
+  channel::output<packet> out;
+
+  std::thread sender;
+
+  submit_context(
+      std::pair<channel::input<packet>, channel::output<packet>> cpair,
+      JobControlRecord* jcr)
+      : jcr{jcr}
+      , in{std::move(cpair.first)}
+      , out{std::move(cpair.second)}
+      , sender{send_work, this}
+  {
+  }
+
+  static void send_work(submit_context* ctx) { ctx->do_submit_work(); }
+
+  void do_submit_work()
+  {
+    for (;;) {
+      std::optional data = out.get();
+      if (!data) { break; }
+
+      auto [file, opts] = std::move(data).value();
+
+      auto res = SaveFile(jcr, file.get(), std::nullopt, std::nullopt, opts);
+
+      (void)res;
+    }
+  }
+
+ public:
+  bool submit(std::unique_ptr<bareos_file> file, save_options opts)
+  {
+    return in.emplace(std::move(file), opts);
+  }
+
+  const char* error() { return ""; }
+
+  submit_context(JobControlRecord* jcr)
+      : submit_context(channel::CreateBufferedChannel<packet>(20), jcr)
+  {
+  }
+
+  ~submit_context()
+  {
+    in.close();
+    sender.join();
+  }
+};
+
+/**
+ * Find all the requested files and send them
+ * to the Storage daemon.
+ *
+ * Note, we normally carry on a one-way
+ * conversation from this point on with the SD, sfd_imply blasting
+ * data to him.  To properly know what is going on, we
+ * also run a "heartbeat" monitor which reads the socket and
+ * reacts accordingly (at the moment it has nothing to do
+ * except echo the heartbeat to the Director).
+ */
+bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
+{
+  bool ok = true;
+  BareosSocket* sd = jcr->store_bsock;
+
+  jcr->setJobStatusWithPriorityCheck(JS_Running);
+
+  Dmsg1(300, "filed: opened data connection %d to stored\n", sd->fd_);
+  ClientResource* client = nullptr;
+  {
+    ResLocker _{my_config};
+    client = (ClientResource*)my_config->GetNextRes(R_CLIENT, NULL);
+  }
+  uint32_t buf_size;
+  if (client) {
+    buf_size = client->max_network_buffer_size;
+  } else {
+    buf_size = 0; /* use default */
+  }
+  if (!sd->SetBufferSize(buf_size, BNET_SETBUF_WRITE)) {
+    jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
+    Jmsg(jcr, M_FATAL, 0, _("Cannot set buffer size FD->SD.\n"));
+    return false;
+  }
+
+  jcr->buf_size = sd->message_length;
+
+  if (!AdjustCompressionBuffers(jcr)) { return false; }
+
+  if (!CryptoSessionStart(jcr, cipher)) { return false; }
+
+  SetFindOptions((FindFilesPacket*)jcr->fd_impl->ff, jcr->fd_impl->incremental,
+                 jcr->fd_impl->since_time);
+
+  // In accurate mode, we overload the find_one check function
+  if (jcr->accurate) {
+    SetFindChangedFunction((FindFilesPacket*)jcr->fd_impl->ff,
+                           AccurateCheckFile);
+  }
+
+  StartHeartbeatMonitor(jcr);
+  Bmicrosleep(3, 0);
+
+  if (have_acl) {
+    jcr->fd_impl->acl_data = std::make_unique<AclData>();
+    jcr->fd_impl->acl_data->u.build
+        = (acl_build_data_t*)malloc(sizeof(acl_build_data_t));
+    memset(jcr->fd_impl->acl_data->u.build, 0, sizeof(acl_build_data_t));
+    jcr->fd_impl->acl_data->u.build->content = GetPoolMemory(PM_MESSAGE);
+  }
+
+  if (have_xattr) {
+    jcr->fd_impl->xattr_data = std::make_unique<XattrData>();
+    jcr->fd_impl->xattr_data->u.build
+        = (xattr_build_data_t*)malloc(sizeof(xattr_build_data_t));
+    memset(jcr->fd_impl->xattr_data->u.build, 0, sizeof(xattr_build_data_t));
+    jcr->fd_impl->xattr_data->u.build->content = GetPoolMemory(PM_MESSAGE);
+  }
+
+  jcr->store_bsock = nullptr;
+  jcr->fd_impl->send_ctx.emplace(sd);
+  jcr->fd_impl->submit_ctx = new submit_context{jcr};
+
+  // Subroutine SaveFile() is called for each file
+  if (!FindFiles(jcr, (FindFilesPacket*)jcr->fd_impl->ff, SaveFile,
+                 PluginSave)) {
+    ok = false; /* error */
+    jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
+  }
+
+  delete (submit_context*)jcr->fd_impl->submit_ctx;
+  jcr->fd_impl->submit_ctx = nullptr;
+  jcr->fd_impl->send_ctx.reset();
+  jcr->store_bsock = sd;
+
+  if (have_acl && jcr->fd_impl->acl_data->u.build->nr_errors > 0) {
+    Jmsg(jcr, M_WARNING, 0,
+         _("Encountered %ld acl errors while doing backup\n"),
+         jcr->fd_impl->acl_data->u.build->nr_errors);
+  }
+  if (have_xattr && jcr->fd_impl->xattr_data->u.build->nr_errors > 0) {
+    Jmsg(jcr, M_WARNING, 0,
+         _("Encountered %ld xattr errors while doing backup\n"),
+         jcr->fd_impl->xattr_data->u.build->nr_errors);
+  }
+
+#if defined(WIN32_VSS)
+  CloseVssBackupSession(jcr);
+#endif
+
+  AccurateFinish(jcr); /* send deleted or base file list to SD */
+
+  StopHeartbeatMonitor(jcr);
+
+  sd->signal(BNET_EOD); /* end of sending data */
+
+  if (have_acl && jcr->fd_impl->acl_data) {
+    FreePoolMemory(jcr->fd_impl->acl_data->u.build->content);
+    free(jcr->fd_impl->acl_data->u.build);
+  }
+
+  if (have_xattr && jcr->fd_impl->xattr_data) {
+    FreePoolMemory(jcr->fd_impl->xattr_data->u.build->content);
+    free(jcr->fd_impl->xattr_data->u.build);
+  }
+
+  if (jcr->fd_impl->big_buf) {
+    free(jcr->fd_impl->big_buf);
+    jcr->fd_impl->big_buf = NULL;
+  }
+
+  CleanupCompression(jcr);
+  CryptoSessionEnd(jcr);
+
+  Dmsg1(100, "end blast_data ok=%d\n", ok);
+  return ok;
+}
+
+
 bareos_stat NativeToBareos(struct stat statp)
 {
   return bareos_stat{
@@ -1373,18 +1434,23 @@ file_type NativeToBareos(int type)
 }
 
 struct test_file : bareos_file {
-  FindFilesPacket* ff;
-  test_file(FindFilesPacket* ff_)
-      : bareos_file(NativeToBareos(ff_->type),
-                    ff_->fname,
-                    NativeToBareos(ff_->statp))
+  std::string fname{};
+  bool noatime{};
+  data_stream my_stream{};
+
+  test_file(FindFilesPacket* ff)
+      : bareos_file(NativeToBareos(ff->type),
+                    ff->fname,
+                    NativeToBareos(ff->statp))
+      , fname{ff->fname}
+      , noatime{BitIsSet(FO_NOATIME, ff->flags)}
+      , my_stream{(data_stream)SelectDataStream(ff)}
   {
-    ff = ff_;
   }
 
   bool has_data() override
   {
-    switch (ff->type) {
+    switch ((int)type()) {
       case FT_REGE:
         [[fallthrough]];
       case FT_REG:
@@ -1392,21 +1458,28 @@ struct test_file : bareos_file {
       case FT_RAW: {
         return true;
       } break;
+      default: {
+        return false;
+      }
     }
     return false;
   }
 
-  data_stream stream() override { return (data_stream)SelectDataStream(ff); }
+  data_stream stream() override { return my_stream; }
 
   BareosFilePacket open() override
   {
     BareosFilePacket bfd;
     binit(&bfd);
-    int noatime = BitIsSet(FO_NOATIME, ff->flags) ? O_NOATIME : 0;
-    bopen(&bfd, ff->fname, O_RDONLY | O_BINARY | noatime, 0, ff->statp.st_rdev);
+    int flag = noatime ? O_NOATIME : 0;
+    ASSERT(
+        bopen(&bfd, fname.c_str(), O_RDONLY | O_BINARY | flag, 0, lstat().rdev)
+        > 0);
 
     return bfd;
   }
+
+  ~test_file() = default;
 };
 
 enum class plugin_object_type : int
@@ -1434,8 +1507,7 @@ int SavePluginObject(JobControlRecord* jcr, plugin_object obj)
   }
 
   file_index fi = next_file_index(jcr);
-  sctx->format("%ld %ld 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
-  // sd->fsend("%ld %d 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
+  sctx->format("%ld %d 0", fi.to_underlying(), STREAM_RESTORE_OBJECT);
 
   auto data = obj.data();
   int comp_len = data.size();
@@ -1537,6 +1609,27 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
       return SavePluginObject(jcr, {});
     } break;
   }
+
+  std::optional<checksum_type> chk;
+  if (BitIsSet(FO_MD5, ff_pkt->flags)) {
+    chk = checksum_type::MD5;
+  } else if (BitIsSet(FO_SHA1, ff_pkt->flags)) {
+    chk = checksum_type::SHA1;
+  } else if (BitIsSet(FO_SHA256, ff_pkt->flags)) {
+    chk = checksum_type::SHA256;
+  } else if (BitIsSet(FO_SHA512, ff_pkt->flags)) {
+    chk = checksum_type::SHA512;
+  } else if (BitIsSet(FO_XXH128, ff_pkt->flags)) {
+    chk = checksum_type::XXH128;
+  }
+
+  auto opts = save_options{
+      .compress = BitIsSet(FO_COMPRESS, ff_pkt->flags),
+      .checksum = chk,
+      .signing_key = jcr->fd_impl->crypto.pki_keypair,
+  };
+
+#  if 0
   test_file f{ff_pkt};
 
   std::optional<bareos_file_ref> original;
@@ -1555,37 +1648,26 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     } break;
   }
 
-  std::optional<checksum_type> chk;
-  if (BitIsSet(FO_MD5, ff_pkt->flags)) {
-    chk = checksum_type::MD5;
-  } else if (BitIsSet(FO_SHA1, ff_pkt->flags)) {
-    chk = checksum_type::SHA1;
-  } else if (BitIsSet(FO_SHA256, ff_pkt->flags)) {
-    chk = checksum_type::SHA256;
-  } else if (BitIsSet(FO_SHA512, ff_pkt->flags)) {
-    chk = checksum_type::SHA512;
-  } else if (BitIsSet(FO_XXH128, ff_pkt->flags)) {
-    chk = checksum_type::XXH128;
-  }
   auto res = SaveFile(jcr, &f, std::nullopt, std::move(original),
-                      save_options{
-                          .compress = BitIsSet(FO_COMPRESS, ff_pkt->flags),
-                          .checksum = chk,
-                          .signing_key = jcr->fd_impl->crypto.pki_keypair,
-                      });
-
+                      opts);
   switch (res) {
   case save_file_result::Error: {
     return 0;
   } break;
   case save_file_result::Success: {
-    ff_pkt->FileIndex = jcr->JobFiles;
+    //ff_pkt->FileIndex = jcr->JobFiles;
     return 1;
   } break;
   case save_file_result::Skip: {
     return -1;
   } break;
   };
+#  else
+  ((submit_context*)jcr->fd_impl->submit_ctx)
+      ->submit(std::make_unique<test_file>(ff_pkt), opts);
+
+#  endif
+
   return 0;
 #else
   bool do_read = false;

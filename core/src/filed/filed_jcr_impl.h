@@ -212,6 +212,7 @@ struct FiledJcrImpl {
 #endif
 
   std::optional<send_context> send_ctx;
+  void* submit_ctx{nullptr};
 };
 /* clang-format on */
 
