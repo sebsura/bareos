@@ -83,7 +83,9 @@ static uint32_t num_files = 0;
 static int prog_name_msg = 0;
 static int win32_data_msg = 0;
 
+PoolMem acl_name;
 static AclData acl_data;
+PoolMem xattr_name;
 static XattrData xattr_data;
 static alist<DelayedDataStream*>* delayed_streams = nullptr;
 
@@ -452,9 +454,6 @@ static void DoExtract(char* devname,
   if (IsBopen(&bfd)) { ClosePreviousStream(); }
   FreeAttr(attr);
 
-  FreePoolMemory(acl_data.last_fname);
-  FreePoolMemory(xattr_data.last_fname);
-
   if (delayed_streams) {
     DropDelayedDataStreams();
     delete delayed_streams;
@@ -705,7 +704,8 @@ static bool RecordCb(DeviceControlRecord* dcr, DeviceRecord* rec)
     case STREAM_ACL_HURD_DEFAULT_ACL:
     case STREAM_ACL_HURD_ACCESS_ACL:
       if (extract) {
-        PmStrcpy(acl_data.last_fname, attr->ofname);
+        acl_name.strcpy(attr->ofname);
+        acl_data.last_fname = acl_name.c_str();
         PushDelayedDataStream(rec->maskedStream, rec->data, rec->data_len);
       }
       break;
@@ -722,7 +722,8 @@ static bool RecordCb(DeviceControlRecord* dcr, DeviceRecord* rec)
     case STREAM_XATTR_LINUX:
     case STREAM_XATTR_NETBSD:
       if (extract) {
-        PmStrcpy(xattr_data.last_fname, attr->ofname);
+        xattr_name.strcpy(attr->ofname);
+        xattr_data.last_fname = xattr_name.c_str();
         PushDelayedDataStream(rec->maskedStream, rec->data, rec->data_len);
       }
       break;

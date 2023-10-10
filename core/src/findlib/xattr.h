@@ -77,9 +77,11 @@ struct xattr_parse_data_t {
 
 // Internal tracking data.
 struct XattrData {
-  POOLMEM* last_fname;
+  const char* last_fname;
+  bool ignore_acls{false};
   uint32_t flags{0}; /* See BXATTR_FLAG_* */
   uint32_t current_dev{0};
+  uint32_t next_dev{0};
   bool first_dev{true};
   union {
     struct xattr_build_data_t* build;
@@ -108,8 +110,7 @@ BxattrExitCode UnSerializeXattrStream(JobControlRecord* jcr,
                                       uint32_t content_length,
                                       alist<xattr_t*>* xattr_value_list);
 BxattrExitCode BuildXattrStreams(JobControlRecord* jcr,
-                                 struct XattrData* xattr_data,
-                                 FindFilesPacket* ff_pkt);
+                                 struct XattrData* xattr_data);
 BxattrExitCode ParseXattrStreams(JobControlRecord* jcr,
                                  struct XattrData* xattr_data,
                                  int stream,

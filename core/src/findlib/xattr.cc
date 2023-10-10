@@ -73,9 +73,7 @@ static std::string error_message_disabling_xattributes{
  * Entry points when compiled without support for XATTRs or on an unsupported
  * platform.
  */
-BxattrExitCode BuildXattrStreams(JobControlRecord*,
-                                 XattrData*,
-                                 FindFilesPacket*)
+BxattrExitCode BuildXattrStreams(JobControlRecord*, XattrData*)
 {
   return BxattrExitCode::kErrorFatal;
 }
@@ -319,8 +317,7 @@ static int os_default_xattr_streams[1] = {STREAM_XATTR_AIX};
 #    endif
 
 static BxattrExitCode aix_build_xattr_streams(JobControlRecord* jcr,
-                                              XattrData* xattr_data,
-                                              FindFilesPacket* ff_pkt)
+                                              XattrData* xattr_data)
 {
   char* bp;
   bool skip_xattr;
@@ -603,8 +600,7 @@ bail_out:
 
 // Function pointers to the build and parse function to use for these xattrs.
 static BxattrExitCode (*os_build_xattr_streams)(JobControlRecord* jcr,
-                                                XattrData* xattr_data,
-                                                FindFilesPacket* ff_pkt)
+                                                XattrData* xattr_data)
     = aix_build_xattr_streams;
 static BxattrExitCode (*os_parse_xattr_streams)(JobControlRecord* jcr,
                                                 XattrData* xattr_data,
@@ -670,8 +666,7 @@ static const char* xattr_skiplist[]
 #    endif
 
 static BxattrExitCode generic_build_xattr_streams(JobControlRecord* jcr,
-                                                  XattrData* xattr_data,
-                                                  FindFilesPacket* ff_pkt)
+                                                  XattrData* xattr_data)
 {
   char* bp;
   bool skip_xattr;
@@ -761,7 +756,7 @@ static BxattrExitCode generic_build_xattr_streams(JobControlRecord* jcr,
     /* On some OSes you also get the acls in the extented attribute list.
      * So we check if we are already backing up acls and if we do we
      * don't store the extended attribute with the same info. */
-    if (BitIsSet(FO_ACL, ff_pkt->flags)) {
+    if (xattr_data->ignore_acls) {
       for (cnt = 0; xattr_acl_skiplist[cnt] != NULL; cnt++) {
         if (bstrcmp(bp, xattr_acl_skiplist[cnt])) {
           skip_xattr = true;
@@ -971,8 +966,7 @@ bail_out:
 
 // Function pointers to the build and parse function to use for these xattrs.
 static BxattrExitCode (*os_build_xattr_streams)(JobControlRecord* jcr,
-                                                XattrData* xattr_data,
-                                                FindFilesPacket* ff_pkt)
+                                                XattrData* xattr_data)
     = generic_build_xattr_streams;
 static BxattrExitCode (*os_parse_xattr_streams)(JobControlRecord* jcr,
                                                 XattrData* xattr_data,
@@ -1024,8 +1018,7 @@ static const char* xattr_skiplist[1] = {NULL};
 #    endif
 
 static BxattrExitCode bsd_build_xattr_streams(JobControlRecord* jcr,
-                                              XattrData* xattr_data,
-                                              FindFilesPacket* ff_pkt)
+                                              XattrData* xattr_data)
 {
   bool skip_xattr;
   char* xattr_list = NULL;
@@ -1149,7 +1142,7 @@ static BxattrExitCode bsd_build_xattr_streams(JobControlRecord* jcr,
       /* On some OSes you also get the acls in the extented attribute list.
        * So we check if we are already backing up acls and if we do we
        * don't store the extended attribute with the same info. */
-      if (BitIsSet(FO_ACL, ff_pkt->flags)) {
+      if (xattr_data->ignore_acl) {
         for (cnt = 0; xattr_acl_skiplist[cnt] != NULL; cnt++) {
           if (bstrcmp(current_attrtuple, xattr_acl_skiplist[cnt])) {
             skip_xattr = true;
@@ -1392,8 +1385,7 @@ bail_out:
 
 // Function pointers to the build and parse function to use for these xattrs.
 static BxattrExitCode (*os_build_xattr_streams)(JobControlRecord* jcr,
-                                                XattrData* xattr_data,
-                                                FindFilesPacket* ff_pkt)
+                                                XattrData* xattr_data)
     = bsd_build_xattr_streams;
 static BxattrExitCode (*os_parse_xattr_streams)(JobControlRecord* jcr,
                                                 XattrData* xattr_data,
@@ -2642,8 +2634,7 @@ bail_out:
 }
 
 static BxattrExitCode solaris_build_xattr_streams(JobControlRecord* jcr,
-                                                  XattrData* xattr_data,
-                                                  FindFilesPacket* ff_pkt)
+                                                  XattrData* xattr_data)
 {
   char cwd[PATH_MAX];
   BxattrExitCode retval = BxattrExitCode::kSuccess;
@@ -2721,8 +2712,7 @@ bail_out:
 
 // Function pointers to the build and parse function to use for these xattrs.
 static BxattrExitCode (*os_build_xattr_streams)(JobControlRecord* jcr,
-                                                XattrData* xattr_data,
-                                                FindFilesPacket* ff_pkt)
+                                                XattrData* xattr_data)
     = solaris_build_xattr_streams;
 static BxattrExitCode (*os_parse_xattr_streams)(JobControlRecord* jcr,
                                                 XattrData* xattr_data,
@@ -2734,9 +2724,7 @@ static BxattrExitCode (*os_parse_xattr_streams)(JobControlRecord* jcr,
 #  endif /* defined(HAVE_SUN_OS) */
 
 // Entry points when compiled with support for XATTRs on a supported platform.
-BxattrExitCode BuildXattrStreams(JobControlRecord* jcr,
-                                 XattrData* xattr_data,
-                                 FindFilesPacket* ff_pkt)
+BxattrExitCode BuildXattrStreams(JobControlRecord* jcr, XattrData* xattr_data)
 {
   /* See if we are changing from one device to another.
    * We save the current device we are scanning and compare
@@ -2744,14 +2732,14 @@ BxattrExitCode BuildXattrStreams(JobControlRecord* jcr,
    * the file we are currently storing. */
   Dmsg0(1000, "BuildXattrStreams(): Enter\n");
   if (xattr_data->first_dev
-      || xattr_data->current_dev != ff_pkt->statp.st_dev) {
+      || xattr_data->current_dev != xattr_data->next_dev) {
     xattr_data->flags = BXATTR_FLAG_SAVE_NATIVE;
     xattr_data->first_dev = false;
-    xattr_data->current_dev = ff_pkt->statp.st_dev;
+    xattr_data->current_dev = xattr_data->next_dev;
   }
 
   if ((xattr_data->flags & BXATTR_FLAG_SAVE_NATIVE) && os_build_xattr_streams) {
-    return os_build_xattr_streams(jcr, xattr_data, ff_pkt);
+    return os_build_xattr_streams(jcr, xattr_data);
   } else {
     return BxattrExitCode::kSuccess;
   }

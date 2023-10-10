@@ -87,7 +87,7 @@ struct acl_parse_data_t {
 // Internal tracking data.
 struct AclData {
   int filetype;
-  POOLMEM* last_fname;
+  const char* last_fname;
   uint32_t flags{}; /* See BACL_FLAG_* */
   uint32_t current_dev{0};
   uint32_t next_dev{0};

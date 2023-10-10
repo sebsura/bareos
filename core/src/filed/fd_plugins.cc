@@ -1390,8 +1390,7 @@ bacl_exit_code plugin_parse_acl_streams(
 // Plugin specific callback for getting XATTR information.
 BxattrExitCode PluginBuildXattrStreams(
     JobControlRecord* jcr,
-    [[maybe_unused]] struct XattrData* xattr_data,
-    FindFilesPacket*)
+    [[maybe_unused]] struct XattrData* xattr_data)
 {
   Plugin* plugin;
 #if defined(HAVE_XATTR)

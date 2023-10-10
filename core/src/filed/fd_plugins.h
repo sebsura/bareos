@@ -287,8 +287,7 @@ bacl_exit_code plugin_parse_acl_streams(JobControlRecord* jcr,
                                         char* content,
                                         uint32_t content_length);
 BxattrExitCode PluginBuildXattrStreams(JobControlRecord* jcr,
-                                       struct XattrData* xattr_data,
-                                       FindFilesPacket* ff_pkt);
+                                       XattrData* xattr_data);
 BxattrExitCode PluginParseXattrStreams(JobControlRecord* jcr,
                                        struct XattrData* xattr_data,
                                        int stream,
