@@ -321,18 +321,14 @@ bail_out:
 
 #endif
 
-static inline bool DoBackupAcl(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
+static inline bool DoBackupAcl(JobControlRecord* jcr, AclData* data)
 {
   bacl_exit_code retval;
 
-  jcr->fd_impl->acl_data->filetype = ff_pkt->type;
-  jcr->fd_impl->acl_data->last_fname = jcr->fd_impl->last_fname;
-  jcr->fd_impl->acl_data->next_dev = ff_pkt->statp.st_dev;
-
   if (jcr->IsPlugin()) {
-    retval = PluginBuildAclStreams(jcr, jcr->fd_impl->acl_data.get());
+    retval = PluginBuildAclStreams(jcr, data);
   } else {
-    retval = BuildAclStreams(jcr, jcr->fd_impl->acl_data.get());
+    retval = BuildAclStreams(jcr, data);
   }
 
   switch (retval) {
@@ -1150,10 +1146,11 @@ DIGEST* SetupSigning(JobControlRecord* jcr)
 struct save_options {
   bool compress;
   bool encrypt;
+  bool acl;
+  bool xattr;
   std::optional<checksum_type> checksum;
   X509_KEYPAIR* signing_key;
 };
-
 
 digest_stream DigestStream(DIGEST* digest)
 {
@@ -1266,6 +1263,29 @@ save_file_result SaveFile(JobControlRecord* jcr,
     //   }
     //   return save_file_result::Error;
     // }
+    // Save ACLs when requested and available for anything not being a symlink.
+    if constexpr (have_acl) {
+      if (options.acl) {
+
+	AclData* data = jcr->fd_impl->acl_data.get();
+	data->filetype = (int)file->type();
+	data->last_fname = bpath.c_str(); // TODO: probably systempath here ?
+	data->next_dev = file->lstat().dev;
+	if (!DoBackupAcl(jcr, ff_pkt)) { return save_file_result::Error; }
+      }
+    }
+
+    if constexpr (have_xattr) {
+      if (options.xattr) {
+        // auto xattr_data = file->xattr();
+
+        // if (!xattr_data) {
+
+        // }
+
+        // SendXattr(xattr_data);
+      }
+    }
 
     if (checksum) {
       auto check_encoded = TerminateChecksum(checksum);
@@ -1786,11 +1806,13 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   auto opts = save_options{
       .compress = BitIsSet(FO_COMPRESS, ff_pkt->flags),
       .encrypt = BitIsSet(FO_ENCRYPT, ff_pkt->flags),
+      .acl = BitIsSet(FO_ACL, ff_pkt->flags),
+      .xattr = BitIsSet(FO_XATTR, ff_pkt->flags),
       .checksum = chk,
       .signing_key = jcr->fd_impl->crypto.pki_keypair,
   };
 
-#  if 0
+#  if 1
   test_file f{ff_pkt};
 
   std::optional<bareos_file_ref> original;
