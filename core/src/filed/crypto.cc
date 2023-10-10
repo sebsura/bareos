@@ -41,6 +41,8 @@
 #include "lib/serial.h"
 #include "lib/compression.h"
 
+#include "filed/crypto.h"
+
 namespace filedaemon {
 
 #ifdef HAVE_SHA2
@@ -442,6 +444,44 @@ bool SetupDecryptionContext(r_ctx& rctx, RestoreCipherContext& rcctx)
   }
 
   return true;
+}
+
+struct BackupCipherContext {
+  bool update(const char* data, std::size_t size)
+  {
+    (void)(data + size);
+    return false;
+  }
+
+  bool finalize() { return false; }
+
+  bool has_block() const { return false; }
+
+  const char* data() const { return nullptr; }
+
+  const char* size() const { return 0; }
+};
+
+bool Flush(BackupCipherContext& ctx) { return ctx.finalize(); }
+
+cipher_result AddData(BackupCipherContext& ctx,
+                      const char* data,
+                      std::size_t size)
+{
+  uint32_t packet_len;  // == size with network byte order
+  if (!ctx.update((const char*)&packet_len, sizeof(packet_len))) {
+    // todo error handling
+    return cipher_result::Error;
+  }
+
+  if (!ctx.update(data, size)) {
+    // todo: error handling
+    return cipher_result::Error;
+  }
+
+  if (!ctx.has_block()) { return cipher_result::NeedMoreData; }
+
+  return cipher_result::BlockOk;
 }
 
 bool EncryptData(b_ctx* bctx, bool* need_more_data)

@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -26,6 +26,19 @@ namespace filedaemon {
 
 struct r_ctx;
 struct RestoreCipherContext;
+struct BackupCipherContext;
+
+enum class cipher_result
+{
+  Error,
+  NeedMoreData,
+  BlockOk,
+};
+
+cipher_result AddData(BackupCipherContext& ctx,
+                      const char* data,
+                      std::size_t size);
+bool Flush(BackupCipherContext& ctx);
 
 bool CryptoSessionStart(JobControlRecord* jcr, crypto_cipher_t cipher);
 void CryptoSessionEnd(JobControlRecord* jcr);
