@@ -93,6 +93,7 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
 #endif
 
 #if 0
+
 // Save OSX specific resource forks and finder info.
 static inline bool SaveRsrcAndFinder(b_save_ctx& bsctx,
 				     BareosSocket* sd)
@@ -601,6 +602,7 @@ class bareos_file {
   virtual data_stream stream() = 0;
   virtual std::optional<encoded_meta> extra_meta() { return std::nullopt; };
   virtual BareosFilePacket open() = 0;
+  virtual std::optional<BareosFilePacket> open_rsrc() = 0;
   virtual ~bareos_file() = default;
 
   bareos_file(file_type type_, std::string path, bareos_stat stat)
@@ -882,16 +884,45 @@ bool SendMetaInfo(
 
 // };
 
-bool SendData(send_context& sctx,
-              file_index idx,
-              data_stream stream,
-              std::size_t bufsize,
-              BareosFilePacket* bfd,
-              DIGEST* checksum,
-              DIGEST* signing)
+static inline bool SendFinder(send_context& sctx,
+                              file_index idx,
+                              span<const char> finder_info,
+                              DIGEST* checksum,
+                              DIGEST* signing)
 {
-  if (!sctx.format("%ld %d 0", idx.to_underlying(), stream)) { return false; }
+  // Dmsg1(300, "Saving Finder Info for \"%s\"\n", bsctx.ff_pkt->fname);
+  sctx.format("%ld %d 0", idx.to_underlying(), STREAM_HFSPLUS_ATTRIBUTES);
+  sctx.send(finder_info.data(), finder_info.size());
 
+  if (checksum) {
+    CryptoDigestUpdate(checksum, (const uint8_t*)finder_info.data(),
+                       finder_info.size());
+  }
+  if (signing) {
+    CryptoDigestUpdate(signing, (const uint8_t*)finder_info.data(),
+                       finder_info.size());
+  }
+  sctx.signal(BNET_EOD);
+
+  return true;
+}
+
+struct send_options {
+  struct compression {
+    uint32_t algo;
+    uint32_t level;
+  };
+  std::optional<compression> compress;
+  bool encrypt;
+};
+
+bool SendPlainData(send_context& sctx,
+                   send_options options,
+                   std::size_t bufsize,
+                   BareosFilePacket* bfd,
+                   DIGEST* checksum,
+                   DIGEST* signing)
+{
   // Read the file data
   for (;;) {
     POOLMEM* msg = GetMemory(bufsize);
@@ -912,10 +943,75 @@ bool SendData(send_context& sctx,
         CryptoDigestUpdate(signing, (const uint8_t*)msg, message_length);
       }
 
+      POOLMEM* send_msg = msg;
+      if (options.compress) {
+        auto& c = options.compress.value();
+        std::size_t max_size
+            = RequiredCompressionOutputBufferSize(c.algo, bufsize);
+        POOLMEM* compressed = GetMemory(max_size);
+
+        auto compressed_length = ThreadlocalCompress(
+            c.algo, c.level, compressed, max_size, send_msg, message_length);
+
+        if (!compressed_length) {
+          Dmsg1(50, "compression error\n");
+          return false;
+        }
+
+        FreePoolMemory(msg);
+        send_msg = compressed;
+        message_length = compressed_length;
+      }
+
       Dmsg1(130, "Send data to SD len=%d\n", message_length);
-      if (!sctx.send(msg, message_length)) { return false; }
+      if (!sctx.send(send_msg, message_length)) { return false; }
     }
   }
+
+  return true;
+}
+
+bool SendData(send_context& sctx,
+              send_options options,
+              file_index idx,
+              data_stream stream,
+              std::size_t bufsize,
+              BareosFilePacket* bfd,
+              DIGEST* checksum,
+              DIGEST* signing)
+{
+  if (!sctx.format("%ld %d 0", idx.to_underlying(), stream)) { return false; }
+
+  /* Make space at beginning of buffer for fileAddr because this
+   *   same buffer will be used for writing if compression is off. */
+  // if (BitIsSet(FO_SPARSE, ff_pkt->flags)
+  //     || BitIsSet(FO_OFFSETS, ff_pkt->flags)) {
+  if (0) {
+#ifdef HAVE_FREEBSD_OS
+    // To read FreeBSD partitions, the read size must be a multiple of 512.
+    bufsize = (bufsize / 512) * 512;
+#endif
+  }
+
+  // A RAW device read on win32 only works if the buffer is a multiple of 512
+#ifdef HAVE_WIN32
+  // if (S_ISBLK(ff_pkt->statp.st_mode)) { bufsize = (bufsize / 512) * 512; }
+
+  // if (ff_pkt->statp.st_rdev & FILE_ATTRIBUTE_ENCRYPTED) {
+  //   if (!SendEncryptedData(bctx)) { goto bail_out; }
+  if (0) {
+  } else {
+    if (!SendPlainData(sctx, options, bufsize, bfd, checksum, signing)) {
+      return false;
+    }
+  }
+#else
+  if (!SendPlainData(sctx, options, bufsize, bfd, checksum, signing)) {
+    return false;
+  }
+#endif
+
+
   if (!sctx.signal(BNET_EOD)) { return false; }
   return true;
 }
@@ -1027,6 +1123,7 @@ DIGEST* SetupSigning(JobControlRecord* jcr)
 
 struct save_options {
   bool compress;
+  bool encrypt;
   std::optional<checksum_type> checksum;
   X509_KEYPAIR* signing_key;
 };
@@ -1112,12 +1209,37 @@ save_file_result SaveFile(JobControlRecord* jcr,
         Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
               sctx.error());
       }
+
+      bclose(&bfd);
       return save_file_result::Error;
     }
 
     bclose(&bfd);
 
-    // on apple: send rsrc/finder
+    std::optional rsrc_bfd = file->open_rsrc();
+    if (rsrc_bfd) {
+      auto rsrc_stream = options.encrypt
+                             ? data_stream::ENCRYPTED_MACOS_FORK_DATA
+                             : data_stream::MACOS_FORK_DATA;
+      if (!SendData(sctx, fi, rsrc_stream, jcr->buf_size, &rsrc_bfd.value(),
+                    checksum, signing)) {
+        if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+          Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+                sctx.error());
+        }
+        bclose(&rsrc_bfd.value());
+        return save_file_result::Error;
+      }
+      bclose(&rsrc_bfd.value());
+    }
+
+    // if (!SendFinder(sctx, fi, finder_info, checksum, signing)) {
+    //   if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+    //     Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+    //           sctx.error());
+    //   }
+    //   return save_file_result::Error;
+    // }
 
     if (checksum) {
       auto check_encoded = TerminateChecksum(checksum);
@@ -1479,6 +1601,18 @@ struct test_file : bareos_file {
     return bfd;
   }
 
+  std::optional<BareosFilePacket> open_rsrc() override
+  {
+    BareosFilePacket bfd;
+    binit(&bfd);
+    if (BopenRsrc(&bfd, fname.c_str(), O_RDONLY | O_BINARY, 0) < 0) {
+      // TODO: send jmsg if hfsinfo.rsrc_length > 0
+      return std::nullopt;
+    } else {
+      return bfd;
+    }
+  }
+
   ~test_file() = default;
 };
 
@@ -1625,6 +1759,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 
   auto opts = save_options{
       .compress = BitIsSet(FO_COMPRESS, ff_pkt->flags),
+      .encrypt = BitIsSet(FO_ENCRYPT, ff_pkt->flags),
       .checksum = chk,
       .signing_key = jcr->fd_impl->crypto.pki_keypair,
   };

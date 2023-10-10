@@ -468,7 +468,7 @@ cipher_result AddData(BackupCipherContext& ctx,
                       const char* data,
                       std::size_t size)
 {
-  uint32_t packet_len;  // == size with network byte order
+  uint32_t packet_len{0};  // == size with network byte order
   if (!ctx.update((const char*)&packet_len, sizeof(packet_len))) {
     // todo error handling
     return cipher_result::Error;
