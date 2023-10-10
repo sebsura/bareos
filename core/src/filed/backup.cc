@@ -327,11 +327,12 @@ static inline bool DoBackupAcl(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
 
   jcr->fd_impl->acl_data->filetype = ff_pkt->type;
   jcr->fd_impl->acl_data->last_fname = jcr->fd_impl->last_fname;
+  jcr->fd_impl->acl_data->next_dev = ff_pkt->statp.st_dev;
 
   if (jcr->IsPlugin()) {
-    retval = PluginBuildAclStreams(jcr, jcr->fd_impl->acl_data.get(), ff_pkt);
+    retval = PluginBuildAclStreams(jcr, jcr->fd_impl->acl_data.get());
   } else {
-    retval = BuildAclStreams(jcr, jcr->fd_impl->acl_data.get(), ff_pkt);
+    retval = BuildAclStreams(jcr, jcr->fd_impl->acl_data.get());
   }
 
   switch (retval) {

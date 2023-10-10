@@ -280,9 +280,7 @@ int PluginCreateFile(JobControlRecord* jcr,
 bool PluginSetAttributes(JobControlRecord* jcr,
                          Attributes* attr,
                          BareosFilePacket* ofd);
-bacl_exit_code PluginBuildAclStreams(JobControlRecord* jcr,
-                                     AclData* acl_data,
-                                     FindFilesPacket* ff_pkt);
+bacl_exit_code PluginBuildAclStreams(JobControlRecord* jcr, AclData* acl_data);
 bacl_exit_code plugin_parse_acl_streams(JobControlRecord* jcr,
                                         AclData* acl_data,
                                         int stream,

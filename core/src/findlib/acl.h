@@ -90,6 +90,7 @@ struct AclData {
   POOLMEM* last_fname;
   uint32_t flags{}; /* See BACL_FLAG_* */
   uint32_t current_dev{0};
+  uint32_t next_dev{0};
   bool first_dev{true};
   union {
     struct acl_build_data_t* build;
@@ -100,9 +101,7 @@ struct AclData {
 bacl_exit_code SendAclStream(JobControlRecord* jcr,
                              AclData* acl_data,
                              int stream);
-bacl_exit_code BuildAclStreams(JobControlRecord* jcr,
-                               AclData* acl_data,
-                               FindFilesPacket* ff_pkt);
+bacl_exit_code BuildAclStreams(JobControlRecord* jcr, AclData* acl_data);
 bacl_exit_code parse_acl_streams(JobControlRecord* jcr,
                                  AclData* acl_data,
                                  int stream,
