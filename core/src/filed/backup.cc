@@ -94,6 +94,35 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
 static void CloseVssBackupSession(JobControlRecord* jcr);
 #endif
 
+struct message {
+  PoolMem backing{PM_MESSAGE};
+  std::size_t header_size{0};
+  std::size_t data_size{0};
+
+  message(std::size_t header_size) : header_size{header_size} {}
+
+  void reserve(std::size_t max_data_size)
+  {
+    backing.check_size(header_size + max_data_size);
+  }
+
+  char* header() { return backing.addr(); }
+
+  char* data() { return backing.addr() + header_size; }
+
+  const char* header() const { return backing.c_str(); }
+
+  const char* data() const { return backing.c_str() + header_size; }
+
+  std::size_t size() const { return header_size + data_size; }
+};
+
+using shared_message = std::shared_ptr<const message>;
+
+static result<std::size_t> SendData(BareosSocket* sd,
+                                    POOLMEM* data,
+                                    size_t size);
+
 struct backup_ctx {
   std::size_t num_workers;
 
@@ -104,10 +133,29 @@ struct backup_ctx {
   std::condition_variable compute_fin{};
   synchronized<std::size_t> latch;
 
-  backup_ctx(std::size_t num_workers)
+  using queue_type = std::future<result<shared_message>>;
+  BareosSocket* sd;
+
+  channel::input<queue_type> in;
+  channel::output<queue_type> out;
+
+  backup_ctx(std::size_t num_workers, BareosSocket* sd)
+      : backup_ctx(num_workers,
+                   sd,
+                   channel::CreateBufferedChannel<queue_type>(num_workers))
+  {
+  }
+
+  backup_ctx(
+      std::size_t num_workers,
+      BareosSocket* sd_,
+      std::pair<channel::input<queue_type>, channel::output<queue_type>> p)
       : num_workers{num_workers}
       , compute_group{num_workers * 3}
       , latch{num_workers}
+      , sd{sd_}
+      , in{std::move(p.first)}
+      , out{std::move(p.second)}
   {
     tpool.borrow_threads(num_workers, [this] {
       compute_group.work_until_completion();
@@ -116,7 +164,41 @@ struct backup_ctx {
       *latch.lock() -= 1;
       compute_fin.notify_one();
     });
+
+    tpool.borrow_thread([this]() {
+      std::size_t accumulated = 0;
+      POOLMEM* msg_save = sd->msg;
+      for (;;) {
+        std::optional fut = out.get();
+        if (!fut) break;
+        result p = fut->get();
+        if (p.holds_error()) {
+          // prom.set_value(std::move(p.error_unchecked()));
+          return;
+        }
+
+        auto size = p.value_unchecked()->size();
+        auto& msg = p.value_unchecked()->backing;
+
+        // technically we are overwriting part of message here
+        // but its only the "size" field of the message, which is not
+        // read/written to otherwise after making it a shared_message.
+        result ret = SendData(sd, msg.c_str(), size);
+        if (ret.holds_error()) {
+          // prom.set_value(std::move(ret));
+          return;
+        }
+
+        accumulated += ret.value_unchecked();
+      }
+      sd->msg = msg_save;
+      sd->message_length = 0;
+      // prom.set_value(accumulated);
+      // return;
+    });
   }
+
+  bool send(queue_type elem) { return in.emplace(std::move(elem)); }
 
   std::size_t worker_count() const { return num_workers; }
 
@@ -208,7 +290,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
     jcr->fd_impl->xattr_data->u.build->content = GetPoolMemory(PM_MESSAGE);
   }
 
-  jcr->fd_impl->ctx = new backup_ctx{num_workers};
+  jcr->fd_impl->ctx = new backup_ctx{num_workers, sd};
 
   // Subroutine SaveFile() is called for each file
   if (!FindFiles(jcr, (FindFilesPacket*)jcr->fd_impl->ff, SaveFile,
@@ -1081,9 +1163,7 @@ bail_out:
   return retval;
 }
 
-static result<std::size_t> SendData(BareosSocket* sd,
-                                    POOLMEM* data,
-                                    size_t size)
+result<std::size_t> SendData(BareosSocket* sd, POOLMEM* data, size_t size)
 {
   sd->message_length = size;
   sd->msg = data; /* set correct write buffer */
@@ -1097,29 +1177,6 @@ static result<std::size_t> SendData(BareosSocket* sd,
   Dmsg1(130, "Send data to SD len=%d\n", sd->message_length);
   return size;
 }
-
-struct message {
-  PoolMem backing{PM_MESSAGE};
-  std::size_t header_size{0};
-  std::size_t data_size{0};
-
-  message(std::size_t header_size) : header_size{header_size} {}
-
-  void reserve(std::size_t max_data_size)
-  {
-    backing.check_size(header_size + max_data_size);
-  }
-
-  char* header() { return backing.addr(); }
-
-  char* data() { return backing.addr() + header_size; }
-
-  const char* header() const { return backing.c_str(); }
-
-  const char* data() const { return backing.c_str() + header_size; }
-
-  std::size_t size() const { return header_size + data_size; }
-};
 
 // Send the content of a file on anything but an EFS filesystem.
 static inline bool SendPlainData(b_ctx& bctx)
@@ -1136,12 +1193,12 @@ static inline bool SendPlainData(b_ctx& bctx)
   if (BitIsSet(FO_ENCRYPT, flags)) { return SendPlainDataSerially(bctx); }
 
   // Setting up the parallel pipeline is not worth it for small files.
-  if (file_size < 128 * 1024) { return SendPlainDataSerially(bctx); }
+  // if (file_size < 128 * 1024) { return SendPlainDataSerially(bctx); }
 
   backup_ctx& ctx = *(backup_ctx*)bctx.jcr->fd_impl->ctx;
 
   bool retval = false;
-  BareosSocket* sd = bctx.jcr->store_bsock;
+  // BareosSocket* sd = bctx.jcr->store_bsock;
 
   auto& bfd = bctx.ff_pkt->bfd;
 
@@ -1162,46 +1219,6 @@ static inline bool SendPlainData(b_ctx& bctx)
         .level = bctx.ff_pkt->Compress_level,
     };
   }
-
-  using shared_message = std::shared_ptr<const message>;
-
-  // FIXME(ssura): How big should the buffer be ?
-  auto [in, out]
-      = channel::CreateBufferedChannel<std::future<result<shared_message>>>(
-          ctx.worker_count());
-
-  // FIXME(ssura): We have to wrap out in a shared_ptr, because borrow_thread
-  //               needs a copyable function.  Once we move to
-  //               move_only_function we can remove this.
-  std::promise<result<std::size_t>> promise{};
-  std::future bytes_send_fut = promise.get_future();
-  ctx.pool().borrow_thread(
-      [prom = std::move(promise), out = std::move(out), sd]() mutable {
-        std::size_t accumulated = 0;
-        for (std::optional fut = out.get(); fut.has_value(); fut = out.get()) {
-          result p = fut->get();
-          if (p.holds_error()) {
-            prom.set_value(std::move(p.error_unchecked()));
-            return;
-          }
-
-          auto size = p.value_unchecked()->size();
-          auto& msg = p.value_unchecked()->backing;
-
-          // technically we are overwriting part of message here
-          // but its only the "size" field of the message, which is not
-          // read/written to otherwise after making it a shared_message.
-          result ret = SendData(sd, msg.c_str(), size);
-          if (ret.holds_error()) {
-            prom.set_value(std::move(ret));
-            return;
-          }
-
-          accumulated += ret.value_unchecked();
-        }
-        prom.set_value(accumulated);
-        return;
-      });
 
   DIGEST* checksum = bctx.digest;
   DIGEST* signing = bctx.signing_digest;
@@ -1327,27 +1344,27 @@ static inline bool SendPlainData(b_ctx& bctx)
                       }();
 
     // Send the buffer to the Storage daemon
-    if (!in.emplace(std::move(copy_fut))) { goto bail_out; }
+    if (!ctx.send(std::move(copy_fut))) { goto bail_out; }
   }
 end_read_loop:
   retval = true;
 
 bail_out:
-  in.close();
+  // in.close();
   if (update_digest) { update_digest->wait(); }
-  result sendres = bytes_send_fut.get();
-  if (auto* error = sendres.error()) {
-    if (!bctx.jcr->IsJobCanceled()) {
-      Jmsg1(bctx.jcr, M_FATAL, 0, "%s\n", error->c_str());
-    }
-    retval = false;
-  } else {
-    bctx.jcr->JobBytes
-        += sendres.value_unchecked();  /* count bytes saved possibly
-                                          compressed/encrypted */
-    bctx.jcr->ReadBytes += bytes_read; /* count bytes read */
-  }
-  sd->msg = bctx.msgsave; /* restore read buffer */
+  // result sendres = bytes_send_fut.get();
+  // if (auto* error = sendres.error()) {
+  //   if (!bctx.jcr->IsJobCanceled()) {
+  //     Jmsg1(bctx.jcr, M_FATAL, 0, "%s\n", error->c_str());
+  //   }
+  //   retval = false;
+  // } else {
+  //   bctx.jcr->JobBytes
+  //       += sendres.value_unchecked();  /* count bytes saved possibly
+  //                                         compressed/encrypted */
+  //   bctx.jcr->ReadBytes += bytes_read; /* count bytes read */
+  // }
+  // sd->msg = bctx.msgsave; /* restore read buffer */
   return retval;
 }
 
