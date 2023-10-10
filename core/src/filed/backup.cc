@@ -345,17 +345,14 @@ static inline bool DoBackupAcl(JobControlRecord* jcr, AclData* data)
   return true;
 }
 
-static inline bool DoBackupXattr(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
+static inline bool DoBackupXattr(JobControlRecord* jcr, XattrData* data)
 {
   BxattrExitCode retval;
 
-  jcr->fd_impl->xattr_data->last_fname = jcr->fd_impl->last_fname;
-
   if (jcr->IsPlugin()) {
-    retval
-        = PluginBuildXattrStreams(jcr, jcr->fd_impl->xattr_data.get(), ff_pkt);
+    retval = PluginBuildXattrStreams(jcr, data);
   } else {
-    retval = BuildXattrStreams(jcr, jcr->fd_impl->xattr_data.get(), ff_pkt);
+    retval = BuildXattrStreams(jcr, data);
   }
 
   switch (retval) {
@@ -1188,8 +1185,10 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
   auto& sctx = jcr->fd_impl->send_ctx.value();
 
-  Dmsg1(130, "filed: sending %s to stored\n",
-        std::string(file->bareos_path()).c_str());
+  std::string bpath(file->bareos_path());
+
+  Dmsg1(130, "filed: sending %s to stored\n", bpath.c_str());
+
 
   file_index fi = next_file_index(jcr);
   {
@@ -1266,24 +1265,21 @@ save_file_result SaveFile(JobControlRecord* jcr,
     // Save ACLs when requested and available for anything not being a symlink.
     if constexpr (have_acl) {
       if (options.acl) {
-
-	AclData* data = jcr->fd_impl->acl_data.get();
-	data->filetype = (int)file->type();
-	data->last_fname = bpath.c_str(); // TODO: probably systempath here ?
-	data->next_dev = file->lstat().dev;
-	if (!DoBackupAcl(jcr, ff_pkt)) { return save_file_result::Error; }
+        AclData* data = jcr->fd_impl->acl_data.get();
+        data->filetype = (int)file->type();
+        data->last_fname = bpath.c_str();  // TODO: probably systempath here ?
+        data->next_dev = file->lstat().dev;
+        if (!DoBackupAcl(jcr, data)) { return save_file_result::Error; }
       }
     }
 
     if constexpr (have_xattr) {
       if (options.xattr) {
-        // auto xattr_data = file->xattr();
-
-        // if (!xattr_data) {
-
-        // }
-
-        // SendXattr(xattr_data);
+        XattrData* data = jcr->fd_impl->xattr_data.get();
+        data->last_fname = bpath.c_str();  // TODO: probably systempath here ?
+        data->next_dev = file->lstat().dev;
+        data->ignore_acls = options.acl;
+        if (!DoBackupXattr(jcr, data)) { return save_file_result::Error; }
       }
     }
 
