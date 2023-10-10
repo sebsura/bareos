@@ -94,6 +94,44 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
 static void CloseVssBackupSession(JobControlRecord* jcr);
 #endif
 
+struct backup_ctx {
+  std::size_t num_workers;
+
+  thread_pool tpool{};
+  work_group compute_group;
+
+  // FIXME(ssura): this should become a std::latch once C++20 arrives
+  std::condition_variable compute_fin{};
+  synchronized<std::size_t> latch;
+
+  backup_ctx(std::size_t num_workers)
+      : num_workers{num_workers}
+      , compute_group{num_workers * 3}
+      , latch{num_workers}
+  {
+    tpool.borrow_threads(num_workers, [this] {
+      compute_group.work_until_completion();
+
+      // todo is this even needed now ?
+      *latch.lock() -= 1;
+      compute_fin.notify_one();
+    });
+  }
+
+  std::size_t worker_count() const { return num_workers; }
+
+  thread_pool& pool() { return tpool; }
+
+  work_group& compute() { return compute_group; }
+
+  ~backup_ctx()
+  {
+    compute_group.shutdown();
+    latch.lock().wait(compute_fin, [](int num) { return num == 0; });
+  }
+};
+
+
 /**
  * Find all the requested files and send them
  * to the Storage daemon.
@@ -107,6 +145,11 @@ static void CloseVssBackupSession(JobControlRecord* jcr);
  */
 bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 {
+  const std::size_t num_workers
+      = (me && me->IsMemberPresent("MaximumWorkThreadsPerJob"))
+            ? me->MaxWorkerThreads
+            : 1;
+
   BareosSocket* sd;
   bool ok = true;
 
@@ -165,12 +208,17 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
     jcr->fd_impl->xattr_data->u.build->content = GetPoolMemory(PM_MESSAGE);
   }
 
+  jcr->fd_impl->ctx = new backup_ctx{num_workers};
+
   // Subroutine SaveFile() is called for each file
   if (!FindFiles(jcr, (FindFilesPacket*)jcr->fd_impl->ff, SaveFile,
                  PluginSave)) {
     ok = false; /* error */
     jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
   }
+
+  delete (backup_ctx*)(jcr->fd_impl->ctx);
+  jcr->fd_impl->ctx = nullptr;
 
   if (have_acl && jcr->fd_impl->acl_data->u.build->nr_errors > 0) {
     Jmsg(jcr, M_WARNING, 0,
@@ -1090,6 +1138,8 @@ static inline bool SendPlainData(b_ctx& bctx)
   // Setting up the parallel pipeline is not worth it for small files.
   if (file_size < 128 * 1024) { return SendPlainDataSerially(bctx); }
 
+  backup_ctx& ctx = *(backup_ctx*)bctx.jcr->fd_impl->ctx;
+
   bool retval = false;
   BareosSocket* sd = bctx.jcr->store_bsock;
 
@@ -1113,38 +1163,19 @@ static inline bool SendPlainData(b_ctx& bctx)
     };
   }
 
-  auto& threadpool = bctx.jcr->fd_impl->threads;
-  const std::size_t num_workers
-      = (me && me->IsMemberPresent("MaximumWorkThreadsPerJob"))
-            ? me->MaxWorkerThreads
-            : 1;
-
-  work_group compute_group(num_workers * 3);
-
-  // FIXME(ssura): this should become a std::latch once C++20 arrives
-  std::condition_variable compute_fin;
-  synchronized<std::size_t> latch{num_workers};
-  threadpool.borrow_threads(num_workers,
-                            [&latch, &compute_group, &compute_fin] {
-                              compute_group.work_until_completion();
-
-                              *latch.lock() -= 1;
-                              compute_fin.notify_one();
-                            });
-
   using shared_message = std::shared_ptr<const message>;
 
   // FIXME(ssura): How big should the buffer be ?
   auto [in, out]
       = channel::CreateBufferedChannel<std::future<result<shared_message>>>(
-          num_workers);
+          ctx.worker_count());
 
   // FIXME(ssura): We have to wrap out in a shared_ptr, because borrow_thread
   //               needs a copyable function.  Once we move to
   //               move_only_function we can remove this.
   std::promise<result<std::size_t>> promise{};
   std::future bytes_send_fut = promise.get_future();
-  threadpool.borrow_thread(
+  ctx.pool().borrow_thread(
       [prom = std::move(promise), out = std::move(out), sd]() mutable {
         std::size_t accumulated = 0;
         for (std::optional fut = out.get(); fut.has_value(); fut = out.get()) {
@@ -1230,7 +1261,7 @@ static inline bool SendPlainData(b_ctx& bctx)
 
     if (checksum || signing) {
       update_digest.emplace(
-          compute_group.submit([checksum, signing, shared_msg]() mutable {
+          ctx.compute().submit([checksum, signing, shared_msg]() mutable {
             // Update checksum if requested
             if (checksum) {
               CryptoDigestUpdate(checksum, (uint8_t*)shared_msg->data(),
@@ -1246,7 +1277,7 @@ static inline bool SendPlainData(b_ctx& bctx)
     }
 
     std::future copy_fut
-        = (compctx) ? compute_group.submit(
+        = (compctx) ? ctx.compute().submit(
               [shared_msg,
                compctx = compctx.value()]() mutable -> result<shared_message> {
                 auto data_size = RequiredCompressionOutputBufferSize(
@@ -1302,8 +1333,6 @@ end_read_loop:
   retval = true;
 
 bail_out:
-  compute_group.shutdown();
-  latch.lock().wait(compute_fin, [](int num) { return num == 0; });
   in.close();
   if (update_digest) { update_digest->wait(); }
   result sendres = bytes_send_fut.get();

@@ -88,7 +88,7 @@ struct FiledJcrImpl {
 #ifdef HAVE_WIN32
   VSSClient* pVSSClient{};        /**< VSS Client Instance */
 #endif
-  thread_pool threads;
+  void* ctx{nullptr};
 };
 /* clang-format on */
 
