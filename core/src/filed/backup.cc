@@ -992,8 +992,8 @@ struct send_options {
 
   std::optional<compression> compress;
   std::optional<encryption> encrypt;
-  bool support_sparse;
-  bool support_offsets;
+  bool discard_empty_blocks;
+  bool insert_file_offsets;
 };
 
 static bool SendDataToSd(send_context& sctx,
@@ -1162,7 +1162,7 @@ bool SendData(send_context& sctx,
 
   /* Make space at beginning of buffer for fileAddr because this
    *   same buffer will be used for writing if compression is off. */
-  if (options.support_sparse || options.support_offsets) {
+  if (options.discard_empty_blocks || options.insert_file_offsets) {
 #ifdef HAVE_FREEBSD_OS
     // To read FreeBSD partitions, the read size must be a multiple of 512.
     bufsize = (bufsize / 512) * 512;
@@ -1317,8 +1317,8 @@ struct save_options {
   bool compress{false};
   bool acl{false};
   bool xattr{false};
-  bool support_sparse{false};
-  bool support_offsets{false};
+  bool discard_empty_blocks{false};
+  bool insert_file_offsets{false};
 };
 
 digest_stream DigestStream(DIGEST* digest)
@@ -1408,7 +1408,7 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
   send_options opts{};
   if (options.encrypt) {
-    if (options.support_sparse || options.support_offsets) {
+    if (options.discard_empty_blocks || options.insert_file_offsets) {
       //   Jmsg0(bctx.jcr, M_FATAL, 0,
       //         _("Encrypting sparse or offset data not supported.\n"));
       return save_file_result::Error;
@@ -2056,8 +2056,8 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
       .compress = BitIsSet(FO_COMPRESS, ff_pkt->flags),
       .acl = BitIsSet(FO_ACL, ff_pkt->flags),
       .xattr = BitIsSet(FO_XATTR, ff_pkt->flags),
-      .support_sparse = BitIsSet(FO_SPARSE, ff_pkt->flags),
-      .support_offsets = BitIsSet(FO_OFFSETS, ff_pkt->flags),
+      .discard_empty_blocks = BitIsSet(FO_SPARSE, ff_pkt->flags),
+      .insert_file_offsets = BitIsSet(FO_OFFSETS, ff_pkt->flags),
   };
 
   if (opts.encrypt) { SetBit(FO_ENCRYPT, ff_pkt->flags); }
