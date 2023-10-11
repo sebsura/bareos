@@ -484,6 +484,46 @@ cipher_result AddData(BackupCipherContext& ctx,
   return cipher_result::BlockOk;
 }
 
+std::int64_t EncryptData(CIPHER_CONTEXT* cipher,
+                         char* buf,
+                         const char* data,
+                         std::size_t size)
+{
+  ser_declare;
+
+  // TODO: support sparse
+  std::uint8_t serialized_len[sizeof(uint32_t)];
+  SerBegin(serialized_len, sizeof(uint32_t));
+  ser_uint32((uint32_t)size);
+  SerEnd(serialized_len, sizeof(uint32_t));
+  Dmsg1(20, "Encrypt len=%d\n", size);
+
+  uint32_t initial_len, encrypted_len;
+
+  std::uint8_t* u8buf = reinterpret_cast<uint8_t*>(buf);
+  const std::uint8_t* u8data = reinterpret_cast<const uint8_t*>(data);
+
+  if (!CryptoCipherUpdate(cipher, serialized_len, sizeof(serialized_len), u8buf,
+                          &initial_len)) {
+    // Encryption failed. Shouldn't happen.
+    // todo: Jmsg(bctx->jcr, M_FATAL, 0, _("Encryption error\n"));
+    return -1;
+  }
+
+  if (!CryptoCipherUpdate(cipher, u8data, size, u8buf + initial_len,
+                          &encrypted_len)) {
+    return -1;
+  }
+
+  std::int64_t total_size = initial_len + encrypted_len;
+
+  if (encrypted_len != 0) {
+    Dmsg2(400, "encrypted len=%d unencrypted len=%d\n", encrypted_len, size);
+  }
+
+  return total_size;
+}
+
 bool EncryptData(b_ctx* bctx, bool* need_more_data)
 {
   bool retval = false;

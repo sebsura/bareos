@@ -22,6 +22,8 @@
 #ifndef BAREOS_FILED_CRYPTO_H_
 #define BAREOS_FILED_CRYPTO_H_
 
+#include "lib/crypto.h"
+
 namespace filedaemon {
 
 struct r_ctx;
@@ -54,6 +56,10 @@ void DeallocateCipher(r_ctx& rctx);
 void DeallocateForkCipher(r_ctx& rctx);
 bool SetupEncryptionContext(b_ctx& bctx);
 bool SetupDecryptionContext(r_ctx& rctx, RestoreCipherContext& rcctx);
+std::int64_t EncryptData(CIPHER_CONTEXT* cipher,
+                         char* buf,  // buf has to be big enough
+                         const char* data,
+                         std::size_t size);
 bool EncryptData(b_ctx* bctx, bool* need_more_data);
 bool DecryptData(JobControlRecord* jcr,
                  char** data,

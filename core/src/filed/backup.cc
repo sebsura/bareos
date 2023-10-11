@@ -966,9 +966,89 @@ struct send_options {
     uint32_t algo;
     uint32_t level;
   };
+
+  struct encryption {
+    CIPHER_CONTEXT* cipher{nullptr};
+    std::size_t buf_size{0};
+    POOLMEM* buf{nullptr};
+
+    ~encryption()
+    {
+      if (buf) { FreeAndNullPoolMemory(buf); }
+
+      if (cipher) {
+        // ...
+      }
+    }
+  };
+
   std::optional<compression> compress;
-  bool encrypt;
+  std::optional<encryption> encrypt;
+  bool support_sparse;
+  bool support_offsets;
 };
+
+static bool SendDataToSd(send_context& sctx,
+                         send_options options,
+                         POOLMEM* msg,
+                         std::size_t message_length,
+                         DIGEST* checksum,
+                         DIGEST* signing)
+{
+  if (checksum) {
+    CryptoDigestUpdate(checksum, (const uint8_t*)msg, message_length);
+  }
+
+  // Update signing digest if requested
+  if (signing) {
+    CryptoDigestUpdate(signing, (const uint8_t*)msg, message_length);
+  }
+
+  POOLMEM* send_msg = msg;
+  if (options.compress) {
+#if 0
+    auto& c = options.compress.value();
+    std::size_t max_size
+      = RequiredCompressionOutputBufferSize(c.algo, bufsize);
+    POOLMEM* compressed = GetMemory(max_size);
+
+    auto compressed_length = ThreadlocalCompress(
+						 c.algo, c.level, compressed, max_size, send_msg, message_length);
+
+    if (!compressed_length) {
+      Dmsg1(50, "compression error\n");
+      return false;
+    }
+
+    FreePoolMemory(msg);
+    send_msg = compressed;
+    message_length = compressed_length;
+#endif
+  }
+
+  if (options.encrypt) {
+    std::int64_t res
+        = EncryptData(options.encrypt->cipher, options.encrypt->buf, send_msg,
+                      message_length);
+
+    if (res < 0) {
+      // encryption error
+      return false;
+    }
+
+    if (res == 0) {
+      return true;  // too little data, nothing to send
+    }
+
+    FreePoolMemory(send_msg);
+    send_msg = options.encrypt->buf;
+    message_length = res;
+    options.encrypt->buf = GetMemory(options.encrypt->buf_size);
+  }
+
+  Dmsg1(130, "Send data to SD len=%d\n", message_length);
+  return sctx.send(send_msg, message_length);
+}
 
 bool SendPlainData(send_context& sctx,
                    send_options options,
@@ -988,50 +1068,84 @@ bool SendPlainData(send_context& sctx,
       FreePoolMemory(msg);
       break;
     } else {
-      if (checksum) {
-        CryptoDigestUpdate(checksum, (const uint8_t*)msg, message_length);
-      }
-
-      // Update signing digest if requested
-      if (signing) {
-        CryptoDigestUpdate(signing, (const uint8_t*)msg, message_length);
-      }
-
-      POOLMEM* send_msg = msg;
-      if (options.compress) {
-#if 0
-        auto& c = options.compress.value();
-        std::size_t max_size
-	  = RequiredCompressionOutputBufferSize(c.algo, bufsize);
-        POOLMEM* compressed = GetMemory(max_size);
-
-        auto compressed_length = ThreadlocalCompress(
-						     c.algo, c.level, compressed, max_size, send_msg, message_length);
-
-        if (!compressed_length) {
-          Dmsg1(50, "compression error\n");
-          return false;
-        }
-
-        FreePoolMemory(msg);
-        send_msg = compressed;
-        message_length = compressed_length;
-#endif
-      }
-
-      Dmsg1(130, "Send data to SD len=%d\n", message_length);
-      if (!sctx.send(send_msg, message_length)) { return false; }
+      SendDataToSd(sctx, options, msg, message_length, checksum, signing);
     }
   }
 
   return true;
 }
 
+
+#ifdef HAVE_WIN32
+
+struct efs_callback_context {
+  send_context* sctx;
+  send_options options;
+  DIGEST* checksum;
+  DIGEST* signing;
+};
+// Callback method for ReadEncryptedFileRaw()
+static DWORD WINAPI send_efs_data(PBYTE pbData,
+                                  PVOID pvCallbackContext,
+                                  ULONG ulLength)
+{
+  efs_callback_context* ecc = (efs_callback_context*)pvCallbackContext;
+
+  if (ulLength == 0) { return ERROR_SUCCESS; }
+
+  POOLMEM* mem = GetMemory(ulLength);
+  std::memcpy(mem, pbData, ulLength);
+  if (!SendDataToSd(*ecc->sctx, ecc->options, mem, ulLength, ecc->checksum,
+                    ecc->signing)) {
+    return ERROR_NET_WRITE_FAULT;
+  }
+
+  return ERROR_SUCCESS;
+}
+
+// Send the content of an Encrypted file on an EFS filesystem.
+static inline bool SendEncryptedData(send_context& sctx,
+                                     send_options options,
+                                     BareosFilePacket* bfd,
+                                     DIGEST* checksum,
+                                     DIGEST* signing)
+{
+  bool retval = false;
+
+  if (!p_ReadEncryptedFileRaw) {
+    Jmsg0(bctx.jcr, M_FATAL, 0,
+          _("Encrypted file but no EFS support functions\n"));
+  }
+
+  efs_callback_context ecc = {&sctx, options, checksum, signing};
+  /* The EFS read function, ReadEncryptedFileRaw(), works in a specific way.
+   * You have to give it a function that it calls repeatedly every time the
+   * read buffer is filled.
+   *
+   * So ReadEncryptedFileRaw() will not return until it has read the whole file.
+   */
+  if (p_ReadEncryptedFileRaw((PFE_EXPORT_FUNC)send_efs_data, &ecc,
+                             bfd->pvContext)) {
+    goto bail_out;
+  }
+  retval = true;
+
+bail_out:
+  return retval;
+}
+#endif
+
+struct file_info {
+  bool is_block_file;
+  bool is_encrypted;
+};
+
 bool SendData(send_context& sctx,
               send_options options,
               file_index idx,
               data_stream stream,
               std::size_t bufsize,
+              [[maybe_unused]] file_info finfo,
               BareosFilePacket* bfd,
               DIGEST* checksum,
               DIGEST* signing)
@@ -1040,9 +1154,7 @@ bool SendData(send_context& sctx,
 
   /* Make space at beginning of buffer for fileAddr because this
    *   same buffer will be used for writing if compression is off. */
-  // if (BitIsSet(FO_SPARSE, ff_pkt->flags)
-  //     || BitIsSet(FO_OFFSETS, ff_pkt->flags)) {
-  if (0) {
+  if (options.support_sparse || options.support_offsets) {
 #ifdef HAVE_FREEBSD_OS
     // To read FreeBSD partitions, the read size must be a multiple of 512.
     bufsize = (bufsize / 512) * 512;
@@ -1051,11 +1163,12 @@ bool SendData(send_context& sctx,
 
   // A RAW device read on win32 only works if the buffer is a multiple of 512
 #ifdef HAVE_WIN32
-  // if (S_ISBLK(ff_pkt->statp.st_mode)) { bufsize = (bufsize / 512) * 512; }
+  if (finfo.is_block_file) { bufsize = (bufsize / 512) * 512; }
 
-  // if (ff_pkt->statp.st_rdev & FILE_ATTRIBUTE_ENCRYPTED) {
-  //   if (!SendEncryptedData(bctx)) { goto bail_out; }
-  if (0) {
+  if (finfo.is_encrypted) {
+    if (!SendEncryptedData(sctx, options, bfd, checksum, signing)) {
+      return false;
+    }
   } else {
     if (!SendPlainData(sctx, options, bufsize, bfd, checksum, signing)) {
       return false;
@@ -1226,7 +1339,6 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
   Dmsg1(130, "filed: sending %s to stored\n", bpath.c_str());
 
-
   file_index fi = next_file_index(jcr);
   {
     // encode & send attributes
@@ -1262,8 +1374,15 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
     BareosFilePacket bfd = file->open();
 
-    if (!SendData(sctx, send_options{}, fi, file->stream(), jcr->buf_size, &bfd,
-                  checksum, signing)) {
+
+    file_info finfo = {};
+
+#ifdef HAVE_WIN32
+    finfo.is_block_file = S_ISBLK(file->lstat().st_mode);
+    finfo.is_encrypted = file->lstat().st_rdev & FILE_ATTRIBUTE_ENCRYPTED;
+#endif
+    if (!SendData(sctx, send_options{}, fi, file->stream(), jcr->buf_size,
+                  finfo, &bfd, checksum, signing)) {
       if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
         Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
               sctx.error());
