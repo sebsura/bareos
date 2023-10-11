@@ -2491,6 +2491,7 @@ static inline bool SendDataToSd(b_ctx* bctx)
     ser_declare;
     SerBegin(bctx->wbuf, OFFSET_FADDR_SIZE);
     ser_uint64(bctx->ff_pkt->bfd.offset); /* store offset in begin of buffer */
+    SerEnd(bctx->wbuf, OFFSET_FADDR_SIZE);
   }
 
   bctx->jcr->ReadBytes += sd->message_length; /* count bytes read */
