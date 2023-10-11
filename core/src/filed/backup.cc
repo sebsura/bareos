@@ -2074,6 +2074,13 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 #  if 1
   test_file f{ff_pkt};
 
+  if (f.stream() == data_stream::NONE) {
+    /* This should not happen */
+    Jmsg(jcr, M_FATAL, 0,
+         _("Invalid file flags, no supported data stream type.\n"));
+    return false;
+  }
+
   std::optional<bareos_file_ref> original;
   switch (f.type()) {
     case file_type::JUNCTION:
