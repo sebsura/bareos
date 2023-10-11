@@ -1003,6 +1003,35 @@ static bool SendDataToSd(send_context& sctx,
                          DIGEST* checksum,
                          DIGEST* signing)
 {
+  if (options.discard_empty_blocks) {
+    if (IsBufEmpty(msg, message_length)) { return true; }
+  }
+
+  // Create the buffers
+
+  std::size_t max_length = message_length;
+  POOLMEM* send_msg = msg;
+
+  const char *compr{}, encryptr{}, headerr{};
+  PoolMem header, compressed, encrypted;
+  if (options.compress) {
+#if 0
+    max_length = RequiredCompressionOutputBufferSize(c.algo, max_size);
+    compressed.check_size(max_length);
+    compr = send_msg;
+    send_msg = compressed.addr();
+#endif
+  }
+
+  if (options.encrypt) {
+#if 0
+    max_length = RequiredEncryptLength(max_length);
+#endif
+    encrypted.check_size(max_length);
+    encryptr = send_msg;
+    send_msg = encrypt.addr();
+  }
+
   if (checksum) {
     CryptoDigestUpdate(checksum, (const uint8_t*)msg, message_length);
   }
@@ -1020,8 +1049,9 @@ static bool SendDataToSd(send_context& sctx,
       = RequiredCompressionOutputBufferSize(c.algo, bufsize);
     POOLMEM* compressed = GetMemory(max_size);
 
-    auto compressed_length = ThreadlocalCompress(
-						 c.algo, c.level, compressed, max_size, send_msg, message_length);
+    auto compressed_length = ThreadlocalCompress(c.algo, c.level,
+						 compressed, max_size,
+						 send_msg, message_length);
 
     if (!compressed_length) {
       Dmsg1(50, "compression error\n");
@@ -1032,6 +1062,13 @@ static bool SendDataToSd(send_context& sctx,
     send_msg = compressed;
     message_length = compressed_length;
 #endif
+  }
+
+  if (options.discard_empty_blocks || options.insert_offset) {
+    max_length += OFFSET_FADDR_SIZE;
+    header.check_size(max_length);
+    headerr = send_msg;
+    send_msg = header.addr();
   }
 
   if (options.encrypt) {
