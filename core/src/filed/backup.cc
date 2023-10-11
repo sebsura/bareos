@@ -972,13 +972,21 @@ struct send_options {
     std::size_t buf_size{0};
     POOLMEM* buf{nullptr};
 
+    encryption() = default;
+    encryption(const encryption&) = delete;
+    encryption& operator=(const encryption&) = delete;
+    encryption(encryption&& other) : encryption() { *this = std::move(other); }
+    encryption& operator=(encryption&& other)
+    {
+      std::swap(cipher, other.cipher);
+      std::swap(buf_size, other.buf_size);
+      std::swap(buf, other.buf);
+      return *this;
+    }
     ~encryption()
     {
       if (buf) { FreeAndNullPoolMemory(buf); }
-
-      if (cipher) {
-        // ...
-      }
+      if (cipher) { CryptoCipherFree(cipher); }
     }
   };
 
@@ -989,7 +997,7 @@ struct send_options {
 };
 
 static bool SendDataToSd(send_context& sctx,
-                         send_options options,
+                         send_options& options,
                          POOLMEM* msg,
                          std::size_t message_length,
                          DIGEST* checksum,
@@ -1051,7 +1059,7 @@ static bool SendDataToSd(send_context& sctx,
 }
 
 bool SendPlainData(send_context& sctx,
-                   send_options options,
+                   send_options& options,
                    std::size_t bufsize,
                    BareosFilePacket* bfd,
                    DIGEST* checksum,
@@ -1080,7 +1088,7 @@ bool SendPlainData(send_context& sctx,
 
 struct efs_callback_context {
   send_context* sctx;
-  send_options options;
+  send_options* options;
   DIGEST* checksum;
   DIGEST* signing;
 };
@@ -1095,7 +1103,7 @@ static DWORD WINAPI send_efs_data(PBYTE pbData,
 
   POOLMEM* mem = GetMemory(ulLength);
   std::memcpy(mem, pbData, ulLength);
-  if (!SendDataToSd(*ecc->sctx, ecc->options, mem, ulLength, ecc->checksum,
+  if (!SendDataToSd(*ecc->sctx, *ecc->options, mem, ulLength, ecc->checksum,
                     ecc->signing)) {
     return ERROR_NET_WRITE_FAULT;
   }
@@ -1105,7 +1113,7 @@ static DWORD WINAPI send_efs_data(PBYTE pbData,
 
 // Send the content of an Encrypted file on an EFS filesystem.
 static inline bool SendEncryptedData(send_context& sctx,
-                                     send_options options,
+                                     send_options& options,
                                      BareosFilePacket* bfd,
                                      DIGEST* checksum,
                                      DIGEST* signing)
@@ -1117,7 +1125,7 @@ static inline bool SendEncryptedData(send_context& sctx,
           _("Encrypted file but no EFS support functions\n"));
   }
 
-  efs_callback_context ecc = {&sctx, options, checksum, signing};
+  efs_callback_context ecc = {&sctx, &options, checksum, signing};
   /* The EFS read function, ReadEncryptedFileRaw(), works in a specific way.
    * You have to give it a function that it calls repeatedly every time the
    * read buffer is filled.
@@ -1141,7 +1149,7 @@ struct file_info {
 };
 
 bool SendData(send_context& sctx,
-              send_options options,
+              send_options& options,
               file_index idx,
               data_stream stream,
               std::size_t bufsize,
@@ -1180,6 +1188,18 @@ bool SendData(send_context& sctx,
   }
 #endif
 
+  if (options.encrypt) {
+    uint32_t len = 0;
+    if (!CryptoCipherFinalize(options.encrypt->cipher,
+                              (uint8_t*)options.encrypt->buf, &len)) {
+      return false;
+    }
+
+    auto* buf = options.encrypt->buf;
+    options.encrypt->buf = nullptr;
+    if (!sctx.send(buf, len)) { return false; }
+    // todo update job bytes
+  }
 
   if (!sctx.signal(BNET_EOD)) { return false; }
   return true;
@@ -1291,12 +1311,14 @@ DIGEST* SetupSigning(JobControlRecord* jcr)
 }
 
 struct save_options {
-  bool compress;
-  bool encrypt;
-  bool acl;
-  bool xattr;
+  CRYPTO_SESSION* encrypt{nullptr};    // nullptr == no encryption
+  X509_KEYPAIR* signing_key{nullptr};  // nullptr == no signing
   std::optional<checksum_type> checksum;
-  X509_KEYPAIR* signing_key;
+  bool compress{false};
+  bool acl{false};
+  bool xattr{false};
+  bool support_sparse{false};
+  bool support_offsets{false};
 };
 
 digest_stream DigestStream(DIGEST* digest)
@@ -1318,6 +1340,51 @@ digest_stream DigestStream(DIGEST* digest)
   }
 };
 
+std::optional<send_options::encryption> SetupEncryption(
+    CRYPTO_SESSION* pki_session,
+    std::size_t bufsize)
+{
+  send_options::encryption enc;
+  uint32_t cipher_block_size;
+  enc.cipher = crypto_cipher_new(pki_session, true, &cipher_block_size);
+  if (enc.cipher == nullptr) { return std::nullopt; }
+
+  enc.buf_size = bufsize + sizeof(std::uint32_t) + cipher_block_size;
+  enc.buf = GetMemory(enc.buf_size);
+
+  return enc;
+}
+
+bool SendEncryptionSession(send_context& sctx,
+                           file_index fi,
+                           CRYPTO_SESSION* pki_session)
+{
+  ASSERT(pki_session);
+
+  std::uint32_t size;
+  if (!CryptoSessionEncode(pki_session, nullptr, &size)) {
+    // Jmsg(jcr, M_FATAL, 0,
+    // 	 _("An error occurred while encrypting the stream.\n"));
+    return false;
+  }
+  PoolMem encoded(PM_MESSAGE);
+  encoded.check_size(size);
+  if (!CryptoSessionEncode(pki_session, (uint8_t*)encoded.addr(), &size)) {
+    // Jmsg(jcr, M_FATAL, 0,
+    // 	 _("An error occurred while encrypting the stream.\n"));
+    return false;
+  }
+
+  if (!sctx.format("%ld %d 0", fi.to_underlying(),
+                   STREAM_ENCRYPTED_SESSION_DATA)) {
+    return false;
+  }
+  if (!sctx.send(encoded.release(), size)) { return false; }
+  if (!sctx.signal(BNET_EOD)) { return false; }
+
+  return true;
+}
+
 save_file_result SaveFile(JobControlRecord* jcr,
                           bareos_file* file,
                           std::optional<std::uint32_t> delta_seq,
@@ -1338,6 +1405,18 @@ save_file_result SaveFile(JobControlRecord* jcr,
   std::string bpath(file->bareos_path());
 
   Dmsg1(130, "filed: sending %s to stored\n", bpath.c_str());
+
+  send_options opts{};
+  if (options.encrypt) {
+    if (options.support_sparse || options.support_offsets) {
+      //   Jmsg0(bctx.jcr, M_FATAL, 0,
+      //         _("Encrypting sparse or offset data not supported.\n"));
+      return save_file_result::Error;
+    }
+
+    opts.encrypt = SetupEncryption(options.encrypt, jcr->buf_size);
+    if (!opts.encrypt) { return save_file_result::Error; }
+  }
 
   file_index fi = next_file_index(jcr);
   {
@@ -1361,6 +1440,7 @@ save_file_result SaveFile(JobControlRecord* jcr,
   }
 
   if (file->has_data()) {
+    if (options.encrypt) { SendEncryptionSession(sctx, fi, options.encrypt); }
     // todo: this should be an raii type
     DIGEST *checksum = nullptr, *signing = nullptr;
     if (options.checksum) {
@@ -1381,8 +1461,8 @@ save_file_result SaveFile(JobControlRecord* jcr,
     finfo.is_block_file = S_ISBLK(file->lstat().st_mode);
     finfo.is_encrypted = file->lstat().st_rdev & FILE_ATTRIBUTE_ENCRYPTED;
 #endif
-    if (!SendData(sctx, send_options{}, fi, file->stream(), jcr->buf_size,
-                  finfo, &bfd, checksum, signing)) {
+    if (!SendData(sctx, opts, fi, file->stream(), jcr->buf_size, finfo, &bfd,
+                  checksum, signing)) {
       if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
         Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
               sctx.error());
@@ -1962,14 +2042,34 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     chk = checksum_type::XXH128;
   }
 
+  // todo: there are a lot of incompatible options
+  //       we have to take care to take this into consideration.
+  //       For example even if pki_session exists, we cannot encrypt
+  //       sparse files, but we still need to send the session data.
+  //       So we need more than one encrypt option (encrypt and
+  //       encrypt_data).
+  //       Etc...
   auto opts = save_options{
+      .encrypt = jcr->fd_impl->crypto.pki_session,
+      .signing_key = jcr->fd_impl->crypto.pki_keypair,
+      .checksum = chk,
       .compress = BitIsSet(FO_COMPRESS, ff_pkt->flags),
-      .encrypt = BitIsSet(FO_ENCRYPT, ff_pkt->flags),
       .acl = BitIsSet(FO_ACL, ff_pkt->flags),
       .xattr = BitIsSet(FO_XATTR, ff_pkt->flags),
-      .checksum = chk,
-      .signing_key = jcr->fd_impl->crypto.pki_keypair,
+      .support_sparse = BitIsSet(FO_SPARSE, ff_pkt->flags),
+      .support_offsets = BitIsSet(FO_OFFSETS, ff_pkt->flags),
   };
+
+  if (opts.encrypt) { SetBit(FO_ENCRYPT, ff_pkt->flags); }
+
+  // if (BitIsSet(FO_ENCRYPT, ff_pkt->flags)) {
+  //   opts.encrypt = jcr->fd_impl->crypto.pki_session;
+  //   if (opts.encrypt == nullptr) {
+  //     Jmsg(jcr, M_FATAL, 0,
+  //          _("Encryption requested but no pki session not set.\n"));
+  //     return -1;
+  //   }
+  // }
 
 #  if 1
   test_file f{ff_pkt};
