@@ -87,6 +87,11 @@ int SelectDataStream(FindFilesPacket* ff_pkt)
 
   // No sparse option for encrypted data
   if (BitIsSet(FO_ENCRYPT, ff_pkt->flags)) {
+    if (BitIsSet(FO_OFFSETS, ff_pkt->flags)) {
+      // encryption + offsets is not supported,
+      // and offsets may not be turned off.
+      return STREAM_NONE;
+    }
     ClearBit(FO_SPARSE, ff_pkt->flags);
   }
 
@@ -96,10 +101,11 @@ int SelectDataStream(FindFilesPacket* ff_pkt)
     ClearBit(FO_SPARSE, ff_pkt->flags);
   } else if (BitIsSet(FO_SPARSE, ff_pkt->flags)) {
     stream = STREAM_SPARSE_DATA;
+  } else if (BitIsSet(FO_OFFSETS, ff_pkt->flags)) {
+    stream = STREAM_SPARSE_DATA;
   } else {
     stream = STREAM_FILE_DATA;
   }
-  if (BitIsSet(FO_OFFSETS, ff_pkt->flags)) { stream = STREAM_SPARSE_DATA; }
 
   // Encryption is only supported for file data
   if (stream != STREAM_FILE_DATA && stream != STREAM_WIN32_DATA
