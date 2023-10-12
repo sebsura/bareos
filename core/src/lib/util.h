@@ -94,7 +94,7 @@ void to_lower(std::string& s);
 //               or std::expected<T, std::string>
 template <typename T> class result {
  public:
-  constexpr result() : data{1, "Not Initialized"} {}
+  constexpr result() : data{std::in_place_index<1>, "Not Initialized"} {}
 
   template <typename Arg0, typename... Args>
   constexpr result(Arg0 arg0, Args... args)
