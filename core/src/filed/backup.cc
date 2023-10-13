@@ -1261,11 +1261,24 @@ static inline bool SendPlainData(b_ctx& bctx)
 
       bool unsized_file
           = (file_type == FT_RAW || file_type == FT_FIFO) && (file_size == 0);
+
+      /* This is looks weird but this is the idea:
+       * If we sparse is enabled and the block is just zero, we want to skip it;
+       * but we need to recover the file size on restore, so we need to
+       * at least always send the last block to the sd regardless of its
+       * contents (This is the `< file_size` check) For unsized raw/fifo files,
+       * we do not[1] recover the correct file size with sparse enabled on a
+       * restore, so we skip the test.
+       *
+       * [1] Not sure why this was decided on.  Maybe there was specific use
+       *     case in mind when this was decided;  I would have expected us to
+       *     disable SPARSE in that case and continue on as normal.
+       */
       if (support_sparse
           && ((msg.data_size() == max_buf_size
-               && (bytes_read + max_buf_size < (uint64_t)file_size))
+               && (msg.data_size() + max_buf_size < (uint64_t)file_size))
               || unsized_file)
-          && IsBufZero(msg.data_ptr(), max_buf_size)) {
+          && IsBufZero(msg.data_ptr(), msg.data_size())) {
         skip_block = true;
       } else if (include_header) {
         msg.set_header(header);
