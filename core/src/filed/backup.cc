@@ -1255,6 +1255,7 @@ static inline bool SendPlainData(b_ctx& bctx)
     for (bool skip_block = true; skip_block;) {
       skip_block = false;
       ssize_t read_bytes = bread(&bfd, msg.data_ptr(), msg.data_size());
+      // update offset _before_ sending the header
       offset = bfd.offset;
 
       if (read_bytes <= 0) { goto end_read_loop; }
@@ -1286,6 +1287,7 @@ static inline bool SendPlainData(b_ctx& bctx)
         msg.set_header(header);
       }
 
+      // update bytes_read _after_ sending the header
       bytes_read += read_bytes;
     }
     ASSERT(msg.data_size() > 0);
@@ -1296,23 +1298,19 @@ static inline bool SendPlainData(b_ctx& bctx)
       // updating the digest has to be done serially
       // so we have to wait until the last task is finished
       // before issuing a new one.
-      update_digest->wait();
+      update_digest->get();
     }
 
     if (checksum || signing) {
       update_digest.emplace(
           compute_group.submit([checksum, signing, shared_msg]() mutable {
+            auto* data = reinterpret_cast<const uint8_t*>(shared_msg->data_ptr());
+            auto size = shared_msg->data_size();
             // Update checksum if requested
-            if (checksum) {
-              CryptoDigestUpdate(checksum, (uint8_t*)shared_msg->data_ptr(),
-                                 shared_msg->data_size());
-            }
+            if (checksum) { CryptoDigestUpdate(checksum, data, size); }
 
             // Update signing digest if requested
-            if (signing) {
-              CryptoDigestUpdate(signing, (uint8_t*)shared_msg->data_ptr(),
-                                 shared_msg->data_size());
-            }
+            if (signing) { CryptoDigestUpdate(signing, data, size); }
           }));
     }
 
@@ -1376,7 +1374,7 @@ bail_out:
   compute_group.shutdown();
   latch.lock().wait(compute_fin, [](int num) { return num == 0; });
   in.close();
-  if (update_digest) { update_digest->wait(); }
+  if (update_digest) { update_digest->get(); }
   result sendres = bytes_send_fut.get();
   if (auto* error = sendres.error()) {
     if (!bctx.jcr->IsJobCanceled()) {
