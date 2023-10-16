@@ -1051,16 +1051,19 @@ static result<std::size_t> SendData(BareosSocket* sd,
 }
 
 class data_message {
-  // some data is prefixed by a OFFSET_FADDR_SIZE-byte number -- called header
-  // here, which basically contains the file position to which to write the
-  // following block of data.
-  // The difference between FADDR and OFFSET is that offset may be any value
-  // (given to the core by a plugin), whereas FADDR is computed by the core
-  // itself and is equal to the number of bytes already read from the file desc.
+  /* some data is prefixed by a OFFSET_FADDR_SIZE-byte number -- called header
+   * here, which basically contains the file position to which to write the
+   * following block of data.
+   * The difference between FADDR and OFFSET is that offset may be any value
+   * (given to the core by a plugin), whereas FADDR is computed by the core
+   * itself and is equal to the number of bytes already read from the file
+   * descriptor. */
   static inline constexpr std::size_t header_size = OFFSET_FADDR_SIZE;
-  // our bsocket functions assume that they are allowed to overwrite
-  // the four bytes directly preceding the given buffer
-  static inline constexpr std::size_t bnet_size = sizeof(std::uint32_t);
+  /* our bsocket functions assume that they are allowed to overwrite
+   * the four bytes directly preceding the given buffer
+   * To keep the message alignment to 8, we "allocate" full 8 bytes instead
+   * of the required 4. */
+  static inline constexpr std::size_t bnet_size = 8;
   static inline constexpr std::size_t data_offset = header_size + bnet_size;
 
   std::vector<char> buffer{};
@@ -1335,6 +1338,7 @@ static inline bool SendPlainData(b_ctx& bctx)
           && ((msg.data_size() == max_buf_size
                && (msg.data_size() + max_buf_size < (uint64_t)file_size))
               || unsized_file)
+          // IsBufZero actually requires 8 bytes of alignment
           && IsBufZero(msg.data_ptr(), msg.data_size())) {
         skip_block = true;
       } else if (include_header) {
