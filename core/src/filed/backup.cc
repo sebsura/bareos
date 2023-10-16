@@ -1051,8 +1051,8 @@ static result<std::size_t> SendData(BareosSocket* sd,
 }
 
 class data_message {
-  // some data is prefixed by a OFFSET_FADDR_SIZE-byte number,
-  // which basically contains the file position to which to append the
+  // some data is prefixed by a OFFSET_FADDR_SIZE-byte number -- called header
+  // here, which basically contains the file position to which to write the
   // following block of data.
   // The difference between FADDR and OFFSET is that offset may be any value
   // (given to the core by a plugin), whereas FADDR is computed by the core
