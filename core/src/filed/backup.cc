@@ -1244,7 +1244,7 @@ static inline bool SendPlainData(b_ctx& bctx)
   if (BitIsSet(FO_ENCRYPT, flags)) { return SendPlainDataSerially(bctx); }
 
   // Setting up the parallel pipeline is not worth it for small files.
-  if (file_size < static_cast<ssize_t>(2 * max_buf_size)) {
+  if (static_cast<std::size_t>(file_size) < 2 * max_buf_size) {
     return SendPlainDataSerially(bctx);
   }
 
