@@ -996,85 +996,148 @@ struct send_options {
   bool insert_file_offsets;
 };
 
+class data_message {
+  /* some data is prefixed by a OFFSET_FADDR_SIZE-byte number -- called header
+   * here, which basically contains the file position to which to write the
+   * following block of data.
+   * The difference between FADDR and OFFSET is that offset may be any value
+   * (given to the core by a plugin), whereas FADDR is computed by the core
+   * itself and is equal to the number of bytes already read from the file
+   * descriptor. */
+  static inline constexpr std::size_t header_size = OFFSET_FADDR_SIZE;
+  /* our bsocket functions assume that they are allowed to overwrite
+   * the four bytes directly preceding the given buffer
+   * To keep the message alignment to 8, we "allocate" full 8 bytes instead
+   * of the required 4. */
+  static inline constexpr std::size_t bnet_size = 8;
+  static inline constexpr std::size_t data_offset = header_size + bnet_size;
+
+  std::vector<char> buffer{};
+  bool has_header{false};
+
+ public:
+  data_message(std::size_t data_size)
+  {
+    buffer.resize(data_size + data_offset);
+  }
+  data_message() : data_message(0) {}
+  data_message(const data_message&) = delete;
+  data_message& operator=(const data_message&) = delete;
+  data_message(data_message&&) = default;
+  data_message& operator=(data_message&&) = default;
+
+  // creates a message with the same header -- if any
+  data_message derived(std::size_t size = 0) const
+  {
+    data_message derived(size);
+
+    if (has_header) {
+      derived.has_header = true;
+      std::memcpy(derived.header_ptr(), header_ptr(), header_size);
+    }
+
+    return derived;
+  }
+
+  void set_header(std::uint64_t h)
+  {
+    has_header = true;
+    auto* ptr = header_ptr();
+    std::memcpy(ptr, &h, header_size);
+
+    for (std::size_t i = 0; i < header_size / 2; ++i) {
+      std::swap(ptr[i], ptr[header_size - 1 - i]);
+    }
+  }
+
+  void resize(std::size_t new_size) { buffer.resize(data_offset + new_size); }
+
+  char* header_ptr() { return &buffer[bnet_size]; }
+  char* data_ptr() { return &buffer[bnet_size + header_size]; }
+  const char* header_ptr() const { return &buffer[bnet_size]; }
+  const char* data_ptr() const { return &buffer[bnet_size + header_size]; }
+
+  std::size_t data_size() const
+  {
+    ASSERT(buffer.size() >= data_offset);
+    return buffer.size() - data_offset;
+  }
+
+  std::pair<POOLMEM*, std::size_t> transmute_to_message()
+  {
+    auto size = message_size();
+    POOLMEM* mem = GetMemory(size);
+
+    std::memcpy(mem, as_socket_message(), size);
+
+    return {mem, size};
+  }
+  /* important: this is not actually a POOLMEM*; do not pass it to POOLMEM*
+   *            functions, except to pass it to BareosSocket::SendData(). */
+  POOLMEM* as_socket_message() const
+  {
+    if (has_header) {
+      return const_cast<char*>(header_ptr());
+    } else {
+      return const_cast<char*>(data_ptr());
+    }
+  }
+
+  std::size_t message_size() const
+  {
+    auto size_with_header = buffer.size() - bnet_size;
+    if (has_header) {
+      return size_with_header;
+    } else {
+      return size_with_header - header_size;
+    }
+  }
+};
+
 static bool SendDataToSd(send_context& sctx,
                          send_options& options,
-                         POOLMEM* msg,
-                         std::size_t message_length,
+                         data_message msg,
                          DIGEST* checksum,
                          DIGEST* signing)
 {
-  if (options.discard_empty_blocks) {
-    if (IsBufEmpty(msg, message_length)) { return true; }
+  {
+    auto* ptr = reinterpret_cast<const uint8_t*>(msg.data_ptr());
+    auto length = msg.data_size();
+
+    // Update checksum digest if requested
+    if (checksum) { CryptoDigestUpdate(checksum, ptr, length); }
+
+    // Update signing digest if requested
+    if (signing) { CryptoDigestUpdate(signing, ptr, length); }
   }
 
-  // Create the buffers
-
-  std::size_t max_length = message_length;
-  POOLMEM* send_msg = msg;
-
-  const char *compr{}, encryptr{}, headerr{};
-  PoolMem header, compressed, encrypted;
-  if (options.compress) {
-#if 0
-    max_length = RequiredCompressionOutputBufferSize(c.algo, max_size);
-    compressed.check_size(max_length);
-    compr = send_msg;
-    send_msg = compressed.addr();
-#endif
-  }
-
-  if (options.encrypt) {
-#if 0
-    max_length = RequiredEncryptLength(max_length);
-#endif
-    encrypted.check_size(max_length);
-    encryptr = send_msg;
-    send_msg = encrypt.addr();
-  }
-
-  if (checksum) {
-    CryptoDigestUpdate(checksum, (const uint8_t*)msg, message_length);
-  }
-
-  // Update signing digest if requested
-  if (signing) {
-    CryptoDigestUpdate(signing, (const uint8_t*)msg, message_length);
-  }
-
-  POOLMEM* send_msg = msg;
   if (options.compress) {
 #if 0
     auto& c = options.compress.value();
     std::size_t max_size
-      = RequiredCompressionOutputBufferSize(c.algo, bufsize);
-    POOLMEM* compressed = GetMemory(max_size);
+      = RequiredCompressionOutputBufferSize(c.algo, msg.data_size());
+
+    auto der = msg.derived(max_size);
 
     auto compressed_length = ThreadlocalCompress(c.algo, c.level,
-						 compressed, max_size,
-						 send_msg, message_length);
+						 der.data_ptr(), der.data_size(),
+						 msg.data_ptr(), msg.data_size());
 
     if (!compressed_length) {
       Dmsg1(50, "compression error\n");
       return false;
     }
 
-    FreePoolMemory(msg);
-    send_msg = compressed;
-    message_length = compressed_length;
+    msg = der;
 #endif
   }
 
-  if (options.discard_empty_blocks || options.insert_offset) {
-    max_length += OFFSET_FADDR_SIZE;
-    header.check_size(max_length);
-    headerr = send_msg;
-    send_msg = header.addr();
-  }
-
+  POOLMEM* data{nullptr};
+  std::size_t size{0};
   if (options.encrypt) {
     std::int64_t res
-        = EncryptData(options.encrypt->cipher, options.encrypt->buf, send_msg,
-                      message_length);
+        = EncryptData(options.encrypt->cipher, options.encrypt->buf,
+                      msg.data_ptr(), msg.data_size());
 
     if (res < 0) {
       // encryption error
@@ -1085,14 +1148,15 @@ static bool SendDataToSd(send_context& sctx,
       return true;  // too little data, nothing to send
     }
 
-    FreePoolMemory(send_msg);
-    send_msg = options.encrypt->buf;
-    message_length = res;
+    data = options.encrypt->buf;
+    size = res;
     options.encrypt->buf = GetMemory(options.encrypt->buf_size);
+  } else {
+    std::tie(data, size) = msg.transmute_to_message();
   }
 
-  Dmsg1(130, "Send data to SD len=%d\n", message_length);
-  return sctx.send(send_msg, message_length);
+  Dmsg1(130, "Send data to SD len=%d\n", size);
+  return sctx.send(data, size);
 }
 
 bool SendPlainData(send_context& sctx,
@@ -1103,18 +1167,30 @@ bool SendPlainData(send_context& sctx,
                    DIGEST* signing)
 {
   // Read the file data
+  data_message msg(bufsize);
+  std::size_t bytes_read = 0;
   for (;;) {
-    POOLMEM* msg = GetMemory(bufsize);
-    auto message_length = bread(bfd, msg, bufsize);
+    auto message_length = bread(bfd, msg.data_ptr(), msg.data_size());
     if (message_length < 0) {
-      FreePoolMemory(msg);
       return false;
     } else if (message_length == 0) {
-      FreePoolMemory(msg);
       break;
     } else {
-      SendDataToSd(sctx, options, msg, message_length, checksum, signing);
+      if (options.discard_empty_blocks) {
+        if (IsBufZero(msg.data_ptr(), message_length)) {
+          continue;
+        } else {
+          msg.set_header(bytes_read);
+        }
+      } else if (options.insert_file_offsets) {
+        msg.set_header(bfd->offset);
+      }
+
+      msg.resize(bufsize);
+      SendDataToSd(sctx, options, std::move(msg), checksum, signing);
+      msg = data_message(bufsize);
     }
+    bytes_read += message_length;
   }
 
   return true;
