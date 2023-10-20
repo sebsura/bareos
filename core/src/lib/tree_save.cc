@@ -20,6 +20,8 @@
 */
 
 #include "lib/tree_save.h"
+#include "lib/attribs.h"
+#include "lib/edit.h"
 
 #include <cstring>
 
@@ -576,4 +578,317 @@ TREE_ROOT* LoadTree(const char* path, std::size_t* size, bool marked_initially)
     *size = 0;
     return nullptr;
   }
+}
+
+
+
+//------------------------------------------------------------------------------
+
+struct job_node_data
+{
+  int32_t findex;
+  std::size_t stat_idx;
+  int32_t delta_seq;
+  int32_t fhinfo;
+  int32_t fhnode;
+  int32_t linkfi;
+};
+
+struct job_node
+{
+  std::string_view name;
+  std::unordered_map<std::string_view, std::size_t> children;
+  // data may not exist if its a "new dir"
+  std::optional<job_node_data> data;
+
+  job_node() = default;
+  job_node(job_node&&) = default;
+  job_node& operator=(job_node&&) = default;
+  job_node(const job_node&) = delete;
+  job_node& operator=(const job_node&) = delete;
+};
+
+struct path_iter
+{
+  std::string_view path;
+  std::string_view rest;
+
+  path_iter(std::string_view v)
+  {
+    auto pos = v.find('/');
+
+    path = v.substr(0, pos);
+    if (pos < v.size()) {
+      rest = v.substr(pos + 1);
+    } else {
+      rest = v.substr(v.size());
+    }
+  }
+
+  bool operator==(const path_iter& iter) {
+    return path == iter.path && rest == iter.rest;
+  }
+
+  bool operator!=(const path_iter& iter) {
+    return !(*this == iter);
+  }
+
+  std::string_view operator*() {
+    return path;
+  }
+
+  void operator++() {
+    auto pos = rest.find('/');
+
+    path = rest.substr(0, pos);
+    if (pos < rest.size()) {
+      rest = rest.substr(pos + 1);
+    } else {
+      rest = rest.substr(rest.size());
+    }
+
+  }
+
+  static path_iter begin(std::string_view v) {
+    return path_iter{v};
+  }
+
+  static path_iter end(std::string_view v) {
+    return path_iter{v.substr(v.size())};
+  }
+};
+
+struct tree_iter
+{
+  // always "points" to a directory
+  std::vector<std::pair<std::string_view, std::size_t>> stack;
+
+  std::size_t Goto(path_iter& current, path_iter end) {
+    auto cstack = stack.begin();
+    auto estack = stack.end();
+    std::size_t cptr = 0; // root
+    for (;;) {
+      if (cstack == estack) {
+	return cptr;
+      }
+      if (current == end) {
+	// pop stack now
+	stack.resize(cstack - stack.begin());
+	return cptr;
+      }
+      if (*current != cstack->first) { return cptr; }
+      cptr = cstack->second;
+      ++cstack;
+      ++current;
+    }
+  }
+
+  void Push(std::string_view name, std::size_t idx) {
+    stack.emplace_back(name, idx);
+  }
+};
+
+struct string_allocator
+{
+  struct block {
+    std::size_t cap{0};
+    std::size_t filled{0};
+    std::unique_ptr<char[]> buffer{0};
+
+    block() = default;
+    block(std::size_t capacity) : cap{capacity}
+				, buffer{std::make_unique<char[]>(capacity)}
+    {
+    }
+
+    block(const block&) = delete;
+    block& operator=(const block&) = delete;
+    block(block&&) = default;
+    block& operator=(block&&) = default;
+
+    std::size_t size() const { return cap - filled; }
+    char* allocate(std::size_t s) {
+      ASSERT(s <= size());
+      char* mem = &buffer.get()[filled];
+      filled += s;
+      return mem;
+    }
+  };
+
+  static inline constexpr std::size_t default_size = 10 * 1024 * 1024;
+  std::vector<block> blocks{};
+
+  std::string_view save(std::string_view s)
+  {
+    if (blocks.empty() || blocks.back().size() < s.size()) {
+      if (s.size() > default_size) {
+	blocks.emplace_back(s.size() * 2);
+      }
+      blocks.emplace_back(default_size);
+    }
+
+    char* mem = blocks.back().allocate(s.size());
+    std::memcpy(mem, s.data(), s.size());
+    return {mem, s.size()};
+  }
+};
+
+struct job_tree_builder
+{
+  string_allocator alloc;
+  std::uint32_t jobid{0};
+  std::vector<job_node> nodes{};
+  std::vector<struct stat> stats{};
+  tree_iter iter{};
+
+  job_tree_builder()
+  {
+    nodes.emplace_back();
+    iter.Push("", 0);
+  }
+
+  std::size_t root() {
+    return 0;
+  }
+
+  std::size_t MakeNode(std::string_view name) {
+    auto idx = nodes.size();
+
+    nodes.emplace_back().name = alloc.save(name);
+
+    return idx;
+  }
+
+  std::size_t Goto(std::string_view path)
+  {
+    auto current = path_iter::begin(path);
+    auto end     = path_iter::end(path);
+    auto idx = iter.Goto(current, end);
+
+    if (current == end) {
+      return idx;
+    }
+
+    //TODO: need to create nodes current .. end
+    //      and add them to the iter stack
+    while (current != end) {
+      auto [child_name, child_idx] = InsertOrGet(idx, *current);
+
+      idx = child_idx;
+
+      iter.Push(child_name, child_idx);
+      ++current;
+    }
+    return idx;
+  }
+
+  std::pair<std::string_view, std::size_t> InsertOrGet(std::size_t idx,
+						       std::string_view name)
+  {
+    auto& children = nodes[idx].children;
+    auto iter = children.find(name);
+    if (iter != children.end()) {
+      return { iter->first, iter->second };
+    }
+
+    auto new_idx = MakeNode(name);
+    {
+      auto& children = nodes[idx].children;
+      auto new_iter = children.emplace_hint(iter,
+					    std::string_view{nodes[new_idx].name},
+					    new_idx);
+
+      return { new_iter->first, new_iter->second };
+    }
+
+  }
+
+  std::pair<job_node*, bool> Insert(std::size_t idx, std::string_view name)
+  {
+    auto& children = nodes[idx].children;
+    auto iter = children.find(name);
+    if (iter != children.end()) {
+      return { &nodes[iter->second], false };
+    }
+
+    auto new_idx = MakeNode(name);
+    {
+      auto& children = nodes[idx].children;
+      children.emplace_hint(iter, std::string_view{nodes[new_idx].name},
+			    new_idx);
+
+      return { &nodes[new_idx], true };
+    }
+
+  }
+};
+
+void DeleteTreeBuilder::operator()(job_tree_builder* ptr) {
+  delete ptr;
+}
+
+std::unique_ptr<job_tree_builder, DeleteTreeBuilder> MakeTreeBuilder() {
+  return {new job_tree_builder{}, {}};
+}
+
+int job_tree_builder_cb(void* tree_builder, int num_cols, char** row) {
+ /* row[0]=Path, row[1]=Filename, row[2]=FileIndex
+  * row[3]=JobId row[4]=LStat row[5]=DeltaSeq row[6]=Fhinfo row[7]=Fhnode */
+
+  ASSERT(num_cols == 8);
+  auto* builder = reinterpret_cast<job_tree_builder*>(tree_builder);
+
+  std::string_view Path = row[0];
+  std::string_view File = row[1];
+
+  auto parent = builder->Goto(Path);
+  auto [node, inserted] = builder->Insert(parent, File);
+  // since we only look at a single job, we may not encounter a single
+  // file twice
+  ASSERT(inserted);
+
+  std::size_t stat_idx = builder->stats.size();
+  auto& statp = builder->stats.emplace_back();
+  int32_t LinkFI;
+  DecodeStat(row[4], &statp, sizeof(statp), &LinkFI);
+  uint32_t JobId = str_to_int64(row[3]);
+  int32_t FileIndex = str_to_int64(row[2]);
+  int32_t delta_seq = str_to_int64(row[5]);
+  int32_t fhinfo = str_to_int64(row[6]);
+  int32_t fhnode = str_to_int64(row[7]);
+  node->data = job_node_data{FileIndex, stat_idx, delta_seq,
+			     fhinfo, fhnode, LinkFI};
+
+  if (builder->jobid == 0) {
+    builder->jobid = JobId;
+  } else {
+    ASSERT(builder->jobid == JobId);
+  }
+
+  return 0;
+}
+
+// idea:
+
+#if 0
+struct job_tree {
+};
+
+struct versioned_tree {
+  void AddVersion(job_tree&& tree) {
+
+  }
+};
+#endif
+
+#include <iostream>
+
+std::size_t num_nodes(job_tree_builder* builder)
+{
+  std::size_t i = 0;
+  for (auto& b : builder->alloc.blocks) {
+    i += b.size();
+  }
+  std::cout << i  << std::endl;
+  return builder->nodes.size();
 }

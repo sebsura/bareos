@@ -28,6 +28,19 @@
 
 #include "lib/tree.h"
 
+#include <memory>
+
+class job_tree_builder;
+
+struct DeleteTreeBuilder {
+  void operator()(job_tree_builder*);
+};
+std::unique_ptr<job_tree_builder, DeleteTreeBuilder> MakeTreeBuilder();
+
+int job_tree_builder_cb(void* tree_builder, int num_cols, char** row);
+
+std::size_t num_nodes(job_tree_builder* builder);
+
 bool SaveTree(const char *path, TREE_ROOT* root);
 TREE_ROOT* LoadTree(const char *path, std::size_t* size, bool mark_on_load);
 

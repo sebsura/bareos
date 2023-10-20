@@ -1205,6 +1205,13 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
     auto *loaded_tree = LoadTree(path.c_str(), &tree_size, tree.all);
 
     if (!loaded_tree) {
+      std::unique_ptr builder = MakeTreeBuilder();
+      if (!ua->db->GetFileList(ua->jcr, rx->JobIds, false /* do not use md5 */,
+			       true /* get delta */, job_tree_builder_cb,
+			       (void*) builder.get())) {
+	ua->ErrorMsg("%s", ua->db->strerror());
+      }
+
       if (!ua->db->GetFileList(ua->jcr, rx->JobIds, false /* do not use md5 */,
 			       true /* get delta */, InsertTreeHandler,
 			       (void*)&tree)) {
