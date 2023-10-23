@@ -226,7 +226,7 @@
         "MaximumWorkersPerJob": {
           "datatype": "PINT32",
           "code": 0,
-          "default_value": "1",
+          "default_value": "2",
           "equals": true
         },
         "Messages": {
@@ -502,7 +502,7 @@
         "MaximumWorkersPerJob": {
           "datatype": "PINT32",
           "code": 0,
-          "default_value": "1",
+          "default_value": "2",
           "equals": true
         },
         "Messages": {
