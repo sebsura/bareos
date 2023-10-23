@@ -1105,9 +1105,9 @@ class data_message {
   void resize(std::size_t new_size) { buffer.resize(data_offset + new_size); }
 
   char* header_ptr() { return &buffer[bnet_size]; }
-  char* data_ptr() { return &buffer[bnet_size + header_size]; }
+  char* data_ptr() { return &buffer[data_offset]; }
   const char* header_ptr() const { return &buffer[bnet_size]; }
-  const char* data_ptr() const { return &buffer[bnet_size + header_size]; }
+  const char* data_ptr() const { return &buffer[data_offset]; }
 
   std::size_t data_size() const
   {
