@@ -22,6 +22,7 @@
 #include "lib/tree_save.h"
 #include "lib/attribs.h"
 #include "lib/edit.h"
+#include "lib/robin_hood.h"
 
 #include <cstring>
 
@@ -584,20 +585,20 @@ TREE_ROOT* LoadTree(const char* path, std::size_t* size, bool marked_initially)
 
 //------------------------------------------------------------------------------
 
-struct job_node_data
-{
-  int32_t findex;
-  std::size_t stat_idx;
-  int32_t delta_seq;
-  int32_t fhinfo;
-  int32_t fhnode;
-  int32_t linkfi;
-};
+// struct job_node_data
+// {
+//   int32_t findex;
+//   std::size_t stat_idx;
+//   int32_t delta_seq;
+//   int32_t fhinfo;
+//   int32_t fhnode;
+//   int32_t linkfi;
+// };
 
 struct job_node
 {
   std::string_view name;
-  std::unordered_map<std::string_view, std::size_t> children;
+  robin_hood::unordered_flat_map<std::string_view, std::size_t> children;
   // data may not exist if its a "new dir"
   std::optional<job_node_data> data;
 
@@ -713,6 +714,8 @@ struct string_allocator
       filled += s;
       return mem;
     }
+
+    std::size_t used() const { return filled; }
   };
 
   static inline constexpr std::size_t default_size = 10 * 1024 * 1024;
@@ -741,10 +744,12 @@ struct job_tree_builder
   std::vector<struct stat> stats{};
   tree_iter iter{};
 
-  job_tree_builder()
+  job_tree_builder(std::size_t capacity)
   {
     nodes.emplace_back();
     iter.Push("", 0);
+    nodes.reserve(capacity);
+    stats.reserve(capacity);
   }
 
   std::size_t root() {
@@ -785,22 +790,16 @@ struct job_tree_builder
   std::pair<std::string_view, std::size_t> InsertOrGet(std::size_t idx,
 						       std::string_view name)
   {
-    auto& children = nodes[idx].children;
-    auto iter = children.find(name);
-    if (iter != children.end()) {
-      return { iter->first, iter->second };
-    }
-
     auto new_idx = MakeNode(name);
-    {
-      auto& children = nodes[idx].children;
-      auto new_iter = children.emplace_hint(iter,
-					    std::string_view{nodes[new_idx].name},
-					    new_idx);
+    auto& children = nodes[idx].children;
+    auto [iter, inserted] = children.emplace(nodes[new_idx].name,
+					     new_idx);
 
-      return { new_iter->first, new_iter->second };
+    if (!inserted) {
+      nodes.pop_back();
     }
 
+    return { iter->first, iter->second };
   }
 
   std::pair<job_node*, bool> Insert(std::size_t idx, std::string_view name)
@@ -827,8 +826,9 @@ void DeleteTreeBuilder::operator()(job_tree_builder* ptr) {
   delete ptr;
 }
 
-std::unique_ptr<job_tree_builder, DeleteTreeBuilder> MakeTreeBuilder() {
-  return {new job_tree_builder{}, {}};
+std::unique_ptr<job_tree_builder, DeleteTreeBuilder> MakeTreeBuilder(
+								     std::size_t capacity) {
+  return {new job_tree_builder{capacity}, {}};
 }
 
 int job_tree_builder_cb(void* tree_builder, int num_cols, char** row) {
@@ -887,8 +887,38 @@ std::size_t num_nodes(job_tree_builder* builder)
 {
   std::size_t i = 0;
   for (auto& b : builder->alloc.blocks) {
-    i += b.size();
+    i += b.used();
   }
-  std::cout << i  << std::endl;
+  std::cout << i << std::endl;
   return builder->nodes.size();
+}
+
+void insert(void* datap, int, char **row)
+{
+  my_data& data = *(my_data*) datap;
+
+  std::string_view Path = row[0];
+  std::string_view File = row[1];
+
+  std::size_t stat_idx = data.stats.size();
+  auto& statp = data.stats.emplace_back();
+  int32_t LinkFI;
+  DecodeStat(row[4], &statp, sizeof(statp), &LinkFI);
+  data.jobid = str_to_int64(row[3]);
+  int32_t FileIndex = str_to_int64(row[2]);
+  int32_t delta_seq = str_to_int64(row[5]);
+  int32_t fhinfo = str_to_int64(row[6]);
+  int32_t fhnode = str_to_int64(row[7]);
+
+  data.nodes.push_back(job_node_data{FileIndex, stat_idx, delta_seq,
+				    fhinfo, fhnode, LinkFI});
+
+  data.names.emplace_back(Path) += File;
+}
+
+#include <execution>
+
+void finish(my_data& data)
+{
+  std::sort(std::execution::par_unseq, data.names.begin(), data.names.end());
 }
