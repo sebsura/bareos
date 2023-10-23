@@ -1238,7 +1238,7 @@ static inline bool SendPlainData(b_ctx& bctx)
   auto file_size = bctx.ff_pkt->statp.st_size;
   auto* flags = bctx.ff_pkt->flags;
 
-  const std::size_t num_workers = me->MaxWorkerThreads;
+  const std::size_t num_workers = me->MaxWorkersPerJob;
   // Currently we do not support encryption while doing
   // parallel sending/checksumming/compression/etc.
   // This is mostly because EncryptData() is weird!
