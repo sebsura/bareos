@@ -1117,12 +1117,12 @@ class data_message {
 
   /* important: this is not actually a POOLMEM*; do not pass it to POOLMEM*
    *            functions, except to pass it to BareosSocket::SendData(). */
-  POOLMEM* as_socket_message() const
+  POOLMEM* as_socket_message()
   {
     if (has_header) {
-      return const_cast<char*>(header_ptr());
+      return header_ptr();
     } else {
-      return const_cast<char*>(data_ptr());
+      return data_ptr();
     }
   }
 
@@ -1137,7 +1137,7 @@ class data_message {
   }
 };
 
-using shared_message = std::shared_ptr<const data_message>;
+using shared_message = std::shared_ptr<data_message>;
 
 static std::future<result<std::size_t>> MakeSendThread(
     thread_pool& pool,
