@@ -90,8 +90,7 @@ static date::sys_time<std::chrono::milliseconds> parse8601(std::istream&& is,
 #  define timegm _mkgmtime
 #endif
 
-// create string in ISO format, e.g. -0430
-std::string GetCurrentTimezoneOffset()
+static void InsertCurrentTimezoneOffset(std::ostringstream& output)
 {
   std::time_t t = time(0);
   auto timeoffset = timegm(localtime(&t)) - t;
@@ -99,9 +98,16 @@ std::string GetCurrentTimezoneOffset()
   // calculate hour and minutes
   auto hourdiff = timeoffset / (60 * 60);
   auto mindiff = abs(timeoffset % (60 * 60) / 60);
-  std::stringstream output{};
+
   output << std::internal << std::showpos << std::setw(3) << std::setfill('0')
          << hourdiff << std::noshowpos << std::setw(2) << mindiff;
+}
+
+// create string in ISO format, e.g. -0430
+std::string GetCurrentTimezoneOffset()
+{
+  std::ostringstream output{};
+  InsertCurrentTimezoneOffset(output);
   return output.str();
 }
 
@@ -117,85 +123,53 @@ void Blocaltime(const time_t* time, struct tm* tm)
 // only call from inside this file
 // if print_microseconds is true, we add six digits between the seconds and the
 // timezone offset
-static char* bstrftime_internal(char* dt,
-                                int maxlen,
-                                utime_t utime,
-                                const char* fmt,
-                                bool print_microseconds = false)
+static std::string bstrftime_internal(utime_t utime,
+				      const char* fmt,
+				      bool print_microseconds = false)
 {
   time_t time = (time_t)utime;
-  struct tm tm;
-  std::vector<char> buf(MAX_NAME_LENGTH, '\0');
-  std::stringstream microseconds{};
+
+  std::ostringstream output{};
+
+  output << std::put_time(std::localtime(&time), fmt);
+
   if (print_microseconds) {
     uint32_t usecs{};
     usecs = GetCurrentBtime() % 1000000;
-    microseconds << "." << std::internal << std::setw(6) << std::setfill('0')
-                 << usecs;
+    output << "." << std::internal << std::setw(6) << std::setfill('0')
+	   << usecs;
   }
-  // we have to add the content that usually is provided by %z and, if required
-  // also the microseconds
-  Blocaltime(&time, &tm);
-  strftime(buf.data(), maxlen, fmt, &tm);
-  std::string timeformat_without_timezone{buf.data()};
-  std::string fullformat = timeformat_without_timezone + microseconds.str()
-                           + GetCurrentTimezoneOffset();
-  strncpy(dt, fullformat.data(), fullformat.size());
-  dt[fullformat.size()] = '\0';
-  return dt;
-}
 
-// internal functions
-static char* bstrftime(char* dt, int maxlen, utime_t utime)
-{
-  return bstrftime_internal(dt, maxlen, utime, TimestampFormat::Default);
-}
-
-static char* bstrftime_scheduler_preview(char* dt, int maxlen, utime_t utime)
-{
-  return bstrftime_internal(dt, maxlen, utime, TimestampFormat::SchedPreview);
-}
-
-static char* bstrftime_filename(char* dt, int maxlen, utime_t utime)
-{
-  return bstrftime_internal(dt, maxlen, utime,  TimestampFormat::Filename);
+  InsertCurrentTimezoneOffset(output);
+  return output.str();
 }
 
 // Functions to be called from outside of this file
 
 // format for scheduler preview: Thu 05-Oct-2023 02:05+0200
-std::string bstrftime_scheduler_preview(utime_t tim)
+std::string bstrftime(utime_t utime)
 {
-  std::vector<char> buf(MAX_TIME_LENGTH, '\0');
-  bstrftime_scheduler_preview(buf.data(), MAX_TIME_LENGTH, tim);
-  return std::string{buf.data()};
+  return bstrftime_internal(utime, TimestampFormat::Default);
 }
 
 // format with standard format: 2023-10-01T17:16:53+0200
-std::string bstrftime(utime_t tim)
+std::string bstrftime_scheduler_preview(utime_t utime)
 {
-  std::vector<char> buf(MAX_TIME_LENGTH, '\0');
-  bstrftime(buf.data(), MAX_TIME_LENGTH, tim);
-  return std::string{buf.data()};
+  return bstrftime_internal(utime, TimestampFormat::SchedPreview);
 }
 
 // format with to use as filename : 2023-10-01T17.16.25+0200
 // No characters unsuitable for filenames
-std::string bstrftime_filename(utime_t tim)
+std::string bstrftime_filename(utime_t utime)
 {
-  std::vector<char> buf(MAX_TIME_LENGTH, '\0');
-  bstrftime_filename(buf.data(), MAX_TIME_LENGTH, tim);
-  return std::string{buf.data()};
+  return bstrftime_internal(utime,  TimestampFormat::Filename);
 }
 
 // format for debug output. This is the standard format plus microseconds
 // example: 2023-10-01T17:16:53.123456+0200
 std::string bstrftime_debug(utime_t tim)
 {
-  std::vector<char> buf(MAX_TIME_LENGTH, '\0');
-  bstrftime_internal(buf.data(), MAX_TIME_LENGTH, tim,
-                     TimestampFormat::Default, true);
-  return std::string{buf.data()};
+  return bstrftime_internal(tim, TimestampFormat::Default, true);
 }
 
 
