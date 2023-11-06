@@ -1571,8 +1571,9 @@ static inline bool SendPlainData(b_ctx& bctx)
 
   if (!ReadData(std::move(sinks), &bctx.ff_pkt->bfd, (std::size_t)bctx.rsize)) {
     BErrNo be;
-    Jmsg2(bctx.jcr, M_WARNING, 0, _("Could not successfully read file %s: ERR=%s\n"),
-	  bctx.ff_pkt->fname, be.bstrerror());
+    Jmsg2(bctx.jcr, M_WARNING, 0,
+          _("Could not successfully read file %s: ERR=%s\n"),
+          bctx.ff_pkt->fname, be.bstrerror(bctx.ff_pkt->bfd.BErrNo));
     retval = false;
   }
   send_future.wait();
