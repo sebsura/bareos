@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -202,8 +202,9 @@ bool UnregisterWatchdog(watchdog_t* wd)
   bool ok = false;
 
   if (!wd_is_init) {
-    Jmsg0(NULL, M_ABORT, 0,
-          T_("BUG! unregister_watchdog_unlocked called before StartWatchdog\n"));
+    Jmsg0(
+        NULL, M_ABORT, 0,
+        T_("BUG! unregister_watchdog_unlocked called before StartWatchdog\n"));
   }
 
   wd_lock();
@@ -253,7 +254,6 @@ extern "C" void* watchdog_thread(void*)
     watchdog_t* p;
 
     /*
-     *
      *  NOTE. lock_jcr_chain removed, but the message below
      *   was left until we are sure there are no deadlocks.
      *
@@ -263,8 +263,7 @@ extern "C" void* watchdog_thread(void*)
      *   thread first locks the jcr chain, then when closing the
      *   job locks the watchdog chain. If the two threads do not
      *   lock in the same order, we get a deadlock -- each holds
-     *   the other's needed lock.
-     */
+     *   the other's needed lock. */
     wd_lock();
 
   walk_list:

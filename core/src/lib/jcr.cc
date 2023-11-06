@@ -929,7 +929,7 @@ static void JcrTimeoutCheck(watchdog_t* /* self */)
         bs->SetTimedOut();
         Qmsg(jcr, M_ERROR, 0,
              T_("Watchdog sending kill after %d secs to thread stalled reading "
-               "Storage daemon.\n"),
+                "Storage daemon.\n"),
              watchdog_time - timer_start);
         jcr->MyThreadSendSignal(TIMEOUT_SIGNAL);
       }
@@ -942,7 +942,7 @@ static void JcrTimeoutCheck(watchdog_t* /* self */)
         bs->SetTimedOut();
         Qmsg(jcr, M_ERROR, 0,
              T_("Watchdog sending kill after %d secs to thread stalled reading "
-               "File daemon.\n"),
+                "File daemon.\n"),
              watchdog_time - timer_start);
         jcr->MyThreadSendSignal(TIMEOUT_SIGNAL);
       }
@@ -955,7 +955,7 @@ static void JcrTimeoutCheck(watchdog_t* /* self */)
         bs->SetTimedOut();
         Qmsg(jcr, M_ERROR, 0,
              T_("Watchdog sending kill after %d secs to thread stalled reading "
-               "Director.\n"),
+                "Director.\n"),
              watchdog_time - timer_start);
         jcr->MyThreadSendSignal(TIMEOUT_SIGNAL);
       }

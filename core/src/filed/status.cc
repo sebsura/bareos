@@ -3,7 +3,7 @@
 
    Copyright (C) 2001-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
 
 
    This program is Free Software; you can redistribute it and/or
@@ -127,7 +127,7 @@ static void ListStatusHeader(StatusPacket* sp)
 
   len = Mmsg(msg,
              T_(" Sizeof: boffset_t=%d size_t=%d debug=%d trace=%d "
-               "bwlimit=%skB/s\n"),
+                "bwlimit=%skB/s\n"),
              sizeof(boffset_t), sizeof(size_t), debug_level, GetTrace(),
              edit_uint64_with_commas(me->max_bandwidth_per_job / 1024, b1));
   sp->send(msg, len);
@@ -185,10 +185,8 @@ static void ListRunningJobsPlain(StatusPacket* sp)
       len = Mmsg(msg, T_("%s (director) connected at: %s\n"),
                  njcr->fd_impl->director->resource_name_, dt);
     } else {
-      /*
-       * This should only occur shortly, until the JobControlRecord values are
-       * set.
-       */
+      /* This should only occur shortly, until the JobControlRecord values are
+       * set. */
       len = Mmsg(msg, T_("Unknown connection, started at: %s\n"), dt);
     }
     sp->send(msg, len);
@@ -198,7 +196,7 @@ static void ListRunningJobsPlain(StatusPacket* sp)
     bps = (int)(njcr->JobBytes / sec);
     len = Mmsg(msg,
                T_("    Files=%s Bytes=%s Bytes/sec=%s Errors=%d\n"
-                 "    Bwlimit=%s\n"),
+                  "    Bwlimit=%s\n"),
                edit_uint64_with_commas(njcr->JobFiles, b1),
                edit_uint64_with_commas(njcr->JobBytes, b2),
                edit_uint64_with_commas(bps, b3), njcr->JobErrors,
@@ -327,10 +325,11 @@ static void ListTerminatedJobs(StatusPacket* sp)
 
   if (!sp->api) {
     len = PmStrcpy(msg, T_(" JobId  Level    Files      Bytes   Status   "
-                          "Finished        Name \n"));
+                           "Finished        Name \n"));
     sp->send(msg, len);
-    len = PmStrcpy(msg, T_("===================================================="
-                          "==================\n"));
+    len = PmStrcpy(msg,
+                   T_("===================================================="
+                      "==================\n"));
     sp->send(msg, len);
   }
 
@@ -387,8 +386,8 @@ static void ListTerminatedJobs(StatusPacket* sp)
                  edit_uint64_with_suffix(je.JobBytes, b2), termstat, dt,
                  JobName);
     } else {
-      len = Mmsg(msg, T_("%6d  %-6s %8s %10s  %-7s  %-8s %s\n"), je.JobId, level,
-                 edit_uint64_with_commas(je.JobFiles, b1),
+      len = Mmsg(msg, T_("%6d  %-6s %8s %10s  %-7s  %-8s %s\n"), je.JobId,
+                 level, edit_uint64_with_commas(je.JobFiles, b1),
                  edit_uint64_with_suffix(je.JobBytes, b2), termstat, dt,
                  JobName);
     }
