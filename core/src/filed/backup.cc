@@ -1569,17 +1569,17 @@ static inline bool SendPlainData(b_ctx& bctx)
   std::swap(digest, bctx.digest);
   std::swap(signing, bctx.signing_digest);
 
-  if (!ReadData(std::move(sinks), &bctx.ff_pkt->bfd, (std::size_t)bctx.rsize)) {
-    BErrNo be;
-    Jmsg2(bctx.jcr, M_WARNING, 0,
-          _("Could not successfully read file %s: ERR=%s\n"),
-          bctx.ff_pkt->fname, be.bstrerror(bctx.ff_pkt->bfd.BErrNo));
-    retval = false;
-  }
+  bool read_error
+      = !ReadData(std::move(sinks), &bctx.ff_pkt->bfd, (std::size_t)bctx.rsize);
   send_future.wait();
   digest_future.wait();
   std::swap(digest, bctx.digest);
   std::swap(signing, bctx.signing_digest);
+
+  if (read_error) {
+    BareosSocket* sd = bctx.jcr->store_bsock;
+    sd->message_length = -1;
+  }
 
   return retval;
 }
