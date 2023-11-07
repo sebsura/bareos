@@ -43,20 +43,20 @@ using namespace directordaemon;
 
 #include <fstream>
 
-struct file_list
-{
+struct file_list {
   std::vector<std::pair<std::string, std::string>> paths;
-  file_list(std::string path) {
+  file_list(std::string path)
+  {
     std::ifstream f{path.c_str()};
     std::string line;
     while (std::getline(f, line, '\0')) {
       auto pos = line.rfind('/');
       if (pos < line.size()) {
-	paths.emplace_back(std::string(line.data(), pos + 1),
-			std::string(line.begin() + pos + 1, line.end()));
+        paths.emplace_back(std::string(line.data(), pos + 1),
+                           std::string(line.begin() + pos + 1, line.end()));
       } else {
-	paths.emplace_back(std::string(line.data(), line.size()),
-			   std::string());
+        paths.emplace_back(std::string(line.data(), line.size()),
+                           std::string());
       }
     }
   }
@@ -99,6 +99,42 @@ template <typename T> struct array_list {
 
     T* ptr = std::launder(new (&data[size++]) T(std::forward<Args>(args)...));
     return *ptr;
+  }
+};
+
+struct tree3 {
+  struct node {
+    std::string_view name;
+    size_t subtree_size;
+  };
+
+  std::vector<node> nodes;
+
+  enum class visitor_result
+  {
+    SKIP,  // skip subtree, and continue with next sibling
+    NEXT,  // goto next node; possibly entering a subtree
+    END,   // finish up
+  };
+
+  template <typename F, typename R = std::invoke_result_t<F, node>>
+  void visit(F f)
+  {
+    static_assert(std::is_same_v<R, visitor_result>);
+    for (size_t i = 0; i < nodes.size(); ++i) {
+      visitor_result r = f(nodes[i]);
+      switch (r) {
+        case NEXT: {
+          // nothing to do
+        } break;
+        case SKIP: {
+          i += nodes[i].subtree_size;
+        } break;
+        case END: {
+          return;
+        } break;
+      }
+    }
   }
 };
 
@@ -220,8 +256,7 @@ void PopulateTree(int quantity, TreeContext* tree)
     char* row1 = filename.data();
     char row2[] = "1";
     char row3[] = "2";
-    char row4[]
-      = "P0C BHoVZ IGk B Po Po A Cr BAA I BlA+1A BF2dbV BlA+1A A A C";
+    char row4[] = "P0C BHoVZ IGk B Po Po A Cr BAA I BlA+1A BF2dbV BlA+1A A A C";
     char row5[] = "0";
     char row6[] = "0";
     char row7[] = "0";
@@ -275,8 +310,7 @@ void PopulateTree2(int quantity)
     char* row1 = filename.data();
     char row2[] = "1";
     char row3[] = "2";
-    char row4[]
-      = "P0C BHoVZ IGk B Po Po A Cr BAA I BlA+1A BF2dbV BlA+1A A A C";
+    char row4[] = "P0C BHoVZ IGk B Po Po A Cr BAA I BlA+1A BF2dbV BlA+1A A A C";
     char row5[] = "0";
     char row6[] = "0";
     char row7[] = "0";
@@ -295,7 +329,7 @@ void PopulateTree2(int quantity)
 
 void PopulateTree3(int quantity)
 {
-  (void) quantity;
+  (void)quantity;
 
   my_data data;
 
@@ -344,8 +378,7 @@ void PopulateTree3(int quantity)
     char* row1 = filename.data();
     char row2[] = "1";
     char row3[] = "2";
-    char row4[]
-      = "P0C BHoVZ IGk B Po Po A Cr BAA I BlA+1A BF2dbV BlA+1A A A C";
+    char row4[] = "P0C BHoVZ IGk B Po Po A Cr BAA I BlA+1A BF2dbV BlA+1A A A C";
     char row5[] = "0";
     char row6[] = "0";
     char row7[] = "0";
@@ -396,7 +429,7 @@ void PopulateTree3(int quantity)
   // }
 
   // std::cout << bytes.size() << std::endl;
-  (void) state;
+  (void)state;
 }
 
 [[maybe_unused]] static void BM_savetree(benchmark::State& state)
@@ -440,7 +473,7 @@ void PopulateTree3(int quantity)
   // for (auto _ : state) { count = tree2.mark_glob("*"); }
 
   // std::cout << "Marked: " << count << " files." << std::endl;
-  (void) state;
+  (void)state;
 }
 
 
@@ -467,10 +500,10 @@ void PopulateTree3(int quantity)
 // BENCHMARK(BM_buildtree)->Unit(benchmark::kSecond);
 // BENCHMARK(BM_markallfiles2)->Unit(benchmark::kSecond);
 
-//BENCHMARK(BM_populatetree)->Arg(500'000)->Unit(benchmark::kSecond);
+// BENCHMARK(BM_populatetree)->Arg(500'000)->Unit(benchmark::kSecond);
 BENCHMARK(BM_populatetree2)->Arg(50'000'000)->Unit(benchmark::kSecond);
-//BENCHMARK(BM_populatetree3)->Arg(50'000'000)->Unit(benchmark::kSecond);
-//BENCHMARK(BM_markallfiles)->Unit(benchmark::kSecond);
+// BENCHMARK(BM_populatetree3)->Arg(50'000'000)->Unit(benchmark::kSecond);
+// BENCHMARK(BM_markallfiles)->Unit(benchmark::kSecond);
 
 // BENCHMARK(BM_buildtree)->Unit(benchmark::kSecond);
 // BENCHMARK(BM_savetree)->Unit(benchmark::kSecond);
