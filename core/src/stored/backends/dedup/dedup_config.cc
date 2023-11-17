@@ -23,7 +23,7 @@
 #include <algorithm>
 
 #if __clang__
-#pragma clang diagnostic ignored "-Wgnu-alignof-expression"
+#  pragma clang diagnostic ignored "-Wgnu-alignof-expression"
 #endif
 
 namespace dedup::config {
@@ -387,7 +387,7 @@ std::optional<loaded_config> from_bytes(const std::vector<std::byte>& bytes)
         return std::nullopt;
       }
 
-      switch (config::section_header::types{section_header->type.as_native()}) {
+      switch (config::section_header::types{section_header->type.load()}) {
         case config::section_header::types::GeneralInfo: {
           if (encountered_general_info) {
             // error: two general info

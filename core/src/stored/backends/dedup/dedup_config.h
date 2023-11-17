@@ -32,12 +32,12 @@
 namespace dedup::config {
 
 
-using net_u32 = network_order::network_value<std::uint32_t>;
-using net_i32 = network_order::network_value<std::int32_t>;
-using net_u64 = network_order::network_value<std::uint64_t>;
-using net_u16 = network_order::network_value<std::uint16_t>;
+using net_u32 = network_order::network<std::uint32_t>;
+using net_i32 = network_order::network<std::int32_t>;
+using net_u64 = network_order::network<std::uint64_t>;
+using net_u16 = network_order::network<std::uint16_t>;
 using net_u8 = std::uint8_t;
-using net_i64 = network_order::network_value<std::int64_t>;
+using net_i64 = network_order::network<std::int64_t>;
 
 struct file_header {
   // since char8_t only exists from C++20, we use std::byte here

@@ -88,9 +88,9 @@ static std::unordered_set<dedup_unit> dedup_units;
 
 static void OutputStatus()
 {
-  char before[DEFAULT_FORMAT_LENGTH];
-  char after[DEFAULT_FORMAT_LENGTH];
-  char delta[DEFAULT_FORMAT_LENGTH];
+  char before[edit::min_buffer_size];
+  char after[edit::min_buffer_size];
+  char delta[edit::min_buffer_size];
 
   std::cout << "Records consumed: " << num_records << "\n  Total record size: "
             << edit_uint64_with_suffix(total_size, before) << "B"

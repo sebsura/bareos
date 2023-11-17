@@ -38,12 +38,12 @@ namespace dedup {
 static constexpr std::size_t initial_file_size = 1024;
 
 using DeviceMode = storagedaemon::DeviceMode;
-using net_u32 = network_order::network_value<std::uint32_t>;
-using net_i32 = network_order::network_value<std::int32_t>;
-using net_u64 = network_order::network_value<std::uint64_t>;
-using net_u16 = network_order::network_value<std::uint16_t>;
+using net_u32 = network_order::network<std::uint32_t>;
+using net_i32 = network_order::network<std::int32_t>;
+using net_u64 = network_order::network<std::uint64_t>;
+using net_u16 = network_order::network<std::uint16_t>;
 using net_u8 = std::uint8_t;
-using net_i64 = network_order::network_value<std::int64_t>;
+using net_i64 = network_order::network<std::int64_t>;
 
 struct bareos_block_header {
   net_u32 CheckSum;       /* Block check sum */
@@ -70,9 +70,7 @@ struct block_header {
   block_header(const bareos_block_header& base,
                std::uint64_t start,
                std::uint64_t count)
-      : BareosHeader(base)
-      , start{network_order::of_native(start)}
-      , count{network_order::of_native(count)}
+      : BareosHeader(base), start{start}, count{count}
   {
   }
 };
@@ -92,10 +90,7 @@ struct record_header {
                 std::uint64_t start,
                 std::uint32_t size,
                 std::uint64_t file_index)
-      : BareosHeader(base)
-      , size{network_order::of_native(size)}
-      , start{network_order::of_native(start)}
-      , file_index{file_index}
+      : BareosHeader(base), size{size}, start{start}, file_index{file_index}
   {
   }
 };

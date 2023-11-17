@@ -31,6 +31,7 @@
 #include <sys/mman.h>
 #include "lib/network_order.h"
 
+namespace no = network_order;
 namespace dedup::util {
 static_assert(((ssize_t)(off_t)-1) < 0,
               "The code assumes that the error condition is negative when cast "
@@ -171,9 +172,8 @@ struct write_buffer {
     return std::exchange(current, current + size);
   }
 
-  template <typename F>
-  inline std::enable_if_t<network_order::is_serializable_v<F>, bool> write(
-      const F& val)
+  template <typename F, typename = std::enable_if_t<no::is_serializable_v<F>>>
+  inline bool write(const F& val)
   {
     return write(sizeof(F), reinterpret_cast<const char*>(&val));
   }

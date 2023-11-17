@@ -30,6 +30,10 @@
 
 namespace network_order {
 
+template <typename T> using is_serializable = std::is_integral<T>;
+
+template <typename T> inline constexpr bool is_serializable_v = true;
+
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
 constexpr T byteswap(T i)
 {
