@@ -207,8 +207,37 @@ bRC unloadPlugin()
  * plugin instance must be thread safe and keep its own
  * local data.
  */
+thread_local PyThreadState* global_interpreter = nullptr;
+
+// return if global_interpreter needs to be freed on release
+static bool AcquireLock(PyInterpreterState* interp)
+{
+  bool needs_free = false;
+  if (!global_interpreter) {
+    global_interpreter = PyThreadState_New(interp);
+    needs_free = true;
+  }
+  ASSERT(global_interpreter->interp == interp);
+  PyEval_RestoreThread(global_interpreter);
+
+  return needs_free;
+}
+
+static void ReleaseLock(bool needs_free)
+{
+  ASSERT(global_interpreter);
+  if (needs_free) {
+    PyThreadState_Clear(global_interpreter);
+    PyThreadState_DeleteCurrent();
+    global_interpreter = nullptr;
+  } else {
+    PyEval_ReleaseThread(global_interpreter);
+  }
+}
+
 static bRC newPlugin(PluginContext* plugin_ctx)
 {
+  ASSERT(global_interpreter == nullptr);
   struct plugin_private_context* plugin_priv_ctx
       = (struct plugin_private_context*)malloc(
           sizeof(struct plugin_private_context));
@@ -223,8 +252,9 @@ static bRC newPlugin(PluginContext* plugin_ctx)
 
   /* For each plugin instance we instantiate a new Python interpreter. */
   PyEval_AcquireThread(mainThreadState);
-  plugin_priv_ctx->interpreter = Py_NewInterpreter();
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  global_interpreter = Py_NewInterpreter();
+  plugin_priv_ctx->interp = global_interpreter->interp;
+  PyEval_ReleaseThread(global_interpreter);
 
   /* Always register some events the python plugin itself can register
      any other events it is interested in. */
@@ -242,6 +272,7 @@ static bRC newPlugin(PluginContext* plugin_ctx)
  */
 static bRC freePlugin(PluginContext* plugin_ctx)
 {
+  ASSERT(global_interpreter);
   struct plugin_private_context* plugin_priv_ctx
       = (struct plugin_private_context*)plugin_ctx->plugin_private_context;
 
@@ -264,12 +295,12 @@ static bRC freePlugin(PluginContext* plugin_ctx)
   if (plugin_priv_ctx->object) { free(plugin_priv_ctx->object); }
 
   // Stop any sub interpreter started per plugin instance.
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
+  PyEval_AcquireThread(global_interpreter);
 
 
   if (plugin_priv_ctx->pModule) { Py_DECREF(plugin_priv_ctx->pModule); }
 
-  Py_EndInterpreter(plugin_priv_ctx->interpreter);
+  Py_EndInterpreter(global_interpreter);
 #if PY_VERSION_HEX < VERSION_HEX(3, 2, 0)
   PyEval_ReleaseLock();
 #else
@@ -355,7 +386,7 @@ static bRC handlePluginEvent(PluginContext* plugin_ctx,
    * we only do a dispatch to the python entry point when that internal
    * processing was successful (e.g. retval == bRC_OK). */
   if (!event_dispatched || retval == bRC_OK) {
-    PyEval_AcquireThread(plugin_priv_ctx->interpreter);
+    auto l = AcquireLock(plugin_priv_ctx->interp);
 
     /* Now dispatch the event to Python.
      * First the calls that need special handling. */
@@ -422,7 +453,7 @@ static bRC handlePluginEvent(PluginContext* plugin_ctx,
         break;
     }
 
-    PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+    ReleaseLock(l);
   }
 
 bail_out:
@@ -444,9 +475,11 @@ static bRC startBackupFile(PluginContext* plugin_ctx, save_pkt* sp)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PyStartBackupFile(plugin_ctx, sp);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PyStartBackupFile(plugin_ctx, sp);
+    ReleaseLock(l);
+  }
 
   /* For Incremental and Differential backups use checkChanges method to
    * see if we need to backup this file. */
@@ -489,9 +522,11 @@ static bRC endBackupFile(PluginContext* plugin_ctx)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PyEndBackupFile(plugin_ctx);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PyEndBackupFile(plugin_ctx);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -512,9 +547,11 @@ static bRC pluginIO(PluginContext* plugin_ctx, io_pkt* io)
 
   if (!plugin_priv_ctx->python_loaded) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PyPluginIO(plugin_ctx, io);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PyPluginIO(plugin_ctx, io);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -529,9 +566,11 @@ static bRC startRestoreFile(PluginContext* plugin_ctx, const char* cmd)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PyStartRestoreFile(plugin_ctx, cmd);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PyStartRestoreFile(plugin_ctx, cmd);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -546,9 +585,11 @@ static bRC endRestoreFile(PluginContext* plugin_ctx)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PyEndRestoreFile(plugin_ctx);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PyEndRestoreFile(plugin_ctx);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -569,9 +610,11 @@ static bRC createFile(PluginContext* plugin_ctx, restore_pkt* rp)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PyCreateFile(plugin_ctx, rp);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PyCreateFile(plugin_ctx, rp);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -589,9 +632,11 @@ static bRC setFileAttributes(PluginContext* plugin_ctx, restore_pkt* rp)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PySetFileAttributes(plugin_ctx, rp);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PySetFileAttributes(plugin_ctx, rp);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -608,9 +653,11 @@ static bRC checkFile(PluginContext* plugin_ctx, char* fname)
 
   if (!plugin_priv_ctx->python_loaded) { return bRC_OK; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PyCheckFile(plugin_ctx, fname);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PyCheckFile(plugin_ctx, fname);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -626,9 +673,11 @@ static bRC getAcl(PluginContext* plugin_ctx, acl_pkt* ap)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PyGetAcl(plugin_ctx, ap);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PyGetAcl(plugin_ctx, ap);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -644,9 +693,11 @@ static bRC setAcl(PluginContext* plugin_ctx, acl_pkt* ap)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PySetAcl(plugin_ctx, ap);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PySetAcl(plugin_ctx, ap);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -662,9 +713,11 @@ static bRC getXattr(PluginContext* plugin_ctx, xattr_pkt* xp)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PyGetXattr(plugin_ctx, xp);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PyGetXattr(plugin_ctx, xp);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -680,9 +733,11 @@ static bRC setXattr(PluginContext* plugin_ctx, xattr_pkt* xp)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PySetXattr(plugin_ctx, xp);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PySetXattr(plugin_ctx, xp);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -881,9 +936,11 @@ static bRC getPluginValue(PluginContext* bareos_plugin_ctx,
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
-  retval = Bareosfd_PyGetPluginValue(bareos_plugin_ctx, var, value);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  {
+    auto l = AcquireLock(plugin_priv_ctx->interp);
+    retval = Bareosfd_PyGetPluginValue(bareos_plugin_ctx, var, value);
+    ReleaseLock(l);
+  }
 
 bail_out:
   return retval;
@@ -900,9 +957,9 @@ static bRC setPluginValue(PluginContext* bareos_plugin_ctx,
 
   if (!plugin_priv_ctx) { return bRC_Error; }
 
-  PyEval_AcquireThread(plugin_priv_ctx->interpreter);
+  auto l = AcquireLock(plugin_priv_ctx->interp);
   retval = Bareosfd_PySetPluginValue(bareos_plugin_ctx, var, value);
-  PyEval_ReleaseThread(plugin_priv_ctx->interpreter);
+  ReleaseLock(l);
 
   return retval;
 }
