@@ -294,17 +294,11 @@ void CleanupFileset(JobControlRecord* jcr)
       for (int j = 0; j < incexe->opts_list.size(); j++) {
         fo = (findFOPTS*)incexe->opts_list.get(j);
         if (fo->plugin) { free(fo->plugin); }
-        for (auto& regex : fo->regex) {
-          regfree(&regex);
-        }
-        for (auto& regex : fo->regexdir) {
-          regfree(&regex);
-        }
-        for (auto& regex : fo->regexfile) {
-          regfree(&regex);
-        }
+        for (auto& regex : fo->regex) { regfree(&regex); }
+        for (auto& regex : fo->regexdir) { regfree(&regex); }
+        for (auto& regex : fo->regexfile) { regfree(&regex); }
         if (fo->size_match) { free(fo->size_match); }
-	fo->~findFOPTS();
+        fo->~findFOPTS();
       }
       incexe->opts_list.destroy();
       incexe->name_list.destroy();
@@ -318,17 +312,11 @@ void CleanupFileset(JobControlRecord* jcr)
       incexe = (findIncludeExcludeItem*)fileset->exclude_list.get(i);
       for (int j = 0; j < incexe->opts_list.size(); j++) {
         fo = (findFOPTS*)incexe->opts_list.get(j);
-        for (auto& regex : fo->regex) {
-          regfree(&regex);
-        }
-        for (auto& regex : fo->regexdir) {
-          regfree(&regex);
-        }
-        for (auto& regex : fo->regexfile) {
-          regfree(&regex);
-        }
+        for (auto& regex : fo->regex) { regfree(&regex); }
+        for (auto& regex : fo->regexdir) { regfree(&regex); }
+        for (auto& regex : fo->regexfile) { regfree(&regex); }
         if (fo->size_match) { free(fo->size_match); }
-	fo->~findFOPTS();
+        fo->~findFOPTS();
       }
       incexe->opts_list.destroy();
       incexe->name_list.destroy();
@@ -458,6 +446,7 @@ void* process_director_commands(JobControlRecord* jcr, BareosSocket* dir)
 
   // Inform Director that we are done
   dir->signal(BNET_TERMINATE);
+  jcr->EnterFinish();
 
   FreePlugins(jcr); /* release instantiated plugins */
   FreeAndNullPoolMemory(jcr->fd_impl->job_metadata);
@@ -720,13 +709,16 @@ static bool CancelCmd(JobControlRecord* jcr)
     if (!(cjcr = get_jcr_by_full_name(Job))) {
       dir->fsend(_("2901 Job %s not found.\n"), Job);
     } else {
-      GeneratePluginEvent(cjcr, bEventCancelCommand, nullptr);
-      cjcr->setJobStatusWithPriorityCheck(JS_Canceled);
-      if (cjcr->store_bsock) {
-        cjcr->store_bsock->SetTimedOut();
-        cjcr->store_bsock->SetTerminated();
+      if (cjcr->PrepareCancel()) {
+        GeneratePluginEvent(cjcr, bEventCancelCommand, nullptr);
+        cjcr->setJobStatusWithPriorityCheck(JS_Canceled);
+        if (cjcr->store_bsock) {
+          cjcr->store_bsock->SetTimedOut();
+          cjcr->store_bsock->SetTerminated();
+        }
+        cjcr->MyThreadSendSignal(TIMEOUT_SIGNAL);
+        cjcr->CancelFinished();
       }
-      cjcr->MyThreadSendSignal(TIMEOUT_SIGNAL);
       FreeJcr(cjcr);
       dir->fsend(_("2001 Job %s marked to be canceled.\n"), Job);
     }

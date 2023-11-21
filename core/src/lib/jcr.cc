@@ -59,6 +59,9 @@
 #include "lib/watchdog.h"
 
 #include <algorithm>
+#include <thread>
+#include <atomic>
+#include <chrono>
 
 const int debuglevel = 3400;
 
@@ -1060,4 +1063,39 @@ void DbgPrintJcr(FILE* fp)
   }
 
   fprintf(fp, "dumping of jcrs finished. number of dumped = %zu\n", num_dumped);
+}
+
+bool JobControlRecord::PrepareCancel()
+{
+  auto expected = cancel_status::None;
+  return cancelled_status.compare_exchange_strong(expected,
+                                                  cancel_status::InProcess);
+}
+
+void JobControlRecord::CancelFinished()
+{
+  auto expected = cancel_status::InProcess;
+  ASSERT(cancelled_status.compare_exchange_strong(expected,
+                                                  cancel_status::Finished));
+}
+
+void JobControlRecord::EnterFinish()
+{
+  // We want to wait until cancelled_status is set to Finished.
+  // We are only allowed to change this ourselves if its currently
+  // set to None, otherwise we have to wait.
+  for (;;) {
+    auto current_status = cancel_status::None;
+    if (!cancelled_status.compare_exchange_weak(current_status,
+                                                cancel_status::Finished)
+        && current_status != cancel_status::Finished) {
+      // Neither we nor the cancelling thread set cancelled_status to
+      // Finished, so lets wait
+      std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    } else {
+      // we either changed it from None to Finished or somebody else
+      // changed it to finished; regardless we can now return
+      break;
+    }
+  }
 }

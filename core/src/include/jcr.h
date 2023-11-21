@@ -84,7 +84,24 @@ class JobControlRecord {
   int32_t JobLevel_{};           /**< Job level */
   int32_t Protocol_{};           /**< Backup Protocol */
   bool my_thread_killable_{};
+  enum class cancel_status : int8_t {
+    None,
+    InProcess,
+    Finished,
+  };
+  std::atomic<cancel_status> cancelled_status{cancel_status::None};
  public:
+  // tells the jcr that will get cancelled soon.  This can happen only one time.
+  // Returns true if you may cancel it (in that case you _must_ call
+  // CancelFinished() when done); otherwise fales is returned.
+  bool PrepareCancel();
+  void CancelFinished();
+
+  // this function stops other threads from canceling this job;
+  // if this job is currently getting cancelled, then it wait until
+  // that is done.
+  void EnterFinish();
+
   JobControlRecord();
   ~JobControlRecord();
   JobControlRecord(const JobControlRecord &other) = delete;
