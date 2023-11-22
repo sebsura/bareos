@@ -1551,19 +1551,19 @@ save_file_result SaveFile(JobControlRecord* jcr,
       return save_file_result::Error;
     }
   }
+  DIGEST *checksum = nullptr, *signing = nullptr;
+  if (options.checksum) {
+    checksum = SetupChecksum(jcr, *options.checksum);
+    if (!checksum) { return save_file_result::Success; }
+  }
+  if (options.signing_key) {
+    signing = SetupSigning(jcr);
+    if (!signing) { return save_file_result::Success; }
+  }
 
   if (file->has_data()) {
     if (options.encrypt) { SendEncryptionSession(sctx, fi, options.encrypt); }
     // todo: this should be an raii type
-    DIGEST *checksum = nullptr, *signing = nullptr;
-    if (options.checksum) {
-      checksum = SetupChecksum(jcr, *options.checksum);
-      if (!checksum) { return save_file_result::Success; }
-    }
-    if (options.signing_key) {
-      signing = SetupSigning(jcr);
-      if (!signing) { return save_file_result::Success; }
-    }
 
     BareosFilePacket bfd = file->open();
 
@@ -1586,95 +1586,95 @@ save_file_result SaveFile(JobControlRecord* jcr,
     }
 
     bclose(&bfd);
+  }
 
 #if 0
-    std::optional rsrc_bfd = file->open_rsrc();
-    if (rsrc_bfd) {
-      auto rsrc_stream = options.encrypt
-                             ? data_stream::ENCRYPTED_MACOS_FORK_DATA
-                             : data_stream::MACOS_FORK_DATA;
-      if (!SendData(sctx, fi, rsrc_stream, jcr->buf_size, &rsrc_bfd.value(),
-                    checksum, signing)) {
-        if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
-          Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-                sctx.error());
-        }
-        bclose(&rsrc_bfd.value());
-        return save_file_result::Error;
+  std::optional rsrc_bfd = file->open_rsrc();
+  if (rsrc_bfd) {
+    auto rsrc_stream = options.encrypt
+      ? data_stream::ENCRYPTED_MACOS_FORK_DATA
+      : data_stream::MACOS_FORK_DATA;
+    if (!SendData(sctx, fi, rsrc_stream, jcr->buf_size, &rsrc_bfd.value(),
+		  checksum, signing)) {
+      if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+	Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+	      sctx.error());
       }
       bclose(&rsrc_bfd.value());
-    }
-
-    if (!SendFinder(sctx, fi, finder_info, checksum, signing)) {
-      if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
-        Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-              sctx.error());
-      }
       return save_file_result::Error;
     }
+    bclose(&rsrc_bfd.value());
+  }
+
+  if (!SendFinder(sctx, fi, finder_info, checksum, signing)) {
+    if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+      Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+	    sctx.error());
+    }
+    return save_file_result::Error;
+  }
 #endif
 
-    // Save ACLs when requested and available for anything not being a symlink.
-    if constexpr (have_acl) {
-      if (options.acl) {
-        AclData* data = jcr->fd_impl->acl_data.get();
-        data->filetype = (int)file->type();
-        data->last_fname = bpath.c_str();  // TODO: probably systempath here ?
-        data->next_dev = file->lstat().dev;
-        if (!DoBackupAcl(jcr, sctx, fi, data)) {
-          return save_file_result::Error;
-        }
+  // Save ACLs when requested and available for anything not being a symlink.
+  if constexpr (have_acl) {
+    if (options.acl) {
+      AclData* data = jcr->fd_impl->acl_data.get();
+      data->filetype = (int)file->type();
+      data->last_fname = bpath.c_str();  // TODO: probably systempath here ?
+      data->next_dev = file->lstat().dev;
+      if (!DoBackupAcl(jcr, sctx, fi, data)) {
+	return save_file_result::Error;
       }
     }
-
-    if constexpr (have_xattr) {
-      if (options.xattr) {
-        XattrData* data = jcr->fd_impl->xattr_data.get();
-        data->last_fname = bpath.c_str();  // TODO: probably systempath here ?
-        data->next_dev = file->lstat().dev;
-        data->ignore_acls = options.acl;
-        if (!DoBackupXattr(jcr, sctx, fi, data)) {
-          return save_file_result::Error;
-        }
-      }
-    }
-
-    if (checksum) {
-      auto check_encoded = TerminateChecksum(checksum);
-      if (check_encoded.size()) {
-        if (!SendDigest(sctx, fi, DigestStream(checksum),
-                        span{check_encoded}.as_const())) {
-          if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
-            Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-                  sctx.error());
-          }
-          // todo: handle error case here
-        }
-      } else {
-        // todo: handle error case here
-      }
-    }
-
-    if (signing) {
-      auto sign_encoded = TerminateSigning(jcr, options.signing_key, signing);
-      if (sign_encoded.size()) {
-        if (!SendDigest(sctx, fi, digest_stream::SIGNED,
-                        span{sign_encoded}.as_const())) {
-          if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
-            Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-                  sctx.error());
-          }
-          // todo: handle error case here
-        }
-      } else {
-        // todo: handle error case here
-      }
-    }
-
-    // this should always happen -> raii
-    if (checksum) { CryptoDigestFree(checksum); }
-    if (signing) { CryptoDigestFree(signing); }
   }
+
+  if constexpr (have_xattr) {
+    if (options.xattr) {
+      XattrData* data = jcr->fd_impl->xattr_data.get();
+      data->last_fname = bpath.c_str();  // TODO: probably systempath here ?
+      data->next_dev = file->lstat().dev;
+      data->ignore_acls = options.acl;
+      if (!DoBackupXattr(jcr, sctx, fi, data)) {
+	return save_file_result::Error;
+      }
+    }
+  }
+
+  if (checksum) {
+    auto check_encoded = TerminateChecksum(checksum);
+    if (check_encoded.size()) {
+      if (!SendDigest(sctx, fi, DigestStream(checksum),
+		      span{check_encoded}.as_const())) {
+	if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+	  Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+		sctx.error());
+	}
+	// todo: handle error case here
+      }
+    } else {
+      // todo: handle error case here
+    }
+  }
+
+  if (signing) {
+    auto sign_encoded = TerminateSigning(jcr, options.signing_key, signing);
+    if (sign_encoded.size()) {
+      if (!SendDigest(sctx, fi, digest_stream::SIGNED,
+		      span{sign_encoded}.as_const())) {
+	if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+	  Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+		sctx.error());
+	}
+	// todo: handle error case here
+      }
+    } else {
+      // todo: handle error case here
+    }
+  }
+
+  // this should always happen -> raii
+  if (checksum) { CryptoDigestFree(checksum); }
+  if (signing) { CryptoDigestFree(signing); }
 
   if (file->type() == file_type::LNKSAVED && original) {
     auto [stream, check_encoded] = original->checksum();
