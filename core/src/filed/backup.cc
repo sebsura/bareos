@@ -1822,6 +1822,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 
   delete (submit_context*)jcr->fd_impl->submit_ctx;
   jcr->fd_impl->submit_ctx = nullptr;
+  jcr->JobBytes = jcr->fd_impl->send_ctx->num_bytes_send();
   jcr->fd_impl->send_ctx.reset();
   jcr->store_bsock = sd;
 

@@ -110,6 +110,7 @@ class send_context {
  public:
   bool send(POOLMEM* data, std::size_t size)
   {
+    send_bytes += size;
     return in.emplace(std::in_place_type<data_type>, data, size);
   }
 
@@ -117,7 +118,7 @@ class send_context {
   {
     POOLMEM* mem = GetMemory(size);
     std::memcpy(mem, data, size);
-    return in.emplace(std::in_place_type<data_type>, mem, size);
+    return send(mem, size);
   }
 
   bool format(const char* fmt, ...)
@@ -143,7 +144,13 @@ class send_context {
     return send(msg, len);
   }
 
-  bool signal(int32_t signal) { return in.emplace(signal); }
+  bool signal(int32_t signal)
+  {
+    // send_bytes += 4;
+    return in.emplace(signal);
+  }
+
+  std::size_t num_bytes_send() const { return send_bytes; }
 
   const char* error() { return sd->bstrerror(); }
 
@@ -157,6 +164,9 @@ class send_context {
     in.close();
     sender.join();
   }
+
+ private:
+  std::size_t send_bytes{};
 };
 
 /* clang-format off */
