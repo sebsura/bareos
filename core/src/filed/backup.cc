@@ -560,6 +560,21 @@ struct encoded_meta {
   std::string enc;
 };
 
+class file_index {
+  struct invalid_index_type {};
+
+ public:
+  static constexpr invalid_index_type INVALID{};
+
+  std::int32_t to_underlying() const { return id; }
+
+  constexpr explicit file_index(std::int32_t id) : id{id} {}
+  constexpr file_index(invalid_index_type) : file_index{0} {}
+
+ private:
+  std::int32_t id;
+};
+
 class bareos_file {
  public:
   file_type type() { return type_; }
@@ -571,6 +586,8 @@ class bareos_file {
   virtual std::optional<encoded_meta> extra_meta() { return std::nullopt; };
   virtual BareosFilePacket open() = 0;
   virtual std::optional<BareosFilePacket> open_rsrc() = 0;
+  virtual bool send_postamble(send_context& sctx, file_index idx) = 0;
+  virtual bool send_preamble(send_context& sctx, file_index idx) = 0;
   virtual ~bareos_file() = default;
 
   bareos_file(file_type type_, std::string path, bareos_stat stat)
@@ -590,21 +607,6 @@ enum class save_file_result
   Error,
   Success,
   Skip,
-};
-
-class file_index {
-  struct invalid_index_type {};
-
- public:
-  static constexpr invalid_index_type INVALID{};
-
-  std::int32_t to_underlying() const { return id; }
-
-  constexpr explicit file_index(std::int32_t id) : id{id} {}
-  constexpr file_index(invalid_index_type) : file_index{0} {}
-
- private:
-  std::int32_t id;
 };
 
 static inline bool DoBackupAcl(JobControlRecord* jcr,
@@ -1094,6 +1096,36 @@ class data_message {
   }
 };
 
+// Send plugin name start/end record to SD
+// TODO: put into fd_plugins.cc
+static bool SendPluginName(send_context& sctx,
+                           save_pkt* sp,
+                           int file_index,
+                           bool start)
+{
+  auto debuglevel = 100;
+  Dmsg1(debuglevel, "SendPluginName=%s\n", sp->cmd);
+
+  // Send stream header
+  if (!sctx.format("%ld %d 0", file_index, STREAM_PLUGIN_NAME)) {
+    return false;
+  }
+
+  if (start) {
+    // Send data -- not much
+    if (!sctx.format("%ld 1 %d %s%c", file_index, sp->portable, sp->cmd, 0)) {
+      return false;
+    }
+  } else {
+    // Send end of data
+    if (!sctx.format("%ld 0", file_index)) { return false; }
+  }
+
+  sctx.signal(BNET_EOD); /* indicate end of plugin name data */
+
+  return true;
+}
+
 static bool SendDataToSd(send_context& sctx,
                          send_options& options,
                          data_message msg,
@@ -1532,6 +1564,9 @@ save_file_result SaveFile(JobControlRecord* jcr,
   }
 
   file_index fi = next_file_index(jcr);
+
+  file->send_preamble(sctx, fi);
+
   {
     // encode & send attributes
     file_index orig_index = file_index::INVALID;
@@ -1622,9 +1657,7 @@ save_file_result SaveFile(JobControlRecord* jcr,
       data->filetype = (int)file->type();
       data->last_fname = bpath.c_str();  // TODO: probably systempath here ?
       data->next_dev = file->lstat().dev;
-      if (!DoBackupAcl(jcr, sctx, fi, data)) {
-	return save_file_result::Error;
-      }
+      if (!DoBackupAcl(jcr, sctx, fi, data)) { return save_file_result::Error; }
     }
   }
 
@@ -1635,7 +1668,7 @@ save_file_result SaveFile(JobControlRecord* jcr,
       data->next_dev = file->lstat().dev;
       data->ignore_acls = options.acl;
       if (!DoBackupXattr(jcr, sctx, fi, data)) {
-	return save_file_result::Error;
+        return save_file_result::Error;
       }
     }
   }
@@ -1644,12 +1677,12 @@ save_file_result SaveFile(JobControlRecord* jcr,
     auto check_encoded = TerminateChecksum(checksum);
     if (check_encoded.size()) {
       if (!SendDigest(sctx, fi, DigestStream(checksum),
-		      span{check_encoded}.as_const())) {
-	if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
-	  Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-		sctx.error());
-	}
-	// todo: handle error case here
+                      span{check_encoded}.as_const())) {
+        if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+          Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+                sctx.error());
+        }
+        // todo: handle error case here
       }
     } else {
       // todo: handle error case here
@@ -1660,12 +1693,12 @@ save_file_result SaveFile(JobControlRecord* jcr,
     auto sign_encoded = TerminateSigning(jcr, options.signing_key, signing);
     if (sign_encoded.size()) {
       if (!SendDigest(sctx, fi, digest_stream::SIGNED,
-		      span{sign_encoded}.as_const())) {
-	if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
-	  Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
-		sctx.error());
-	}
-	// todo: handle error case here
+                      span{sign_encoded}.as_const())) {
+        if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+          Jmsg1(jcr, M_FATAL, 0, _("Network send error to SD. ERR=%s\n"),
+                sctx.error());
+        }
+        // todo: handle error case here
       }
     } else {
       // todo: handle error case here
@@ -1681,6 +1714,8 @@ save_file_result SaveFile(JobControlRecord* jcr,
 
     if (check_encoded.size()) { SendDigest(sctx, fi, stream, check_encoded); }
   }
+
+  file->send_postamble(sctx, fi);
 
   return save_file_result::Success;
 }
@@ -1959,8 +1994,9 @@ struct test_file : bareos_file {
   bool noatime{};
   data_stream my_stream{};
   bool hasdata{true};
+  save_pkt* sp{nullptr};
 
-  test_file(FindFilesPacket* ff)
+  test_file(FindFilesPacket* ff, save_pkt* sp)
       : bareos_file(NativeToBareos(ff->type),
                     ff->fname,
                     NativeToBareos(ff->statp))
@@ -1968,7 +2004,22 @@ struct test_file : bareos_file {
       , noatime{BitIsSet(FO_NOATIME, ff->flags)}
       , my_stream{(data_stream)SelectDataStream(ff)}
       , hasdata(ff->cmd_plugin ? !ff->no_read : true)
+      , sp(sp)
   {
+  }
+
+  bool send_postamble(send_context& sctx, file_index idx) override
+  {
+    if (sp) { return SendPluginName(sctx, sp, idx.to_underlying(), true); }
+
+    return true;
+  }
+
+  bool send_preamble(send_context& sctx, file_index idx) override
+  {
+    if (sp) { return SendPluginName(sctx, sp, idx.to_underlying(), false); }
+
+    return true;
   }
 
   bool has_data() override
@@ -2190,7 +2241,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   // }
 
 #  if 1
-  test_file f{ff_pkt};
+  test_file f{ff_pkt, jcr->fd_impl->plugin_sp};
 
   if (f.stream() == data_stream::NONE) {
     /* This should not happen */
