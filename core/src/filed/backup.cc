@@ -1957,6 +1957,7 @@ struct test_file : bareos_file {
   std::string fname{};
   bool noatime{};
   data_stream my_stream{};
+  bool hasdata{true};
 
   test_file(FindFilesPacket* ff)
       : bareos_file(NativeToBareos(ff->type),
@@ -1965,11 +1966,14 @@ struct test_file : bareos_file {
       , fname{ff->fname}
       , noatime{BitIsSet(FO_NOATIME, ff->flags)}
       , my_stream{(data_stream)SelectDataStream(ff)}
+      , hasdata(ff->cmd_plugin ? !ff->no_read : true)
   {
   }
 
   bool has_data() override
   {
+    if (!hasdata) return false;
+
     switch ((int)type()) {
       case FT_REGE:
         [[fallthrough]];
