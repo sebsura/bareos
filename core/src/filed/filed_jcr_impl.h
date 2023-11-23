@@ -85,17 +85,17 @@ class send_context {
 
   void do_send_work()
   {
+    std::vector<char> data;
     for (;;) {
-      std::optional vec = out.get_all();
-      if (!vec) { break; }
+      if (!out.get_all(data)) { break; }
 
-      if (vec->size() > 0) {
-        data_send += vec->size();
+      if (data.size() > 0) {
+        data_send += data.size();
         num_sends += 1;
-        sd->write_nbytes(vec->data(), vec->size());
+        sd->write_nbytes(data.data(), data.size());
       }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   }
 

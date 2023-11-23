@@ -304,9 +304,9 @@ template <typename T> class output {
 
   std::optional<T> try_get() { return get_internal(with_lock::No); }
 
-  std::optional<std::vector<T>> get_all()
+  bool get_all(std::vector<T>& vec)
   {
-    return get_all_internal(with_lock::Yes);
+    return get_all_internal(vec, with_lock::Yes);
   }
 
   void close()
@@ -327,18 +327,18 @@ template <typename T> class output {
   }
 
  private:
-  std::optional<std::vector<T>> get_all_internal(with_lock lock)
+  bool get_all_internal(std::vector<T>& vec, with_lock lock)
   {
-    if (did_close) { return std::nullopt; }
+    if (did_close) { return false; }
     update_cache(lock);
 
     if (cache_iter != cache.end()) {
-      std::vector<T> result;
-      std::swap(result, cache);
+      vec.clear();
+      std::swap(vec, cache);
       cache_iter = cache.end();
-      return result;
+      return true;
     } else {
-      return {};
+      return false;
     }
   }
 
