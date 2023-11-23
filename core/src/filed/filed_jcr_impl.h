@@ -67,12 +67,12 @@ class send_context {
   using packet = std::variant<signal_type, data_type>;
 
   BareosSocket* sd;
-  channel::input<packet> in;
-  channel::output<packet> out;
+  channel::input<char> in;
+  channel::output<char> out;
 
   std::thread sender;
 
-  send_context(std::pair<channel::input<packet>, channel::output<packet>> cpair,
+  send_context(std::pair<channel::input<char>, channel::output<char>> cpair,
                BareosSocket* sd)
       : sd{sd}
       , in{std::move(cpair.first)}
@@ -86,39 +86,38 @@ class send_context {
   void do_send_work()
   {
     for (;;) {
-      std::optional msg = out.get();
-      if (!msg) { break; }
+      std::optional vec = out.get_all();
+      if (!vec) { break; }
 
-      if (auto* signal = std::get_if<signal_type>(&msg.value())) {
-        sd->signal(*signal);
-      } else {
-        auto& data = std::get<data_type>(msg.value());
-
-        POOLMEM* msgsave = sd->msg;
-        sd->msg = data.msg_start;
-        sd->message_length = data.length;
-        if (!sd->send()) {
-          sd->msg = msgsave;
-          out.close();
-          break;
-        }
-        sd->msg = msgsave;
+      if (vec->size() > 0) {
+        data_send += vec->size();
+        num_sends += 1;
+        sd->write_nbytes(vec->data(), vec->size());
       }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
 
  public:
   bool send(POOLMEM* data, std::size_t size)
   {
-    send_bytes += size;
-    return in.emplace(std::in_place_type<data_type>, data, size);
+    auto ret = send((const char*)data, size);
+    FreePoolMemory(data);
+    return ret;
   }
 
   bool send(const char* data, std::size_t size)
   {
-    POOLMEM* mem = GetMemory(size);
-    std::memcpy(mem, data, size);
-    return send(mem, size);
+    requested += 1;
+    send_bytes += size;
+    char sdata[sizeof(uint32_t)];
+    int32_t s = htonl((int32_t)size);
+    std::memcpy(sdata, &s, sizeof(sdata));
+
+    if (!in.insert(std::begin(sdata), std::end(sdata))) { return false; }
+
+    return in.insert(data, data + size);
   }
 
   bool format(const char* fmt, ...)
@@ -146,8 +145,13 @@ class send_context {
 
   bool signal(int32_t signal)
   {
-    // send_bytes += 4;
-    return in.emplace(signal);
+    requested += 1;
+    send_bytes += 4;
+    char sdata[sizeof(int32_t)];
+    int32_t s = htonl((int32_t)signal);
+    std::memcpy(sdata, &s, sizeof(sdata));
+
+    return in.insert((char*)sdata, ((char*)sdata) + 4);
   }
 
   std::size_t num_bytes_send() const { return send_bytes; }
@@ -155,7 +159,8 @@ class send_context {
   const char* error() { return sd->bstrerror(); }
 
   send_context(BareosSocket* sd)
-      : send_context(channel::CreateBufferedChannel<packet>(20), sd)
+      : send_context(channel::CreateBufferedChannel<char>(1024 * 1024 * 128),
+                     sd)
   {
   }
 
@@ -163,10 +168,18 @@ class send_context {
   {
     in.close();
     sender.join();
+
+    double avg_send = (double)data_send / (double)num_sends;
+    double avg_req = (double)send_bytes / (double)requested;
+    Dmsg4(50, "num_sends: %llu, requested: %llu, avg_send: %lf, avg_req: %lf\n",
+          num_sends, requested, avg_send, avg_req);
   }
 
  private:
   std::size_t send_bytes{};
+  std::size_t requested{};
+  std::size_t num_sends{};
+  std::size_t data_send{};
 };
 
 /* clang-format off */

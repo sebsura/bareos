@@ -211,6 +211,15 @@ template <typename T> class input {
     return false;
   }
 
+  template <typename Iter> bool insert(Iter begin, Iter end)
+  {
+    if (did_close) { return false; }
+
+    auto result = shared->input_lock();
+    return do_insert(result, std::forward<Iter>(begin),
+                     std::forward<Iter>(end));
+  }
+
   void close()
   {
     if (!did_close) {
@@ -238,6 +247,26 @@ template <typename T> class input {
             return false;
           } else if constexpr (std::is_same_v<val_type, handle_type>) {
             val.data().emplace_back(std::forward<Args>(args)...);
+            return true;
+          } else {
+            static_assert("Type not handled");
+          }
+        },
+        result);
+  }
+
+  template <typename Iter>
+  inline bool do_insert(result_type& result, Iter begin, Iter end)
+  {
+    return std::visit(
+        [this, begin = std::forward<Iter>(begin),
+         end = std::forward<Iter>(end)](auto&& val) {
+          using val_type = std::decay_t<decltype(val)>;
+          if constexpr (std::is_same_v<val_type, channel_closed>) {
+            close();
+            return false;
+          } else if constexpr (std::is_same_v<val_type, handle_type>) {
+            val.data().insert(val.data().end(), begin, end);
             return true;
           } else {
             static_assert("Type not handled");
@@ -275,6 +304,11 @@ template <typename T> class output {
 
   std::optional<T> try_get() { return get_internal(with_lock::No); }
 
+  std::optional<std::vector<T>> get_all()
+  {
+    return get_all_internal(with_lock::Yes);
+  }
+
   void close()
   {
     if (!did_close) {
@@ -293,6 +327,21 @@ template <typename T> class output {
   }
 
  private:
+  std::optional<std::vector<T>> get_all_internal(with_lock lock)
+  {
+    if (did_close) { return std::nullopt; }
+    update_cache(lock);
+
+    if (cache_iter != cache.end()) {
+      std::vector<T> result;
+      std::swap(result, cache);
+      cache_iter = cache.end();
+      return result;
+    } else {
+      return {};
+    }
+  }
+
   std::optional<T> get_internal(with_lock lock)
   {
     if (did_close) { return std::nullopt; }

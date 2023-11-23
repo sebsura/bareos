@@ -1586,6 +1586,8 @@ save_file_result SaveFile(JobControlRecord* jcr,
       return save_file_result::Error;
     }
   }
+  // options.checksum = std::nullopt;
+  // options.signing_key = nullptr:
   DIGEST *checksum = nullptr, *signing = nullptr;
   if (options.checksum) {
     checksum = SetupChecksum(jcr, *options.checksum);
