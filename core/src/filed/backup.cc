@@ -1218,7 +1218,7 @@ bool SendPlainData(send_context& sctx,
         msg.set_header(bfd->offset);
       }
 
-      msg.resize(bufsize);
+      msg.resize(message_length);
       SendDataToSd(sctx, options, std::move(msg), checksum, signing);
       msg = data_message(bufsize);
     }
