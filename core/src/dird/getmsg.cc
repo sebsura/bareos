@@ -300,7 +300,7 @@ bool response(JobControlRecord* jcr,
     return false;
   }
   Jmsg(jcr, M_FATAL, 0,
-       _("Socket error (n = %d) on %s command while expecting '%s': ERR=%s\n"),
+       T_("Socket error (n = %d) on %s command while expecting '%s': ERR=%s\n"),
        n, cmd, resp, BnetStrerror(bs));
   return false;
 }

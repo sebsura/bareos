@@ -547,7 +547,7 @@ bool BareosSocket::ParameterizeAndInitTlsConnectionAsAServer(
       Tls::CreateNewTlsContext(Tls::TlsImplementationType::kTlsOpenSsl));
   if (!tls_conn_init) {
     Qmsg0(BareosSocket::jcr(), M_FATAL, 0,
-          _("TLS connection initialization failed.\n"));
+          T_("TLS connection initialization failed.\n"));
     return false;
   }
 
