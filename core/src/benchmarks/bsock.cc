@@ -223,10 +223,41 @@ constexpr int text_port = 12346;
 handle TlsHandle(tls_port, true);
 handle NoTlsHandle(text_port, false);
 
-static void Setup(const benchmark::State& s)
+enum class tls
+{
+  None,
+  CHACHA,
+  GCM,
+};
+
+enum class buffered
+{
+  No,
+  Yes,
+};
+
+enum class ktls
+{
+  No,
+  Yes,
+};
+
+std::string TlsAsString(tls Tls)
+{
+  switch (Tls) {
+    case tls::CHACHA:
+      return "TLS_CHACHA20_POLY1305_SHA256";
+    case tls::GCM:
+      return "TLS_AES_128_GCM_SHA256";
+    default:
+      return "NONE";
+  }
+}
+
+static void Setup(tls Tls, ktls Ktls, buffered Buffered)
 {
   sock = new BareosSocketTCP;
-  bool tls = s.range(3);
+  bool tls = Tls != tls::None;
   ASSERT(sock->connect(nullptr, 10, 10, 10, "Input", "localhost", nullptr,
                        tls ? tls_port : text_port, false));
 
@@ -235,18 +266,37 @@ static void Setup(const benchmark::State& s)
     // res.authenticate_ = true; /* Authenticate only with TLS */
     res.tls_enable_ = true;
     res.tls_require_ = true;
+    res.ciphersuites_ = TlsAsString(Tls);
+    if (Ktls != ktls::No) { res.enable_ktls_ = true; }
+
     ASSERT(sock->DoTlsHandshake(TlsPolicy::kBnetTlsAuto, &res, false, "input",
                                 "password", nullptr));
   }
 
-  switch (s.range(2)) {
-    case 0: {
-    } break;
-    case 1: {
-      sock->MakeWritesBuffered();
-      sock->MakeReadsBuffered();
-    } break;
+  if (Buffered == buffered::Yes) {
+    sock->MakeWritesBuffered();
+    sock->MakeReadsBuffered();
   }
+}
+
+static void SetupVanilla(const benchmark::State&)
+{
+  Setup(tls::None, ktls::No, buffered::No);
+}
+
+static void SetupChacha(const benchmark::State&)
+{
+  Setup(tls::CHACHA, ktls::No, buffered::No);
+}
+
+static void SetupGCM(const benchmark::State&)
+{
+  Setup(tls::GCM, ktls::No, buffered::No);
+}
+
+static void SetupBuffered(const benchmark::State&)
+{
+  Setup(tls::None, ktls::No, buffered::Yes);
 }
 
 static void TearDown(const benchmark::State&)
@@ -295,16 +345,36 @@ static void BM_send(benchmark::State& state)
   sock->msg = old;
 }
 
+static void SizeArgs(benchmark::internal::Benchmark* b)
+{
+  std::array message_sizes = {64 * 1024, 256 * 1024};
+  std::array data_sizes = {8 * 1024 * 1024};
+  for (auto message_size : message_sizes) {
+    for (auto data_size : data_sizes) { b->Args({message_size, data_size}); }
+  }
+
+  b->Args({256 * 1024, (int64_t)5 * 1024 * 1024 * 1024});
+}
+
 BENCHMARK(BM_send)
-    ->Setup(Setup)
+    ->Name("Vanilla")
+    ->Setup(SetupVanilla)
     ->Teardown(TearDown)
-    // message_size, data_size, buffered?, tls?
-    ->Args({50, 1024 * 1024, 0, 0})
-    ->Args({50, 1024 * 1024, 0, 1})
-    ->Args({50, 1024 * 1024, 1, 0})
-    ->Ranges({{64 * 1024, 512 * 1024},
-              {1 * 1024, 512 * 1024 * 1024},
-              {0, 1},
-              {0, 1}});
+    ->Apply(SizeArgs);
+
+BENCHMARK(BM_send)->Name("Tls/GCM")->Setup(SetupGCM)->Teardown(TearDown)->Apply(
+    SizeArgs);
+
+BENCHMARK(BM_send)
+    ->Name("Tls/CHACHA")
+    ->Setup(SetupChacha)
+    ->Teardown(TearDown)
+    ->Apply(SizeArgs);
+
+BENCHMARK(BM_send)
+    ->Name("Buffered")
+    ->Setup(SetupBuffered)
+    ->Teardown(TearDown)
+    ->Apply(SizeArgs);
 
 BENCHMARK_MAIN();
