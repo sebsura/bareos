@@ -36,7 +36,7 @@
 
 #include <signal.h>
 
-#define ENABLE_TLS
+// #define ENABLE_TLS
 
 BareosSocket* sock;
 
@@ -47,9 +47,7 @@ static int OpenSocketAndBind(int family, int port)
 
   do {
     ++tries;
-    if ((fd = socket(family, SOCK_STREAM, 0)) < 0) {
-      Bmicrosleep(10, 0);
-    }
+    if ((fd = socket(family, SOCK_STREAM, 0)) < 0) { Bmicrosleep(10, 0); }
   } while (fd < 0 && tries < 6);
 
   ASSERT(fd >= 0);
@@ -77,7 +75,7 @@ static int OpenSocketAndBind(int family, int port)
   struct sockaddr_storage addr_storage;
 
   if (family == AF_INET) {
-    auto* addr = (struct sockaddr_in*) &addr_storage;
+    auto* addr = (struct sockaddr_in*)&addr_storage;
     addr->sin_family = AF_INET;
     inet_aton("127.0.0.1", &addr->sin_addr);
     addr->sin_port = htons(port);
@@ -98,9 +96,9 @@ static int OpenSocketAndBind(int family, int port)
 
 std::atomic<bool> stop_receive{false};
 
-void receive()
+void receive(bool tls, int port)
 {
-  auto fd = OpenSocketAndBind(AF_INET, 12345);
+  auto fd = OpenSocketAndBind(AF_INET, port);
   ASSERT(fd >= 0);
   ASSERT(listen(fd, 5) >= 0);
 
@@ -129,40 +127,39 @@ void receive()
     ASSERT(newsock >= 0);
 
     int keepalive = 1;
-    if (setsockopt(newsock, SOL_SOCKET, SO_KEEPALIVE,
-		   (sockopt_val_t)&keepalive, sizeof(keepalive))
-	< 0) {
+    if (setsockopt(newsock, SOL_SOCKET, SO_KEEPALIVE, (sockopt_val_t)&keepalive,
+                   sizeof(keepalive))
+        < 0) {
       std::cerr << "keep alive warning" << std::endl;
     }
 
     BareosSocket* sock = new BareosSocketTCP;
     sock->fd_ = newsock;
-#ifdef ENABLE_TLS
-    TlsResource res;
-    //res.authenticate_ = true; /* Authenticate only with TLS */
-    res.tls_enable_ = true;
-    res.tls_require_ = true;
-    std::unordered_map<std::string, std::string> map{{"input", "password"}};
-    ASSERT(sock->DoTlsHandshakeAsAServer(&res, &map, nullptr));
-#endif
+    if (tls) {
+      TlsResource res;
+      // res.authenticate_ = true; /* Authenticate only with TLS */
+      res.tls_enable_ = true;
+      res.tls_require_ = true;
+      std::unordered_map<std::string, std::string> map{{"input", "password"}};
+      ASSERT(sock->DoTlsHandshakeAsAServer(&res, &map, nullptr));
+    }
 
     bool stop = false;
     for (;;) {
       std::size_t bytes_received = 0;
       while (sock->recv() >= 0) {
-	bytes_received += sock->message_length;
-	nmsg += 1;
+        bytes_received += sock->message_length;
+        nmsg += 1;
       }
 
       auto ret = sock->message_length;
 
       if (ret == -1) {
-	//Dmsg0(50, "Received %llu bytes\n", bytes_received);
-	sock->send((const char*)&bytes_received, sizeof(bytes_received));
+        // Dmsg0(50, "Received %llu bytes\n", bytes_received);
+        sock->send((const char*)&bytes_received, sizeof(bytes_received));
       } else {
-	break;
+        break;
       }
-
     }
     sock->close();
     delete sock;
@@ -174,8 +171,9 @@ void receive()
 }
 
 struct handle {
-  std::thread receiver{receive};
-  handle() {
+  std::thread receiver;
+  handle(int port, bool tls) : receiver{receive, tls, port}
+  {
     // debug_level = 500;
 #if !defined(HAVE_WIN32)
     struct sigaction sig = {};
@@ -217,34 +215,37 @@ struct handle {
 
     receiver.join();
   }
-
 };
 
-handle H;
+constexpr int tls_port = 12345;
+constexpr int text_port = 12346;
+
+handle TlsHandle(tls_port, true);
+handle NoTlsHandle(text_port, false);
 
 static void Setup(const benchmark::State& s)
 {
   sock = new BareosSocketTCP;
-  ASSERT(sock->connect(nullptr, 10, 10, 10, "Input", "localhost",
-		       nullptr, 12345, false));
+  bool tls = s.range(3);
+  ASSERT(sock->connect(nullptr, 10, 10, 10, "Input", "localhost", nullptr,
+                       tls ? tls_port : text_port, false));
 
-#ifdef ENABLE_TLS
-  TlsResource res{};
-  //res.authenticate_ = true; /* Authenticate only with TLS */
-  res.tls_enable_ = true;
-  res.tls_require_ = true;
-  ASSERT(sock->DoTlsHandshake(TlsPolicy::kBnetTlsAuto,
-  			      &res, false,
-  			      "input", "password",
-  			      nullptr));
-#endif
+  if (tls) {
+    TlsResource res{};
+    // res.authenticate_ = true; /* Authenticate only with TLS */
+    res.tls_enable_ = true;
+    res.tls_require_ = true;
+    ASSERT(sock->DoTlsHandshake(TlsPolicy::kBnetTlsAuto, &res, false, "input",
+                                "password", nullptr));
+  }
 
   switch (s.range(2)) {
-  case 0: {} break;
-  case 1: {
-    sock->MakeWritesBuffered();
-    sock->MakeReadsBuffered();
-  } break;
+    case 0: {
+    } break;
+    case 1: {
+      sock->MakeWritesBuffered();
+      sock->MakeReadsBuffered();
+    } break;
   }
 }
 
@@ -295,10 +296,15 @@ static void BM_send(benchmark::State& state)
 }
 
 BENCHMARK(BM_send)
-  ->Setup(Setup)
-  ->Teardown(TearDown)
-  ->Args({50, 1024 *  1024, 0})
-  ->Args({50, 1024 *  1024, 1})
-  ->Ranges({{64 * 1024, 512 * 1024}, {1 * 1024, 512 * 1024 * 1024}, {0, 1}});
+    ->Setup(Setup)
+    ->Teardown(TearDown)
+    // message_size, data_size, buffered?, tls?
+    ->Args({50, 1024 * 1024, 0, 0})
+    ->Args({50, 1024 * 1024, 0, 1})
+    ->Args({50, 1024 * 1024, 1, 0})
+    ->Ranges({{64 * 1024, 512 * 1024},
+              {1 * 1024, 512 * 1024 * 1024},
+              {0, 1},
+              {0, 1}});
 
 BENCHMARK_MAIN();
