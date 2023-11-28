@@ -60,9 +60,16 @@ add_executable(gentestdata)
 target_sources(gentestdata PRIVATE gentestdata.cc)
 target_link_libraries(gentestdata PRIVATE CLI11::CLI11)
 
+add_executable(bstat bstat.cc)
+target_link_libraries(bstat PRIVATE bareos CLI11::CLI11)
+
 set(TOOLS_BIN bsmtp bwild bregex)
 
 set(TOOLS_SBIN bscrypto bwild bregex)
+
+if(NOT HAVE_WIN32)
+  list(APPEND TOOLS_SBIN bpluginfo btestls)
+endif()
 
 if(NOT HAVE_WIN32)
   list(APPEND TOOLS_SBIN bpluginfo btestls)
