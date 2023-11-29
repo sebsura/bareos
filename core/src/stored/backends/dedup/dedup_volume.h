@@ -838,11 +838,13 @@ class volume {
         if (!data_written) { return std::nullopt; }
         changed_volume();
 
-        loc.current += (size);
+        loc.current += size;
+        auto res = written_loc{loc.file_index, data_written->begin,
+                               data_written->end};
+
         if (loc.current == loc.end) { unfinished_records.erase(found); }
 
-        return written_loc{loc.file_index, data_written->begin,
-                           data_written->end};
+        return res;
       }
 
       // if we did not find the start record on this volume, we instead
@@ -886,10 +888,13 @@ class volume {
       changed_volume();
 
       loc.current += size;
+
+      auto res
+          = written_loc{loc.file_index, data_written->begin, data_written->end};
+
       if (loc.current == loc.end) { unfinished_records.erase(iter); }
 
-      return written_loc{loc.file_index, data_written->begin,
-                         data_written->end};
+      return res;
     }
   }
 

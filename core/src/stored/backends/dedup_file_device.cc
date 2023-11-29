@@ -134,20 +134,26 @@ int dedup_file_device::d_open(const char* path, int, int mode)
 
 ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
 {
-  if (size > std::numeric_limits<std::uint32_t>::max()) { return -1; }
-
-  auto* block = static_cast<const dedup::bareos_block_header*>(data);
-  uint32_t bsize = block->BlockSize;
-
-  if (bsize < sizeof(*block)) {
-    // the data size has to at least include the block header!
-    // otherwise this will not make any sense
-    Emsg0(M_ABORT, 0, T_("Trying to write bad block!\n"));
+  constexpr auto blockheader_size = sizeof(dedup::bareos_block_header);
+  constexpr auto recheader_size = sizeof(dedup::bareos_record_header);
+  if (size > std::numeric_limits<std::uint32_t>::max()) {
+    Emsg0(M_ABORT, 0, T_("Trying to write to big of a block!\n"));
+    return -1;
+  }
+  if (size < blockheader_size) {
+    Emsg0(M_ABORT, 0, T_("Trying to write block without block header!\n"));
     return -1;
   }
 
+  dedup::bareos_block_header block;
+  std::memcpy(&block, data, blockheader_size);
+  uint32_t bsize = block.BlockSize;
+
   if (size < bsize) {
-    // error: cannot write an uncomplete block
+    Emsg0(M_ABORT, 0,
+          T_("Cannot write a incomplete block"
+             " (size given = %lu, size needed = %lu)!\n"),
+          size, bsize);
     return -1;
   }
 
@@ -155,21 +161,22 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
     // warning: weird block size
   }
 
-  auto* begin = static_cast<const char*>(data);
-  auto* current = begin + sizeof(*block);
+  auto* begin = static_cast<const char*>(data) + blockheader_size;
+  auto* current = begin;
   auto* end = begin + bsize;
 
   std::vector<dedup::record_header> records;
 
   while (current != end) {
-    dedup::bareos_record_header* record = (dedup::bareos_record_header*)current;
-    if (current + sizeof(*record) > end) {
+    if (current + recheader_size > end) {
       Emsg0(M_ABORT, 0, T_("Trying to write bad record!\n"));
       return -1;
     }
+    dedup::bareos_record_header record;
+    std::memcpy(&record, current, recheader_size);
 
-    auto* payload_start = reinterpret_cast<const char*>(record + 1);
-    auto* payload_end = payload_start + record->DataSize;
+    auto* payload_start = current + recheader_size;
+    auto* payload_end = payload_start + record.DataSize;
 
     if (payload_end > end) {
       // payload is split in multiple blocks
@@ -178,10 +185,10 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
     std::size_t payload_size = payload_end - payload_start;
 
     std::optional written_loc
-        = vol.append_data(*block, *record, payload_start, payload_size);
+        = vol.append_data(block, record, payload_start, payload_size);
     if (!written_loc) { return -1; }
 
-    records.emplace_back(*record, written_loc->begin, payload_size,
+    records.emplace_back(record, written_loc->begin, payload_size,
                          written_loc->file_index);
     current = payload_end;
   }
@@ -191,7 +198,7 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
     // error: could not write records
     return -1;
   }
-  if (!vol.append_block(dedup::block_header{*block, *start, records.size()})) {
+  if (!vol.append_block(dedup::block_header{block, *start, records.size()})) {
     return -1;
   }
 
