@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2022-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2022-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -47,8 +47,18 @@ static bool LoadDynamicLibrary(
             library_file.c_str());
       return true;
     }
+
+    std::string error{};
+
+    while (auto* err = dlerror()) {
+      error += "\n- ";
+      error += err;
+    }
+
+    Jmsg(nullptr, M_INFO, 0, "Could not load library %s/%s: %s\n",
+         library_dir.c_str(), library_file.c_str(), error.c_str());
     Dmsg0(50, "Could not load library %s/%s: %s\n", library_dir.c_str(),
-          library_file.c_str(), dlerror());
+          library_file.c_str(), error.c_str());
   }
   return false;
 }
