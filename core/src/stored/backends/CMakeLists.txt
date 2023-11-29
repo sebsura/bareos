@@ -50,7 +50,6 @@ endif()
 add_sd_backend(bareossd-file)
 add_sd_backend(bareossd-fifo)
 add_sd_backend(bareossd-tape)
-add_sd_backend(bareossd-dedup)
 target_sources(bareossd-tape PRIVATE generic_tape_device.cc)
 if(HAVE_WIN32)
   target_sources(bareossd-file PRIVATE win32_file_device.cc)
@@ -61,14 +60,15 @@ else()
   target_sources(bareossd-file PRIVATE unix_file_device.cc)
   target_sources(bareossd-fifo PRIVATE unix_fifo_device.cc)
   target_sources(bareossd-tape PRIVATE unix_tape_device.cc)
+  add_sd_backend(bareossd-dedup)
+  target_sources(
+    bareossd-dedup PRIVATE dedup_file_device.cc dedup/dedup_volume.cc
+                           dedup/dedup_config.cc
+  )
+  target_link_libraries(
+    bareossd-dedup PRIVATE $<$<NOT:$<PLATFORM_ID:FreeBSD>>:stdc++fs>
+  )
 endif()
-target_sources(
-  bareossd-dedup PRIVATE dedup_file_device.cc dedup/dedup_volume.cc
-                         dedup/dedup_config.cc
-)
-target_link_libraries(
-  bareossd-dedup PRIVATE $<$<NOT:$<PLATFORM_ID:FreeBSD>>:stdc++fs>
-)
 
 if(HAVE_DARWIN_OS)
   target_link_libraries(bareossd-fifo bareos bareossd)

@@ -77,27 +77,35 @@ if(NOT client-only)
   list(APPEND TOOLS_SBIN testfind)
 endif()
 
-add_executable(bdedupestimate bdedup-estimate.cc)
-target_link_libraries(bdedupestimate bareos bareossd CLI11::CLI11)
+if(NOT HAVE_WIN32)
+  add_executable(bdedupestimate bdedup-estimate.cc)
+  target_link_libraries(bdedupestimate bareos bareossd CLI11::CLI11)
 
-# drydedup.cc does not support api < openssl 1.1.1
-if (OPENSSL_VERSION VERSION_GREATER_EQUAL 1.1.1)
-  add_executable(drydedup drydedup.cc)
-  target_link_libraries(drydedup bareos CLI11::CLI11 ${OPENSSL_LIBRARIES})
+  # drydedup.cc does not support api < openssl 1.1.1
+  if(OPENSSL_VERSION VERSION_GREATER_EQUAL 1.1.1)
+    add_executable(drydedup drydedup.cc)
+    target_link_libraries(drydedup bareos CLI11::CLI11 ${OPENSSL_LIBRARIES})
+  endif()
+
+  add_executable(
+    dedup-stats dedup_stats.cc ../stored/backends/dedup/dedup_volume.cc
+                ../stored/backends/dedup/dedup_config.cc
+  )
+
+  target_link_libraries(
+    dedup-stats PRIVATE bareos CLI11::CLI11
+                        $<$<NOT:$<PLATFORM_ID:FreeBSD>>:stdc++fs>
+  )
+
+  add_executable(
+    dedup-conf dedup_conf.cc ../stored/backends/dedup/dedup_volume.cc
+               ../stored/backends/dedup/dedup_config.cc
+  )
+  target_link_libraries(
+    dedup-conf PRIVATE bareos CLI11::CLI11
+                       $<$<NOT:$<PLATFORM_ID:FreeBSD>>:stdc++fs>
+  )
 endif()
-
-add_executable(
-  dedup-stats dedup_stats.cc ../stored/backends/dedup/dedup_volume.cc
-              ../stored/backends/dedup/dedup_config.cc
-)
-
-target_link_libraries(dedup-stats PRIVATE bareos CLI11::CLI11 $<$<NOT:$<PLATFORM_ID:FreeBSD>>:stdc++fs>)
-
-add_executable(
-  dedup-conf dedup_conf.cc ../stored/backends/dedup/dedup_volume.cc
-             ../stored/backends/dedup/dedup_config.cc
-)
-target_link_libraries(dedup-conf PRIVATE bareos CLI11::CLI11 $<$<NOT:$<PLATFORM_ID:FreeBSD>>:stdc++fs>)
 
 install(TARGETS ${TOOLS_BIN} DESTINATION "${bindir}")
 install(TARGETS ${TOOLS_SBIN} DESTINATION "${sbindir}")

@@ -18,24 +18,28 @@
 #   02110-1301, USA.
 
 get_filename_component(BASENAME ${CMAKE_CURRENT_BINARY_DIR} NAME)
-create_systemtest(${SYSTEMTEST_PREFIX} ${BASENAME})
 
-set_tests_properties(
-  system:dedup:create-backup PROPERTIES FIXTURES_SETUP
-                                        "system:dedup:backup-job-fixture"
-)
-set_tests_properties(
-  system:dedup:restore-file
-  PROPERTIES FIXTURES_REQUIRED
-             "system:dedup:backup-job-fixture;system:restore-fixture"
-)
-set_tests_properties(
-  system:dedup:restore-dir
-  PROPERTIES FIXTURES_REQUIRED
-             "system:dedup:backup-job-fixture;system:restore-fixture"
-)
-set_tests_properties(
-  system:dedup:full-restore
-  PROPERTIES FIXTURES_REQUIRED
-             "system:dedup:backup-job-fixture;system:restore-fixture"
-)
+if(HAVE_WIN32)
+  create_systemtest(${SYSTEMTEST_PREFIX} ${BASENAME} DISABLED)
+else()
+  create_systemtest(${SYSTEMTEST_PREFIX} ${BASENAME})
+  set_tests_properties(
+    system:dedup:create-backup PROPERTIES FIXTURES_SETUP
+                                          "system:dedup:backup-job-fixture"
+  )
+  set_tests_properties(
+    system:dedup:restore-file
+    PROPERTIES FIXTURES_REQUIRED
+               "system:dedup:backup-job-fixture;system:restore-fixture"
+  )
+  set_tests_properties(
+    system:dedup:restore-dir
+    PROPERTIES FIXTURES_REQUIRED
+               "system:dedup:backup-job-fixture;system:restore-fixture"
+  )
+  set_tests_properties(
+    system:dedup:full-restore
+    PROPERTIES FIXTURES_REQUIRED
+               "system:dedup:backup-job-fixture;system:restore-fixture"
+  )
+endif()
