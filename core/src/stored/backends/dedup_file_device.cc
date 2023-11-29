@@ -116,7 +116,7 @@ int dedup_file_device::d_open(const char* path, int, int mode)
     case DeviceMode::OPEN_WRITE_ONLY:
       break;
     default: {
-      Emsg0(M_ABORT, 0, _("Illegal mode given to open dev.\n"));
+      Emsg0(M_ABORT, 0, T_("Illegal mode given to open dev.\n"));
       return -1;
     }
   }
@@ -142,7 +142,7 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
   if (bsize < sizeof(*block)) {
     // the data size has to at least include the block header!
     // otherwise this will not make any sense
-    Emsg0(M_ABORT, 0, _("Trying to write bad block!\n"));
+    Emsg0(M_ABORT, 0, T_("Trying to write bad block!\n"));
     return -1;
   }
 
@@ -164,7 +164,7 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
   while (current != end) {
     dedup::bareos_record_header* record = (dedup::bareos_record_header*)current;
     if (current + sizeof(*record) > end) {
-      Emsg0(M_ABORT, 0, _("Trying to write bad record!\n"));
+      Emsg0(M_ABORT, 0, T_("Trying to write bad record!\n"));
       return -1;
     }
 

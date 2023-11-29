@@ -183,7 +183,7 @@ bool read_records(const std::vector<std::string>& volumenames)
 
   // Let SD plugins setup the record translation
   if (GeneratePluginEvent(jcr, bSdEventSetupRecordTranslation, dcr) != bRC_OK) {
-    Jmsg(jcr, M_FATAL, 0, _("bSdEventSetupRecordTranslation call failed!\n"));
+    Jmsg(jcr, M_FATAL, 0, T_("bSdEventSetupRecordTranslation call failed!\n"));
   }
 
   ReadRecords(dcr, RecordCallback, storagedaemon::MountNextReadVolume);
@@ -248,7 +248,7 @@ int main(int argc, const char* argv[])
     if (!dir) {
       Emsg2(
           M_ERROR_TERM, 0,
-          _("No Director resource named %s defined in %s. Cannot continue.\n"),
+          T_("No Director resource named %s defined in %s. Cannot continue.\n"),
           director.c_str(), config.c_str());
     }
   }

@@ -791,9 +791,10 @@ class volume {
     if (volume_changed) { write_current_config(); }
 
     if (error) {
-      Emsg1(M_FATAL, 0,
-            _("Error while writing dedup config.  Volume '%s' may be damaged."),
-            path.c_str());
+      Emsg1(
+          M_FATAL, 0,
+          T_("Error while writing dedup config.  Volume '%s' may be damaged."),
+          path.c_str());
     }
   }
 
