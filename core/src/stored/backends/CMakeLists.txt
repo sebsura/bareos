@@ -66,6 +66,9 @@ target_sources(
   bareossd-dedup PRIVATE dedup_file_device.cc dedup/dedup_volume.cc
                          dedup/dedup_config.cc
 )
+target_link_libraries(
+  bareossd-dedup PRIVATE $<$<NOT:$<PLATFORM_ID:FreeBSD>>:stdc++fs>
+)
 
 if(HAVE_DARWIN_OS)
   target_link_libraries(bareossd-fifo bareos bareossd)
