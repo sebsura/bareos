@@ -46,6 +46,14 @@ install(
   PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
   DESTINATION "${scriptdir}"
 )
+if(TARGET python3-fd)
+  install(
+    FILES bareos_encode_string.py
+    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE
+                WORLD_READ WORLD_EXECUTE
+    DESTINATION "${scriptdir}"
+  )
+endif()
 
 if(NOT client-only)
   install(
