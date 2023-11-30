@@ -89,8 +89,16 @@ class raii_fd {
     // first calling fallocate and then calling ftruncate.
     // we need to take into account that fallocate will error
     // if new_size is 0!
-    if (new_size != 0 && posix_fallocate(fd, 0, new_size) != 0) {
-      return false;
+
+    // some filesystems do not support posix_fallocate (ex. zfs on FreeBsd),
+    // so we ignore the error message here. so we ignore the error return here.
+    // the fs should just take it as a hint that it would be nice if the space
+    // actually existed if we need it.
+    if (int error = 0;
+        new_size != 0 && (error = posix_fallocate(fd, 0, new_size)) != 0) {
+      Dmsg0(250, "posix_fallocate returned error: %d ERR=%s\n", error,
+            strerror(error));
+      // return false;
     }
     return ::ftruncate(fd, new_size) == 0;
   }
