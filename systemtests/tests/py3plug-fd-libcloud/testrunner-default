@@ -4,15 +4,14 @@ set -o pipefail
 set -u
 #
 # This systemtest tests the plugin functionality
-# of the Bareos FD by using the supplied module
-#   bareos-fd-local-fileset.py
+# of the Bareos FD plugin bareos-fd-libcloud.py
 #
-# The module will backup some files.
-# This plugin is not intended for production,
-# but is only a minimal example that shows
-# how to use the python plugin interface.
+# This test will start a s3minio server, populate some data.
+# Run a backup with the plugin
+# Then run a restore
+# A full comparison is made afterwards
 # File attributes like uses and times will not be saved.
-#
+
 TestName="$(basename "$(pwd)")"
 export TestName
 bucket_name=bareos-test
@@ -26,7 +25,6 @@ JobName=backup-bareos-fd
 # setup data for the minio-server
 # shortcut for s3cmd
 S3="${S3CMD} --no-check-certificate --config ${S3CFG}"
-
 
 # Fill ${BackupDirectory} with data.
 setup_data
@@ -66,17 +64,16 @@ rm ${tmp}/data/weird-files/filename-with-non-utf8-bytestring*
 # Most end-user expect to be able to restore those empty dirs.
 rmdir ${tmp}/data/weird-files/big-X
 rmdir ${tmp}/data/weird-files/subdir
-mkdir -p ${tmp}/data/weird-files/empty_subdir/
-touch ${tmp}/data/weird-files/empty_subdir/empty_subdir
+mkdir -p ${tmp}/data/empty_subdir/
+touch ${tmp}/data/empty_subdir/empty_subdir
 ${S3} sync "${BackupDirectory}" s3://${bucket_name}
-# create directly an empty directory in the s3
+# create directly an empty directory in the s3 (would be a plus) but
 # unfortunately doesn't work
 # ${S3} put remote_empty s3://${bucket_name}/remote_empty/
 
 echo "Data preparation done"
 
 start_test
-
 
 cat <<END_OF_DATA >${tmp}/bconcmds
 @$out /dev/null
@@ -102,9 +99,6 @@ if [ ${estat} -ne 0 ]; then
 fi
 
 cat <<END_OF_DATA >${tmp}/bconcmds
-@#
-@# now do a restore
-@#
 @$out ${tmp}/log2.out
 setdebug level=200 trace=1 timestamp=1 client=bareos-fd
 restore client=bareos-fd fileset=PluginTest where=${tmp}/bareos-restores select all done yes
@@ -114,7 +108,7 @@ quit
 END_OF_DATA
 echo "Restore backup stage"
 run_bconsole
-expect_grep "Restore OK" "${tmp}/log2.out" "Restore Backup not ok!"
+expect_grep "Restore OK" "${tmp}/log2.out" "Full Restore not ok!"
 if [ ${estat} -ne 0 ]; then
     exit ${estat}
 fi
@@ -122,10 +116,6 @@ fi
 check_for_zombie_jobs storage=File
 
 check_two_logs
-list=( $(find "${BackupDirectory}" -type f) )
-# Using check_restore_only_files_diff instead of check_restore_diff
-# to don't diff the file attributes, because they are not saved
-# check_restore_only_files_diff "${list[@]}"
 
 if ! diff -r tmp/data tmp/bareos-restores/${bucket_name}/data; then
   export estat=1
