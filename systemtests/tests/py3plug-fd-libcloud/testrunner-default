@@ -6,10 +6,9 @@ set -u
 # This systemtest tests the plugin functionality
 # of the Bareos FD plugin bareos-fd-libcloud.py
 #
-# This test will start a s3minio server, populate some data.
-# Run a backup with the plugin
-# Then run a restore
-# A full comparison is made afterwards
+# This test will start a s3minio server and populate it with some data.
+# Then it runs a backup and a restore with the plugin.
+# A full comparison is made afterwards.
 # File attributes like uses and times will not be saved.
 
 TestName="$(basename "$(pwd)")"
