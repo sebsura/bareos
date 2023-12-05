@@ -24,4 +24,10 @@ rm -rf /tmp/chrome-user-data-*
 
 ${scripts}/drop_bareos_database ${DBTYPE} >/dev/null 2>&1
 
+# extend local systemtests
+localsetup="testrunner.d/$(basename $0)"
+echo "debug localsetup is ${localsetup}"
+if [ -f ${localsetup} ];then
+  ${localsetup}
+fi
 exit 0

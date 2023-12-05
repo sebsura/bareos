@@ -36,3 +36,10 @@ bin/bareos status
 
 # make sure, director is up and running.
 print_debug "$(bin/bconsole <<< "status dir")"
+
+# extend local systemtests
+localsetup="testrunner.d/$(basename $0)"
+echo "debug localsetup is ${localsetup}"
+if [ -f ${localsetup} ];then
+  ${localsetup}
+fi

@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+set -o pipefail
+set -u
+
+TestName="$(basename "$(pwd)")"
+export TestName
+bucket_name=bareos-test
+
+#shellcheck source=../environment.in
+. ./environment
+
+. "${rscripts}"/stop_minio.sh "$TestName"
