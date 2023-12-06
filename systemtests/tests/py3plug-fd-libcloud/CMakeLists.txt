@@ -23,13 +23,13 @@ if(TARGET python3-fd)
      AND MINIO
      AND PYMODULE_3_LIBCLOUD_FOUND
      AND (${Python3_VERSION_MAJOR} EQUAL 3)
-     AND (${Python3_VERSION_MINOR} LESS 10)
+     AND (${Python3_VERSION_MINOR} LESS 8)
   )
     create_systemtest(${SYSTEMTEST_PREFIX} "py3plug-fd-libcloud")
   else()
     create_systemtest(
       ${SYSTEMTEST_PREFIX} "py3plug-fd-libcloud" DISABLED COMMENT
-      "S3CMD, MINIO or LIBCLOUD MODULE not found or Python > 3.7"
+      "S3CMD, MINIO or LIBCLOUD MODULE not found or Python >= 3.8"
     )
   endif()
 else()
