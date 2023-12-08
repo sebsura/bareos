@@ -89,15 +89,61 @@ class tree {
       sibling_iter end() { return sibling_iter{*source, e}; }
     };
 
+    bool has_children() { return false; }
+    siblings children() { return siblings{nullptr, end, end}; }
+
     tree* root;
     node_index index;
     node_index end;
+
+    JobId_t jobid() const { return JobId; }
+    std::int32_t findex() const { return FileIndex; }
+    bool marked() const { return extract_dir || extract; }
+    bool markedf() const { return extract; }
+    bool markedd() const { return extract_dir; }
+
+    const char* name() const { return fname; }
+
+    node* parent() const { return parent_; }
+
+    uint64_t fh_info() const { return fhinfo; }
+    uint64_t fh_node() const { return fhnode; }
+
+    node_type type() const { return t; }
+
+    int32_t dseq() const { return delta_seq; }
+
+    struct delta_list* dlist() const { return delta_list; }
+
+    bool was_inserted() const { return inserted; }
+
+    bool is_hl() const { return hard_link; }
+    bool is_sl() const { return soft_link; }
+
+    // only used for building
+    void set_fh(uint64_t info, uint64_t node)
+    {
+      fhinfo = info;
+      fhnode = node;
+    }
+
+    void do_extract(bool d = true) { extract = d; }
+    void do_extract_dir(bool d = true) { extract_dir = d; }
+
+    void set_hard_link(bool hard_link) { this->hard_link = hard_link; }
+    void set_findex(int32_t findex) { this->FileIndex = findex; }
+    void set_jobid(JobId_t jobid) { this->JobId = jobid; }
+    void set_type(node_type type) { this->t = type; }
+    void set_soft_link(bool soft_link) { this->soft_link = soft_link; }
+    void set_dseq(int32_t dseq) { this->delta_seq = dseq; }
+
+   private:
     int32_t FileIndex;
-    node_type type;
+    node_type t;
     bool extract;
     bool extract_dir;
     char* fname;
-    node* parent;
+    node* parent_;
     uint64_t fhinfo, fhnode;
     JobId_t JobId;
     struct delta_list* delta_list;
@@ -105,14 +151,12 @@ class tree {
     bool inserted;
     bool hard_link;
     bool soft_link;
-
-    bool has_children() { return false; }
-    siblings children() { return siblings{nullptr, end, end}; }
   };
 
  private:
   std::vector<bool> marked;
   std::vector<node> nodes;
+  std::unordered_map<std::uint64_t, node_index> hardlinks;
 
  public:
   class iter {
@@ -157,6 +201,8 @@ class tree {
 
   void MarkSubTree(node_index node);
   void MarkNode(node_index node);
+
+  node& at(node_index idx) { return nodes[idx.num]; }
 
   ~tree();
 };

@@ -1290,14 +1290,14 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
      *  extracted making a bootstrap file. */
     if (OK) {
       for (auto& node : *tree.root) {
-        Dmsg2(400, "FI=%d node=0x%x\n", node.FileIndex, node);
-        if (node.extract || node.extract_dir) {
-          Dmsg3(400, "JobId=%lld type=%d FI=%d\n", (uint64_t)node.JobId,
-                node.type, node.FileIndex);
+        Dmsg2(400, "FI=%d node=0x%x\n", node.findex(), &node);
+        if (node.marked()) {
+          Dmsg3(400, "JobId=%lld type=%d FI=%d\n", (uint64_t)node.jobid(),
+                (int)node.type(), node.findex());
           /* TODO: optimize bsr insertion when jobid are non sorted */
-          AddDeltaListFindex(rx, node.delta_list);
-          AddFindex(rx->bsr.get(), node.JobId, node.FileIndex);
-          if (node.extract && node.type != node_type::NewDir) {
+          AddDeltaListFindex(rx, node.dlist());
+          AddFindex(rx->bsr.get(), node.jobid(), node.findex());
+          if (node.markedf() && node.type() != node_type::NewDir) {
             rx->selected_files++; /* count only saved files */
           }
         }
