@@ -2,7 +2,7 @@
 
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2021-2022 Bareos GmbH & Co. KG
+#   Copyright (C) 2021-2023 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -19,7 +19,7 @@
 #   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 #   02110-1301, USA.
 
-set -e
+set -ex
 set -o pipefail
 set -u
 
@@ -36,10 +36,3 @@ bin/bareos status
 
 # make sure, director is up and running.
 print_debug "$(bin/bconsole <<< "status dir")"
-
-# extend local systemtests
-localsetup="testrunner.d/$(basename $0)"
-echo "debug localsetup is ${localsetup}"
-if [ -f ${localsetup} ];then
-  ${localsetup}
-fi

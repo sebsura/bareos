@@ -3,6 +3,13 @@ set -u
 #shellcheck source=../environment.in
 . ./environment
 
+# extend local systemtests
+localcleanup="testrunner.d/cleanup"
+if [ -f ${localcleanup} ]; then
+  echo "localcleanup is ${localcleanup}"
+  ${localcleanup}
+fi
+
 rm -rf "${tmp:?}"/*
 rm -rf "${logdir:?}"/*.log
 rm -rf "${working:?}"/*.bsr "${working:?}"/log*.sd
@@ -24,10 +31,4 @@ rm -rf /tmp/chrome-user-data-*
 
 ${scripts}/drop_bareos_database ${DBTYPE} >/dev/null 2>&1
 
-# extend local systemtests
-localsetup="testrunner.d/$(basename $0)"
-echo "debug localsetup is ${localsetup}"
-if [ -f ${localsetup} ];then
-  ${localsetup}
-fi
 exit 0
