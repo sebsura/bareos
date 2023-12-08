@@ -106,6 +106,7 @@ class tree {
     bool hard_link;
     bool soft_link;
 
+    bool has_children() { return false; }
     siblings children() { return siblings{nullptr, end, end}; }
   };
 
@@ -197,7 +198,5 @@ HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
 
 TREE_NODE* FirstTreeNode(TREE_ROOT* root);
 TREE_NODE* NextTreeNode(TREE_NODE* node);
-
-#define TreeNodeHasChild(node) (((void)node), false)
 
 #endif  // BAREOS_LIB_TREE_H_
