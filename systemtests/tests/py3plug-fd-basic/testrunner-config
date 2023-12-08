@@ -80,6 +80,7 @@ for i in 1 2 3 4; do
   check_option "option$i" "value$i" defaults-file
 done
 check_option "multiline" "multiline-value" defaults-file
+check_option "whitespace_separated" "one two  three   end" defaults-file
 check_option "password" "default-password" defaults-file
 
 for i in 3 4 5 6; do
