@@ -157,14 +157,13 @@ int SetFilesToRestoreNdmpNative(JobControlRecord* jcr,
 {
   int len;
   int cnt = 0;
-  TREE_NODE *node, *parent;
+  TREE_NODE* parent;
   PoolMem restore_pathname, tmp;
 
-  node = FirstTreeNode(jcr->dir_impl->restore_tree_root);
-  while (node) {
-    /* node->extract_dir  means that only the directory should be selected for
+  for (auto& node : *jcr->dir_impl->restore_tree_root) {
+    /* node.extract_dir  means that only the directory should be selected for
      * extraction itself, the subdirs and subfiles are not automaticaly marked
-     * for extraction ( i.e. set node->extract)
+     * for extraction ( i.e. set node.extract)
      *
      * We can use this to select a directory for DDAR.
      *
@@ -174,16 +173,16 @@ int SetFilesToRestoreNdmpNative(JobControlRecord* jcr,
      * Restoring a whole directory using this mechanism is much more efficient
      * than creating an namelist entry for every single file and directory below
      * the selected one. */
-    if (node->extract_dir || node->extract) {
-      PmStrcpy(restore_pathname, node->fname);
+    if (node.extract_dir || node.extract) {
+      PmStrcpy(restore_pathname, node.fname);
       // Walk up the parent until we hit the head of the list.
-      for (parent = node->parent; parent; parent = parent->parent) {
+      for (parent = node.parent; parent; parent = parent->parent) {
         PmStrcpy(tmp, restore_pathname.c_str());
         Mmsg(restore_pathname, "%s/%s", parent->fname, tmp.c_str());
       }
       /* only add nodes that have valid DAR info i.e. fhinfo is not
        * NDMP9_INVALID_U_QUAD */
-      if (node->fhinfo != NDMP9_INVALID_U_QUAD) {
+      if (node.fhinfo != NDMP9_INVALID_U_QUAD) {
         // See if we need to strip the prefix from the filename.
         len = 0;
         if (ndmp_filesystem
@@ -194,10 +193,10 @@ int SetFilesToRestoreNdmpNative(JobControlRecord* jcr,
 
         Jmsg(jcr, M_INFO, 0,
              T_("Namelist add: node:%llu, info:%llu, name:\"%s\" \n"),
-             node->fhnode, node->fhinfo, restore_pathname.c_str());
+             node.fhnode, node.fhinfo, restore_pathname.c_str());
 
         AddToNamelist(job, restore_pathname.c_str() + len, restore_prefix,
-                      (char*)"", (char*)"", node->fhnode, node->fhinfo);
+                      (char*)"", (char*)"", node.fhnode, node.fhinfo);
 
         cnt++;
 
@@ -205,10 +204,9 @@ int SetFilesToRestoreNdmpNative(JobControlRecord* jcr,
         Jmsg(jcr, M_INFO, 0,
              T_("not added node \"%s\" to namelist because "
                 "of missing fhinfo: node:%llu info:%llu\n"),
-             restore_pathname.c_str(), node->fhnode, node->fhinfo);
+             restore_pathname.c_str(), node.fhnode, node.fhinfo);
       }
     }
-    node = NextTreeNode(node);
   }
   return cnt;
 }

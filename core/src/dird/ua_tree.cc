@@ -488,14 +488,14 @@ static int MarkElements(UaContext* ua, TreeContext* tree)
       {
         POOLMEM* path = tree_getpath(tree->node);
         if (strcmp(path, "/") == 0) {
-          node = FirstTreeNode(tree->root);
+          node = &*tree->root->begin();
         } else {
           node = tree->node;
         }
         FreePoolMemory(path);
       }
 
-      for (; node; node = NextTreeNode(node)) {
+      for (; node; node += 1) {
         POOLMEM* path = tree_getpath(node);
         SplitPathAndFilename(path, node_path, &pnl, node_filename, &fnl);
         FreePoolMemory(path);
@@ -582,15 +582,14 @@ static int Markdircmd(UaContext* ua, TreeContext* tree)
 
 static int countcmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
   int total, num_extract;
   char ec1[50], ec2[50];
 
   total = num_extract = 0;
-  for (node = FirstTreeNode(tree->root); node; node = NextTreeNode(node)) {
-    if (node->type != node_type::NewDir) {
+  for (auto& node : *tree->root) {
+    if (node.type != node_type::NewDir) {
       total++;
-      if (node->extract || node->extract_dir) { num_extract++; }
+      if (node.extract || node.extract_dir) { num_extract++; }
     }
   }
   ua->SendMsg(T_("%s total files/dirs. %s marked to be restored.\n"),
@@ -601,7 +600,6 @@ static int countcmd(UaContext* ua, TreeContext* tree)
 
 static int findcmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
   POOLMEM* cwd;
 
   if (ua->argc == 1) {
@@ -610,14 +608,14 @@ static int findcmd(UaContext* ua, TreeContext* tree)
   }
 
   for (int i = 1; i < ua->argc; i++) {
-    for (node = FirstTreeNode(tree->root); node; node = NextTreeNode(node)) {
-      if (fnmatch(ua->argk[i], node->fname, 0) == 0) {
+    for (auto& node : *tree->root) {
+      if (fnmatch(ua->argk[i], node.fname, 0) == 0) {
         const char* tag;
 
-        cwd = tree_getpath(node);
-        if (node->extract) {
+        cwd = tree_getpath(&node);
+        if (node.extract) {
           tag = "*";
-        } else if (node->extract_dir) {
+        } else if (node.extract_dir) {
           tag = "+";
         } else {
           tag = "";
@@ -863,7 +861,6 @@ static int dircmd(UaContext* ua, TreeContext* tree)
 
 static int Estimatecmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
   POOLMEM* cwd;
   int total, num_extract;
   uint64_t total_bytes = 0;
@@ -872,16 +869,16 @@ static int Estimatecmd(UaContext* ua, TreeContext* tree)
   char ec1[50];
 
   total = num_extract = 0;
-  for (node = FirstTreeNode(tree->root); node; node = NextTreeNode(node)) {
-    if (node->type != node_type::NewDir) {
+  for (auto& node : *tree->root) {
+    if (node.type != node_type::NewDir) {
       total++;
-      if (node->extract && node->type == node_type::File) {
+      if (node.extract && node.type == node_type::File) {
         // If regular file, get size
         num_extract++;
-        cwd = tree_getpath(node);
+        cwd = tree_getpath(&node);
 
         fdbr.FileId = 0;
-        fdbr.JobId = node->JobId;
+        fdbr.JobId = node.JobId;
 
         if (ua->db->GetFileAttributesRecord(ua->jcr, cwd, NULL, &fdbr)) {
           int32_t LinkFI;
@@ -893,7 +890,7 @@ static int Estimatecmd(UaContext* ua, TreeContext* tree)
         }
 
         FreePoolMemory(cwd);
-      } else if (node->extract || node->extract_dir) {
+      } else if (node.extract || node.extract_dir) {
         // Directory, count only
         num_extract++;
       }

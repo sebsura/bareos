@@ -125,7 +125,7 @@ class tree {
     void next() { current.num += 1; }
     void next_sibling() { current = source->nodes[current.num].end; }
 
-    node_index operator*() { return current; }
+    node& operator*() { return source->nodes[current.num]; }
     iter& operator++()
     {
       next();
@@ -189,14 +189,5 @@ void InsertHardlink(TREE_ROOT* root,
                     std::int32_t findex,
                     TREE_NODE* node);
 HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
-
-/**
- * Use the following for traversing the whole tree. It will be
- *   traversed in the order the entries were inserted into the
- *   tree.
- */
-
-TREE_NODE* FirstTreeNode(TREE_ROOT* root);
-TREE_NODE* NextTreeNode(TREE_NODE* node);
 
 #endif  // BAREOS_LIB_TREE_H_

@@ -66,17 +66,15 @@ static char OKbootstrap[] = "3000 OK bootstrap\n";
  */
 static inline char* lookup_fileindex(JobControlRecord* jcr, int32_t FileIndex)
 {
-  TREE_NODE *node, *parent;
   PoolMem restore_pathname, tmp;
 
-  node = FirstTreeNode(jcr->dir_impl->restore_tree_root);
-  while (node) {
+  for (auto& node : *jcr->dir_impl->restore_tree_root) {
     // See if this is the wanted FileIndex.
-    if (node->FileIndex == FileIndex) {
-      PmStrcpy(restore_pathname, node->fname);
+    if (node.FileIndex == FileIndex) {
+      PmStrcpy(restore_pathname, node.fname);
 
       // Walk up the parent until we hit the head of the list.
-      for (parent = node->parent; parent; parent = parent->parent) {
+      for (TREE_NODE* parent = node.parent; parent; parent = parent->parent) {
         PmStrcpy(tmp, restore_pathname.c_str());
         Mmsg(restore_pathname, "%s/%s", parent->fname, tmp.c_str());
       }
@@ -85,8 +83,6 @@ static inline char* lookup_fileindex(JobControlRecord* jcr, int32_t FileIndex)
         return strdup(restore_pathname.c_str());
       }
     }
-
-    node = NextTreeNode(node);
   }
 
   return NULL;
@@ -101,17 +97,15 @@ static inline int set_files_to_restore(JobControlRecord* jcr,
 {
   int len;
   int cnt = 0;
-  TREE_NODE *node, *parent;
   PoolMem restore_pathname, tmp;
 
-  node = FirstTreeNode(jcr->dir_impl->restore_tree_root);
-  while (node) {
+  for (auto& node : *jcr->dir_impl->restore_tree_root) {
     // See if this is the wanted FileIndex and the user asked to extract it.
-    if (node->FileIndex == FileIndex && node->extract) {
-      PmStrcpy(restore_pathname, node->fname);
+    if (node.FileIndex == FileIndex && node.extract) {
+      PmStrcpy(restore_pathname, node.fname);
 
       // Walk up the parent until we hit the head of the list.
-      for (parent = node->parent; parent; parent = parent->parent) {
+      for (TREE_NODE* parent = node.parent; parent; parent = parent->parent) {
         PmStrcpy(tmp, restore_pathname.c_str());
         Mmsg(restore_pathname, "%s/%s", parent->fname, tmp.c_str());
       }
@@ -135,8 +129,6 @@ static inline int set_files_to_restore(JobControlRecord* jcr,
         cnt++;
       }
     }
-
-    node = NextTreeNode(node);
   }
 
   return cnt;

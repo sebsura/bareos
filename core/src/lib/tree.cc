@@ -536,9 +536,6 @@ void InsertHardlink(TREE_ROOT*, JobId_t, std::int32_t, TREE_NODE*) {}
 
 HL_ENTRY* LookupHardlink(TREE_ROOT*, JobId_t, std::int32_t) { return nullptr; }
 
-TREE_NODE* FirstTreeNode(TREE_ROOT*) { return nullptr; }
-TREE_NODE* NextTreeNode(TREE_NODE*) { return nullptr; }
-
 node_index tree::root() const { return node_index{0}; }
 node_index tree::insert_node(const char* path,
                              const char* fname,
