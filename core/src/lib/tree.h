@@ -168,7 +168,4 @@ TREE_NODE* NextTreeNode(TREE_NODE* node);
 
 #define TreeNodeHasChild(node) (((void)node), false)
 
-#define first_child(node) (((void)node), (TREE_NODE*)(nullptr))
-
-
 #endif  // BAREOS_LIB_TREE_H_
