@@ -28,7 +28,8 @@
 #include "dird/client_connection_handshake_mode.h"
 #include "dird/job_trigger.h"
 
-typedef struct s_tree_root TREE_ROOT;
+class tree;
+using TREE_ROOT = tree;
 
 class ConfigResourcesContainer;
 

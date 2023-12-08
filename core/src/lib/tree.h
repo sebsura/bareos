@@ -28,134 +28,112 @@
 #ifndef BAREOS_LIB_TREE_H_
 #define BAREOS_LIB_TREE_H_
 
-#include "lib/htable.h"
-#include "lib/rblist.h"
-
 #include "include/config.h"
 
 #include <cstdint>
-
-struct s_mem {
-  struct s_mem* next; /* next buffer */
-  int rem;            /* remaining bytes */
-  void* mem;          /* memory pointer */
-  char first[1];      /* first byte */
-};
-
-#define USE_DLIST
-
-#define foreach_child(var, list) \
-  for ((var) = NULL;             \
-       (*((TREE_NODE**)&(var)) = (TREE_NODE*)(list->child.next(var)));)
-
-#define TreeNodeHasChild(node) ((node)->child.size() > 0)
-
-#define first_child(node) \
-        ((TREE_NODE *)(node->child.first())
+#include <vector>
 
 struct delta_list {
-  struct delta_list* next;
+  delta_list* next;
   JobId_t JobId;
   int32_t FileIndex;
 };
 
-/**
- * Keep this node as small as possible because
- *   there is one for each file.
- */
-struct s_tree_node {
-  s_tree_node()
-      : type{false}
-      , extract{false}
-      , extract_dir{false}
-      , hard_link{false}
-      , soft_link{false}
-      , inserted{false}
-      , loaded{false}
-  {
-  }
-  /* KEEP sibling as the first member to avoid having to
-   *  do initialization of child */
-  rblink sibling;
-  rblist child;
-  char* fname{};                /* file name */
-  int32_t FileIndex{};          /* file index */
-  uint32_t JobId{};             /* JobId */
-  int32_t delta_seq{};          /* current delta sequence */
-  uint16_t fname_len{};         /* filename length */
-  unsigned int type : 8;        /* node type */
-  unsigned int extract : 1;     /* extract item */
-  unsigned int extract_dir : 1; /* extract dir entry only */
-  unsigned int hard_link : 1;   /* set if have hard link */
-  unsigned int soft_link : 1;   /* set if is soft link */
-  unsigned int inserted : 1;    /* set when node newly inserted */
-  unsigned int loaded : 1;      /* set when the dir is in the tree */
-  struct s_tree_node* parent{};
-  struct s_tree_node* next{};      /* next hash of FileIndex */
-  struct delta_list* delta_list{}; /* delta parts for this node */
-  uint64_t fhinfo{};               /* NDMP Fh_info */
-  uint64_t fhnode{};               /* NDMP Fh_node */
+enum class node_type : int
+{
+  Root = 1,   /* root node */
+  NewDir = 2, /* created directory to fill path */
+  Dir = 3,    /* directory entry */
+  DirNls = 4, /* directory -- no leading slash -- win32 */
+  File = 5,   /* file entry */
 };
-typedef struct s_tree_node TREE_NODE;
 
-/* hardlink hashtable entry */
-struct s_hl_entry {
-  uint64_t key;
-  hlink link;
-  TREE_NODE* node;
+#define TN_ROOT ((int)node_type::Root)
+#define TN_NEWDIR ((int)node_type::NewDir)
+#define TN_DIR ((int)node_type::Dir)
+#define TN_DIR_NLS ((int)node_type::DirNls)
+#define TN_FILE ((int)node_type::File)
+
+struct node_index {
+  std::size_t num;
+
+  bool operator!=(const node_index& other) { return num != other.num; }
 };
-typedef struct s_hl_entry HL_ENTRY;
 
-using HardlinkTable = htable<uint64_t, HL_ENTRY, MonotonicBuffer::Size::Small>;
+class tree {
+ public:
+  struct node {
+    tree* root;
+    node_index index;
+    node_index end;
+    int32_t FileIndex;
+    int type;
+    bool extract;
+    bool extract_dir;
+    char* fname;
+    node* parent;
+    uint64_t fhinfo, fhnode;
+    JobId_t JobId;
+    struct delta_list* delta_list;
+    int delta_seq;
+    bool inserted;
+    bool hard_link;
+    bool soft_link;
+  };
 
-struct s_tree_root {
-  s_tree_root()
-      : type{false}
-      , extract{false}
-      , extract_dir{false}
-      , have_link{false}
-      , inserted{false}
-      , loaded{false}
-  {
-  }
-  /* KEEP sibling as the first member to avoid having to
-   *  do initialization of child */
-  rblink sibling{};
-  rblist child;
-  const char* fname{};          /* file name */
-  int32_t FileIndex{};          /* file index */
-  uint32_t JobId{};             /* JobId */
-  int32_t delta_seq{};          /* current delta sequence */
-  uint16_t fname_len{};         /* filename length */
-  unsigned int type : 8;        /* node type */
-  unsigned int extract : 1;     /* extract item */
-  unsigned int extract_dir : 1; /* extract dir entry only */
-  unsigned int have_link : 1;   /* set if have hard link */
-  unsigned int inserted : 1;    /* set when newly inserted */
-  unsigned int loaded : 1;      /* set when the dir is in the tree */
-  struct s_tree_node* parent{};
-  struct s_tree_node* next{};      /* next hash of FileIndex */
-  struct delta_list* delta_list{}; /* delta parts for this node */
+ private:
+  std::vector<bool> marked;
+  std::vector<node> nodes;
 
-  /* The above ^^^ must be identical to a TREE_NODE structure */
-  struct s_tree_node* first{}; /* first entry in the tree */
-  struct s_tree_node* last{};  /* last entry in tree */
-  struct s_mem* mem{};         /* tree memory */
-  uint32_t total_size{};       /* total bytes allocated */
-  uint32_t blocks{};           /* total mallocs */
-  int cached_path_len{};       /* length of cached path */
-  char* cached_path{};         /* cached current path */
-  TREE_NODE* cached_parent{};  /* cached parent for above path */
-  HardlinkTable hardlinks;     /* references to first occurence of hardlinks */
+ public:
+  class iter {
+    tree* source;
+    node_index current;
+
+   public:
+    iter(tree& source, node_index start) : source{&source}, current{start} {}
+
+    void next() { current.num += 1; }
+    void next_sibling() { current = source->nodes[current.num].end; }
+
+    node_index operator*() { return current; }
+    iter& operator++()
+    {
+      next();
+      return *this;
+    }
+    bool operator!=(const iter& other)
+    {
+      return source != other.source || current != other.current;
+    }
+  };
+
+  node_index root() const;
+  node_index insert_node(const char* path,
+                         const char* fname,
+                         node_type type,
+                         node_index parent);
+
+  node_index find(char* path, node_index from) const;
+
+  void add_delta_part(node_index node, JobId_t jobid, std::int32_t findex);
+
+  std::string path_to(node_index node) const;
+
+  void insert_original_hl(JobId_t jobid, std::int32_t findex, node_index index);
+  void insert_hl(JobId_t jobid, std::int32_t findex, node_index index);
+
+  iter begin();
+  iter end();
+
+  void MarkSubTree(node_index node);
+  void MarkNode(node_index node);
+
+  ~tree();
 };
-typedef struct s_tree_root TREE_ROOT;
 
-/* type values */
-#define TN_ROOT 1    /* root node */
-#define TN_NEWDIR 2  /* created directory to fill path */
-#define TN_DIR 3     /* directory entry */
-#define TN_DIR_NLS 4 /* directory -- no leading slash -- win32 */
-#define TN_FILE 5    /* file entry */
+using TREE_ROOT = tree;
+using TREE_NODE = tree::node;
 
 /* External interface */
 TREE_ROOT* new_tree(int count);
@@ -172,6 +150,11 @@ void TreeAddDeltaPart(TREE_ROOT* root,
 void FreeTree(TREE_ROOT* root);
 POOLMEM* tree_getpath(TREE_NODE* node);
 void TreeRemoveNode(TREE_ROOT* root, TREE_NODE* node);
+
+struct HL_ENTRY {
+  TREE_NODE* node;
+};
+
 void InsertHardlink(TREE_ROOT* root,
                     JobId_t jobid,
                     std::int32_t findex,
@@ -183,7 +166,15 @@ HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
  *   traversed in the order the entries were inserted into the
  *   tree.
  */
-#define FirstTreeNode(r) (r)->first
-#define NextTreeNode(n) (n)->next
+
+TREE_NODE* FirstTreeNode(TREE_ROOT* root);
+TREE_NODE* NextTreeNode(TREE_NODE* node);
+
+#define foreach_child(var, list) for ((var) = NULL; (var);)
+
+#define TreeNodeHasChild(node) (((void)node), false)
+
+#define first_child(node) (((void)node), (TREE_NODE*)(nullptr))
+
 
 #endif  // BAREOS_LIB_TREE_H_

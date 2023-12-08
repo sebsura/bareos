@@ -30,9 +30,11 @@
 #include "lib/util.h"
 #include "lib/fnmatch.h"
 
-#define B_PAGE_SIZE 4096
-#define MAX_PAGES 2400
-#define MAX_BUF_SIZE (MAX_PAGES * B_PAGE_SIZE) /* approx 10MB */
+#if 0
+
+#  define B_PAGE_SIZE 4096
+#  define MAX_PAGES 2400
+#  define MAX_BUF_SIZE (MAX_PAGES * B_PAGE_SIZE) /* approx 10MB */
 
 static TREE_NODE* make_tree_path(char* path, TREE_ROOT* root);
 static TREE_NODE* tree_relcwd(char* path, TREE_ROOT* root, TREE_NODE* node);
@@ -45,14 +47,14 @@ static TREE_NODE* search_and_insert_tree_node(char* fname,
 template <typename T> static T* tree_alloc(TREE_ROOT* root, int size);
 
 // NOTE !!!!! we turn off Debug messages for performance reasons.
-#undef Dmsg0
-#undef Dmsg1
-#undef Dmsg2
-#undef Dmsg3
-#define Dmsg0(n, f)
-#define Dmsg1(n, f, a1)
-#define Dmsg2(n, f, a1, a2)
-#define Dmsg3(n, f, a1, a2, a3)
+#  undef Dmsg0
+#  undef Dmsg1
+#  undef Dmsg2
+#  undef Dmsg3
+#  define Dmsg0(n, f)
+#  define Dmsg1(n, f, a1)
+#  define Dmsg2(n, f, a1, a2)
+#  define Dmsg3(n, f, a1, a2, a3)
 
 // This subroutine gets a big buffer.
 static void MallocBuf(TREE_ROOT* root, int size)
@@ -473,3 +475,124 @@ HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex)
   uint64_t file_key = (((std::uint64_t)jobid) << 32) | ((std::uint64_t)findex);
   return (HL_ENTRY*)root->hardlinks.lookup(file_key);
 }
+
+#else
+
+TREE_ROOT* new_tree(int) { return new tree{}; }
+
+TREE_NODE* insert_tree_node(char* path,
+                            char* fname,
+                            int type,
+                            TREE_ROOT* root,
+                            TREE_NODE* parent)
+{
+  (void)path;
+  (void)fname;
+  (void)type;
+  (void)root;
+  (void)parent;
+
+  return nullptr;
+}
+
+TREE_NODE* tree_cwd(char* path, TREE_ROOT* root, TREE_NODE* node)
+{
+  (void)path;
+  (void)root;
+  (void)node;
+
+  return nullptr;
+}
+
+void TreeAddDeltaPart(TREE_ROOT* root,
+                      TREE_NODE* node,
+                      JobId_t JobId,
+                      int32_t FileIndex)
+{
+  (void)root;
+  (void)node;
+  (void)JobId;
+  (void)FileIndex;
+}
+
+void FreeTree(TREE_ROOT* root) { root->~tree(); }
+
+POOLMEM* tree_getpath(TREE_NODE* node)
+{
+  if (!node) { return NULL; }
+
+  auto* root = node->root;
+  auto cpath = root->path_to(node->index);
+
+  POOLMEM* path = GetPoolMemory(PM_NAME);
+  PmStrcpy(path, cpath.c_str());
+
+  return path;
+}
+
+void TreeRemoveNode(TREE_ROOT*, TREE_NODE*) {}
+
+void InsertHardlink(TREE_ROOT*, JobId_t, std::int32_t, TREE_NODE*) {}
+
+HL_ENTRY* LookupHardlink(TREE_ROOT*, JobId_t, std::int32_t) { return nullptr; }
+
+TREE_NODE* FirstTreeNode(TREE_ROOT*) { return nullptr; }
+TREE_NODE* NextTreeNode(TREE_NODE*) { return nullptr; }
+
+node_index tree::root() const { return node_index{0}; }
+node_index tree::insert_node(const char* path,
+                             const char* fname,
+                             node_type type,
+                             node_index parent)
+{
+  (void)path;
+  (void)fname;
+  (void)type;
+  (void)parent;
+  return node_index{0};
+}
+
+node_index tree::find(char* path, node_index from) const
+{
+  (void)path;
+  (void)from;
+  return node_index{0};
+}
+
+void tree::add_delta_part(node_index node, JobId_t jobid, std::int32_t findex)
+{
+  (void)jobid;
+  (void)findex;
+  (void)node;
+}
+
+std::string tree::path_to(node_index node) const
+{
+  (void)node;
+  return "";
+}
+
+void tree::insert_original_hl(JobId_t jobid,
+                              std::int32_t findex,
+                              node_index index)
+{
+  (void)jobid;
+  (void)findex;
+  (void)index;
+}
+void tree::insert_hl(JobId_t jobid, std::int32_t findex, node_index index)
+{
+  (void)jobid;
+  (void)findex;
+  (void)index;
+}
+
+auto tree::begin() -> iter { return iter{*this, node_index{0}}; }
+auto tree::end() -> iter { return iter{*this, node_index{0}}; }
+
+void tree::MarkSubTree(node_index node) { (void)node; }
+void tree::MarkNode(node_index node) { (void)node; }
+
+tree::~tree() {}
+
+#endif
