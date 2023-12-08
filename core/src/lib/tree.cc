@@ -482,7 +482,7 @@ TREE_ROOT* new_tree(int) { return new tree{}; }
 
 TREE_NODE* insert_tree_node(char* path,
                             char* fname,
-                            int type,
+                            node_type type,
                             TREE_ROOT* root,
                             TREE_NODE* parent)
 {

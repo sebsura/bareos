@@ -48,12 +48,6 @@ enum class node_type : int
   File = 5,   /* file entry */
 };
 
-#define TN_ROOT ((int)node_type::Root)
-#define TN_NEWDIR ((int)node_type::NewDir)
-#define TN_DIR ((int)node_type::Dir)
-#define TN_DIR_NLS ((int)node_type::DirNls)
-#define TN_FILE ((int)node_type::File)
-
 struct node_index {
   std::size_t num;
 
@@ -67,7 +61,7 @@ class tree {
     node_index index;
     node_index end;
     int32_t FileIndex;
-    int type;
+    node_type type;
     bool extract;
     bool extract_dir;
     char* fname;
@@ -139,7 +133,7 @@ using TREE_NODE = tree::node;
 TREE_ROOT* new_tree(int count);
 TREE_NODE* insert_tree_node(char* path,
                             char* fname,
-                            int type,
+                            node_type type,
                             TREE_ROOT* root,
                             TREE_NODE* parent);
 TREE_NODE* tree_cwd(char* path, TREE_ROOT* root, TREE_NODE* node);

@@ -221,7 +221,7 @@ int InsertTreeHandler(void* ctx, int, char** row)
   struct stat statp;
   TreeContext* tree = (TreeContext*)ctx;
   TREE_NODE* node;
-  int type;
+  node_type type;
   bool hard_link, ok;
   int FileIndex;
   int32_t delta_seq;
@@ -231,12 +231,12 @@ int InsertTreeHandler(void* ctx, int, char** row)
   Dmsg4(150, "Path=%s%s FI=%s JobId=%s\n", row[0], row[1], row[2], row[3]);
   if (*row[1] == 0) {                /* no filename => directory */
     if (!IsPathSeparator(*row[0])) { /* Must be Win32 directory */
-      type = TN_DIR_NLS;
+      type = node_type::DirNls;
     } else {
-      type = TN_DIR;
+      type = node_type::Dir;
     }
   } else {
-    type = TN_FILE;
+    type = node_type::File;
   }
   DecodeStat(row[4], &statp, sizeof(statp), &LinkFI);
   hard_link = (LinkFI != 0);
@@ -302,13 +302,14 @@ int InsertTreeHandler(void* ctx, int, char** row)
 
     if (tree->all) {
       node->extract = true; /* extract all by default */
-      if (type == TN_DIR || type == TN_DIR_NLS) {
+      if (type == node_type::Dir || type == node_type::DirNls) {
         node->extract_dir = true; /* if dir, extract it */
       }
     }
 
     // Insert file having hardlinks into hardlink hashtable.
-    if (statp.st_nlink > 1 && type != TN_DIR && type != TN_DIR_NLS) {
+    if (statp.st_nlink > 1 && type != node_type::Dir
+        && type != node_type::DirNls) {
       if (!LinkFI) {
         // First occurence - file hardlinked to
         InsertHardlink(tree->root, JobId, FileIndex, node);
@@ -353,14 +354,15 @@ static int SetExtract(UaContext* ua,
   int count = 0;
 
   node->extract = extract;
-  if (node->type == TN_DIR || node->type == TN_DIR_NLS) {
+  if (node->type == node_type::Dir || node->type == node_type::DirNls) {
     node->extract_dir = extract; /* set/clear dir too */
   }
 
-  if (node->type != TN_NEWDIR) { count++; }
+  if (node->type != node_type::NewDir) { count++; }
 
   // For a non-file (i.e. directory), we see all the children
-  if (node->type != TN_FILE || (node->soft_link && TreeNodeHasChild(node))) {
+  if (node->type != node_type::File
+      || (node->soft_link && TreeNodeHasChild(node))) {
     // Recursive set children within directory
     foreach_child (n, node) { count += SetExtract(ua, n, tree, extract); }
 
@@ -369,7 +371,9 @@ static int SetExtract(UaContext* ua,
       while (node->parent && !node->parent->extract_dir) {
         node = node->parent;
         node->extract_dir = true;
-        if (node->type != TN_NEWDIR && node->type != TN_ROOT) { count += 1; }
+        if (node->type != node_type::NewDir && node->type != node_type::Root) {
+          count += 1;
+        }
       }
     }
   } else {
@@ -422,7 +426,8 @@ static int SetExtract(UaContext* ua,
           // if this is our first time marking it, then add to the count
           if (!n->extract) { count += 1; }
           n->extract = true;
-          n->extract_dir = (n->type == TN_DIR || n->type == TN_DIR_NLS);
+          n->extract_dir
+              = (n->type == node_type::Dir || n->type == node_type::DirNls);
         }
       }
     }
@@ -557,7 +562,7 @@ static int Markdircmd(UaContext* ua, TreeContext* tree)
     StripTrailingSlash(ua->argk[i]);
     foreach_child (node, tree->node) {
       if (fnmatch(ua->argk[i], node->fname, 0) == 0) {
-        if (node->type == TN_DIR || node->type == TN_DIR_NLS) {
+        if (node->type == node_type::Dir || node->type == node_type::DirNls) {
           node->extract_dir = true;
           count++;
         }
@@ -583,7 +588,7 @@ static int countcmd(UaContext* ua, TreeContext* tree)
 
   total = num_extract = 0;
   for (node = FirstTreeNode(tree->root); node; node = NextTreeNode(node)) {
-    if (node->type != TN_NEWDIR) {
+    if (node->type != node_type::NewDir) {
       total++;
       if (node->extract || node->extract_dir) { num_extract++; }
     }
@@ -826,7 +831,7 @@ static int DoDircmd(UaContext* ua, TreeContext* tree, bool dot_cmd)
        * when returned from tree_getpath, but get_file_attr...
        * treats soft links as files, so they do not have a trailing
        * slash like directory names. */
-      if (node->type == TN_FILE && TreeNodeHasChild(node)) {
+      if (node->type == node_type::File && TreeNodeHasChild(node)) {
         PmStrcpy(buf, cwd);
         pcwd = buf;
         int len = strlen(buf);
@@ -878,9 +883,9 @@ static int Estimatecmd(UaContext* ua, TreeContext* tree)
 
   total = num_extract = 0;
   for (node = FirstTreeNode(tree->root); node; node = NextTreeNode(node)) {
-    if (node->type != TN_NEWDIR) {
+    if (node->type != node_type::NewDir) {
       total++;
-      if (node->extract && node->type == TN_FILE) {
+      if (node->extract && node->type == node_type::File) {
         // If regular file, get size
         num_extract++;
         cwd = tree_getpath(node);
@@ -1088,7 +1093,7 @@ static int UnMarkdircmd(UaContext* ua, TreeContext* tree)
     StripTrailingSlash(ua->argk[i]);
     foreach_child (node, tree->node) {
       if (fnmatch(ua->argk[i], node->fname, 0) == 0) {
-        if (node->type == TN_DIR || node->type == TN_DIR_NLS) {
+        if (node->type == node_type::Dir || node->type == node_type::DirNls) {
           node->extract_dir = false;
           count++;
         }
