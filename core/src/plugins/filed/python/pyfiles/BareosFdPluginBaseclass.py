@@ -215,6 +215,7 @@ class BareosFdPluginBaseclass(object):
                     )
 
             if key not in self.options:
+                bareosfd.DebugMessage(100, 'key:value = "%s:%s"\n' % (key, value))
                 self.options[key] = value
 
     def parse_plugin_definition(self, plugindef):
