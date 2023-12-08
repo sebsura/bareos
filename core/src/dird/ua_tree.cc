@@ -364,7 +364,9 @@ static int SetExtract(UaContext* ua,
   if (node->type != node_type::File
       || (node->soft_link && TreeNodeHasChild(node))) {
     // Recursive set children within directory
-    foreach_child (n, node) { count += SetExtract(ua, n, tree, extract); }
+    for (auto& n : node->children()) {
+      count += SetExtract(ua, &n, tree, extract);
+    }
 
     // Walk up tree marking any unextracted parent to be extracted.
     if (extract) {
@@ -511,10 +513,9 @@ static int MarkElements(UaContext* ua, TreeContext* tree)
       FreePoolMemory(node_path);
     } else {
       // Only a pattern without a / so do things relative to CWD.
-      TREE_NODE* node;
-      foreach_child (node, tree->node) {
-        if (fnmatch(ua->argk[i], node->fname, 0) == 0) {
-          count += SetExtract(ua, node, tree, true);
+      for (auto& node : tree->node->children()) {
+        if (fnmatch(ua->argk[i], node.fname, 0) == 0) {
+          count += SetExtract(ua, &node, tree, true);
         }
       }
     }
@@ -550,7 +551,6 @@ static int markcmd(UaContext* ua, TreeContext* tree)
 
 static int Markdircmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
   int count = 0;
   char ec1[50];
 
@@ -560,10 +560,10 @@ static int Markdircmd(UaContext* ua, TreeContext* tree)
   }
   for (int i = 1; i < ua->argc; i++) {
     StripTrailingSlash(ua->argk[i]);
-    foreach_child (node, tree->node) {
-      if (fnmatch(ua->argk[i], node->fname, 0) == 0) {
-        if (node->type == node_type::Dir || node->type == node_type::DirNls) {
-          node->extract_dir = true;
+    for (auto& node : tree->node->children()) {
+      if (fnmatch(ua->argk[i], node.fname, 0) == 0) {
+        if (node.type == node_type::Dir || node.type == node_type::DirNls) {
+          node.extract_dir = true;
           count++;
         }
       }
@@ -632,13 +632,11 @@ static int findcmd(UaContext* ua, TreeContext* tree)
 
 static int DotLsdircmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
-
   if (!TreeNodeHasChild(tree->node)) { return 1; }
 
-  foreach_child (node, tree->node) {
-    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
-      if (TreeNodeHasChild(node)) { ua->SendMsg("%s/\n", node->fname); }
+  for (auto& node : tree->node->children()) {
+    if (ua->argc == 1 || fnmatch(ua->argk[1], node.fname, 0) == 0) {
+      if (TreeNodeHasChild(&node)) { ua->SendMsg("%s/\n", node.fname); }
     }
   }
 
@@ -656,13 +654,11 @@ static int DotHelpcmd(UaContext* ua, TreeContext*)
 
 static int DotLscmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
-
   if (!TreeNodeHasChild(tree->node)) { return 1; }
 
-  foreach_child (node, tree->node) {
-    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
-      ua->SendMsg("%s%s\n", node->fname, TreeNodeHasChild(node) ? "/" : "");
+  for (auto& node : tree->node->children()) {
+    if (ua->argc == 1 || fnmatch(ua->argk[1], node.fname, 0) == 0) {
+      ua->SendMsg("%s%s\n", node.fname, TreeNodeHasChild(&node) ? "/" : "");
     }
   }
 
@@ -671,20 +667,18 @@ static int DotLscmd(UaContext* ua, TreeContext* tree)
 
 static int lscmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
-
   if (!TreeNodeHasChild(tree->node)) { return 1; }
-  foreach_child (node, tree->node) {
-    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
+  for (auto& node : tree->node->children()) {
+    if (ua->argc == 1 || fnmatch(ua->argk[1], node.fname, 0) == 0) {
       const char* tag;
-      if (node->extract) {
+      if (node.extract) {
         tag = "*";
-      } else if (node->extract_dir) {
+      } else if (node.extract_dir) {
         tag = "+";
       } else {
         tag = "";
       }
-      ua->SendMsg("%s%s%s\n", tag, node->fname,
+      ua->SendMsg("%s%s%s\n", tag, node.fname,
                   TreeNodeHasChild(node) ? "/" : "");
     }
   }
@@ -694,12 +688,11 @@ static int lscmd(UaContext* ua, TreeContext* tree)
 // Ls command that lists only the marked files
 static int DotLsmarkcmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
   if (!TreeNodeHasChild(tree->node)) { return 1; }
-  foreach_child (node, tree->node) {
-    if ((ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0)
-        && (node->extract || node->extract_dir)) {
-      ua->SendMsg("%s%s\n", node->fname, TreeNodeHasChild(node) ? "/" : "");
+  for (auto& node : tree->node->children()) {
+    if ((ua->argc == 1 || fnmatch(ua->argk[1], node.fname, 0) == 0)
+        && (node.extract || node.extract_dir)) {
+      ua->SendMsg("%s%s\n", node.fname, TreeNodeHasChild(node) ? "/" : "");
     }
   }
   return 1;
@@ -708,7 +701,6 @@ static int DotLsmarkcmd(UaContext* ua, TreeContext* tree)
 // This recursive ls command that lists only the marked files
 static void rlsmark(UaContext* ua, TREE_NODE* tnode, int level)
 {
-  TREE_NODE* node;
   const int max_level = 100;
   char indent[max_level * 2 + 1];
   int i, j;
@@ -723,20 +715,20 @@ static void rlsmark(UaContext* ua, TREE_NODE* tnode, int level)
   }
   indent[j] = 0;
 
-  foreach_child (node, tnode) {
-    if ((ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0)
-        && (node->extract || node->extract_dir)) {
+  for (auto& node : tnode->children()) {
+    if ((ua->argc == 1 || fnmatch(ua->argk[1], node.fname, 0) == 0)
+        && (node.extract || node.extract_dir)) {
       const char* tag;
-      if (node->extract) {
+      if (node.extract) {
         tag = "*";
-      } else if (node->extract_dir) {
+      } else if (node.extract_dir) {
         tag = "+";
       } else {
         tag = "";
       }
-      ua->SendMsg("%s%s%s%s\n", indent, tag, node->fname,
+      ua->SendMsg("%s%s%s%s\n", indent, tag, node.fname,
                   TreeNodeHasChild(node) ? "/" : "");
-      if (TreeNodeHasChild(node)) { rlsmark(ua, node, level + 1); }
+      if (TreeNodeHasChild(node)) { rlsmark(ua, &node, level + 1); }
     }
   }
 }
@@ -795,7 +787,6 @@ static inline void ls_output(guid_list* guid,
 // Like ls command, but give more detail on each file
 static int DoDircmd(UaContext* ua, TreeContext* tree, bool dot_cmd)
 {
-  TREE_NODE* node;
   POOLMEM *cwd, *buf;
   FileDbRecord fdbr;
   struct stat statp;
@@ -809,21 +800,21 @@ static int DoDircmd(UaContext* ua, TreeContext* tree, bool dot_cmd)
   ua->guid = new_guid_list();
   buf = GetPoolMemory(PM_FNAME);
 
-  foreach_child (node, tree->node) {
+  for (auto& node : tree->node->children()) {
     const char* tag;
-    if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
-      if (node->extract) {
+    if (ua->argc == 1 || fnmatch(ua->argk[1], node.fname, 0) == 0) {
+      if (node.extract) {
         tag = "*";
-      } else if (node->extract_dir) {
+      } else if (node.extract_dir) {
         tag = "+";
       } else {
         tag = " ";
       }
 
-      cwd = tree_getpath(node);
+      cwd = tree_getpath(&node);
 
       fdbr.FileId = 0;
-      fdbr.JobId = node->JobId;
+      fdbr.JobId = node.JobId;
 
       /* Strip / from soft links to directories.
        *
@@ -831,7 +822,7 @@ static int DoDircmd(UaContext* ua, TreeContext* tree, bool dot_cmd)
        * when returned from tree_getpath, but get_file_attr...
        * treats soft links as files, so they do not have a trailing
        * slash like directory names. */
-      if (node->type == node_type::File && TreeNodeHasChild(node)) {
+      if (node.type == node_type::File && TreeNodeHasChild(node)) {
         PmStrcpy(buf, cwd);
         pcwd = buf;
         int len = strlen(buf);
@@ -1036,9 +1027,9 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
       tree->node = node;
       restore_cwd = true;
 
-      foreach_child (node, tree->node) {
-        if (fnmatch(file, node->fname, 0) == 0) {
-          count += SetExtract(ua, node, tree, false);
+      for (auto& node : tree->node->children()) {
+        if (fnmatch(file, node.fname, 0) == 0) {
+          count += SetExtract(ua, &node, tree, false);
         }
       }
 
@@ -1046,9 +1037,9 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
       FreePoolMemory(path);
     } else {
       // Only a pattern without a / so do things relative to CWD.
-      foreach_child (node, tree->node) {
-        if (fnmatch(ua->argk[i], node->fname, 0) == 0) {
-          count += SetExtract(ua, node, tree, false);
+      for (auto& node : tree->node->children()) {
+        if (fnmatch(ua->argk[i], node.fname, 0) == 0) {
+          count += SetExtract(ua, &node, tree, false);
         }
       }
     }
@@ -1081,7 +1072,6 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
 
 static int UnMarkdircmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
   int count = 0;
 
   if (ua->argc < 2 || !TreeNodeHasChild(tree->node)) {
@@ -1091,10 +1081,10 @@ static int UnMarkdircmd(UaContext* ua, TreeContext* tree)
 
   for (int i = 1; i < ua->argc; i++) {
     StripTrailingSlash(ua->argk[i]);
-    foreach_child (node, tree->node) {
-      if (fnmatch(ua->argk[i], node->fname, 0) == 0) {
-        if (node->type == node_type::Dir || node->type == node_type::DirNls) {
-          node->extract_dir = false;
+    for (auto& node : tree->node->children()) {
+      if (fnmatch(ua->argk[i], node.fname, 0) == 0) {
+        if (node.type == node_type::Dir || node.type == node_type::DirNls) {
+          node.extract_dir = false;
           count++;
         }
       }

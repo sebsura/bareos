@@ -57,6 +57,38 @@ struct node_index {
 class tree {
  public:
   struct node {
+    struct sibling_iter {
+      tree* source;
+      node_index current;
+
+     public:
+      sibling_iter(tree& source, node_index start)
+          : source{&source}, current{start}
+      {
+      }
+
+      void next() { current = source->nodes[current.num].end; }
+
+      node& operator*() { return source->nodes[current.num]; }
+      sibling_iter& operator++()
+      {
+        next();
+        return *this;
+      }
+      bool operator!=(const sibling_iter& other)
+      {
+        return source != other.source || current != other.current;
+      }
+    };
+
+    struct siblings {
+      tree* source;
+      node_index s, e;
+
+      sibling_iter begin() { return sibling_iter{*source, s}; }
+      sibling_iter end() { return sibling_iter{*source, e}; }
+    };
+
     tree* root;
     node_index index;
     node_index end;
@@ -73,6 +105,8 @@ class tree {
     bool inserted;
     bool hard_link;
     bool soft_link;
+
+    siblings children() { return siblings{nullptr, end, end}; }
   };
 
  private:
@@ -163,8 +197,6 @@ HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
 
 TREE_NODE* FirstTreeNode(TREE_ROOT* root);
 TREE_NODE* NextTreeNode(TREE_NODE* node);
-
-#define foreach_child(var, list) for ((var) = NULL; (var);)
 
 #define TreeNodeHasChild(node) (((void)node), false)
 
