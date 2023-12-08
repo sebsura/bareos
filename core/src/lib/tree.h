@@ -172,6 +172,11 @@ void TreeAddDeltaPart(TREE_ROOT* root,
 void FreeTree(TREE_ROOT* root);
 POOLMEM* tree_getpath(TREE_NODE* node);
 void TreeRemoveNode(TREE_ROOT* root, TREE_NODE* node);
+void InsertHardlink(TREE_ROOT* root,
+                    JobId_t jobid,
+                    std::int32_t findex,
+                    TREE_NODE* node);
+HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
 
 /**
  * Use the following for traversing the whole tree. It will be

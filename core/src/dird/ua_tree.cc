@@ -226,7 +226,6 @@ int InsertTreeHandler(void* ctx, int, char** row)
   int FileIndex;
   int32_t delta_seq;
   JobId_t JobId;
-  HL_ENTRY* entry = NULL;
   int32_t LinkFI;
 
   Dmsg4(150, "Path=%s%s FI=%s JobId=%s\n", row[0], row[1], row[2], row[3]);
@@ -312,25 +311,16 @@ int InsertTreeHandler(void* ctx, int, char** row)
     if (statp.st_nlink > 1 && type != TN_DIR && type != TN_DIR_NLS) {
       if (!LinkFI) {
         // First occurence - file hardlinked to
-        entry = (HL_ENTRY*)tree->root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
-        entry->key = (((uint64_t)JobId) << 32) + FileIndex;
-        entry->node = node;
-        tree->root->hardlinks.insert(entry->key, entry);
+        InsertHardlink(tree->root, JobId, FileIndex, node);
       } else {
         // See if we are optimizing for speed or size.
         if (!me->optimize_for_size && me->optimize_for_speed) {
           // Hardlink to known file index: lookup original file
-          uint64_t file_key = (((uint64_t)JobId) << 32) + LinkFI;
-          HL_ENTRY* first_hl
-              = (HL_ENTRY*)tree->root->hardlinks.lookup(file_key);
+          HL_ENTRY* first_hl = LookupHardlink(tree->root, JobId, LinkFI);
 
           if (first_hl && first_hl->node) {
             // Then add hardlink entry to linked node.
-            entry = (HL_ENTRY*)tree->root->hardlinks.hash_malloc(
-                sizeof(HL_ENTRY));
-            entry->key = (((uint64_t)JobId) << 32) + FileIndex;
-            entry->node = first_hl->node;
-            tree->root->hardlinks.insert(entry->key, entry);
+            InsertHardlink(tree->root, JobId, FileIndex, first_hl->node);
           }
         }
       }
@@ -384,14 +374,16 @@ static int SetExtract(UaContext* ua,
     }
   } else {
     if (extract) {
-      uint64_t key = 0;
+      JobId_t jobid;
+      std::int32_t findex;
       bool is_hardlinked = false;
 
       // See if we are optimizing for speed or size.
       if (!me->optimize_for_size && me->optimize_for_speed) {
         if (node->hard_link) {
           // Every hardlink is in hashtable, and it points to linked file.
-          key = (((uint64_t)node->JobId) << 32) + node->FileIndex;
+          jobid = node->JobId;
+          findex = node->FileIndex;
           is_hardlinked = true;
         }
       } else {
@@ -413,8 +405,8 @@ static int SetExtract(UaContext* ua,
 
             DecodeStat(fdbr.LStat, &statp, sizeof(statp),
                        &LinkFI); /* decode stat pkt */
-            key = (((uint64_t)node->JobId) << 32)
-                  + LinkFI; /* lookup by linked file's fileindex */
+            jobid = node->JobId;
+            findex = LinkFI; /* lookup by linked file's fileindex */
             is_hardlinked = true;
           }
           FreePoolMemory(cwd);
@@ -424,7 +416,7 @@ static int SetExtract(UaContext* ua,
       if (is_hardlinked) {
         /* If we point to a hard linked file, find that file in hardlinks
          * hashmap, and mark it to be restored as well. */
-        HL_ENTRY* entry = (HL_ENTRY*)tree->root->hardlinks.lookup(key);
+        auto* entry = LookupHardlink(tree->root, jobid, findex);
         if (entry && entry->node) {
           n = entry->node;
           // if this is our first time marking it, then add to the count

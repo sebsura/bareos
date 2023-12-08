@@ -453,3 +453,20 @@ TREE_NODE* tree_relcwd(char* path, TREE_ROOT* root, TREE_NODE* node)
   // Check the next segment if any
   return tree_relcwd(p + 1, root, cd);
 }
+
+void InsertHardlink(TREE_ROOT* root,
+                    JobId_t jobid,
+                    std::int32_t findex,
+                    TREE_NODE* node)
+{
+  auto* entry = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
+  entry->key = (((std::uint64_t)jobid) << 32) | ((std::uint64_t)findex);
+  entry->node = node;
+  root->hardlinks.insert(entry->key, entry);
+}
+
+HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex)
+{
+  uint64_t file_key = (((std::uint64_t)jobid) << 32) | ((std::uint64_t)findex);
+  return (HL_ENTRY*)root->hardlinks.lookup(file_key);
+}
