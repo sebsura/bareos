@@ -508,19 +508,6 @@ void TreeAddDeltaPart(TREE_ROOT* root,
 
 void FreeTree(TREE_ROOT* root) { root->~tree(); }
 
-POOLMEM* tree_getpath(TREE_NODE* node)
-{
-  if (!node) { return NULL; }
-
-  auto* root = node->root;
-  auto cpath = root->path_to(node->index);
-
-  POOLMEM* path = GetPoolMemory(PM_NAME);
-  PmStrcpy(path, cpath.c_str());
-
-  return path;
-}
-
 void TreeRemoveNode(TREE_ROOT*, TREE_NODE*) {}
 
 void InsertHardlink(TREE_ROOT* root,

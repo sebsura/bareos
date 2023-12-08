@@ -103,6 +103,7 @@ class tree {
     bool markedd() const { return extract_dir; }
 
     const char* name() const { return fname; }
+    std::string fullpath() const { return ""; }
 
     node* parent() const { return parent_; }
 
@@ -216,7 +217,6 @@ using HL_ENTRY = TREE_NODE;
 
 /* External interface */
 TREE_ROOT* new_tree(int count);
-POOLMEM* tree_getpath(TREE_NODE* node);
 HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
 void FreeTree(TREE_ROOT* root);
 
