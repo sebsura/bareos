@@ -74,8 +74,7 @@ static inline char* lookup_fileindex(JobControlRecord* jcr, int32_t FileIndex)
       PmStrcpy(restore_pathname, node.name());
 
       // Walk up the parent until we hit the head of the list.
-      for (TREE_NODE* parent = node.parent(); parent;
-           parent = parent->parent()) {
+      for (auto parent = node.parent(); parent; parent = parent->parent()) {
         PmStrcpy(tmp, restore_pathname.c_str());
         Mmsg(restore_pathname, "%s/%s", parent->name(), tmp.c_str());
       }

@@ -141,7 +141,7 @@ bool UserSelectFilesFromTree(TreeContext* tree)
   user->signal(BNET_START_RTREE);
 
   // Enter interactive command handler allowing selection of individual files.
-  tree->node = (TREE_NODE*)tree->root;
+  tree->node = tree->root->at(tree->root->root());
   ua->SendMsg(T_("cwd is: %s\n"), tree->node->fullpath().c_str());
 
   while (1) {
@@ -215,7 +215,6 @@ int InsertTreeHandler(void* ctx, int, char** row)
 {
   struct stat statp;
   TreeContext* tree = (TreeContext*)ctx;
-  TREE_NODE* node;
   node_type type;
   bool hard_link, ok;
   int FileIndex;
@@ -235,7 +234,7 @@ int InsertTreeHandler(void* ctx, int, char** row)
   }
   DecodeStat(row[4], &statp, sizeof(statp), &LinkFI);
   hard_link = (LinkFI != 0);
-  node = insert_tree_node(row[0], row[1], type, tree->root, NULL);
+  auto node = insert_tree_node(row[0], row[1], type, tree->root, NULL);
   JobId = str_to_int64(row[3]);
   FileIndex = str_to_int64(row[2]);
   delta_seq = str_to_int64(row[5]);
@@ -340,11 +339,10 @@ int InsertTreeHandler(void* ctx, int, char** row)
  * children if the node is a directory.
  */
 static int SetExtract(UaContext* ua,
-                      TREE_NODE* node,
+                      node_ptr node,
                       TreeContext* tree,
                       bool extract)
 {
-  TREE_NODE* n;
   int count = 0;
 
   node->do_extract(extract);
@@ -414,14 +412,13 @@ static int SetExtract(UaContext* ua,
       if (is_hardlinked) {
         /* If we point to a hard linked file, find that file in hardlinks
          * hashmap, and mark it to be restored as well. */
-        auto* entry = LookupHardlink(tree->root, jobid, findex);
-        if (entry) {
-          n = entry;
+        auto linked = LookupHardlink(tree->root, jobid, findex);
+        if (linked) {
           // if this is our first time marking it, then add to the count
-          if (!n->markedf()) { count += 1; }
-          n->do_extract();
-          n->do_extract_dir(n->type() == node_type::Dir
-                            || n->type() == node_type::DirNls);
+          if (!linked->markedf()) { count += 1; }
+          linked->do_extract();
+          linked->do_extract_dir(linked->type() == node_type::Dir
+                                 || linked->type() == node_type::DirNls);
         }
       }
     }
@@ -487,15 +484,14 @@ static int MarkElements(UaContext* ua, TreeContext* tree)
       POOLMEM* node_filename = GetPoolMemory(PM_FNAME);
       POOLMEM* node_path = GetPoolMemory(PM_FNAME);
 
-      TREE_NODE* node{nullptr};
-      {
+      node_ptr node = [&] {
         auto path = tree->node->fullpath();
         if (strcmp(path.c_str(), "/") == 0) {
-          node = &*tree->root->begin();
+          return tree->root->at(tree->root->root());
         } else {
-          node = tree->node;
+          return tree->node;
         }
-      }
+      }();
 
       for (; node; node += 1) {
         auto path = node->fullpath();
@@ -695,7 +691,7 @@ static int DotLsmarkcmd(UaContext* ua, TreeContext* tree)
 }
 
 // This recursive ls command that lists only the marked files
-static void rlsmark(UaContext* ua, TREE_NODE* tnode, int level)
+static void rlsmark(UaContext* ua, node_ptr tnode, int level)
 {
   const int max_level = 100;
   char indent[max_level * 2 + 1];
@@ -916,7 +912,6 @@ static int HelpCmd(UaContext* ua, TreeContext*)
  */
 static int cdcmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
   POOLMEM* cwd;
 
   if (ua->argc != 2) {
@@ -925,7 +920,7 @@ static int cdcmd(UaContext* ua, TreeContext* tree)
     return 1;
   }
 
-  node = tree->root->find(ua->argk[1], tree->node);
+  auto node = tree->root->find(ua->argk[1], tree->node);
   if (!node) {
     // Try once more if Win32 drive -- make absolute
     if (ua->argk[1][1] == ':') { /* win32 drive */
@@ -971,7 +966,6 @@ static int DotPwdcmd(UaContext* ua, TreeContext* tree)
 
 static int Unmarkcmd(UaContext* ua, TreeContext* tree)
 {
-  TREE_NODE* node;
   int count = 0;
 
   if (ua->argc < 2 || !tree->node->has_children()) {
@@ -992,7 +986,7 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
       SplitPathAndFilename(ua->argk[i], path, &pnl, file, &fnl);
 
       // First change the CWD to the correct PATH.
-      node = tree->root->find(path, tree->node);
+      auto node = tree->root->find(path, tree->node);
       if (!node) {
         ua->WarningMsg(T_("Invalid path %s given.\n"), path);
         FreePoolMemory(file);

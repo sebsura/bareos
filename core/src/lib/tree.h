@@ -182,8 +182,11 @@ class tree {
     }
   };
 
-  constexpr node_index root() const;
-  constexpr node_index invalid() const;
+  constexpr node_index root() const { return node_index{0}; }
+
+  constexpr node_index invalid() const { return node_index{(std::size_t)-1}; }
+
+
   node_index insert_node(const char* path,
                          const char* fname,
                          node_type type,
@@ -204,16 +207,16 @@ class tree {
   void MarkSubTree(node_index node);
   void MarkNode(node_index node);
 
-  node& at(node_index idx) { return nodes[idx.num]; }
+  tree::node* at(node_index idx) { return &nodes[idx.num]; }
 
   ~tree();
 };
 
 using TREE_ROOT = tree;
-using TREE_NODE = tree::node;
 // todo: should hardlinks even be part of the tree itself
 //       or just part of the tree context ?
-using HL_ENTRY = TREE_NODE;
+using HL_ENTRY = tree::node;
+using node_ptr = tree::node*;
 
 /* External interface */
 TREE_ROOT* new_tree(int count);
@@ -222,19 +225,19 @@ void FreeTree(TREE_ROOT* root);
 
 // only used during creation
 void TreeAddDeltaPart(TREE_ROOT* root,
-                      TREE_NODE* node,
+                      node_ptr node,
                       JobId_t JobId,
                       int32_t FileIndex);
-TREE_NODE* insert_tree_node(char* path,
-                            char* fname,
-                            node_type type,
-                            TREE_ROOT* root,
-                            TREE_NODE* parent);
-void TreeRemoveNode(TREE_ROOT* root, TREE_NODE* node);
+node_ptr insert_tree_node(char* path,
+                          char* fname,
+                          node_type type,
+                          TREE_ROOT* root,
+                          node_ptr node);
+void TreeRemoveNode(TREE_ROOT* root, node_ptr node);
 
 void InsertHardlink(TREE_ROOT* root,
                     JobId_t jobid,
                     std::int32_t findex,
-                    TREE_NODE* node);
+                    node_ptr node);
 
 #endif  // BAREOS_LIB_TREE_H_
