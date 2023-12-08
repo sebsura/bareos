@@ -318,9 +318,9 @@ int InsertTreeHandler(void* ctx, int, char** row)
           // Hardlink to known file index: lookup original file
           HL_ENTRY* first_hl = LookupHardlink(tree->root, JobId, LinkFI);
 
-          if (first_hl && first_hl->node) {
+          if (first_hl) {
             // Then add hardlink entry to linked node.
-            InsertHardlink(tree->root, JobId, FileIndex, first_hl->node);
+            InsertHardlink(tree->root, JobId, FileIndex, first_hl);
           }
         }
       }
@@ -423,8 +423,8 @@ static int SetExtract(UaContext* ua,
         /* If we point to a hard linked file, find that file in hardlinks
          * hashmap, and mark it to be restored as well. */
         auto* entry = LookupHardlink(tree->root, jobid, findex);
-        if (entry && entry->node) {
-          n = entry->node;
+        if (entry) {
+          n = entry;
           // if this is our first time marking it, then add to the count
           if (!n->markedf()) { count += 1; }
           n->do_extract();

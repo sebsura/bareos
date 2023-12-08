@@ -523,11 +523,30 @@ POOLMEM* tree_getpath(TREE_NODE* node)
 
 void TreeRemoveNode(TREE_ROOT*, TREE_NODE*) {}
 
-void InsertHardlink(TREE_ROOT*, JobId_t, std::int32_t, TREE_NODE*) {}
+void InsertHardlink(TREE_ROOT* root,
+                    JobId_t jobid,
+                    std::int32_t findex,
+                    TREE_NODE* node)
+{
+  root->insert_hl(jobid, findex, node->index);
+}
 
-HL_ENTRY* LookupHardlink(TREE_ROOT*, JobId_t, std::int32_t) { return nullptr; }
+HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex)
+{
+  auto idx = root->lookup_hl(jobid, findex);
+  if (idx != root->invalid()) {
+    return &root->at(idx);
+  } else {
+    return nullptr;
+  }
+}
 
-node_index tree::root() const { return node_index{0}; }
+constexpr node_index tree::root() const { return node_index{0}; }
+constexpr node_index tree::invalid() const
+{
+  return node_index{(std::size_t)-1};
+}
+
 node_index tree::insert_node(const char* path,
                              const char* fname,
                              node_type type,
@@ -560,19 +579,26 @@ std::string tree::path_to(node_index node) const
   return "";
 }
 
-void tree::insert_original_hl(JobId_t jobid,
-                              std::int32_t findex,
-                              node_index index)
-{
-  (void)jobid;
-  (void)findex;
-  (void)index;
-}
 void tree::insert_hl(JobId_t jobid, std::int32_t findex, node_index index)
 {
-  (void)jobid;
-  (void)findex;
-  (void)index;
+  std::uint64_t j64 = jobid;
+  std::uint64_t f64 = findex;
+  std::uint64_t key = j64 << 32 | f64;
+
+  hardlinks.emplace(key, index);
+}
+
+node_index tree::lookup_hl(JobId_t jobid, std::int32_t findex)
+{
+  std::uint64_t j64 = jobid;
+  std::uint64_t f64 = findex;
+  std::uint64_t key = j64 << 32 | f64;
+
+  if (auto iter = hardlinks.find(key); iter != hardlinks.end()) {
+    return iter->second;
+  } else {
+    return invalid();
+  }
 }
 
 auto tree::begin() -> iter { return iter{*this, node_index{0}}; }

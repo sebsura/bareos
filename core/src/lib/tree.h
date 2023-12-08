@@ -181,7 +181,8 @@ class tree {
     }
   };
 
-  node_index root() const;
+  constexpr node_index root() const;
+  constexpr node_index invalid() const;
   node_index insert_node(const char* path,
                          const char* fname,
                          node_type type,
@@ -193,8 +194,8 @@ class tree {
 
   std::string path_to(node_index node) const;
 
-  void insert_original_hl(JobId_t jobid, std::int32_t findex, node_index index);
   void insert_hl(JobId_t jobid, std::int32_t findex, node_index index);
+  node_index lookup_hl(JobId_t jobid, std::int32_t findex);
 
   iter begin();
   iter end();
@@ -209,10 +210,14 @@ class tree {
 
 using TREE_ROOT = tree;
 using TREE_NODE = tree::node;
+// todo: should hardlinks even be part of the tree itself
+//       or just part of the tree context ?
+using HL_ENTRY = TREE_NODE;
 
 /* External interface */
 TREE_ROOT* new_tree(int count);
 POOLMEM* tree_getpath(TREE_NODE* node);
+HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
 void FreeTree(TREE_ROOT* root);
 
 // only used during creation
@@ -227,14 +232,9 @@ TREE_NODE* insert_tree_node(char* path,
                             TREE_NODE* parent);
 void TreeRemoveNode(TREE_ROOT* root, TREE_NODE* node);
 
-struct HL_ENTRY {
-  TREE_NODE* node;
-};
-
 void InsertHardlink(TREE_ROOT* root,
                     JobId_t jobid,
                     std::int32_t findex,
                     TREE_NODE* node);
-HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
 
 #endif  // BAREOS_LIB_TREE_H_
