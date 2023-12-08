@@ -143,7 +143,7 @@ class tree {
                          node_type type,
                          node_index parent);
 
-  node_index find(char* path, node_index from) const;
+  node* find(char* path, node* from) const;
 
   void add_delta_part(node_index node, JobId_t jobid, std::int32_t findex);
 
@@ -166,18 +166,19 @@ using TREE_NODE = tree::node;
 
 /* External interface */
 TREE_ROOT* new_tree(int count);
+POOLMEM* tree_getpath(TREE_NODE* node);
+void FreeTree(TREE_ROOT* root);
+
+// only used during creation
+void TreeAddDeltaPart(TREE_ROOT* root,
+                      TREE_NODE* node,
+                      JobId_t JobId,
+                      int32_t FileIndex);
 TREE_NODE* insert_tree_node(char* path,
                             char* fname,
                             node_type type,
                             TREE_ROOT* root,
                             TREE_NODE* parent);
-TREE_NODE* tree_cwd(char* path, TREE_ROOT* root, TREE_NODE* node);
-void TreeAddDeltaPart(TREE_ROOT* root,
-                      TREE_NODE* node,
-                      JobId_t JobId,
-                      int32_t FileIndex);
-void FreeTree(TREE_ROOT* root);
-POOLMEM* tree_getpath(TREE_NODE* node);
 void TreeRemoveNode(TREE_ROOT* root, TREE_NODE* node);
 
 struct HL_ENTRY {

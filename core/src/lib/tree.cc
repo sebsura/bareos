@@ -495,15 +495,6 @@ TREE_NODE* insert_tree_node(char* path,
   return nullptr;
 }
 
-TREE_NODE* tree_cwd(char* path, TREE_ROOT* root, TREE_NODE* node)
-{
-  (void)path;
-  (void)root;
-  (void)node;
-
-  return nullptr;
-}
-
 void TreeAddDeltaPart(TREE_ROOT* root,
                       TREE_NODE* node,
                       JobId_t JobId,
@@ -549,11 +540,11 @@ node_index tree::insert_node(const char* path,
   return node_index{0};
 }
 
-node_index tree::find(char* path, node_index from) const
+auto tree::find(char* path, node* from) const -> node*
 {
   (void)path;
   (void)from;
-  return node_index{0};
+  return nullptr;
 }
 
 void tree::add_delta_part(node_index node, JobId_t jobid, std::int32_t findex)

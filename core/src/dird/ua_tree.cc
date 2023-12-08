@@ -450,6 +450,19 @@ static void StripTrailingSlash(char* arg)
 
 static int MarkElements(UaContext* ua, TreeContext* tree)
 {
+  // better idea:
+#if 0
+  int count = 0;
+
+  for (int i = 1; i < ua->argc; i++) {
+    StripTrailingSlash(ua->argk[i]);
+    for (auto& node : tree->root->find_matching_from(tree->node, ua->argk[i])) {
+      count += tree->root->MarkSubTree(node);
+    }
+  }
+
+  return count;
+#endif
   int count = 0;
 
   for (int i = 1; i < ua->argc; i++) {
@@ -465,7 +478,7 @@ static int MarkElements(UaContext* ua, TreeContext* tree)
       SplitPathAndFilename(ua->argk[i], given_path_pattern, &pnl,
                            given_file_pattern, &fnl);
 
-      if (!tree_cwd(given_path_pattern, tree->root, tree->node)) {
+      if (!tree->root->find(given_path_pattern, tree->node)) {
         ua->WarningMsg(T_("Invalid path %s given.\n"), given_path_pattern);
         FreePoolMemory(given_file_pattern);
         FreePoolMemory(given_path_pattern);
@@ -932,14 +945,14 @@ static int cdcmd(UaContext* ua, TreeContext* tree)
     return 1;
   }
 
-  node = tree_cwd(ua->argk[1], tree->root, tree->node);
+  node = tree->root->find(ua->argk[1], tree->node);
   if (!node) {
     // Try once more if Win32 drive -- make absolute
     if (ua->argk[1][1] == ':') { /* win32 drive */
       cwd = GetPoolMemory(PM_FNAME);
       PmStrcpy(cwd, "/");
       PmStrcat(cwd, ua->argk[1]);
-      node = tree_cwd(cwd, tree->root, tree->node);
+      node = tree->root->find(cwd, tree->node);
       FreePoolMemory(cwd);
     }
 
@@ -1013,7 +1026,7 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
       SplitPathAndFilename(ua->argk[i], path, &pnl, file, &fnl);
 
       // First change the CWD to the correct PATH.
-      node = tree_cwd(path, tree->root, tree->node);
+      node = tree->root->find(path, tree->node);
       if (!node) {
         ua->WarningMsg(T_("Invalid path %s given.\n"), path);
         FreePoolMemory(file);
@@ -1053,7 +1066,7 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
 
   // Restore the CWD when we changed it.
   if (restore_cwd && cwd) {
-    node = tree_cwd(cwd, tree->root, tree->node);
+    node = tree->root->find(cwd, tree->node);
     if (!node) {
       ua->WarningMsg(T_("Invalid path %s given.\n"), cwd);
     } else {
