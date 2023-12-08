@@ -55,8 +55,34 @@ struct node_index {
 };
 
 class tree {
- public:
+ protected:
   struct node {
+    node_type t;
+    node_index end;
+    int32_t FileIndex;
+    char* fname;
+    uint64_t fhinfo, fhnode;
+    JobId_t JobId;
+    struct delta_list* delta_list;
+    int delta_seq;
+    bool inserted;
+    bool hard_link;
+    bool soft_link;
+  };
+
+  struct marked {
+    bool extract;
+    bool extract_dir;
+  };
+  std::vector<marked> status;
+  std::vector<node> nodes;
+  std::unordered_map<std::uint64_t, node_index> hardlinks;
+
+  node& at(node_index idx) { return nodes[idx.num]; }
+  marked& marked_at(node_index idx) { return status[idx.num]; }
+
+ public:
+  struct node_ptr {
     struct sibling_iter {
       tree* source;
       node_index current;
@@ -67,9 +93,9 @@ class tree {
       {
       }
 
-      void next() { current = source->nodes[current.num].end; }
+      void next() { current = source->at(current).end; }
 
-      node& operator*() { return source->nodes[current.num]; }
+      node_ptr operator*() { return node_ptr{source, current}; }
       sibling_iter& operator++()
       {
         next();
@@ -89,99 +115,131 @@ class tree {
       sibling_iter end() { return sibling_iter{*source, e}; }
     };
 
-    bool has_children() { return false; }
-    siblings children() { return siblings{nullptr, end, end}; }
+    class subtree_iter {
+      tree* source;
+      node_index current;
 
-    tree* root;
-    node_index index;
-    node_index end;
+     public:
+      subtree_iter(tree& source, node_index start)
+          : source{&source}, current{start}
+      {
+      }
 
-    JobId_t jobid() const { return JobId; }
-    std::int32_t findex() const { return FileIndex; }
-    bool marked() const { return extract_dir || extract; }
-    bool markedf() const { return extract; }
-    bool markedd() const { return extract_dir; }
+      void next() { current.num += 1; }
 
-    const char* name() const { return fname; }
+      node_ptr operator*() { return {source, current}; }
+      subtree_iter& operator++()
+      {
+        next();
+        return *this;
+      }
+      bool operator!=(const subtree_iter& other)
+      {
+        return source != other.source || current != other.current;
+      }
+    };
+
+    struct subtree_entries {
+      tree* source;
+      node_index s, e;
+
+      subtree_iter begin() { return subtree_iter{*source, s}; }
+      subtree_iter end() { return subtree_iter{*source, e}; }
+    };
+
+    bool has_children()
+    {
+      node_index start{index.num + 1};
+      node_index end = root->at(index).end;
+      return start != end;
+    }
+
+    siblings children()
+    {
+      node_index start = index;
+      node_index end = root->at(index).end;
+      return siblings{root, start, end};
+    }
+
+    subtree_entries subtree()
+    {
+      node_index start{index.num + 1};
+      node_index end = root->at(index).end;
+      return subtree_entries{root, start, end};
+    }
+
+
+    JobId_t jobid() const { return me().JobId; }
+    std::int32_t findex() const { return me().FileIndex; }
+    bool marked() const { return markedf() || markedd(); }
+    bool markedf() const { return status().extract; }
+    bool markedd() const { return status().extract_dir; }
+
+    const char* name() const { return me().fname; }
     std::string fullpath() const { return ""; }
 
-    node* parent() const { return parent_; }
+    node_ptr parent() const
+    {
+      auto idx = index;
+      // go backwards until we find the parent
+      while (idx.num > 0) {
+        idx.num -= 1;
+        if (root->at(idx).end.num > index.num) { return node_ptr{root, idx}; }
+      }
+      return node_ptr{root, root->root()};
+    }
 
-    uint64_t fh_info() const { return fhinfo; }
-    uint64_t fh_node() const { return fhnode; }
+    uint64_t fh_info() const { return me().fhinfo; }
+    uint64_t fh_node() const { return me().fhnode; }
 
-    node_type type() const { return t; }
+    node_type type() const { return me().t; }
 
-    int32_t dseq() const { return delta_seq; }
+    int32_t dseq() const { return me().delta_seq; }
 
-    struct delta_list* dlist() const { return delta_list; }
+    struct delta_list* dlist() const { return me().delta_list; }
 
-    bool was_inserted() const { return inserted; }
+    bool was_inserted() const { return me().inserted; }
 
-    bool is_hl() const { return hard_link; }
-    bool is_sl() const { return soft_link; }
+    bool is_hl() const { return me().hard_link; }
+    bool is_sl() const { return me().soft_link; }
 
     // only used for building
     void set_fh(uint64_t info, uint64_t node)
     {
-      fhinfo = info;
-      fhnode = node;
+      me().fhinfo = info;
+      me().fhnode = node;
     }
 
-    void do_extract(bool d = true) { extract = d; }
-    void do_extract_dir(bool d = true) { extract_dir = d; }
+    void do_extract(bool d = true) { status().extract = d; }
+    void do_extract_dir(bool d = true) { status().extract_dir = d; }
 
-    void set_hard_link(bool hard_link) { this->hard_link = hard_link; }
-    void set_findex(int32_t findex) { this->FileIndex = findex; }
-    void set_jobid(JobId_t jobid) { this->JobId = jobid; }
-    void set_type(node_type type) { this->t = type; }
-    void set_soft_link(bool soft_link) { this->soft_link = soft_link; }
-    void set_dseq(int32_t dseq) { this->delta_seq = dseq; }
+    void set_hard_link(bool hard_link) { me().hard_link = hard_link; }
+    void set_findex(int32_t findex) { me().FileIndex = findex; }
+    void set_jobid(JobId_t jobid) { me().JobId = jobid; }
+    void set_type(node_type type) { me().t = type; }
+    void set_soft_link(bool soft_link) { me().soft_link = soft_link; }
+    void set_dseq(int32_t dseq) { me().delta_seq = dseq; }
+
+    operator bool() { return root && (index != root->invalid()); }
+
+    node_index idx() const { return index; }
+
+    node_ptr() {}
+    node_ptr(tree* root, node_index index) : root{root}, index{index} {}
 
    private:
-    int32_t FileIndex;
-    node_type t;
-    bool extract;
-    bool extract_dir;
-    char* fname;
-    node* parent_;
-    uint64_t fhinfo, fhnode;
-    JobId_t JobId;
-    struct delta_list* delta_list;
-    int delta_seq;
-    bool inserted;
-    bool hard_link;
-    bool soft_link;
+    tree* root{nullptr};
+    node_index index{0};
+
+    tree::node& me() { return root->at(index); }
+    tree::marked& status() { return root->marked_at(index); }
+
+    const tree::node& me() const { return root->at(index); }
+    const tree::marked& status() const { return root->marked_at(index); }
   };
 
  private:
-  std::vector<bool> marked;
-  std::vector<node> nodes;
-  std::unordered_map<std::uint64_t, node_index> hardlinks;
-
  public:
-  class iter {
-    tree* source;
-    node_index current;
-
-   public:
-    iter(tree& source, node_index start) : source{&source}, current{start} {}
-
-    void next() { current.num += 1; }
-    void next_sibling() { current = source->nodes[current.num].end; }
-
-    node& operator*() { return source->nodes[current.num]; }
-    iter& operator++()
-    {
-      next();
-      return *this;
-    }
-    bool operator!=(const iter& other)
-    {
-      return source != other.source || current != other.current;
-    }
-  };
-
   constexpr node_index root() const { return node_index{0}; }
 
   constexpr node_index invalid() const { return node_index{(std::size_t)-1}; }
@@ -192,7 +250,7 @@ class tree {
                          node_type type,
                          node_index parent);
 
-  node* find(char* path, node* from) const;
+  node_ptr find(char* path, node_ptr from) const;
 
   void add_delta_part(node_index node, JobId_t jobid, std::int32_t findex);
 
@@ -201,13 +259,11 @@ class tree {
   void insert_hl(JobId_t jobid, std::int32_t findex, node_index index);
   node_index lookup_hl(JobId_t jobid, std::int32_t findex);
 
-  iter begin();
-  iter end();
+  // iter begin();
+  // iter end();
 
   void MarkSubTree(node_index node);
   void MarkNode(node_index node);
-
-  tree::node* at(node_index idx) { return &nodes[idx.num]; }
 
   ~tree();
 };
@@ -215,7 +271,7 @@ class tree {
 using TREE_ROOT = tree;
 // todo: should hardlinks even be part of the tree itself
 //       or just part of the tree context ?
-using node_ptr = tree::node*;
+using node_ptr = tree::node_ptr;
 
 /* External interface */
 TREE_ROOT* new_tree(int count);

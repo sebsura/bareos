@@ -492,7 +492,7 @@ node_ptr insert_tree_node(char* path,
   (void)root;
   (void)parent;
 
-  return nullptr;
+  return parent;
 }
 
 void TreeAddDeltaPart(TREE_ROOT* root,
@@ -515,17 +515,13 @@ void InsertHardlink(TREE_ROOT* root,
                     std::int32_t findex,
                     node_ptr node)
 {
-  root->insert_hl(jobid, findex, node->index);
+  root->insert_hl(jobid, findex, node.idx());
 }
 
 node_ptr LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex)
 {
   auto idx = root->lookup_hl(jobid, findex);
-  if (idx != root->invalid()) {
-    return root->at(idx);
-  } else {
-    return nullptr;
-  }
+  return {root, idx};
 }
 
 node_index tree::insert_node(const char* path,
@@ -540,11 +536,11 @@ node_index tree::insert_node(const char* path,
   return node_index{0};
 }
 
-auto tree::find(char* path, node* from) const -> node*
+auto tree::find(char* path, node_ptr from) const -> node_ptr
 {
   (void)path;
   (void)from;
-  return nullptr;
+  return from;
 }
 
 void tree::add_delta_part(node_index node, JobId_t jobid, std::int32_t findex)
@@ -582,8 +578,8 @@ node_index tree::lookup_hl(JobId_t jobid, std::int32_t findex)
   }
 }
 
-auto tree::begin() -> iter { return iter{*this, node_index{0}}; }
-auto tree::end() -> iter { return iter{*this, node_index{0}}; }
+// auto tree::begin() -> iter { return iter{*this, node_index{0}}; }
+// auto tree::end() -> iter { return iter{*this, node_index{0}}; }
 
 void tree::MarkSubTree(node_index node) { (void)node; }
 void tree::MarkNode(node_index node) { (void)node; }

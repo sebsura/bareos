@@ -159,7 +159,9 @@ int SetFilesToRestoreNdmpNative(JobControlRecord* jcr,
   int cnt = 0;
   PoolMem restore_pathname, tmp;
 
-  for (auto& node : *jcr->dir_impl->restore_tree_root) {
+  auto start = node_ptr{jcr->dir_impl->restore_tree_root,
+                        jcr->dir_impl->restore_tree_root->root()};
+  for (auto node : start.subtree()) {
     /* node.extract_dir  means that only the directory should be selected for
      * extraction itself, the subdirs and subfiles are not automaticaly marked
      * for extraction ( i.e. set node.extract)
@@ -175,9 +177,9 @@ int SetFilesToRestoreNdmpNative(JobControlRecord* jcr,
     if (node.marked()) {
       PmStrcpy(restore_pathname, node.name());
       // Walk up the parent until we hit the head of the list.
-      for (auto* parent = node.parent(); parent; parent = parent->parent()) {
+      for (auto parent = node.parent(); parent; parent = parent.parent()) {
         PmStrcpy(tmp, restore_pathname.c_str());
-        Mmsg(restore_pathname, "%s/%s", parent->name(), tmp.c_str());
+        Mmsg(restore_pathname, "%s/%s", parent.name(), tmp.c_str());
       }
       /* only add nodes that have valid DAR info i.e. fhinfo is not
        * NDMP9_INVALID_U_QUAD */

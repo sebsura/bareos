@@ -68,15 +68,17 @@ static inline char* lookup_fileindex(JobControlRecord* jcr, int32_t FileIndex)
 {
   PoolMem restore_pathname, tmp;
 
-  for (auto& node : *jcr->dir_impl->restore_tree_root) {
+  auto start = node_ptr{jcr->dir_impl->restore_tree_root,
+                        jcr->dir_impl->restore_tree_root->root()};
+  for (auto node : start.subtree()) {
     // See if this is the wanted FileIndex.
     if (node.findex() == FileIndex) {
       PmStrcpy(restore_pathname, node.name());
 
       // Walk up the parent until we hit the head of the list.
-      for (auto parent = node.parent(); parent; parent = parent->parent()) {
+      for (auto parent = node.parent(); parent; parent = parent.parent()) {
         PmStrcpy(tmp, restore_pathname.c_str());
-        Mmsg(restore_pathname, "%s/%s", parent->name(), tmp.c_str());
+        Mmsg(restore_pathname, "%s/%s", parent.name(), tmp.c_str());
       }
 
       if (bstrncmp(restore_pathname.c_str(), "/@NDMP/", 7)) {
@@ -99,15 +101,17 @@ static inline int set_files_to_restore(JobControlRecord* jcr,
   int cnt = 0;
   PoolMem restore_pathname, tmp;
 
-  for (auto& node : *jcr->dir_impl->restore_tree_root) {
+  auto start = node_ptr{jcr->dir_impl->restore_tree_root,
+                        jcr->dir_impl->restore_tree_root->root()};
+  for (auto node : start.subtree()) {
     // See if this is the wanted FileIndex and the user asked to extract it.
     if (node.findex() == FileIndex && node.markedf()) {
       PmStrcpy(restore_pathname, node.name());
 
       // Walk up the parent until we hit the head of the list.
-      for (auto* parent = node.parent(); parent; parent = parent->parent()) {
+      for (auto parent = node.parent(); parent; parent = parent.parent()) {
         PmStrcpy(tmp, restore_pathname.c_str());
-        Mmsg(restore_pathname, "%s/%s", parent->name(), tmp.c_str());
+        Mmsg(restore_pathname, "%s/%s", parent.name(), tmp.c_str());
       }
 
       /* We only want to restore the non pseudo NDMP names e.g. not the full

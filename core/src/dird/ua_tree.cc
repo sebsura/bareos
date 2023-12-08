@@ -141,8 +141,9 @@ bool UserSelectFilesFromTree(TreeContext* tree)
   user->signal(BNET_START_RTREE);
 
   // Enter interactive command handler allowing selection of individual files.
-  tree->node = tree->root->at(tree->root->root());
-  ua->SendMsg(T_("cwd is: %s\n"), tree->node->fullpath().c_str());
+  tree->node = node_ptr{tree->root, tree->root->root()};
+
+  ua->SendMsg(T_("cwd is: %s\n"), tree->node.fullpath().c_str());
 
   while (1) {
     int found, len, i;
@@ -234,43 +235,43 @@ int InsertTreeHandler(void* ctx, int, char** row)
   }
   DecodeStat(row[4], &statp, sizeof(statp), &LinkFI);
   hard_link = (LinkFI != 0);
-  auto node = insert_tree_node(row[0], row[1], type, tree->root, NULL);
+  auto node = insert_tree_node(row[0], row[1], type, tree->root, node_ptr{});
   JobId = str_to_int64(row[3]);
   FileIndex = str_to_int64(row[2]);
   delta_seq = str_to_int64(row[5]);
-  node->set_fh(str_to_int64(row[6]), str_to_int64(row[7]));
+  node.set_fh(str_to_int64(row[6]), str_to_int64(row[7]));
   Dmsg8(150,
         "node=0x%p JobId=%s FileIndex=%s Delta=%s node.delta=%d LinkFI=%d, "
         "fhinfo=%d, fhnode=%d\n",
-        node, row[3], row[2], row[5], node->dseq(), LinkFI, node->fh_info(),
-        node->fh_node());
+        node, row[3], row[2], row[5], node.dseq(), LinkFI, node.fh_info(),
+        node.fh_node());
 
   // TODO: check with hardlinks
   if (delta_seq > 0) {
-    if (delta_seq == (node->dseq() + 1)) {
-      TreeAddDeltaPart(tree->root, node, node->jobid(), node->findex());
+    if (delta_seq == (node.dseq() + 1)) {
+      TreeAddDeltaPart(tree->root, node, node.jobid(), node.findex());
 
     } else {
       /* File looks to be deleted */
-      if (node->dseq() == -1) { /* just created */
+      if (node.dseq() == -1) { /* just created */
         TreeRemoveNode(tree->root, node);
 
       } else {
         tree->ua->WarningMsg(
             T_("Something is wrong with the Delta sequence of %s, "
                "skipping new parts. Current sequence is %d\n"),
-            row[1], node->dseq());
+            row[1], node.dseq());
 
         Dmsg3(0,
               "Something is wrong with Delta, skip it "
               "fname=%s d1=%d d2=%d\n",
-              row[1], node->dseq(), delta_seq);
+              row[1], node.dseq(), delta_seq);
       }
       return 0;
     }
   }
 
-  /* - The first time we see a file (node->inserted==true), we accept it.
+  /* - The first time we see a file (node.inserted==true), we accept it.
    * - In the same JobId, we accept only the first copy of a
    *   hard linked file (the others are simply pointers).
    * - In the same JobId, we accept the last copy of any other
@@ -279,24 +280,24 @@ int InsertTreeHandler(void* ctx, int, char** row)
    * All the code to set ok could be condensed to a single
    * line, but it would be even harder to read. */
   ok = true;
-  if (!node->was_inserted() && JobId == node->jobid()) {
-    if ((hard_link && FileIndex > node->findex())
-        || (!hard_link && FileIndex < node->findex())) {
+  if (!node.was_inserted() && JobId == node.jobid()) {
+    if ((hard_link && FileIndex > node.findex())
+        || (!hard_link && FileIndex < node.findex())) {
       ok = false;
     }
   }
   if (ok) {
-    node->set_hard_link(hard_link);
-    node->set_findex(FileIndex);
-    node->set_jobid(JobId);
-    node->set_type(type);
-    node->set_soft_link(S_ISLNK(statp.st_mode) != 0);
-    node->set_dseq(delta_seq);
+    node.set_hard_link(hard_link);
+    node.set_findex(FileIndex);
+    node.set_jobid(JobId);
+    node.set_type(type);
+    node.set_soft_link(S_ISLNK(statp.st_mode) != 0);
+    node.set_dseq(delta_seq);
 
     if (tree->all) {
-      node->do_extract(); /* extract all by default */
+      node.do_extract(); /* extract all by default */
       if (type == node_type::Dir || type == node_type::DirNls) {
-        node->do_extract_dir(); /* if dir, extract it */
+        node.do_extract_dir(); /* if dir, extract it */
       }
     }
 
@@ -321,7 +322,7 @@ int InsertTreeHandler(void* ctx, int, char** row)
     }
   }
 
-  if (node->was_inserted()) {
+  if (node.was_inserted()) {
     tree->FileCount++;
     if (tree->DeltaCount > 0
         && (tree->FileCount - tree->LastCount) > tree->DeltaCount) {
@@ -345,28 +346,27 @@ static int SetExtract(UaContext* ua,
 {
   int count = 0;
 
-  node->do_extract(extract);
-  if (node->type() == node_type::Dir || node->type() == node_type::DirNls) {
-    node->do_extract_dir(extract); /* set/clear dir too */
+  node.do_extract(extract);
+  if (node.type() == node_type::Dir || node.type() == node_type::DirNls) {
+    node.do_extract_dir(extract); /* set/clear dir too */
   }
 
-  if (node->type() != node_type::NewDir) { count++; }
+  if (node.type() != node_type::NewDir) { count++; }
 
   // For a non-file (i.e. directory), we see all the children
-  if (node->type() != node_type::File
-      || (node->is_sl() && node->has_children())) {
+  if (node.type() != node_type::File || (node.is_sl() && node.has_children())) {
     // Recursive set children within directory
-    for (auto& n : node->children()) {
-      count += SetExtract(ua, &n, tree, extract);
+    for (auto n : node.children()) {
+      count += SetExtract(ua, n, tree, extract);
     }
 
     // Walk up tree marking any unextracted parent to be extracted.
     if (extract) {
-      while (node->parent() && !node->parent()->markedd()) {
-        node = node->parent();
-        node->do_extract_dir();
-        if (node->type() != node_type::NewDir
-            && node->type() != node_type::Root) {
+      while (node.parent() && !node.parent().markedd()) {
+        node = node.parent();
+        node.do_extract_dir();
+        if (node.type() != node_type::NewDir
+            && node.type() != node_type::Root) {
           count += 1;
         }
       }
@@ -379,10 +379,10 @@ static int SetExtract(UaContext* ua,
 
       // See if we are optimizing for speed or size.
       if (!me->optimize_for_size && me->optimize_for_speed) {
-        if (node->is_hl()) {
+        if (node.is_hl()) {
           // Every hardlink is in hashtable, and it points to linked file.
-          jobid = node->jobid();
-          findex = node->findex();
+          jobid = node.jobid();
+          findex = node.findex();
           is_hardlinked = true;
         }
       } else {
@@ -391,11 +391,11 @@ static int SetExtract(UaContext* ua,
         /* Ordinary file, we get the full path, look up the attributes, decode
          * them, and if we are hard linked to a file that was saved, we must
          * load that file too. */
-        auto cwd = node->fullpath();
+        auto cwd = node.fullpath();
         fdbr.FileId = 0;
-        fdbr.JobId = node->jobid();
+        fdbr.JobId = node.jobid();
 
-        if (node->is_hl()
+        if (node.is_hl()
             && ua->db->GetFileAttributesRecord(ua->jcr, cwd.c_str(), NULL,
                                                &fdbr)) {
           int32_t LinkFI;
@@ -403,7 +403,7 @@ static int SetExtract(UaContext* ua,
 
           DecodeStat(fdbr.LStat, &statp, sizeof(statp),
                      &LinkFI); /* decode stat pkt */
-          jobid = node->jobid();
+          jobid = node.jobid();
           findex = LinkFI; /* lookup by linked file's fileindex */
           is_hardlinked = true;
         }
@@ -415,10 +415,10 @@ static int SetExtract(UaContext* ua,
         auto linked = LookupHardlink(tree->root, jobid, findex);
         if (linked) {
           // if this is our first time marking it, then add to the count
-          if (!linked->markedf()) { count += 1; }
-          linked->do_extract();
-          linked->do_extract_dir(linked->type() == node_type::Dir
-                                 || linked->type() == node_type::DirNls);
+          if (!linked.markedf()) { count += 1; }
+          linked.do_extract();
+          linked.do_extract_dir(linked.type() == node_type::Dir
+                                || linked.type() == node_type::DirNls);
         }
       }
     }
@@ -476,7 +476,7 @@ static int MarkElements(UaContext* ua, TreeContext* tree)
 
       std::string fullpath_pattern{};
       if (ua->argk[i][0] != '/') {
-        fullpath_pattern.append(tree->node->fullpath().c_str());
+        fullpath_pattern.append(tree->node.fullpath().c_str());
       }
 
       fullpath_pattern.append(given_path_pattern);
@@ -485,22 +485,22 @@ static int MarkElements(UaContext* ua, TreeContext* tree)
       POOLMEM* node_path = GetPoolMemory(PM_FNAME);
 
       node_ptr node = [&] {
-        auto path = tree->node->fullpath();
+        auto path = tree->node.fullpath();
         if (strcmp(path.c_str(), "/") == 0) {
-          return tree->root->at(tree->root->root());
+          return node_ptr{tree->root, tree->root->root()};
         } else {
           return tree->node;
         }
       }();
 
-      for (; node; node += 1) {
-        auto path = node->fullpath();
+      for (auto child : node.subtree()) {
+        auto path = child.fullpath();
         SplitPathAndFilename(path.c_str(), node_path, &pnl, node_filename,
                              &fnl);
 
         if (fnmatch(fullpath_pattern.c_str(), node_path, 0) == 0) {
-          if (fnmatch(given_file_pattern, node->name(), 0) == 0) {
-            count += SetExtract(ua, node, tree, true);
+          if (fnmatch(given_file_pattern, node.name(), 0) == 0) {
+            count += SetExtract(ua, child, tree, true);
           }
         }
       }
@@ -511,9 +511,9 @@ static int MarkElements(UaContext* ua, TreeContext* tree)
       FreePoolMemory(node_path);
     } else {
       // Only a pattern without a / so do things relative to CWD.
-      for (auto& node : tree->node->children()) {
+      for (auto node : tree->node.children()) {
         if (fnmatch(ua->argk[i], node.name(), 0) == 0) {
-          count += SetExtract(ua, &node, tree, true);
+          count += SetExtract(ua, node, tree, true);
         }
       }
     }
@@ -527,7 +527,7 @@ static int MarkElements(UaContext* ua, TreeContext* tree)
  */
 static int markcmd(UaContext* ua, TreeContext* tree)
 {
-  if (ua->argc < 2 || !tree->node->has_children()) {
+  if (ua->argc < 2 || !tree->node.has_children()) {
     ua->SendMsg(T_("No files marked.\n"));
     return 1;
   }
@@ -552,13 +552,13 @@ static int Markdircmd(UaContext* ua, TreeContext* tree)
   int count = 0;
   char ec1[50];
 
-  if (ua->argc < 2 || !tree->node->has_children()) {
+  if (ua->argc < 2 || !tree->node.has_children()) {
     ua->SendMsg(T_("No files marked.\n"));
     return 1;
   }
   for (int i = 1; i < ua->argc; i++) {
     StripTrailingSlash(ua->argk[i]);
-    for (auto& node : tree->node->children()) {
+    for (auto node : tree->node.children()) {
       if (fnmatch(ua->argk[i], node.name(), 0) == 0) {
         if (node.type() == node_type::Dir || node.type() == node_type::DirNls) {
           node.do_extract_dir();
@@ -584,7 +584,8 @@ static int countcmd(UaContext* ua, TreeContext* tree)
   char ec1[50], ec2[50];
 
   total = num_extract = 0;
-  for (auto& node : *tree->root) {
+  auto start = node_ptr{tree->root, tree->root->root()};
+  for (auto node : start.subtree()) {
     if (node.type() != node_type::NewDir) {
       total++;
       if (node.marked()) { num_extract++; }
@@ -604,7 +605,8 @@ static int findcmd(UaContext* ua, TreeContext* tree)
   }
 
   for (int i = 1; i < ua->argc; i++) {
-    for (auto& node : *tree->root) {
+    auto start = node_ptr{tree->root, tree->root->root()};
+    for (auto node : start.subtree()) {
       if (fnmatch(ua->argk[i], node.name(), 0) == 0) {
         const char* tag;
 
@@ -625,9 +627,9 @@ static int findcmd(UaContext* ua, TreeContext* tree)
 
 static int DotLsdircmd(UaContext* ua, TreeContext* tree)
 {
-  if (!tree->node->has_children()) { return 1; }
+  if (!tree->node.has_children()) { return 1; }
 
-  for (auto& node : tree->node->children()) {
+  for (auto node : tree->node.children()) {
     if (ua->argc == 1 || fnmatch(ua->argk[1], node.name(), 0) == 0) {
       if (node.has_children()) { ua->SendMsg("%s/\n", node.name()); }
     }
@@ -647,9 +649,9 @@ static int DotHelpcmd(UaContext* ua, TreeContext*)
 
 static int DotLscmd(UaContext* ua, TreeContext* tree)
 {
-  if (!tree->node->has_children()) { return 1; }
+  if (!tree->node.has_children()) { return 1; }
 
-  for (auto& node : tree->node->children()) {
+  for (auto node : tree->node.children()) {
     if (ua->argc == 1 || fnmatch(ua->argk[1], node.name(), 0) == 0) {
       ua->SendMsg("%s%s\n", node.name(), node.has_children() ? "/" : "");
     }
@@ -660,8 +662,8 @@ static int DotLscmd(UaContext* ua, TreeContext* tree)
 
 static int lscmd(UaContext* ua, TreeContext* tree)
 {
-  if (!tree->node->has_children()) { return 1; }
-  for (auto& node : tree->node->children()) {
+  if (!tree->node.has_children()) { return 1; }
+  for (auto node : tree->node.children()) {
     if (ua->argc == 1 || fnmatch(ua->argk[1], node.name(), 0) == 0) {
       const char* tag;
       if (node.markedf()) {
@@ -680,8 +682,8 @@ static int lscmd(UaContext* ua, TreeContext* tree)
 // Ls command that lists only the marked files
 static int DotLsmarkcmd(UaContext* ua, TreeContext* tree)
 {
-  if (!tree->node->has_children()) { return 1; }
-  for (auto& node : tree->node->children()) {
+  if (!tree->node.has_children()) { return 1; }
+  for (auto node : tree->node.children()) {
     if ((ua->argc == 1 || fnmatch(ua->argk[1], node.name(), 0) == 0)
         && node.marked()) {
       ua->SendMsg("%s%s\n", node.name(), node.has_children() ? "/" : "");
@@ -697,7 +699,7 @@ static void rlsmark(UaContext* ua, node_ptr tnode, int level)
   char indent[max_level * 2 + 1];
   int i, j;
 
-  if (!tnode->has_children()) { return; }
+  if (!tnode.has_children()) { return; }
 
   level = MIN(level, max_level);
   j = 0;
@@ -707,7 +709,7 @@ static void rlsmark(UaContext* ua, node_ptr tnode, int level)
   }
   indent[j] = 0;
 
-  for (auto& node : tnode->children()) {
+  for (auto node : tnode.children()) {
     if ((ua->argc == 1 || fnmatch(ua->argk[1], node.name(), 0) == 0)
         && node.marked()) {
       const char* tag;
@@ -720,7 +722,7 @@ static void rlsmark(UaContext* ua, node_ptr tnode, int level)
       }
       ua->SendMsg("%s%s%s%s\n", indent, tag, node.name(),
                   node.has_children() ? "/" : "");
-      if (node.has_children()) { rlsmark(ua, &node, level + 1); }
+      if (node.has_children()) { rlsmark(ua, node, level + 1); }
     }
   }
 }
@@ -783,15 +785,15 @@ static int DoDircmd(UaContext* ua, TreeContext* tree, bool dot_cmd)
   FileDbRecord fdbr;
   struct stat statp;
 
-  if (!tree->node->has_children()) {
-    ua->SendMsg(T_("Node %s has no children.\n"), tree->node->name());
+  if (!tree->node.has_children()) {
+    ua->SendMsg(T_("Node %s has no children.\n"), tree->node.name());
     return 1;
   }
 
   ua->guid = new_guid_list();
   buf = GetPoolMemory(PM_FNAME);
 
-  for (auto& node : tree->node->children()) {
+  for (auto node : tree->node.children()) {
     const char* tag;
     if (ua->argc == 1 || fnmatch(ua->argk[1], node.name(), 0) == 0) {
       if (node.markedf()) {
@@ -859,7 +861,8 @@ static int Estimatecmd(UaContext* ua, TreeContext* tree)
   char ec1[50];
 
   total = num_extract = 0;
-  for (auto& node : *tree->root) {
+  auto start = node_ptr{tree->root, tree->root->root()};
+  for (auto node : start.subtree()) {
     if (node.type() != node_type::NewDir) {
       total++;
       if (node.markedf() && node.type() == node_type::File) {
@@ -945,7 +948,7 @@ static int cdcmd(UaContext* ua, TreeContext* tree)
 
 static int pwdcmd(UaContext* ua, TreeContext* tree)
 {
-  auto cwd = tree->node->fullpath();
+  auto cwd = tree->node.fullpath();
   if (ua->api) {
     ua->SendMsg("%s", cwd.c_str());
   } else {
@@ -957,7 +960,7 @@ static int pwdcmd(UaContext* ua, TreeContext* tree)
 
 static int DotPwdcmd(UaContext* ua, TreeContext* tree)
 {
-  auto cwd = tree->node->fullpath();
+  auto cwd = tree->node.fullpath();
 
   ua->SendMsg("%s", cwd.c_str());
 
@@ -968,7 +971,7 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
 {
   int count = 0;
 
-  if (ua->argc < 2 || !tree->node->has_children()) {
+  if (ua->argc < 2 || !tree->node.has_children()) {
     ua->SendMsg(T_("No files unmarked.\n"));
     return 1;
   }
@@ -995,9 +998,9 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
       }
       tree->node = node;
 
-      for (auto& node : tree->node->children()) {
+      for (auto node : tree->node.children()) {
         if (fnmatch(file, node.name(), 0) == 0) {
-          count += SetExtract(ua, &node, tree, false);
+          count += SetExtract(ua, node, tree, false);
         }
       }
 
@@ -1005,9 +1008,9 @@ static int Unmarkcmd(UaContext* ua, TreeContext* tree)
       FreePoolMemory(path);
     } else {
       // Only a pattern without a / so do things relative to CWD.
-      for (auto& node : tree->node->children()) {
+      for (auto node : tree->node.children()) {
         if (fnmatch(ua->argk[i], node.name(), 0) == 0) {
-          count += SetExtract(ua, &node, tree, false);
+          count += SetExtract(ua, node, tree, false);
         }
       }
     }
@@ -1030,14 +1033,14 @@ static int UnMarkdircmd(UaContext* ua, TreeContext* tree)
 {
   int count = 0;
 
-  if (ua->argc < 2 || !tree->node->has_children()) {
+  if (ua->argc < 2 || !tree->node.has_children()) {
     ua->SendMsg(T_("No directories unmarked.\n"));
     return 1;
   }
 
   for (int i = 1; i < ua->argc; i++) {
     StripTrailingSlash(ua->argk[i]);
-    for (auto& node : tree->node->children()) {
+    for (auto node : tree->node.children()) {
       if (fnmatch(ua->argk[i], node.name(), 0) == 0) {
         if (node.type() == node_type::Dir || node.type() == node_type::DirNls) {
           node.do_extract_dir(false);
