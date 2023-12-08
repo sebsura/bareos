@@ -34,6 +34,9 @@
 #define MAX_PAGES 2400
 #define MAX_BUF_SIZE (MAX_PAGES * B_PAGE_SIZE) /* approx 10MB */
 
+static TREE_NODE* make_tree_path(char* path, TREE_ROOT* root);
+static TREE_NODE* tree_relcwd(char* path, TREE_ROOT* root, TREE_NODE* node);
+
 /* Forward referenced subroutines */
 static TREE_NODE* search_and_insert_tree_node(char* fname,
                                               int type,

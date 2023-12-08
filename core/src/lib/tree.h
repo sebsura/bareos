@@ -33,6 +33,8 @@
 
 #include "include/config.h"
 
+#include <cstdint>
+
 struct s_mem {
   struct s_mem* next; /* next buffer */
   int rem;            /* remaining bytes */
@@ -162,9 +164,7 @@ TREE_NODE* insert_tree_node(char* path,
                             int type,
                             TREE_ROOT* root,
                             TREE_NODE* parent);
-TREE_NODE* make_tree_path(char* path, TREE_ROOT* root);
 TREE_NODE* tree_cwd(char* path, TREE_ROOT* root, TREE_NODE* node);
-TREE_NODE* tree_relcwd(char* path, TREE_ROOT* root, TREE_NODE* node);
 void TreeAddDeltaPart(TREE_ROOT* root,
                       TREE_NODE* node,
                       JobId_t JobId,
