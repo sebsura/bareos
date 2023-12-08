@@ -518,7 +518,7 @@ void InsertHardlink(TREE_ROOT* root,
   root->insert_hl(jobid, findex, node->index);
 }
 
-HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex)
+node_ptr LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex)
 {
   auto idx = root->lookup_hl(jobid, findex);
   if (idx != root->invalid()) {

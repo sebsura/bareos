@@ -310,7 +310,7 @@ int InsertTreeHandler(void* ctx, int, char** row)
         // See if we are optimizing for speed or size.
         if (!me->optimize_for_size && me->optimize_for_speed) {
           // Hardlink to known file index: lookup original file
-          HL_ENTRY* first_hl = LookupHardlink(tree->root, JobId, LinkFI);
+          auto first_hl = LookupHardlink(tree->root, JobId, LinkFI);
 
           if (first_hl) {
             // Then add hardlink entry to linked node.

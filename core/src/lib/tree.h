@@ -215,12 +215,11 @@ class tree {
 using TREE_ROOT = tree;
 // todo: should hardlinks even be part of the tree itself
 //       or just part of the tree context ?
-using HL_ENTRY = tree::node;
 using node_ptr = tree::node*;
 
 /* External interface */
 TREE_ROOT* new_tree(int count);
-HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
+node_ptr LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
 void FreeTree(TREE_ROOT* root);
 
 // only used during creation
