@@ -49,9 +49,12 @@ enum class node_type : int
 };
 
 struct node_index {
-  std::size_t num;
+  std::size_t num{(std::size_t)-1};
 
+  bool operator==(const node_index& other) { return num == other.num; }
   bool operator!=(const node_index& other) { return num != other.num; }
+
+  bool valid() { return num != (std::size_t)-1; }
 };
 
 class tree {
@@ -220,18 +223,17 @@ class tree {
     void set_soft_link(bool soft_link) { me().soft_link = soft_link; }
     void set_dseq(int32_t dseq) { me().delta_seq = dseq; }
 
-    operator bool() { return root && (index != invalid); }
+    operator bool() { return root && index.valid(); }
 
     node_index idx() const { return index; }
 
     node_ptr() {}
-    node_ptr(tree* root) : root{root}, index{invalid} {}
+    node_ptr(tree* root) : root{root} {}
     node_ptr(tree* root, node_index index) : root{root}, index{index} {}
 
    private:
     tree* root{nullptr};
-    static constexpr node_index invalid{(std::size_t)-1};
-    node_index index{invalid};
+    node_index index{};
 
     tree::node& me() { return root->at(index); }
     tree::marked& status() { return root->marked_at(index); }
