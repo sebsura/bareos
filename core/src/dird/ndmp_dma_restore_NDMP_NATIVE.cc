@@ -159,9 +159,7 @@ int SetFilesToRestoreNdmpNative(JobControlRecord* jcr,
   int cnt = 0;
   PoolMem restore_pathname, tmp;
 
-  auto start = node_ptr{jcr->dir_impl->restore_tree_root,
-                        jcr->dir_impl->restore_tree_root->root()};
-  for (auto node : start.subtree()) {
+  for (auto node : jcr->dir_impl->restore_tree_root->root().subtree()) {
     /* node.extract_dir  means that only the directory should be selected for
      * extraction itself, the subdirs and subfiles are not automaticaly marked
      * for extraction ( i.e. set node.extract)

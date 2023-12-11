@@ -141,7 +141,7 @@ bool UserSelectFilesFromTree(TreeContext* tree)
   user->signal(BNET_START_RTREE);
 
   // Enter interactive command handler allowing selection of individual files.
-  tree->node = node_ptr{tree->root, tree->root->root()};
+  tree->node = tree->root->root();
 
   ua->SendMsg(T_("cwd is: %s\n"), tree->node.fullpath().c_str());
 
@@ -487,7 +487,7 @@ static int MarkElements(UaContext* ua, TreeContext* tree)
       node_ptr node = [&] {
         auto path = tree->node.fullpath();
         if (strcmp(path.c_str(), "/") == 0) {
-          return node_ptr{tree->root, tree->root->root()};
+          return tree->root->root();
         } else {
           return tree->node;
         }
@@ -584,8 +584,7 @@ static int countcmd(UaContext* ua, TreeContext* tree)
   char ec1[50], ec2[50];
 
   total = num_extract = 0;
-  auto start = node_ptr{tree->root, tree->root->root()};
-  for (auto node : start.subtree()) {
+  for (auto node : tree->root->root().subtree()) {
     if (node.type() != node_type::NewDir) {
       total++;
       if (node.marked()) { num_extract++; }
@@ -605,8 +604,7 @@ static int findcmd(UaContext* ua, TreeContext* tree)
   }
 
   for (int i = 1; i < ua->argc; i++) {
-    auto start = node_ptr{tree->root, tree->root->root()};
-    for (auto node : start.subtree()) {
+    for (auto node : tree->root->root().subtree()) {
       if (fnmatch(ua->argk[i], node.name(), 0) == 0) {
         const char* tag;
 
@@ -861,8 +859,7 @@ static int Estimatecmd(UaContext* ua, TreeContext* tree)
   char ec1[50];
 
   total = num_extract = 0;
-  auto start = node_ptr{tree->root, tree->root->root()};
-  for (auto node : start.subtree()) {
+  for (auto node : tree->root->root().subtree()) {
     if (node.type() != node_type::NewDir) {
       total++;
       if (node.markedf() && node.type() == node_type::File) {

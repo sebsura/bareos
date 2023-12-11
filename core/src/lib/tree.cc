@@ -520,8 +520,7 @@ void InsertHardlink(TREE_ROOT* root,
 
 node_ptr LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex)
 {
-  auto idx = root->lookup_hl(jobid, findex);
-  return {root, idx};
+  return root->lookup_hl(jobid, findex);
 }
 
 node_index tree::insert_node(const char* path,
@@ -565,21 +564,18 @@ void tree::insert_hl(JobId_t jobid, std::int32_t findex, node_index index)
   hardlinks.emplace(key, index);
 }
 
-node_index tree::lookup_hl(JobId_t jobid, std::int32_t findex)
+node_ptr tree::lookup_hl(JobId_t jobid, std::int32_t findex)
 {
   std::uint64_t j64 = jobid;
   std::uint64_t f64 = findex;
   std::uint64_t key = j64 << 32 | f64;
 
   if (auto iter = hardlinks.find(key); iter != hardlinks.end()) {
-    return iter->second;
+    return node_ptr{this, iter->second};
   } else {
     return invalid();
   }
 }
-
-// auto tree::begin() -> iter { return iter{*this, node_index{0}}; }
-// auto tree::end() -> iter { return iter{*this, node_index{0}}; }
 
 void tree::MarkSubTree(node_index node) { (void)node; }
 void tree::MarkNode(node_index node) { (void)node; }

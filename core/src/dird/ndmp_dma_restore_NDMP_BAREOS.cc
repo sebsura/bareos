@@ -68,9 +68,7 @@ static inline char* lookup_fileindex(JobControlRecord* jcr, int32_t FileIndex)
 {
   PoolMem restore_pathname, tmp;
 
-  auto start = node_ptr{jcr->dir_impl->restore_tree_root,
-                        jcr->dir_impl->restore_tree_root->root()};
-  for (auto node : start.subtree()) {
+  for (auto node : jcr->dir_impl->restore_tree_root->root().subtree()) {
     // See if this is the wanted FileIndex.
     if (node.findex() == FileIndex) {
       PmStrcpy(restore_pathname, node.name());
@@ -101,9 +99,7 @@ static inline int set_files_to_restore(JobControlRecord* jcr,
   int cnt = 0;
   PoolMem restore_pathname, tmp;
 
-  auto start = node_ptr{jcr->dir_impl->restore_tree_root,
-                        jcr->dir_impl->restore_tree_root->root()};
-  for (auto node : start.subtree()) {
+  for (auto node : jcr->dir_impl->restore_tree_root->root().subtree()) {
     // See if this is the wanted FileIndex and the user asked to extract it.
     if (node.findex() == FileIndex && node.markedf()) {
       PmStrcpy(restore_pathname, node.name());

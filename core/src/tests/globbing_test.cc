@@ -79,7 +79,7 @@ class Globbing : public testing::Test {
   void SetUp() override
   {
     tree.root = new_tree(1);
-    tree.node = node_ptr{tree.root, tree.root->root()};
+    tree.node = tree.root->root();
     me = new DirectorResource;
     me->optimize_for_size = true;
     me->optimize_for_speed = false;

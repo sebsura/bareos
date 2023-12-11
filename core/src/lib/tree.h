@@ -186,7 +186,7 @@ class tree {
         idx.num -= 1;
         if (root->at(idx).end.num > index.num) { return node_ptr{root, idx}; }
       }
-      return node_ptr{root, root->root()};
+      return root->root();
     }
 
     uint64_t fh_info() const { return me().fhinfo; }
@@ -220,16 +220,18 @@ class tree {
     void set_soft_link(bool soft_link) { me().soft_link = soft_link; }
     void set_dseq(int32_t dseq) { me().delta_seq = dseq; }
 
-    operator bool() { return root && (index != root->invalid()); }
+    operator bool() { return root && (index != invalid); }
 
     node_index idx() const { return index; }
 
     node_ptr() {}
+    node_ptr(tree* root) : root{root}, index{invalid} {}
     node_ptr(tree* root, node_index index) : root{root}, index{index} {}
 
    private:
     tree* root{nullptr};
-    node_index index{0};
+    static constexpr node_index invalid{(std::size_t)-1};
+    node_index index{invalid};
 
     tree::node& me() { return root->at(index); }
     tree::marked& status() { return root->marked_at(index); }
@@ -240,9 +242,9 @@ class tree {
 
  private:
  public:
-  constexpr node_index root() const { return node_index{0}; }
+  node_ptr root() { return node_ptr{this, node_index{0}}; }
 
-  constexpr node_index invalid() const { return node_index{(std::size_t)-1}; }
+  node_ptr invalid() { return node_ptr{this}; }
 
 
   node_index insert_node(const char* path,
@@ -257,10 +259,7 @@ class tree {
   std::string path_to(node_index node) const;
 
   void insert_hl(JobId_t jobid, std::int32_t findex, node_index index);
-  node_index lookup_hl(JobId_t jobid, std::int32_t findex);
-
-  // iter begin();
-  // iter end();
+  node_ptr lookup_hl(JobId_t jobid, std::int32_t findex);
 
   void MarkSubTree(node_index node);
   void MarkNode(node_index node);

@@ -1289,8 +1289,7 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
     /* Walk down through the tree finding all files marked to be
      *  extracted making a bootstrap file. */
     if (OK) {
-      auto start = node_ptr{tree.root, tree.root->root()};
-      for (auto node : start.subtree()) {
+      for (auto node : tree.root->root().subtree()) {
         Dmsg2(400, "FI=%d node=0x%x\n", node.findex(), &node);
         if (node.marked()) {
           Dmsg3(400, "JobId=%lld type=%d FI=%d\n", (uint64_t)node.jobid(),
