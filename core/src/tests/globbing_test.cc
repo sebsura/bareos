@@ -56,6 +56,8 @@ void PopulateTree(std::vector<std::string> files, TreeContext* tree)
   PoolMem filename{PM_FNAME};
   PoolMem path{PM_FNAME};
 
+  tree_insertion_context ctx{tree->ua, 0, 1};
+
   for (auto file : files) {
     SplitPathAndFilename(file.c_str(), path.addr(), &pnl, filename.addr(),
                          &fnl);
@@ -70,8 +72,10 @@ void PopulateTree(std::vector<std::string> files, TreeContext* tree)
     char row7[] = "0";
     char* row[] = {row0, row1, row2, row3, row4, row5, row6, row7};
 
-    InsertTreeHandler(tree, 0, row);
+    InsertTreeHandler(&ctx, 0, row);
   }
+
+  *tree = ctx.to_tree(false);
 }
 
 class Globbing : public testing::Test {

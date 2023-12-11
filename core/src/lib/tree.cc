@@ -480,59 +480,11 @@ HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex)
 
 tree* new_tree(int) { return new tree{}; }
 
-node_ptr insert_tree_node(char* path,
-                          char* fname,
-                          node_type type,
-                          tree* root,
-                          node_ptr parent)
-{
-  (void)path;
-  (void)fname;
-  (void)type;
-  (void)root;
-  (void)parent;
-
-  return parent;
-}
-
-void TreeAddDeltaPart(tree* root,
-                      node_ptr node,
-                      JobId_t JobId,
-                      int32_t FileIndex)
-{
-  (void)root;
-  (void)node;
-  (void)JobId;
-  (void)FileIndex;
-}
-
 void FreeTree(tree* root) { root->~tree(); }
-
-void TreeRemoveNode(tree*, node_ptr) {}
-
-void InsertHardlink(tree* root,
-                    JobId_t jobid,
-                    std::int32_t findex,
-                    node_ptr node)
-{
-  root->insert_hl(jobid, findex, node.idx());
-}
 
 node_ptr LookupHardlink(tree* root, JobId_t jobid, std::int32_t findex)
 {
   return root->lookup_hl(jobid, findex);
-}
-
-node_index tree::insert_node(const char* path,
-                             const char* fname,
-                             node_type type,
-                             node_index parent)
-{
-  (void)path;
-  (void)fname;
-  (void)type;
-  (void)parent;
-  return node_index{0};
 }
 
 auto tree::find(std::string_view path, node_ptr from) const -> node_ptr
@@ -607,13 +559,6 @@ std::string tree::path_to(node_index node) const
   return path;
 }
 
-void tree::add_delta_part(node_index node, JobId_t jobid, std::int32_t findex)
-{
-  (void)jobid;
-  (void)findex;
-  (void)node;
-}
-
 void tree::insert_hl(JobId_t jobid, std::int32_t findex, node_index index)
 {
   std::uint64_t j64 = jobid;
@@ -640,5 +585,25 @@ void tree::MarkSubTree(node_index node) { (void)node; }
 void tree::MarkNode(node_index node) { (void)node; }
 
 tree::~tree() {}
+
+tree_builder::tree_builder(std::size_t size) { (void)size; }
+
+auto tree_builder::insert(const char* path, const char* name, node_type type)
+    -> std::pair<iter, bool>
+{
+  (void)path;
+  (void)name;
+  (void)type;
+
+  return {};
+}
+
+void tree_builder::remove(iter it) { (void)it; }
+
+tree* tree_builder::build(bool mark_all)
+{
+  (void)mark_all;
+  return nullptr;
+}
 
 #endif

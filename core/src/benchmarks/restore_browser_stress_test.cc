@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2021-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2021-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -95,6 +95,8 @@ void PopulateTree(int quantity, TreeContext* tree)
   std::string file_path = "/";
   std::string file{};
 
+  tree_insertion_context ctx{tree->ua, tree->DeltaCount, 1};
+
   for (int i = 0; i < max_depth; ++i) {
     file_path.append("dir" + std::to_string(i) + "/");
     for (int j = 0; j < (quantity / max_depth); ++j) {
@@ -113,9 +115,11 @@ void PopulateTree(int quantity, TreeContext* tree)
       char row7[] = "0";
       char* row[] = {row0, row1, row2, row3, row4, row5, row6, row7};
 
-      InsertTreeHandler(tree, 0, row);
+      InsertTreeHandler(&ctx, 0, row);
     }
   }
+
+  *tree = ctx.to_tree(false);
 }
 
 static void BM_populatetree(benchmark::State& state)

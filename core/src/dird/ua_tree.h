@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2018 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2023 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -25,6 +25,33 @@
 namespace directordaemon {
 
 bool UserSelectFilesFromTree(TreeContext* tree);
+struct tree_insertion_context {
+  UaContext* ua{nullptr};
+  std::size_t FileCount{0};
+  std::size_t InsertionCount{0};
+  // emit a '+' every DeltaCount files
+  std::size_t DeltaCount{0};
+  tree_builder builder;
+
+  tree_insertion_context(UaContext* ua,
+                         std::size_t DeltaCount,
+                         std::size_t guessed_size)
+      : ua{ua}, DeltaCount{DeltaCount}, builder{guessed_size}
+  {
+  }
+
+  TreeContext to_tree(bool all)
+  {
+    TreeContext tree;
+
+    tree.root = builder.build(all);
+    tree.node = tree.root->root();
+    tree.ua = ua;
+
+    return tree;
+  }
+};
+// expects a tree_insertion_context
 int InsertTreeHandler(void* ctx, int num_fields, char** row);
 
 } /* namespace directordaemon */

@@ -40,6 +40,7 @@
 #include "lib/edit.h"
 #include "lib/tree.h"
 #include "lib/util.h"
+#include "dird/ua_tree.h"
 
 namespace directordaemon {
 
@@ -215,7 +216,9 @@ bool UserSelectFilesFromTree(TreeContext* tree)
 int InsertTreeHandler(void* ctx, int, char** row)
 {
   struct stat statp;
-  TreeContext* tree = (TreeContext*)ctx;
+  auto* tree = static_cast<tree_insertion_context*>(ctx);
+  tree_builder* builder = &tree->builder;
+
   node_type type;
   bool hard_link, ok;
   int FileIndex;
@@ -235,37 +238,36 @@ int InsertTreeHandler(void* ctx, int, char** row)
   }
   DecodeStat(row[4], &statp, sizeof(statp), &LinkFI);
   hard_link = (LinkFI != 0);
-  auto node = insert_tree_node(row[0], row[1], type, tree->root, node_ptr{});
+  auto [node, inserted] = builder->insert(row[0], row[1], type);
   JobId = str_to_int64(row[3]);
   FileIndex = str_to_int64(row[2]);
   delta_seq = str_to_int64(row[5]);
-  node.set_fh(str_to_int64(row[6]), str_to_int64(row[7]));
+  node->fhinfo = str_to_int64(row[6]);
+  node->fhnode = str_to_int64(row[7]);
   Dmsg8(150,
         "node=0x%p JobId=%s FileIndex=%s Delta=%s node.delta=%d LinkFI=%d, "
         "fhinfo=%d, fhnode=%d\n",
-        node, row[3], row[2], row[5], node.dseq(), LinkFI, node.fh_info(),
-        node.fh_node());
+        node, row[3], row[2], row[5], node->delta_seq, LinkFI, node->fhinfo,
+        node->fhnode);
 
   // TODO: check with hardlinks
   if (delta_seq > 0) {
-    if (delta_seq == (node.dseq() + 1)) {
-      TreeAddDeltaPart(tree->root, node, node.jobid(), node.findex());
-
+    if (delta_seq == (node->delta_seq + 1)) {
+      node.add_delta_part(JobId, FileIndex);
     } else {
       /* File looks to be deleted */
-      if (node.dseq() == -1) { /* just created */
-        TreeRemoveNode(tree->root, node);
-
+      if (node->delta_seq == -1) { /* just created */
+        builder->remove(node);
       } else {
         tree->ua->WarningMsg(
             T_("Something is wrong with the Delta sequence of %s, "
                "skipping new parts. Current sequence is %d\n"),
-            row[1], node.dseq());
+            row[1], node->delta_seq);
 
         Dmsg3(0,
               "Something is wrong with Delta, skip it "
               "fname=%s d1=%d d2=%d\n",
-              row[1], node.dseq(), delta_seq);
+              row[1], node->delta_seq, delta_seq);
       }
       return 0;
     }
@@ -280,58 +282,52 @@ int InsertTreeHandler(void* ctx, int, char** row)
    * All the code to set ok could be condensed to a single
    * line, but it would be even harder to read. */
   ok = true;
-  if (!node.was_inserted() && JobId == node.jobid()) {
-    if ((hard_link && FileIndex > node.findex())
-        || (!hard_link && FileIndex < node.findex())) {
+  if (!inserted && JobId == node->JobId) {
+    if ((hard_link && FileIndex > node->FileIndex)
+        || (!hard_link && FileIndex < node->FileIndex)) {
       ok = false;
     }
   }
-  if (ok) {
-    node.set_hard_link(hard_link);
-    node.set_findex(FileIndex);
-    node.set_jobid(JobId);
-    node.set_type(type);
-    node.set_soft_link(S_ISLNK(statp.st_mode) != 0);
-    node.set_dseq(delta_seq);
 
-    if (tree->all) {
-      node.do_extract(); /* extract all by default */
-      if (type == node_type::Dir || type == node_type::DirNls) {
-        node.do_extract_dir(); /* if dir, extract it */
-      }
-    }
+  if (ok) {
+    node->hard_link = hard_link;
+    node->FileIndex = FileIndex;
+    node->JobId = JobId;
+    node->t = type;
+    node->soft_link = S_ISLNK(statp.st_mode) != 0;
+    node->delta_seq = delta_seq;
+
+    // if (tree->all) {
+    //   node.do_extract(); /* extract all by default */
+    //   if (type == node_type::Dir || type == node_type::DirNls) {
+    //     node.do_extract_dir(); /* if dir, extract it */
+    //   }
+    // }
 
     // Insert file having hardlinks into hardlink hashtable.
     if (statp.st_nlink > 1 && type != node_type::Dir
         && type != node_type::DirNls) {
       if (!LinkFI) {
         // First occurence - file hardlinked to
-        InsertHardlink(tree->root, JobId, FileIndex, node);
+        builder->insert_original(node);
       } else {
         // See if we are optimizing for speed or size.
         if (!me->optimize_for_size && me->optimize_for_speed) {
           // Hardlink to known file index: lookup original file
-          auto first_hl = LookupHardlink(tree->root, JobId, LinkFI);
-
-          if (first_hl) {
-            // Then add hardlink entry to linked node.
-            InsertHardlink(tree->root, JobId, FileIndex, first_hl);
-          }
+          builder->insert_link(node, JobId, LinkFI);
         }
       }
     }
   }
 
-  if (node.was_inserted()) {
+  if (inserted) {
     tree->FileCount++;
-    if (tree->DeltaCount > 0
-        && (tree->FileCount - tree->LastCount) > tree->DeltaCount) {
+    if (tree->DeltaCount > 0 && (tree->FileCount % tree->DeltaCount) == 0) {
       tree->ua->SendMsg("+");
-      tree->LastCount = tree->FileCount;
     }
   }
 
-  tree->cnt++;
+  tree->InsertionCount++;
   return 0;
 }
 

@@ -1204,21 +1204,16 @@ static bool AddAllFindex(RestoreContext* rx)
 
 static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
 {
-  TreeContext tree;
   JobId_t JobId;
   const char* p;
   bool OK = true;
   char ed1[50];
 
-  // Build the directory tree containing JobIds user selected
-  tree.root = new_tree(rx->TotalFiles);
-  tree.ua = ua;
-  tree.all = rx->all;
 
   /* For display purposes, the same JobId, with different volumes may
    * appear more than once, however, we only insert it once. */
   p = rx->JobIds;
-  tree.FileEstimate = 0;
+  std::size_t DeltaCount = 0;
 
   if (GetNextJobidFromList(&p, &JobId) > 0) {
     // Use first JobId as estimate of the number of files to restore
@@ -1227,12 +1222,10 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
     if (!ua->db->SqlQuery(rx->query, RestoreCountHandler, (void*)rx)) {
       ua->ErrorMsg("%s\n", ua->db->strerror());
     }
-    if (rx->found) {
-      // Add about 25% more than this job for over estimate
-      tree.FileEstimate = rx->JobId + (rx->JobId >> 2);
-      tree.DeltaCount = rx->JobId / 50; /* print 50 ticks */
-    }
+    if (rx->found) { DeltaCount = rx->JobId / 50; /* print 50 ticks */ }
   }
+
+  tree_insertion_context ctx{ua, DeltaCount, rx->TotalFiles};
 
   ua->InfoMsg(T_("\nBuilding directory tree for JobId(s) %s ...  "),
               rx->JobIds);
@@ -1242,7 +1235,7 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
 
   if (!ua->db->GetFileList(ua->jcr, rx->JobIds, false /* do not use md5 */,
                            true /* get delta */, InsertTreeHandler,
-                           (void*)&tree)) {
+                           (void*)&ctx)) {
     ua->ErrorMsg("%s", ua->db->strerror());
   }
 
@@ -1254,7 +1247,7 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
   /* Look at the first JobId on the list (presumably the oldest) and
    *  if it is marked purged, don't do the manual selection because
    *  the Job was pruned, so the tree is incomplete. */
-  if (tree.FileCount != 0) {
+  if (ctx.FileCount != 0) {
     // Find out if any Job is purged
     Mmsg(rx->query, "SELECT SUM(PurgedFiles) FROM Job WHERE JobId IN (%s)",
          rx->JobIds);
@@ -1263,22 +1256,24 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
     }
     // rx->JobId is the PurgedFiles flag
     if (rx->found && rx->JobId > 0) {
-      tree.FileCount = 0; /* set count to zero, no tree selection */
+      ctx.FileCount = 0; /* set count to zero, no tree selection */
     }
   }
 
-  if (tree.FileCount == 0) {
+  TreeContext tree = ctx.to_tree(rx->all);
+
+  if (ctx.FileCount == 0) {
     OK = AskForFileregex(ua, rx);
     if (OK) { AddAllFindex(rx); }
   } else {
     char ec1[50];
-    if (tree.all) {
+    if (rx->all) {
       ua->InfoMsg(
           T_("\n%s files inserted into the tree and marked for extraction.\n"),
-          edit_uint64_with_commas(tree.FileCount, ec1));
+          edit_uint64_with_commas(ctx.FileCount, ec1));
     } else {
       ua->InfoMsg(T_("\n%s files inserted into the tree.\n"),
-                  edit_uint64_with_commas(tree.cnt, ec1));
+                  edit_uint64_with_commas(ctx.InsertionCount, ec1));
     }
 
     if (FindArg(ua, NT_("done")) < 0) {

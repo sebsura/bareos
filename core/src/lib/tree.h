@@ -58,7 +58,11 @@ struct node_index {
 };
 
 
+class tree_builder;
+
 class tree {
+  friend tree_builder;
+
  protected:
   struct node {
     node_type t;
@@ -209,13 +213,6 @@ class tree {
     bool is_sl() const { return me().soft_link; }
 
     // only used for building
-    void set_fh(uint64_t info, uint64_t node)
-    {
-      auto& m = const_cast<tree::node&>(me());
-      m.fhinfo = info;
-      m.fhnode = node;
-    }
-
     void do_extract(bool d = true)
     {
       auto& s = const_cast<tree::marked&>(status());
@@ -225,37 +222,6 @@ class tree {
     {
       auto& s = const_cast<tree::marked&>(status());
       s.extract_dir = d;
-    }
-
-    void set_hard_link(bool hard_link)
-    {
-      auto& m = const_cast<tree::node&>(me());
-      m.hard_link = hard_link;
-    }
-    void set_findex(int32_t findex)
-    {
-      auto& m = const_cast<tree::node&>(me());
-      m.FileIndex = findex;
-    }
-    void set_jobid(JobId_t jobid)
-    {
-      auto& m = const_cast<tree::node&>(me());
-      m.JobId = jobid;
-    }
-    void set_type(node_type type)
-    {
-      auto& m = const_cast<tree::node&>(me());
-      m.t = type;
-    }
-    void set_soft_link(bool soft_link)
-    {
-      auto& m = const_cast<tree::node&>(me());
-      m.soft_link = soft_link;
-    }
-    void set_dseq(int32_t dseq)
-    {
-      auto& m = const_cast<tree::node&>(me());
-      m.delta_seq = dseq;
     }
 
     operator bool() { return root && index.valid(); }
@@ -283,15 +249,7 @@ class tree {
 
   node_ptr invalid() const { return node_ptr{this}; }
 
-
-  node_index insert_node(const char* path,
-                         const char* fname,
-                         node_type type,
-                         node_index parent);
-
   node_ptr find(std::string_view path, node_ptr from) const;
-
-  void add_delta_part(node_index node, JobId_t jobid, std::int32_t findex);
 
   void insert_hl(JobId_t jobid, std::int32_t findex, node_index index);
   node_ptr lookup_hl(JobId_t jobid, std::int32_t findex) const;
@@ -304,30 +262,50 @@ class tree {
   ~tree();
 };
 
+class tree_builder {
+ public:
+  struct iter {
+    void add_delta_part(JobId_t jobid, std::int32_t findex)
+    {
+      (void)jobid;
+      (void)findex;
+    }
+
+
+    tree::node* operator->() { return nullptr; }
+  };
+  tree_builder(std::size_t guessed_size);
+  std::pair<iter, bool> insert(const char* path,
+                               const char* fname,
+                               node_type type);
+
+  void insert_original(iter it)
+  {
+    // it is (jobid, findex)
+    auto jobid = it->JobId;
+    auto findex = it->FileIndex;
+    (void)jobid;
+    (void)findex;
+  }
+  void insert_link(iter it, JobId_t jobid, std::int32_t findex)
+  {
+    // it links to (jobid, findex)
+    (void)it;
+    (void)jobid;
+    (void)findex;
+  }
+
+  void remove(iter it);
+  tree* build(bool mark_all);
+};
+
 using node_ptr = tree::node_ptr;
 
 /* External interface */
 tree* new_tree(int count);
-node_ptr LookupHardlink(tree* root, JobId_t jobid, std::int32_t findex);
-void FreeTree(tree* root);
-
-// only used during creation
-void TreeAddDeltaPart(tree* root,
-                      node_ptr node,
-                      JobId_t JobId,
-                      int32_t FileIndex);
-node_ptr insert_tree_node(char* path,
-                          char* fname,
-                          node_type type,
-                          tree* root,
-                          node_ptr node);
-void TreeRemoveNode(tree* root, node_ptr node);
-
 // TODO(ssura): should hardlinks even be part of the tree itself
 //              or just part of the tree context ?
-void InsertHardlink(tree* root,
-                    JobId_t jobid,
-                    std::int32_t findex,
-                    node_ptr node);
+node_ptr LookupHardlink(tree* root, JobId_t jobid, std::int32_t findex);
+void FreeTree(tree* root);
 
 #endif  // BAREOS_LIB_TREE_H_

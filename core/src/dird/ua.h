@@ -161,17 +161,11 @@ class UaContext {
                 va_list arg_ptr);
 };
 
-// Context for InsertTreeHandler()
+// Context for ua_tree commands
 struct TreeContext {
   tree* root = nullptr; /**< Root */
   node_ptr node{};      /**< Current node */
-  int cnt = 0;          /**< Count for user feedback */
-  bool all = false;     /**< If set mark all as default */
   UaContext* ua = nullptr;
-  uint32_t FileEstimate = 0; /**< Estimate of number of files */
-  uint32_t FileCount = 0;    /**< Current count of files */
-  uint32_t LastCount = 0;    /**< Last count of files */
-  uint32_t DeltaCount = 0;   /**< Trigger for printing */
 
   TreeContext() = default;
   ~TreeContext() = default;
