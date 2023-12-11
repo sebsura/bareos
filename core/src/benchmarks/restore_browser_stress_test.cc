@@ -88,7 +88,7 @@ void PopulateTree(int quantity, TreeContext* tree)
   std::string file_path = "/";
   std::string file{};
 
-  tree_insertion_context ctx{&ua, 1, 1};
+  tree_insertion_context ctx{&ua, 0, 1};
 
   for (int i = 0; i < max_depth; ++i) {
     file_path.append("dir" + std::to_string(i) + "/");
@@ -112,7 +112,8 @@ void PopulateTree(int quantity, TreeContext* tree)
     }
   }
 
-  *tree = ctx.to_tree(false);
+  (void)tree;
+  //*tree = ctx.to_tree(false);
 }
 
 [[maybe_unused]] static void BM_populatetree(benchmark::State& state)
@@ -126,13 +127,13 @@ void PopulateTree(int quantity, TreeContext* tree)
   for (auto _ : state) { FakeMarkCmd(&ua, &tree, "*"); }
 }
 
-BENCHMARK(BM_populatetree)->Arg(50'000)->Unit(benchmark::kSecond);
+// BENCHMARK(BM_populatetree)->Arg(50'000)->Unit(benchmark::kSecond);
 
-BENCHMARK(BM_populatetree)->Arg(100'000)->Unit(benchmark::kSecond);
+// BENCHMARK(BM_populatetree)->Arg(100'000)->Unit(benchmark::kSecond);
 
-BENCHMARK(BM_populatetree)->Arg(200'000)->Unit(benchmark::kSecond);
+// BENCHMARK(BM_populatetree)->Arg(200'000)->Unit(benchmark::kSecond);
 
-BENCHMARK(BM_populatetree)->Arg(1'000'000)->Unit(benchmark::kSecond);
+// BENCHMARK(BM_populatetree)->Arg(1'000'000)->Unit(benchmark::kSecond);
 
 BENCHMARK(BM_populatetree)->Arg(10'000'000)->Unit(benchmark::kSecond);
 

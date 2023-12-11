@@ -624,16 +624,18 @@ auto tree_builder::insert(std::string_view path,
 
 void tree_builder::remove(iter it)
 {
-  auto* ent = to_entry(it);
-  ent->parent->remove(ent->name);
+  (void)it;
+  // auto* ent = to_entry(it);
+  // ent->parent->remove(ent->name);
 }
 
 void tree_builder::add_nodes(entry* ent, std::vector<tree::node>& tnodes)
 {
   auto idx = tnodes.size();
   tnodes.emplace_back();
-  for (auto& child : ent->children) {
-    add_nodes(const_cast<entry*>(&child), tnodes);
+  for (auto& [name, child] : ent->children) {
+    (void)name;
+    add_nodes(&child, tnodes);
   }
   auto end = tnodes.size();
 

@@ -32,7 +32,7 @@
 
 #include <cstdint>
 #include <vector>
-#include <set>
+#include <map>
 
 struct delta_list {
   delta_list* next;
@@ -316,49 +316,17 @@ class tree_builder {
   std::vector<tree::node> nodes;
 
   struct entry {
-    struct entry_compare {
-      using is_transparent = std::true_type;
-
-      bool operator()(const entry& l, const entry& r) const
-      {
-        return l.name < r.name;
-      }
-
-      bool operator()(const entry& l, std::string_view r) const
-      {
-        return l.name < r;
-      }
-    };
     std::size_t node_idx{(std::size_t)-1};
-    std::string name;
-    std::set<entry, entry_compare> children{};
     entry* parent{nullptr};
+    std::map<std::string, entry> children{};
 
-    entry(std::string_view name, entry* parent = nullptr)
-        : name{name}, parent{parent}
-    {
-    }
-
-    entry() : entry{""} {}
+    entry(entry* parent = nullptr) : parent{parent} {}
 
     std::pair<entry*, bool> get(std::string_view name)
     {
-      auto [it, inserted] = children.emplace(name);
-      entry* ent = const_cast<entry*>(&*it);
+      auto [it, inserted] = children.emplace(name, this);
+      entry* ent = &it->second;
       return {ent, inserted};
-      // auto lb = std::lower_bound(
-      //     children.begin(), children.end(), name,
-      //     [](const entry& e, std::string_view name) { return e.name < name;
-      //     });
-
-      // // TODO(ssura): use better binary search instead, i.e.
-      // //              arrange elements as if they were in a binary tree/heap
-      // if (lb != children.end() && lb->name == name) {
-      //   return {&*lb, false};
-      // } else {
-      //   auto it = children.emplace(lb, name, this);
-      //   return {&*it, true};
-      // }
     }
 
     void remove(std::string_view name) { (void)name; }
