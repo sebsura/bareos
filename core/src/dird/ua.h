@@ -163,10 +163,10 @@ class UaContext {
 
 // Context for InsertTreeHandler()
 struct TreeContext {
-  TREE_ROOT* root = nullptr; /**< Root */
-  node_ptr node{};           /**< Current node */
-  int cnt = 0;               /**< Count for user feedback */
-  bool all = false;          /**< If set mark all as default */
+  tree* root = nullptr; /**< Root */
+  node_ptr node{};      /**< Current node */
+  int cnt = 0;          /**< Count for user feedback */
+  bool all = false;     /**< If set mark all as default */
   UaContext* ua = nullptr;
   uint32_t FileEstimate = 0; /**< Estimate of number of files */
   uint32_t FileCount = 0;    /**< Current count of files */

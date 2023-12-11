@@ -304,29 +304,28 @@ class tree {
   ~tree();
 };
 
-using TREE_ROOT = tree;
-// todo: should hardlinks even be part of the tree itself
-//       or just part of the tree context ?
 using node_ptr = tree::node_ptr;
 
 /* External interface */
-TREE_ROOT* new_tree(int count);
-node_ptr LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex);
-void FreeTree(TREE_ROOT* root);
+tree* new_tree(int count);
+node_ptr LookupHardlink(tree* root, JobId_t jobid, std::int32_t findex);
+void FreeTree(tree* root);
 
 // only used during creation
-void TreeAddDeltaPart(TREE_ROOT* root,
+void TreeAddDeltaPart(tree* root,
                       node_ptr node,
                       JobId_t JobId,
                       int32_t FileIndex);
 node_ptr insert_tree_node(char* path,
                           char* fname,
                           node_type type,
-                          TREE_ROOT* root,
+                          tree* root,
                           node_ptr node);
-void TreeRemoveNode(TREE_ROOT* root, node_ptr node);
+void TreeRemoveNode(tree* root, node_ptr node);
 
-void InsertHardlink(TREE_ROOT* root,
+// TODO(ssura): should hardlinks even be part of the tree itself
+//              or just part of the tree context ?
+void InsertHardlink(tree* root,
                     JobId_t jobid,
                     std::int32_t findex,
                     node_ptr node);

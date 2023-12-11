@@ -478,12 +478,12 @@ HL_ENTRY* LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex)
 
 #else
 
-TREE_ROOT* new_tree(int) { return new tree{}; }
+tree* new_tree(int) { return new tree{}; }
 
 node_ptr insert_tree_node(char* path,
                           char* fname,
                           node_type type,
-                          TREE_ROOT* root,
+                          tree* root,
                           node_ptr parent)
 {
   (void)path;
@@ -495,7 +495,7 @@ node_ptr insert_tree_node(char* path,
   return parent;
 }
 
-void TreeAddDeltaPart(TREE_ROOT* root,
+void TreeAddDeltaPart(tree* root,
                       node_ptr node,
                       JobId_t JobId,
                       int32_t FileIndex)
@@ -506,11 +506,11 @@ void TreeAddDeltaPart(TREE_ROOT* root,
   (void)FileIndex;
 }
 
-void FreeTree(TREE_ROOT* root) { root->~tree(); }
+void FreeTree(tree* root) { root->~tree(); }
 
-void TreeRemoveNode(TREE_ROOT*, node_ptr) {}
+void TreeRemoveNode(tree*, node_ptr) {}
 
-void InsertHardlink(TREE_ROOT* root,
+void InsertHardlink(tree* root,
                     JobId_t jobid,
                     std::int32_t findex,
                     node_ptr node)
@@ -518,7 +518,7 @@ void InsertHardlink(TREE_ROOT* root,
   root->insert_hl(jobid, findex, node.idx());
 }
 
-node_ptr LookupHardlink(TREE_ROOT* root, JobId_t jobid, std::int32_t findex)
+node_ptr LookupHardlink(tree* root, JobId_t jobid, std::int32_t findex)
 {
   return root->lookup_hl(jobid, findex);
 }
