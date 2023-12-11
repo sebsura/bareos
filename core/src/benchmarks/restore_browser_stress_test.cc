@@ -47,7 +47,7 @@ enum HIGH_FILE_NUMBERS
   billion = 1'000'000'000
 };
 
-void InitContexts(UaContext* ua, TreeContext* tree)
+void InitContext(UaContext* ua)
 {
   ua->cmd = GetPoolMemory(PM_FNAME);
   ua->args = GetPoolMemory(PM_FNAME);
@@ -55,13 +55,6 @@ void InitContexts(UaContext* ua, TreeContext* tree)
   ua->verbose = true;
   ua->automount = true;
   ua->send = new OutputFormatter(sprintit, ua, filterit, ua);
-
-  tree->root = new_tree(1);
-  tree->ua = ua;
-  tree->all = false;
-  tree->FileEstimate = 100;
-  tree->DeltaCount = 1;
-  tree->node = (TREE_NODE*)tree->root;
 }
 
 int FakeCdCmd(UaContext* ua, TreeContext* tree, std::string path)
@@ -86,7 +79,7 @@ void PopulateTree(int quantity, TreeContext* tree)
   me = new DirectorResource;
   me->optimize_for_size = true;
   me->optimize_for_speed = false;
-  InitContexts(&ua, tree);
+  InitContext(&ua);
 
   char* filename = GetPoolMemory(PM_FNAME);
   char* path = GetPoolMemory(PM_FNAME);
@@ -95,7 +88,7 @@ void PopulateTree(int quantity, TreeContext* tree)
   std::string file_path = "/";
   std::string file{};
 
-  tree_insertion_context ctx{tree->ua, tree->DeltaCount, 1};
+  tree_insertion_context ctx{&ua, 1, 1};
 
   for (int i = 0; i < max_depth; ++i) {
     file_path.append("dir" + std::to_string(i) + "/");
@@ -122,39 +115,49 @@ void PopulateTree(int quantity, TreeContext* tree)
   *tree = ctx.to_tree(false);
 }
 
-static void BM_populatetree(benchmark::State& state)
+[[maybe_unused]] static void BM_populatetree(benchmark::State& state)
 {
   for (auto _ : state) { PopulateTree(state.range(0), &tree); }
 }
 
-static void BM_markallfiles(benchmark::State& state)
+[[maybe_unused]] static void BM_markallfiles(benchmark::State& state)
 {
   FakeCdCmd(&ua, &tree, "/");
   for (auto _ : state) { FakeMarkCmd(&ua, &tree, "*"); }
 }
 
-BENCHMARK(BM_populatetree)
-    ->Arg(HIGH_FILE_NUMBERS::hundred_thousand)
-    ->Unit(benchmark::kSecond);
-BENCHMARK(BM_markallfiles)
-    ->Arg(HIGH_FILE_NUMBERS::hundred_thousand)
-    ->Unit(benchmark::kSecond);
+BENCHMARK(BM_populatetree)->Arg(50'000)->Unit(benchmark::kSecond);
+
+BENCHMARK(BM_populatetree)->Arg(100'000)->Unit(benchmark::kSecond);
+
+BENCHMARK(BM_populatetree)->Arg(200'000)->Unit(benchmark::kSecond);
+
+BENCHMARK(BM_populatetree)->Arg(1'000'000)->Unit(benchmark::kSecond);
+
+BENCHMARK(BM_populatetree)->Arg(10'000'000)->Unit(benchmark::kSecond);
+
+// BENCHMARK(BM_populatetree)
+//     ->Arg(HIGH_FILE_NUMBERS::hundred_thousand)
+//     ->Unit(benchmark::kSecond);
+// BENCHMARK(BM_markallfiles)
+//     ->Arg(HIGH_FILE_NUMBERS::hundred_thousand)
+//     ->Unit(benchmark::kSecond);
 
 
-BENCHMARK(BM_populatetree)
-    ->Arg(HIGH_FILE_NUMBERS::million)
-    ->Unit(benchmark::kSecond);
-BENCHMARK(BM_markallfiles)
-    ->Arg(HIGH_FILE_NUMBERS::million)
-    ->Unit(benchmark::kSecond);
+// BENCHMARK(BM_populatetree)
+//     ->Arg(HIGH_FILE_NUMBERS::million)
+//     ->Unit(benchmark::kSecond);
+// BENCHMARK(BM_markallfiles)
+//     ->Arg(HIGH_FILE_NUMBERS::million)
+//     ->Unit(benchmark::kSecond);
 
 
-BENCHMARK(BM_populatetree)
-    ->Arg(HIGH_FILE_NUMBERS::ten_million)
-    ->Unit(benchmark::kSecond);
-BENCHMARK(BM_markallfiles)
-    ->Arg(HIGH_FILE_NUMBERS::ten_million)
-    ->Unit(benchmark::kSecond);
+// BENCHMARK(BM_populatetree)
+//     ->Arg(HIGH_FILE_NUMBERS::ten_million)
+//     ->Unit(benchmark::kSecond);
+// BENCHMARK(BM_markallfiles)
+//     ->Arg(HIGH_FILE_NUMBERS::ten_million)
+//     ->Unit(benchmark::kSecond);
 
 /*
  * Over ten million files requires quiet a bit a ram, so if you are going to

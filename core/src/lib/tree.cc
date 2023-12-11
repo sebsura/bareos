@@ -586,24 +586,92 @@ void tree::MarkNode(node_index node) { (void)node; }
 
 tree::~tree() {}
 
-tree_builder::tree_builder(std::size_t size) { (void)size; }
+tree_builder::tree_builder(std::size_t count) { nodes.reserve(count); }
 
-auto tree_builder::insert(const char* path, const char* name, node_type type)
-    -> std::pair<iter, bool>
+auto tree_builder::insert(std::string_view path,
+                          std::string_view name,
+                          node_type type) -> std::pair<iter, bool>
 {
-  (void)path;
-  (void)name;
-  (void)type;
+  auto* current = &root;
 
-  return {};
+  if (cached_path == path) {
+    current = cached;
+  } else {
+    cached_path = path;
+    if (path.size() > 0 && path[0] == '/') { path = path.substr(1); }
+    while (path.size() > 0) {
+      auto split_pos = path.find_first_of("/\\");
+      auto part = path.substr(0, split_pos);
+      path = path.substr(split_pos + 1);  // skip separator
+
+      [[maybe_unused]] bool inserted;
+      std::tie(current, inserted) = current->get(part);
+      if (inserted) {
+        auto it = as_iter(current);
+        it->t = node_type::NewDir;
+        it->delta_seq = -1;
+      }
+    }
+    cached = current;
+  }
+
+  auto [entry, inserted] = current->get(name);
+  auto it = as_iter(entry);
+
+  if (inserted) { it->t = type; }
+  return {it, inserted};
 }
 
-void tree_builder::remove(iter it) { (void)it; }
+void tree_builder::remove(iter it)
+{
+  auto* ent = to_entry(it);
+  ent->parent->remove(ent->name);
+}
+
+void tree_builder::add_nodes(entry* ent, std::vector<tree::node>& tnodes)
+{
+  auto idx = tnodes.size();
+  tnodes.emplace_back();
+  for (auto& child : ent->children) {
+    add_nodes(const_cast<entry*>(&child), tnodes);
+  }
+  auto end = tnodes.size();
+
+  auto& node = tnodes[idx];
+  if (ent->node_idx != (std::size_t)-1) {
+    node = nodes[ent->node_idx];
+  } else {
+    node.delta_seq = -1;
+  }
+  node.end.num = end;
+}
 
 tree* tree_builder::build(bool mark_all)
 {
-  (void)mark_all;
-  return nullptr;
+  tree* to_build = new tree();
+
+  auto& tnodes = to_build->nodes;
+  tnodes.reserve(nodes.size());
+
+  add_nodes(&root, tnodes);
+
+  if (mark_all) {
+    to_build->status.resize(
+        tnodes.size(), tree::marked{.extract = true, .extract_dir = false});
+
+    // TODO(ssura): find out if we should mark the root
+    for (std::size_t i = 0; i < tnodes.size(); ++i) {
+      auto& tnode = tnodes[i];
+      if (tnode.t == node_type::Dir || tnode.t == node_type::DirNls) {
+        to_build->status[i].extract_dir = true;
+      }
+    }
+  } else {
+    to_build->status.resize(tnodes.size());
+  }
+
+  // TODO(ssura): enter hardlinks
+  return to_build;
 }
 
 #endif

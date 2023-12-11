@@ -32,6 +32,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <set>
 
 struct delta_list {
   delta_list* next;
@@ -263,20 +264,33 @@ class tree {
 };
 
 class tree_builder {
+ private:
+  struct entry;
+
  public:
   struct iter {
+    friend tree_builder;
     void add_delta_part(JobId_t jobid, std::int32_t findex)
     {
       (void)jobid;
       (void)findex;
     }
 
+    tree::node* operator->() { return &source->nodes[origin->node_idx]; }
+    iter(const iter&) = default;
 
-    tree::node* operator->() { return nullptr; }
+   private:
+    iter(tree_builder::entry* origin, tree_builder* source)
+        : origin{origin}, source{source}
+    {
+    }
+
+    tree_builder::entry* origin;
+    tree_builder* source;
   };
   tree_builder(std::size_t guessed_size);
-  std::pair<iter, bool> insert(const char* path,
-                               const char* fname,
+  std::pair<iter, bool> insert(std::string_view path,
+                               std::string_view name,
                                node_type type);
 
   void insert_original(iter it)
@@ -297,6 +311,76 @@ class tree_builder {
 
   void remove(iter it);
   tree* build(bool mark_all);
+
+ private:
+  std::vector<tree::node> nodes;
+
+  struct entry {
+    struct entry_compare {
+      using is_transparent = std::true_type;
+
+      bool operator()(const entry& l, const entry& r) const
+      {
+        return l.name < r.name;
+      }
+
+      bool operator()(const entry& l, std::string_view r) const
+      {
+        return l.name < r;
+      }
+    };
+    std::size_t node_idx{(std::size_t)-1};
+    std::string name;
+    std::set<entry, entry_compare> children{};
+    entry* parent{nullptr};
+
+    entry(std::string_view name, entry* parent = nullptr)
+        : name{name}, parent{parent}
+    {
+    }
+
+    entry() : entry{""} {}
+
+    std::pair<entry*, bool> get(std::string_view name)
+    {
+      auto [it, inserted] = children.emplace(name);
+      entry* ent = const_cast<entry*>(&*it);
+      return {ent, inserted};
+      // auto lb = std::lower_bound(
+      //     children.begin(), children.end(), name,
+      //     [](const entry& e, std::string_view name) { return e.name < name;
+      //     });
+
+      // // TODO(ssura): use better binary search instead, i.e.
+      // //              arrange elements as if they were in a binary tree/heap
+      // if (lb != children.end() && lb->name == name) {
+      //   return {&*lb, false};
+      // } else {
+      //   auto it = children.emplace(lb, name, this);
+      //   return {&*it, true};
+      // }
+    }
+
+    void remove(std::string_view name) { (void)name; }
+  };
+
+  entry root{};
+
+  std::string cached_path{"/"};
+  entry* cached{&root};
+
+  iter as_iter(entry* ent)
+  {
+    if (ent->node_idx == (std::size_t)-1) {
+      ent->node_idx = nodes.size();
+      nodes.emplace_back();
+    }
+    return iter{ent, this};
+  }
+
+  entry* to_entry(iter it) { return it.origin; }
+
+  void add_nodes(entry* entry, std::vector<tree::node>& nodes);
 };
 
 using node_ptr = tree::node_ptr;
