@@ -181,7 +181,7 @@ class tree {
     bool markedd() const { return status().extract_dir; }
 
     const char* name() const { return me().fname; }
-    std::string fullpath() const { return ""; }
+    std::string fullpath() const { return root->path_to(idx()); }
 
     node_ptr parent() const
     {
@@ -295,6 +295,8 @@ class tree {
 
   void insert_hl(JobId_t jobid, std::int32_t findex, node_index index);
   node_ptr lookup_hl(JobId_t jobid, std::int32_t findex) const;
+
+  std::string path_to(node_index node) const;
 
   void MarkSubTree(node_index node);
   void MarkNode(node_index node);

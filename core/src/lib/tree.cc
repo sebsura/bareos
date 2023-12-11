@@ -542,17 +542,39 @@ auto tree::find(std::string_view path, node_ptr from) const -> node_ptr
   return from;
 }
 
+std::string tree::path_to(node_index node) const
+{
+  if (!node.valid()) { return ""; }
+  std::string path{};
+  auto current = root();  // start at root
+
+  while (current.idx() != node) {
+    path += "/";
+    bool found = false;
+    for (auto child : current.children()) {
+      if (at(child.idx()).end.num > node.num) {
+        current = child;
+        path += child.name();
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      // TODO(ssura): add debug message
+      // this should not happen!
+      return "";
+    }
+  }
+
+  return path;
+}
+
 void tree::add_delta_part(node_index node, JobId_t jobid, std::int32_t findex)
 {
   (void)jobid;
   (void)findex;
   (void)node;
-}
-
-std::string tree::path_to(node_index node) const
-{
-  (void)node;
-  return "";
 }
 
 void tree::insert_hl(JobId_t jobid, std::int32_t findex, node_index index)
