@@ -535,7 +535,7 @@ node_index tree::insert_node(const char* path,
   return node_index{0};
 }
 
-auto tree::find(char* path, node_ptr from) const -> node_ptr
+auto tree::find(std::string_view path, node_ptr from) const -> node_ptr
 {
   (void)path;
   (void)from;
@@ -564,7 +564,7 @@ void tree::insert_hl(JobId_t jobid, std::int32_t findex, node_index index)
   hardlinks.emplace(key, index);
 }
 
-node_ptr tree::lookup_hl(JobId_t jobid, std::int32_t findex)
+node_ptr tree::lookup_hl(JobId_t jobid, std::int32_t findex) const
 {
   std::uint64_t j64 = jobid;
   std::uint64_t f64 = findex;
