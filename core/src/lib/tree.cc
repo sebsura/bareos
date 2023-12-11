@@ -537,9 +537,46 @@ node_index tree::insert_node(const char* path,
 
 auto tree::find(std::string_view path, node_ptr from) const -> node_ptr
 {
-  (void)path;
-  (void)from;
-  return from;
+  using namespace std::literals;
+
+  // TODO(ssura): should we return invalid instead ?
+  if (path.size() == 0) { return from; }
+
+  node_ptr current = from;
+
+  if (path[0] == '/' || path[0] == '\\') {
+    current = root();
+    path = path.substr(1);
+  }
+
+  while (path.size() > 0) {
+    if (path == "."sv) {
+      return from;
+    } else if (path == ".."sv) {
+      return from.parent();
+    } else if (path.substr(0, 3) == "../"sv || path.substr(0, 3) == "..\\"sv) {
+      current = from.parent();
+      path = path.substr(3);
+    } else {
+      auto split_pos = path.find_first_of("/\\");
+      auto part = path.substr(0, split_pos);
+      path = path.substr(split_pos + 1);  // skip separator
+      bool found = false;
+      for (auto child : current.children()) {
+        if (part == child.name()) {
+          current = child;
+          found = true;
+          break;
+        }
+        // TODO(ssura): try to fnmatch on child instead here
+      }
+
+      if (!found) { return invalid(); }
+    }
+  }
+
+
+  return current;
 }
 
 std::string tree::path_to(node_index node) const
