@@ -29,10 +29,12 @@
 #define BAREOS_LIB_TREE_H_
 
 #include "include/config.h"
+#include "lib/slist.h"
 
 #include <cstdint>
 #include <vector>
 #include <map>
+#include <cstring>
 
 struct delta_list {
   delta_list* next;
@@ -58,6 +60,83 @@ struct node_index {
   bool valid() { return num != (std::size_t)-1; }
 };
 
+template <typename T> struct allocator {
+  class mem_slice {
+    std::size_t count{0};
+    T* start{nullptr};
+
+   public:
+    mem_slice() = default;
+    mem_slice(std::size_t count) : count{count}, start{new T[count]} {}
+
+    mem_slice(mem_slice&& other) : mem_slice() { *this = std::move(other); }
+    mem_slice& operator=(mem_slice&& other)
+    {
+      std::swap(count, other.count);
+      std::swap(start, other.start);
+      return *this;
+    }
+
+    mem_slice(const mem_slice&) = delete;
+    mem_slice& operator=(const mem_slice&) = delete;
+
+    ~mem_slice()
+    {
+      if (start) delete[] start;
+    }
+    std::size_t size() { return count; }
+    T* data() { return reinterpret_cast<T*>(start); }
+  };
+
+  std::vector<mem_slice> slices;
+  T* start;
+  T* current;
+  T* end;
+
+  allocator(std::size_t initial_size = 128)
+  {
+    auto& slice = slices.emplace_back(initial_size);
+
+    start = slice.data();
+    current = slice.data();
+    end = slice.data() + slice.size();
+  }
+
+  void add_slice()
+  {
+    auto last_size = slices.back().size();
+    auto& slice = slices.emplace_back(last_size * 2);
+
+    start = slice.data();
+    current = slice.data();
+    end = slice.data() + slice.size();
+  }
+
+  T* alloc_array(std::size_t count)
+  {
+    while (static_cast<std::size_t>(end - current) < count) { add_slice(); }
+
+    current += count;
+    return current - count;
+  }
+
+  T* alloc()
+  {
+    if (current == end) { add_slice(); }
+
+    return current++;
+  }
+
+  void pop_back()
+  {
+    if (current != start) { current -= 1; }
+  }
+
+  void pop_back_array(std::size_t count)
+  {
+    if (current - start >= count) { current -= count; }
+  }
+};
 
 class tree_builder;
 
@@ -276,17 +355,13 @@ class tree_builder {
       (void)findex;
     }
 
-    tree::node* operator->() { return &source->nodes[origin->node_idx]; }
+    tree::node* operator->() { return &origin->node; }
     iter(const iter&) = default;
 
    private:
-    iter(tree_builder::entry* origin, tree_builder* source)
-        : origin{origin}, source{source}
-    {
-    }
+    iter(tree_builder::entry* origin) : origin{origin} {}
 
     tree_builder::entry* origin;
-    tree_builder* source;
   };
   tree_builder(std::size_t guessed_size);
   std::pair<iter, bool> insert(std::string_view path,
@@ -313,38 +388,61 @@ class tree_builder {
   tree* build(bool mark_all);
 
  private:
-  std::vector<tree::node> nodes;
+  struct entry : sitem<entry> {
+    tree::node node;
+    std::string_view name;
 
-  struct entry {
-    std::size_t node_idx{(std::size_t)-1};
-    entry* parent{nullptr};
-    std::map<std::string, entry> children{};
 
-    entry(entry* parent = nullptr) : parent{parent} {}
+    struct entry_compare {
+      int operator()(const entry& left, const entry& right) const
+      {
+        if (left.name < right.name) {
+          return -1;
+        } else if (left.name > right.name) {
+          return 1;
+        }
+        return 0;
+      }
+    };
 
-    std::pair<entry*, bool> get(std::string_view name)
+    slist<entry, entry_compare> structure;
+
+    entry(std::string_view name) : name{name} {}
+    entry() : entry{""} {}
+
+    std::pair<entry*, bool> get(allocator<entry>* alloc,
+                                allocator<char>* stralloc,
+                                std::string_view name)
     {
-      auto [it, inserted] = children.emplace(name, this);
-      entry* ent = &it->second;
-      return {ent, inserted};
+      auto* new_ent = alloc->alloc();
+      new_ent->name = name;
+      auto [ptr, inserted] = structure.add(new_ent);
+
+      if (!inserted) {
+        alloc->pop_back();
+      } else {
+        auto* ptr = stralloc->alloc_array(name.size());
+        std::memcpy(ptr, name.data(), name.size());
+
+        new_ent->name = std::string_view{ptr, name.size()};
+      }
+
+      return {ptr, inserted};
     }
 
     void remove(std::string_view name) { (void)name; }
   };
 
-  entry root{};
+  allocator<entry> alloc;
+  allocator<char> char_alloc;
+
+  entry root{""};
+  std::size_t size{0};
 
   std::string cached_path{"/"};
   entry* cached{&root};
 
-  iter as_iter(entry* ent)
-  {
-    if (ent->node_idx == (std::size_t)-1) {
-      ent->node_idx = nodes.size();
-      nodes.emplace_back();
-    }
-    return iter{ent, this};
-  }
+  iter as_iter(entry* ent) { return iter{ent}; }
 
   entry* to_entry(iter it) { return it.origin; }
 

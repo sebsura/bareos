@@ -586,7 +586,7 @@ void tree::MarkNode(node_index node) { (void)node; }
 
 tree::~tree() {}
 
-tree_builder::tree_builder(std::size_t count) { nodes.reserve(count); }
+tree_builder::tree_builder(std::size_t count) { (void)count; }
 
 auto tree_builder::insert(std::string_view path,
                           std::string_view name,
@@ -605,20 +605,24 @@ auto tree_builder::insert(std::string_view path,
       path = path.substr(split_pos + 1);  // skip separator
 
       [[maybe_unused]] bool inserted;
-      std::tie(current, inserted) = current->get(part);
+      std::tie(current, inserted) = current->get(&alloc, &char_alloc, part);
       if (inserted) {
         auto it = as_iter(current);
         it->t = node_type::NewDir;
         it->delta_seq = -1;
+        size += 1;
       }
     }
     cached = current;
   }
 
-  auto [entry, inserted] = current->get(name);
+  auto [entry, inserted] = current->get(&alloc, &char_alloc, name);
   auto it = as_iter(entry);
 
-  if (inserted) { it->t = type; }
+  if (inserted) {
+    it->t = type;
+    size += 1;
+  }
   return {it, inserted};
 }
 
@@ -631,20 +635,12 @@ void tree_builder::remove(iter it)
 
 void tree_builder::add_nodes(entry* ent, std::vector<tree::node>& tnodes)
 {
-  auto idx = tnodes.size();
+  // auto idx = tnodes.size();
   tnodes.emplace_back();
-  for (auto& [name, child] : ent->children) {
-    (void)name;
-    add_nodes(&child, tnodes);
-  }
+  for (auto& child : ent->structure) { add_nodes(&child, tnodes); }
   auto end = tnodes.size();
 
-  auto& node = tnodes[idx];
-  if (ent->node_idx != (std::size_t)-1) {
-    node = nodes[ent->node_idx];
-  } else {
-    node.delta_seq = -1;
-  }
+  auto& node = ent->node;
   node.end.num = end;
 }
 
@@ -653,7 +649,7 @@ tree* tree_builder::build(bool mark_all)
   tree* to_build = new tree();
 
   auto& tnodes = to_build->nodes;
-  tnodes.reserve(nodes.size());
+  tnodes.reserve(size);
 
   add_nodes(&root, tnodes);
 
