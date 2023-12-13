@@ -273,6 +273,8 @@ struct tree_view {
 };
 
 struct tree_builder {
+  // this class converts a TREE_ROOT* into a byte sequence that can
+  // be viewed with a tree_view
   std::vector<proto_node> nodes;
   std::vector<char> string_area;
   std::vector<meta_data> metas;
@@ -854,58 +856,11 @@ TREE_ROOT* LoadTree(const char* path, std::size_t* size, bool marked_initially)
   }
 }
 
-struct map_ptr {
-  void* ptr{nullptr};
-  std::size_t size{0};
-
-  map_ptr(const char* path)
-  {
-    int fd = open(path, O_RDONLY);
-
-    if (fd < 0) { throw std::ios_base::failure("error opening file"); }
-
-    struct stat s;
-    if (fstat(fd, &s) < 0) {
-      throw std::ios_base::failure("error stating file");
-    }
-
-    size = s.st_size;
-    ptr = ::mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
-
-    if (ptr == MAP_FAILED) {
-      throw std::ios_base::failure("error mmaping file");
-    }
-
-    if (madvise(ptr, size, MADV_WILLNEED) != 0) {
-      throw std::ios_base::failure("error madvising mmap");
-    }
-
-    ::close(fd);
-  }
-
-  map_ptr(map_ptr&& other) { *this = std::move(other); }
-
-  map_ptr& operator=(map_ptr&& other)
-  {
-    std::swap(ptr, other.ptr);
-    std::swap(size, other.size);
-    return *this;
-  }
-
-  span<char> to_span() { return span{static_cast<char*>(ptr), size}; }
-
-  ~map_ptr()
-  {
-    if (ptr) { munmap(ptr, size); }
-  }
-};
-
 class NewTree {
   using bytes = std::vector<char>;
 
  public:
   std::vector<bytes> tree_data;
-  std::vector<map_ptr> tree_mmap;
   std::vector<tree_view> views;
 };
 
@@ -916,7 +871,6 @@ tree_ptr MakeNewTree() { return tree_ptr(new NewTree); }
 bool AddTree(NewTree* tree, const char* path)
 {
   try {
-#if 1
     std::vector<char> bytes = LoadFile(path);
 
     tree_view view(to_span(bytes));
@@ -925,17 +879,6 @@ bool AddTree(NewTree* tree, const char* path)
 
     tree->tree_data.emplace_back(std::move(bytes));
     tree->views.push_back(view);
-#else
-    map_ptr map(path);
-
-    tree_view view(map.to_span());
-
-    if (!CheckTree(view)) { return false; }
-
-    tree->tree_mmap.emplace_back(std::move(map));
-    tree->views.push_back(view);
-
-#endif
 
     return true;
   } catch (const std::exception& e) {
@@ -1128,4 +1071,18 @@ TREE_ROOT* CombineTree(tree_ptr tree, std::size_t* count, bool mark_on_load)
 
   *count = int_count;
   return root;
+}
+
+std::vector<char> TreeData(TREE_ROOT* root)
+{
+  return tree_builder(root).to_bytes();
+}
+
+TREE_ROOT* AnalyzeData(const char* begin, const char* end)
+{
+  tree_view view(span{begin, static_cast<size_t>(end - begin)});
+
+  if (!CheckTree(view)) { return nullptr; }
+
+  return tree_from_view(view, false);
 }

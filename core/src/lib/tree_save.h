@@ -28,6 +28,9 @@
 
 #include "lib/tree.h"
 
+std::vector<char> TreeData(TREE_ROOT* root);
+TREE_ROOT* AnalyzeData(const char* begin, const char* end);
+
 bool SaveTree(const char* path, TREE_ROOT* root);
 TREE_ROOT* LoadTree(const char* path, std::size_t* size, bool mark_on_load);
 
