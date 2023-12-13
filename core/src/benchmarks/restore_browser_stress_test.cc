@@ -74,6 +74,12 @@ int FakeMarkCmd(UaContext* ua, TreeContext* tree, std::string path)
   return MarkElements(ua, tree);
 }
 
+#include <random>
+
+std::random_device rd;
+std::mt19937 gen(rd());
+std::uniform_int_distribution<int> distrib{};
+
 void PopulateTree(int quantity, TreeContext* tree)
 {
   me = new DirectorResource;
@@ -93,7 +99,8 @@ void PopulateTree(int quantity, TreeContext* tree)
   for (int i = 0; i < max_depth; ++i) {
     file_path.append("dir" + std::to_string(i) + "/");
     for (int j = 0; j < (quantity / max_depth); ++j) {
-      file = "file" + std::to_string(j);
+      auto rand = distrib(gen);
+      file = "file" + std::to_string(rand) + "-" + std::to_string(j);
 
       strcpy(path, file_path.c_str());
       strcpy(filename, file.c_str());
@@ -112,13 +119,80 @@ void PopulateTree(int quantity, TreeContext* tree)
     }
   }
 
-  (void)tree;
-  //*tree = ctx.to_tree(false);
+  *tree = ctx.to_tree(false);
+}
+
+#include <cmath>
+
+void insert(tree_insertion_context& ctx, char* path, char* filename)
+{
+  char* row0 = path;
+  char* row1 = filename;
+  char row2[] = "1";
+  char row3[] = "2";
+  char row4[] = "ff";
+  char row5[] = "0";
+  char row6[] = "0";
+  char row7[] = "0";
+  char* row[] = {row0, row1, row2, row3, row4, row5, row6, row7};
+
+  InsertTreeHandler(&ctx, 0, row);
+}
+
+void make_balanced(tree_insertion_context& ctx,
+                   char* parent,
+                   int togo,
+                   int factor,
+                   int& possible)
+{
+  if (togo < 0) return;
+  if (possible == 0) return;
+  possible -= 1;
+
+  std::string filename = ((togo == 0) ? "file" : "dir");
+  filename += std::to_string(distrib(gen));
+  filename += "-";
+  filename += std::to_string(possible);
+  if (togo) { filename += "/"; }
+  insert(ctx, parent, filename.data());
+
+  std::string child = parent;
+  child += filename;
+  for (int i = 0; i < factor; ++i) {
+    make_balanced(ctx, child.data(), togo - 1, factor, possible);
+  }
+}
+
+int factor = 5;
+
+void PopulateBalanced(int quantity, TreeContext* tree)
+{
+  me = new DirectorResource;
+  me->optimize_for_size = true;
+  me->optimize_for_speed = false;
+  InitContext(&ua);
+
+  int l = std::ceil(std::log<int>((factor - 1) * quantity + 1)
+                    / std::log<int>(factor));
+  int depth = l - 1;
+
+  tree_insertion_context ctx{&ua, 0, 1};
+
+  make_balanced(ctx, (char*)"/", depth, factor, quantity);
+
+  assert(quantity == 0);
+
+  *tree = ctx.to_tree(false);
 }
 
 [[maybe_unused]] static void BM_populatetree(benchmark::State& state)
 {
   for (auto _ : state) { PopulateTree(state.range(0), &tree); }
+}
+
+[[maybe_unused]] static void BM_populatebalanced(benchmark::State& state)
+{
+  for (auto _ : state) { PopulateBalanced(state.range(0), &tree); }
 }
 
 [[maybe_unused]] static void BM_markallfiles(benchmark::State& state)
@@ -133,9 +207,9 @@ void PopulateTree(int quantity, TreeContext* tree)
 
 // BENCHMARK(BM_populatetree)->Arg(200'000)->Unit(benchmark::kSecond);
 
-// BENCHMARK(BM_populatetree)->Arg(1'000'000)->Unit(benchmark::kSecond);
+BENCHMARK(BM_populatetree)->Arg(1'000'000)->Unit(benchmark::kSecond);
 
-BENCHMARK(BM_populatetree)->Arg(10'000'000)->Unit(benchmark::kSecond);
+// BENCHMARK(BM_populatetree)->Arg(10'000'000)->Unit(benchmark::kSecond);
 
 // BENCHMARK(BM_populatetree)
 //     ->Arg(HIGH_FILE_NUMBERS::hundred_thousand)
