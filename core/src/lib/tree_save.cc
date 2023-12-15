@@ -547,25 +547,30 @@ bool MakeFileWithContents(const char* path, span<char> content)
   std::vector<char> buffer(bufsize);
   const char* head = content.data();
 
-  try {
-    output << (std::size_t)content.size();
-    while (head != content.end()) {
-      std::size_t togo = content.end() - head;
-      std::size_t actual_size = std::min(togo, chunk_size);
-      int compr = LZ4_compress_continue(lz4s, head, buffer.data(), actual_size);
-      if (compr < 0) { break; }
-      output.write(buffer.data(), compr);
-      head += actual_size;
-    }
-    retval = true;
-  } catch (const std::system_error& e) {
-    Dmsg3(100, "Caught system error: [%s:%d] ERR=%s\n",
-          e.code().category().name(), e.code().value(), e.what());
-  } catch (const std::exception& e) {
-    Dmsg0(100, "Caught exception: %s\n", e.what());
-  } catch (...) {
-    Dmsg0(30, "Caught something that was not an exception.\n");
+  // try {
+  std::size_t tsize = content.size();
+  output.write((const char*)&tsize, sizeof(tsize));
+  while (head != content.end()) {
+    std::size_t togo = content.end() - head;
+    std::size_t actual_size = std::min(togo, chunk_size);
+    int compr = LZ4_compress_continue(lz4s, head, buffer.data(), actual_size);
+    if (compr <= 0) { throw std::invalid_argument("lz4 compress error"); }
+    std::size_t compsize = compr;
+    output.write((const char*)&compsize, sizeof(compsize));
+    output.write(buffer.data(), compr);
+    head += actual_size;
   }
+  tsize = 0;
+  output.write((const char*)&tsize, sizeof(tsize));
+  retval = true;
+  // } catch (const std::system_error& e) {
+  //   Dmsg3(100, "Caught system error: [%s:%d] ERR=%s\n",
+  //         e.code().category().name(), e.code().value(), e.what());
+  // } catch (const std::exception& e) {
+  //   Dmsg0(100, "Caught exception: %s\n", e.what());
+  // } catch (...) {
+  //   Dmsg0(30, "Caught something that was not an exception.\n");
+  // }
 
   LZ4_freeStream(lz4s);
   return retval;
@@ -586,21 +591,27 @@ std::vector<char> LoadFile(const char* path)
 
   std::size_t size;
   try {
-    input >> size;
+    input.read((char*)&size, sizeof(size));
     content.resize(size);
     auto* current = content.data();
-    while (input.read(buffer.data(), buffer.size())) {
-      auto read_bytes = input.gcount();
+    std::size_t blocksize;
+    for (;;) {
+      input.read((char*)&blocksize, sizeof(blocksize));
+      if (!blocksize) { break; }
+      if (buffer.size() < blocksize) { buffer = buffer.resize(blocksize); }
+      if (!input.read(buffer.data(), blocksize)) {
+        throw std::invalid_argument("read error");
+      }
+
+      if (input.gcount() != (std::int64_t)blocksize) {
+        throw std::invalid_argument("short read");
+      }
+
       int res = LZ4_decompress_safe_continue(
-          lz4s, buffer.data(), current, read_bytes, &*content.end() - current);
+          lz4s, buffer.data(), current, blocksize, &*content.end() - current);
       if (res < 0) { throw std::invalid_argument("lz4 decompress exception"); }
       current += res;
     }
-    auto read_bytes = input.gcount();
-    int res = LZ4_decompress_safe_continue(
-        lz4s, buffer.data(), current, read_bytes, &*content.end() - current);
-    if (res < 0) { throw std::invalid_argument("lz4 decompress exception"); }
-    current += res;
 
     if (current != &*content.end()) {
       throw std::invalid_argument("sizes do not match up");
