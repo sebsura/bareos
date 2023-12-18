@@ -35,7 +35,11 @@
 #include <utility>
 
 namespace dedup {
+#ifdef DEDUP_DEVMODE
 static constexpr std::size_t initial_file_size = 1024;
+#else
+static constexpr std::size_t initial_file_size = 1024 * 1024;
+#endif
 
 using DeviceMode = storagedaemon::DeviceMode;
 using net_u32 = network_order::network<std::uint32_t>;
