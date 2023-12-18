@@ -542,7 +542,8 @@ file_based_vector<T>::file_based_vector(raii_fd file_,
 
 template <typename T> bool file_based_vector<T>::shrink_to_fit()
 {
-  return file.resize(used * elem_size);
+  capacity = used;
+  return file.resize(capacity * elem_size);
 }
 
 template <typename T>
