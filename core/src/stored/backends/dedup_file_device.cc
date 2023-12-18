@@ -161,8 +161,8 @@ ssize_t scatter(dedup::volume& vol, const void* data, size_t size)
     // warning: weird block size
   }
 
-  auto* begin = static_cast<const char*>(data) + blockheader_size;
-  auto* current = begin;
+  auto* begin = static_cast<const char*>(data);
+  auto* current = begin + blockheader_size;
   auto* end = begin + bsize;
 
   std::vector<dedup::record_header> records;
