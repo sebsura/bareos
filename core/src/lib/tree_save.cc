@@ -598,7 +598,7 @@ std::vector<char> LoadFile(const char* path)
     for (;;) {
       input.read((char*)&blocksize, sizeof(blocksize));
       if (!blocksize) { break; }
-      if (buffer.size() < blocksize) { buffer = buffer.resize(blocksize); }
+      if (buffer.size() < blocksize) { buffer.resize(blocksize); }
       if (!input.read(buffer.data(), blocksize)) {
         throw std::invalid_argument("read error");
       }
