@@ -1692,4 +1692,39 @@ void FindStorageResource(UaContext* ua,
   rx.store = get_storage_resource(ua);
   if (rx.store) { Dmsg1(200, "Set store=%s\n", rx.store->resource_name_); }
 }
+
+bool ExportTreeCmd(UaContext* ua, const char*)
+{
+  auto i = FindArgWithValue(ua, "jobid");
+  if (i < 0) {
+    ua->ErrorMsg("no jobid specified.\n");
+    return false;
+  }
+  if (!OpenClientDb(ua, true)) {
+    ua->ErrorMsg("could not connect to db.\n");
+    return false;
+  }
+  auto* jobid = ua->argv[i];
+  TreeContext tree;
+  tree.root = new_tree(1);
+  tree.ua = ua;
+  tree.all = false;
+  if (!ua->db->GetFileList(ua->jcr, jobid, false /* do not use md5 */,
+                           true /* get delta */, InsertTreeHandler,
+                           (void*)&tree)) {
+    ua->ErrorMsg("%s", ua->db->strerror());
+    FreeTree(tree.root);
+    tree.root = nullptr;
+    return false;
+  }
+
+  std::string path
+      = ua->jcr->dir_impl->cache_dir + std::string{"/"} + jobid + ".tree";
+
+  auto res = SaveTree(path.c_str(), tree.root);
+  FreeTree(tree.root);
+  tree.root = nullptr;
+
+  return res;
+}
 } /* namespace directordaemon */

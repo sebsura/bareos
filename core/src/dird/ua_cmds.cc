@@ -80,6 +80,7 @@ extern bool PurgeCmd(UaContext* ua, const char* cmd);
 extern bool QueryCmd(UaContext* ua, const char* cmd);
 extern bool RelabelCmd(UaContext* ua, const char* cmd);
 extern bool RestoreCmd(UaContext* ua, const char* cmd);
+extern bool ExportTreeCmd(UaContext* ua, const char* cmd);
 extern bool show_cmd(UaContext* ua, const char* cmd);
 extern bool SqlqueryCmd(UaContext* ua, const char* cmd);
 extern bool StatusCmd(UaContext* ua, const char* cmd);
@@ -298,6 +299,8 @@ static struct ua_cmdstruct commands[] = {
      NT_("storage=<storage-name> srcslots=<slot-selection> [ "
          "dstslots=<slot-selection> volume=<volume-name> scan ]"),
      true, true},
+    {NT_("extree"), ExportTreeCmd, T_("export job"), NT_("jobid=<jobid>"),
+     false, true},
     {NT_("gui"), gui_cmd,
      T_("Switch between interactive (gui off) and non-interactive (gui on) "
         "mode"),
