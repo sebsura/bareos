@@ -412,8 +412,212 @@ void CatalogRequest(JobControlRecord* jcr, BareosSocket* bs)
   return;
 }
 
-static bool InsertNode(JobControlRecord* jcr, AttributesDbRecord* ar)
+#include "lmdb/lmdb.h"
+
+class backup_context {
+  MDB_env* env;
+  MDB_dbi file;
+  MDB_dbi path;
+  MDB_dbi stat;
+  std::string name{};
+  std::size_t num_attributes{0};
+
+  class exception : public std::exception {
+    std::string reason{"[MDB ERROR] "};
+
+   public:
+    exception(const char* where, int error)
+    {
+      reason += where;
+      reason += ": ";
+      reason += mdb_strerror(error);
+    }
+
+    const char* what() const noexcept override { return reason.c_str(); }
+  };
+
+ public:
+  backup_context(std::string name) : name{name}
+  {
+    if (auto result = mdb_env_create(&env); result != 0) {
+      throw exception("env create", result);
+    }
+
+    if (auto result = mdb_env_set_mapsize(env, 16UL * 1024UL * 1024UL * 1024UL);
+        result != 0) {
+      throw exception("set mapsize", result);
+    }
+
+    if (auto result = mdb_env_set_maxreaders(env, 1); result != 0) {
+      throw exception("set maxreaders", result);
+    }
+
+    // data, path
+    if (auto result = mdb_env_set_maxdbs(env, 3); result != 0) {
+      throw exception("set maxdbs", result);
+    }
+
+    // interesting flags: MDB_NOMEMINIT
+    if (auto result = mdb_env_open(env, name.c_str(), MDB_NOLOCK, 0600);
+        result != 0) {
+      throw exception("env open", result);
+    }
+
+    auto* txn = begin_txn();
+    if (auto result = mdb_dbi_open(txn, "file", MDB_CREATE, &file);
+        result != 0) {
+      abort(txn);
+      throw exception("dbi open", result);
+    }
+
+    commit(txn);
+    txn = begin_txn();
+    if (auto result = mdb_dbi_open(txn, "path", MDB_CREATE, &path);
+        result != 0) {
+      abort(txn);
+      throw exception("dbi open", result);
+    }
+    commit(txn);
+    txn = begin_txn();
+    if (auto result = mdb_dbi_open(txn, "attr", MDB_CREATE, &stat);
+        result != 0) {
+      abort(txn);
+      throw exception("dbi open", result);
+    }
+    commit(txn);
+  }
+
+  ~backup_context()
+  {
+    if (env) { mdb_env_close(env); }
+  }
+
+  bool add(AttributesDbRecord* ar)
+  {
+    auto txn = begin_txn();
+    try {
+      put_file(txn, num_attributes, data{ar});
+      put_path(txn, num_attributes, ar->fname);
+      put_attr(txn, num_attributes, ar->attr);
+      commit(txn);
+      num_attributes += 1;
+      return true;
+    } catch (const exception& ex) {
+      abort(txn);
+      Dmsg1(50, "%s\n", ex.what());
+      return false;
+    }
+  }
+
+ private:
+  struct data {
+    std::uint64_t fhinfo;
+    std::uint64_t fhnode;
+    std::uint32_t findex;
+    std::uint32_t ftype;
+    std::uint32_t delta_seq;
+    std::int32_t jobid;
+
+    data(AttributesDbRecord* ar)
+        : fhinfo(ar->Fhinfo)
+        , fhnode(ar->Fhnode)
+        , findex(ar->FileIndex)
+        , ftype(ar->FileType)
+        , delta_seq(ar->DeltaSeq)
+        , jobid(ar->JobId)
+    {
+    }
+  };
+  MDB_txn* begin_txn(unsigned flags = 0, MDB_txn* parent = nullptr)
+  {
+    MDB_txn* txn;
+    if (auto result = mdb_txn_begin(env, parent, flags, &txn); result != 0) {
+      throw exception("txn begin", result);
+    }
+    return txn;
+  }
+
+  void abort(MDB_txn* txn) { mdb_txn_abort(txn); }
+
+  void commit(MDB_txn* txn)
+  {
+    if (auto result = mdb_txn_commit(txn); result != 0) {
+      throw exception("txn commit", result);
+    }
+  }
+
+  inline void put_file(MDB_txn* txn, std::size_t id, data d, unsigned flags = 0)
+  {
+    MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
+    MDB_val val = {.mv_size = sizeof(d), .mv_data = &d};
+
+    if (auto result = mdb_put(txn, file, &key, &val, flags); result != 0) {
+      throw exception("txn put file", result);
+    }
+  }
+
+  inline void put_path(MDB_txn* txn,
+                       std::size_t id,
+                       const char* str,
+                       unsigned flags = 0)
+  {
+    MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
+    MDB_val val = {.mv_size = strlen(str), .mv_data = (void*)str};
+
+    if (auto result = mdb_put(txn, file, &key, &val, flags); result != 0) {
+      throw exception("txn put path", result);
+    }
+  }
+
+  inline void put_attr(MDB_txn* txn,
+                       std::size_t id,
+                       const char* attr,
+                       unsigned flags = 0)
+  {
+    MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
+    MDB_val val = {.mv_size = strlen(attr), .mv_data = (void*)attr};
+
+    if (auto result = mdb_put(txn, stat, &key, &val, flags); result != 0) {
+      throw exception("txn put attr", result);
+    }
+  }
+
+  std::tuple<data*, std::string_view, std::string_view> get(MDB_txn* txn,
+                                                            std::size_t id)
+  {
+    MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
+    MDB_val f = {};
+    MDB_val p = {};
+    MDB_val a = {};
+    if (auto result = mdb_get(txn, file, &key, &f)) {
+      throw exception("txn get file", result);
+    }
+    if (auto result = mdb_get(txn, path, &key, &p)) {
+      throw exception("txn get path", result);
+    }
+    if (auto result = mdb_get(txn, stat, &key, &a)) {
+      throw exception("txn get attr", result);
+    }
+
+    return {(data*)f.mv_data, std::string_view{p.mv_data, p.mv_size},
+            std::string_view{a.mv_data, a.mv_size}};
+  }
+};
+
+backup_context* make_backup_ctx(std::string name)
 {
+  return new backup_context{std::move(name)};
+}
+
+bool AddAttributes(backup_context* ctx, AttributesDbRecord* ar)
+{
+  return ctx->add(ar);
+}
+
+TREE_ROOT* make_tree(backup_context* ctx)
+{
+  return ctx->make_tree();
+#if 0
   if (!jcr->dir_impl->backup_tree_root) { return true; }
   struct stat statp;
   int32_t LinkFI;
@@ -514,7 +718,20 @@ static bool InsertNode(JobControlRecord* jcr, AttributesDbRecord* ar)
           root->hardlinks.insert(entry->key, entry);
         }
       }
-    }
+     }
+   }
+#else
+  (void)ctx;
+  return nullptr;
+#endif
+}
+
+void destroy_backup_ctx(backup_context* ctx) { delete ctx; }
+
+static bool InsertNode(JobControlRecord* jcr, AttributesDbRecord* ar)
+{
+  if (jcr->dir_impl->backup_ctx) {
+    return AddAttributes(jcr->dir_impl->backup_ctx, ar);
   }
 
   return true;

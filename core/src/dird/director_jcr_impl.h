@@ -27,6 +27,7 @@
 #include "cats/cats.h"
 #include "dird/client_connection_handshake_mode.h"
 #include "dird/job_trigger.h"
+#include "dird/backup_ctx.h"
 
 #include <string_view>
 #include <string>
@@ -116,7 +117,7 @@ struct DirectorJcrImpl {
   pthread_cond_t nextrun_ready = PTHREAD_COND_INITIALIZER;  /**< Wait for job next run to become ready */
   Resources res;                  /**< Resources assigned */
   TREE_ROOT* restore_tree_root{}; /**< Selected files to restore (some protocols need this info) */
-  TREE_ROOT* backup_tree_root{}; /**< files that are getting backed up */
+  directordaemon::backup_context* backup_ctx{nullptr};
   storagedaemon::BootStrapRecord* bsr{}; /**< Bootstrap record -- has everything */
   char* backup_format{};          /**< Backup format used when doing a NDMP backup */
   char* plugin_options{};         /**< User set options for plugin */

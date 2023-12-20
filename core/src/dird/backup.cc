@@ -156,6 +156,25 @@ static inline bool ValidateStorage(JobControlRecord* jcr)
   return true;
 }
 
+static bool EnsurePathExists(const std::string& path)
+{
+  try {
+    std::filesystem::create_directories(path);
+    return true;
+  } catch (const std::system_error& e) {
+    Dmsg1(100, "Caught system error while creating path %s: [%s:%d] ERR=%s\n",
+          path.c_str(), e.code().category().name(), e.code().value(), e.what());
+  } catch (const std::exception& e) {
+    Dmsg1(100, "Caught exception while creating path %s: %s\n", path.c_str(),
+          e.what());
+  } catch (...) {
+    Dmsg1(30, "Caught unknown exception while creating path %s\n",
+          path.c_str());
+  }
+  return false;
+}
+
+
 bool DoNativeBackupInit(JobControlRecord* jcr)
 {
   FreeRstorage(jcr); /* we don't read so release */
@@ -178,7 +197,12 @@ bool DoNativeBackupInit(JobControlRecord* jcr)
 
   CreateClones(jcr); /* run any clone jobs */
 
-  jcr->dir_impl->backup_tree_root = new_tree(1);
+  std::string name
+      = jcr->dir_impl->cache_dir + "/" + "cache" + std::to_string(jcr->JobId);
+  if (EnsurePathExists(name)) {
+    jcr->dir_impl->backup_ctx
+        = directordaemon::make_backup_ctx(std::move(name));
+  }
 
   return true;
 }
@@ -734,24 +758,6 @@ int WaitForJobTermination(JobControlRecord* jcr, int timeout)
   return jcr->dir_impl->SDJobStatus;
 }
 
-static bool EnsurePathExists(const std::string& path)
-{
-  try {
-    std::filesystem::create_directories(path);
-    return true;
-  } catch (const std::system_error& e) {
-    Dmsg1(100, "Caught system error while creating path %s: [%s:%d] ERR=%s\n",
-          path.c_str(), e.code().category().name(), e.code().value(), e.what());
-  } catch (const std::exception& e) {
-    Dmsg1(100, "Caught exception while creating path %s: %s\n", path.c_str(),
-          e.what());
-  } catch (...) {
-    Dmsg1(30, "Caught unknown exception while creating path %s\n",
-          path.c_str());
-  }
-  return false;
-}
-
 // Release resources allocated during backup.
 void NativeBackupCleanup(JobControlRecord* jcr, int TermCode)
 {
@@ -828,16 +834,21 @@ void NativeBackupCleanup(JobControlRecord* jcr, int TermCode)
 
   GenerateBackupSummary(jcr, &cr, msg_type, TermMsg);
 
-  if (jcr->dir_impl->backup_tree_root) {
-    if (create_tree && !jcr->dir_impl->cache_dir.empty()) {
-      if (EnsurePathExists(jcr->dir_impl->cache_dir)) {
-        std::string path = jcr->dir_impl->cache_dir + std::string{"/"}
-                           + std::to_string(jcr->JobId) + ".tree";
-        SaveTree(path.c_str(), jcr->dir_impl->backup_tree_root);
-      }
-    }
-    FreeTree(jcr->dir_impl->backup_tree_root);
-    jcr->dir_impl->backup_tree_root = nullptr;
+  // if (jcr->dir_impl->backup_tree_root) {
+  //   if (create_tree && !jcr->dir_impl->cache_dir.empty()) {
+  //     if (EnsurePathExists(jcr->dir_impl->cache_dir)) {
+  //       std::string path = jcr->dir_impl->cache_dir + std::string{"/"}
+  //                          + std::to_string(jcr->JobId) + ".tree";
+  //       SaveTree(path.c_str(), jcr->dir_impl->backup_tree_root);
+  //     }
+  //   }
+  //   FreeTree(jcr->dir_impl->backup_tree_root);
+  //   jcr->dir_impl->backup_tree_root = nullptr;
+  // }
+
+  if (jcr->dir_impl->backup_ctx) {
+    if (create_tree) { (void)create_tree; }
+    destroy_backup_ctx(jcr->dir_impl->backup_ctx);
   }
 
 
