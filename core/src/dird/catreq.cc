@@ -49,6 +49,11 @@
 #include "lib/tree.h"
 #include "lib/attribs.h"
 #include "lib/scan.h"
+#include "lmdb/lmdb.h"
+
+#include <vector>
+#include <algorithm>
+#include <thread>
 
 namespace directordaemon {
 
@@ -412,15 +417,17 @@ void CatalogRequest(JobControlRecord* jcr, BareosSocket* bs)
   return;
 }
 
-#include "lmdb/lmdb.h"
-
 class backup_context {
+public:
   MDB_env* env;
   MDB_dbi file;
   MDB_dbi path;
   MDB_dbi stat;
   std::string name{};
   std::size_t num_attributes{0};
+  std::size_t commit_cnt{0};
+
+  MDB_txn* wtxn{nullptr};
 
   class exception : public std::exception {
     std::string reason{"[MDB ERROR] "};
@@ -464,27 +471,26 @@ class backup_context {
     }
 
     auto* txn = begin_txn();
-    if (auto result = mdb_dbi_open(txn, "file", MDB_CREATE, &file);
+    if (auto result = mdb_dbi_open(txn, "file", MDB_INTEGERKEY | MDB_CREATE, &file);
         result != 0) {
       abort(txn);
       throw exception("dbi open", result);
     }
 
-    commit(txn);
-    txn = begin_txn();
-    if (auto result = mdb_dbi_open(txn, "path", MDB_CREATE, &path);
+    if (auto result = mdb_dbi_open(txn, "path", MDB_INTEGERKEY | MDB_CREATE, &path);
+        result != 0) {
+      abort(txn);
+      throw exception("dbi open", result);
+    }
+
+    if (auto result = mdb_dbi_open(txn, "attr", MDB_INTEGERKEY | MDB_CREATE, &stat);
         result != 0) {
       abort(txn);
       throw exception("dbi open", result);
     }
     commit(txn);
-    txn = begin_txn();
-    if (auto result = mdb_dbi_open(txn, "attr", MDB_CREATE, &stat);
-        result != 0) {
-      abort(txn);
-      throw exception("dbi open", result);
-    }
-    commit(txn);
+
+    wtxn = begin_txn();
   }
 
   ~backup_context()
@@ -494,22 +500,33 @@ class backup_context {
 
   bool add(AttributesDbRecord* ar)
   {
-    auto txn = begin_txn();
+    if (!wtxn) { return false; }
     try {
-      put_file(txn, num_attributes, data{ar});
-      put_path(txn, num_attributes, ar->fname);
-      put_attr(txn, num_attributes, ar->attr);
-      commit(txn);
+      put_file(wtxn, num_attributes, data{ar});
+      put_path(wtxn, num_attributes, ar->fname);
+      put_attr(wtxn, num_attributes, ar->attr);
+      commit_cnt += 1;
       num_attributes += 1;
       return true;
     } catch (const exception& ex) {
-      abort(txn);
+      Dmsg1(50, "%s\n", ex.what());
+      return false;
+    }
+  }
+
+  bool finish() {
+    try {
+      commit(wtxn);
+      wtxn = nullptr;
+      return true;
+    } catch (const exception& ex) {
       Dmsg1(50, "%s\n", ex.what());
       return false;
     }
   }
 
  private:
+public:
   struct data {
     std::uint64_t fhinfo;
     std::uint64_t fhnode;
@@ -564,7 +581,7 @@ class backup_context {
     MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
     MDB_val val = {.mv_size = strlen(str), .mv_data = (void*)str};
 
-    if (auto result = mdb_put(txn, file, &key, &val, flags); result != 0) {
+    if (auto result = mdb_put(txn, path, &key, &val, flags); result != 0) {
       throw exception("txn put path", result);
     }
   }
@@ -582,26 +599,26 @@ class backup_context {
     }
   }
 
-  std::tuple<data*, std::string_view, std::string_view> get(MDB_txn* txn,
-                                                            std::size_t id)
-  {
-    MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
-    MDB_val f = {};
-    MDB_val p = {};
-    MDB_val a = {};
-    if (auto result = mdb_get(txn, file, &key, &f)) {
-      throw exception("txn get file", result);
-    }
-    if (auto result = mdb_get(txn, path, &key, &p)) {
-      throw exception("txn get path", result);
-    }
-    if (auto result = mdb_get(txn, stat, &key, &a)) {
-      throw exception("txn get attr", result);
-    }
+  // std::tuple<data*, std::string_view, std::string_view> get(MDB_txn* txn,
+  //                                                           std::size_t id)
+  // {
+  //   MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
+  //   MDB_val f = {};
+  //   MDB_val p = {};
+  //   MDB_val a = {};
+  //   if (auto result = mdb_get(txn, file, &key, &f)) {
+  //     throw exception("txn get file", result);
+  //   }
+  //   if (auto result = mdb_get(txn, path, &key, &p)) {
+  //     throw exception("txn get path", result);
+  //   }
+  //   if (auto result = mdb_get(txn, stat, &key, &a)) {
+  //     throw exception("txn get attr", result);
+  //   }
 
-    return {(data*)f.mv_data, std::string_view{p.mv_data, p.mv_size},
-            std::string_view{a.mv_data, a.mv_size}};
-  }
+  //   return {(data*)f.mv_data, std::string_view{(const char*)p.mv_data, p.mv_size},
+  //           std::string_view{a.mv_data, a.mv_size}};
+  // }
 };
 
 backup_context* make_backup_ctx(std::string name)
@@ -614,10 +631,108 @@ bool AddAttributes(backup_context* ctx, AttributesDbRecord* ar)
   return ctx->add(ar);
 }
 
+static void print_tree(const std::vector<std::string_view>& v,
+		       const std::vector<std::size_t>& ends)
+{
+  std::vector<std::size_t> stack;
+  std::vector<std::size_t> stack2;
+  std::string line;
+  for (std::size_t i = 0; i < v.size(); ++i) {
+    while (stack.size() > 0 && stack.back() <= i) {
+      stack.pop_back();
+      stack2.pop_back();
+    }
+    line.clear();
+
+    for (std::size_t i = 0; i < stack.size(); ++i) {
+      line += " ";
+    }
+    if (stack.size() > 0) {
+      line += v[i].substr(v[stack2.back()].size());
+    } else {
+      line += v[i];
+    }
+    Dmsg1(1, "%s\n", line.c_str());
+    stack.push_back(ends[i]);
+    stack2.push_back(i);
+  }
+}
+
 TREE_ROOT* make_tree(backup_context* ctx)
 {
-  return ctx->make_tree();
+  ctx->finish();
+
+  std::vector<std::size_t> sorted_ids;
+  std::vector<std::string_view> views;
+  auto* txn = ctx->begin_txn();
+
+  for (std::size_t id = 0; id < ctx->num_attributes; ++id) {
+    MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
+    MDB_val val;
+    if (mdb_get(txn, ctx->path, &key, &val)) {
+      return nullptr;
+    }
+
+    views.emplace_back((const char*)val.mv_data, val.mv_size);
+    sorted_ids.emplace_back(id);
+  }
+
+  std::sort(sorted_ids.begin(), sorted_ids.end(), [&views](auto l, auto r) {
+    return views[l] < views[r];
+  });
+
+
+  std::vector<std::size_t> ends;
+  ends.resize(views.size());
+  std::vector<std::size_t> stack;
+
+  for (std::size_t i = 0; i < views.size(); ++i) {
+    auto id = sorted_ids[i];
+    auto cur = views[id].second;
+    auto pos = cur.find_last_of("/");
+    if (pos == cur.npos) {
+      stack.clear();
+    } else {
+      auto dir = cur.substr(0, pos + 1); // include the backslash
+      while (stack.size() > 0) {
+	auto l = stack.back();
+	auto back = views[l].second;
+	// if its not a prefix, we can pop
+	if (back.size() <= dir.size() &&
+	    back == dir.substr(0, back.size())) {
+	  break;
+	}
+
+	ends[l] = i;
+	stack.pop_back();
+      }
+    }
+
+    stack.push_back(id);
+  }
+
+  for (auto i : stack) {
+    ends[i] = views.size();
+  }
+
+#if 1
+  std::vector<std::string_view> views2;
+
+  for (auto [_, v] : views) {
+    views2.push_back(v);
+  }
+
+  print_tree(views2, ends);
+#endif
+
+
+
+
+  ctx->commit(txn);
+
+
 #if 0
+  return ctx->make_tree();
   if (!jcr->dir_impl->backup_tree_root) { return true; }
   struct stat statp;
   int32_t LinkFI;

@@ -847,7 +847,10 @@ void NativeBackupCleanup(JobControlRecord* jcr, int TermCode)
   // }
 
   if (jcr->dir_impl->backup_ctx) {
-    if (create_tree) { (void)create_tree; }
+    if (create_tree) {
+      auto* ptr = make_tree(jcr->dir_impl->backup_ctx);
+      (void) ptr;
+    }
     destroy_backup_ctx(jcr->dir_impl->backup_ctx);
   }
 
