@@ -1729,26 +1729,43 @@ bool ExportTreeCmd(UaContext* ua, const char*)
     return false;
   }
   auto* jobid = ua->argv[i];
-  TreeContext tree;
-  tree.root = new_tree(1);
-  tree.ua = ua;
-  tree.all = false;
-  if (!ua->db->GetFileList(ua->jcr, jobid, false /* do not use md5 */,
-                           true /* get delta */, InsertTreeHandler,
-                           (void*)&tree)) {
+
+  std::string path = ua->jcr->dir_impl->cache_dir + std::string{"/"} + jobid;
+  std::string tree = path + ".tree";
+  std::string cache = path + ".cache";
+
+  backup_context* ctx = make_backup_ctx(cache.c_str(), str_to_int64(jobid));
+
+  if (!ua->db->GetFileList(
+          ua->jcr, jobid, false /* do not use md5 */, true /* get delta */,
+          +[](void* usr, int, char** row) {
+            auto* ctx = (backup_context*)usr;
+
+            // row[0]=Path, row[1]=Filename, row[2]=FileIndex
+            // row[3]=JobId row[4]=LStat row[5]=DeltaSeq row[6]=Fhinfo
+            // row[7]=Fhnode
+            AttributesDbRecord ar{};
+            std::string full{row[0]};
+            full += row[1];
+            ar.fname = full.data();
+            ar.attr = row[4];
+            ar.FileIndex = str_to_int64(row[2]);
+            ar.DeltaSeq = str_to_int64(row[5]);
+            ar.Fhinfo = str_to_int64(row[6]);
+            ar.Fhnode = str_to_int64(row[7]);
+
+            return AddAttributes(ctx, &ar) ? 0 : 1;
+          },
+          (void*)ctx)) {
     ua->ErrorMsg("%s", ua->db->strerror());
-    FreeTree(tree.root);
-    tree.root = nullptr;
+    destroy_backup_ctx(ctx);
     return false;
   }
 
-  std::string path
-      = ua->jcr->dir_impl->cache_dir + std::string{"/"} + jobid + ".tree";
+  save_tree(tree.c_str(), ctx);
 
-  auto res = SaveTree(path.c_str(), tree.root);
-  FreeTree(tree.root);
-  tree.root = nullptr;
+  destroy_backup_ctx(ctx);
 
-  return res;
+  return true;
 }
 } /* namespace directordaemon */
