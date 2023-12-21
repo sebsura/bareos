@@ -1114,7 +1114,9 @@ void save_tree(const char* path, backup_context* ctx)
   ctx->finish();
 
   std::vector<std::size_t> sorted_ids;
+  sorted_ids.reserve(ctx->num_attributes);
   std::vector<std::string_view> views;
+  views.reserve(ctx->num_attributes);
   auto* txn = ctx->begin_txn();
 
   for (std::size_t id = 0; id < ctx->num_attributes; ++id) {
