@@ -201,7 +201,7 @@ bool DoNativeBackupInit(JobControlRecord* jcr)
       = jcr->dir_impl->cache_dir + "/" + "cache" + std::to_string(jcr->JobId);
   if (EnsurePathExists(name)) {
     jcr->dir_impl->backup_ctx
-        = directordaemon::make_backup_ctx(std::move(name));
+        = directordaemon::make_backup_ctx(std::move(name), jcr->JobId);
   }
 
   return true;
@@ -834,22 +834,13 @@ void NativeBackupCleanup(JobControlRecord* jcr, int TermCode)
 
   GenerateBackupSummary(jcr, &cr, msg_type, TermMsg);
 
-  // if (jcr->dir_impl->backup_tree_root) {
-  //   if (create_tree && !jcr->dir_impl->cache_dir.empty()) {
-  //     if (EnsurePathExists(jcr->dir_impl->cache_dir)) {
-  //       std::string path = jcr->dir_impl->cache_dir + std::string{"/"}
-  //                          + std::to_string(jcr->JobId) + ".tree";
-  //       SaveTree(path.c_str(), jcr->dir_impl->backup_tree_root);
-  //     }
-  //   }
-  //   FreeTree(jcr->dir_impl->backup_tree_root);
-  //   jcr->dir_impl->backup_tree_root = nullptr;
-  // }
-
   if (jcr->dir_impl->backup_ctx) {
-    if (create_tree) {
-      auto* ptr = make_tree(jcr->dir_impl->backup_ctx);
-      (void)ptr;
+    if (create_tree && !jcr->dir_impl->cache_dir.empty()) {
+      if (EnsurePathExists(jcr->dir_impl->cache_dir)) {
+        std::string path = jcr->dir_impl->cache_dir + std::string{"/"}
+                           + std::to_string(jcr->JobId) + ".tree";
+        save_tree(path.c_str(), jcr->dir_impl->backup_ctx);
+      }
     }
     destroy_backup_ctx(jcr->dir_impl->backup_ctx);
   }

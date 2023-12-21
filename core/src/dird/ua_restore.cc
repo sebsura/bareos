@@ -1191,28 +1191,52 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
   ua->LogAuditEventInfoMsg(T_("Building directory tree for JobId(s) %s"),
                            rx->JobIds);
 
-  auto nt = MakeNewTree();
   bool got_all{true};
   if (!ua->jcr->dir_impl->cache_dir.empty()) {
-    JobId_t jobid;
-    for (const char* p = rx->JobIds; GetNextJobidFromList(&p, &jobid) > 0;) {
-      std::string path = ua->jcr->dir_impl->cache_dir + std::string{"/"}
-                         + std::to_string(jobid) + ".tree";
-      if (!AddTree(nt.get(), path.c_str())) {
-        got_all = false;
-        break;
+    // we need to sort the jobs by jobtdate
+
+    PoolMem query;
+    Mmsg(query.addr(),
+         "SELECT jobid FROM job WHERE jobid IN (%s) ORDER BY jobtdate DESC",
+         rx->JobIds);
+
+    std::vector<JobId_t> jobs;
+
+    if (ua->db->SqlQuery(
+            query.c_str(),
+            +[](void* vec, int num_rows, char** rows) -> int {
+              auto* jobs = (std::vector<JobId_t>*)vec;
+              if (num_rows == 1) {
+                jobs->push_back(str_to_int64(rows[0]));
+                return 0;
+              } else {
+                return 1;
+              }
+            },
+            (void*)&jobs)) {
+      for (auto jobid : jobs) {
+        std::string path = ua->jcr->dir_impl->cache_dir + std::string{"/"}
+                           + std::to_string(jobid) + ".tree";
+
+        std::size_t count = 0;
+        if (!add_tree(tree.root, path.c_str(), &count, tree.all)) {
+          got_all = false;
+          break;
+        }
+        tree.FileCount += count;
       }
+    } else {
+      ua->ErrorMsg("%s\n", ua->db->strerror());
     }
+
+
   } else {
     got_all = false;
   }
 
-  if (got_all) {
+  if (!got_all) {
     FreeTree(tree.root);
-    std::size_t count;
-    tree.root = CombineTree(std::move(nt), &count, tree.all);
-    tree.FileCount = count;
-  } else {
+    tree.root = new_tree(rx->TotalFiles);
     if (!ua->db->GetFileList(ua->jcr, rx->JobIds, false /* do not use md5 */,
                              true /* get delta */, InsertTreeHandler,
                              (void*)&tree)) {

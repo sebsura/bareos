@@ -55,6 +55,12 @@
 #include <vector>
 #include <algorithm>
 #include <thread>
+#include <cstring>
+#include <system_error>
+extern "C" {
+#include <unistd.h>
+#include <sys/mman.h>
+}
 
 namespace directordaemon {
 
@@ -427,6 +433,7 @@ class backup_context {
   std::string name{};
   std::size_t num_attributes{0};
   std::size_t commit_cnt{0};
+  JobId_t jobid;
 
   MDB_txn* wtxn{nullptr};
 
@@ -445,7 +452,7 @@ class backup_context {
   };
 
  public:
-  backup_context(std::string name) : name{name}
+  backup_context(std::string name, JobId_t jobid) : name{name}, jobid{jobid}
   {
     if (auto result = mdb_env_create(&env); result != 0) {
       throw exception("env create", result);
@@ -536,17 +543,19 @@ class backup_context {
     std::uint64_t fhinfo;
     std::uint64_t fhnode;
     std::uint32_t findex;
-    std::uint32_t ftype;
+    //  std::uint32_t ftype;
     std::uint32_t delta_seq;
-    std::int32_t jobid;
+    // std::int32_t jobid;
+
+    data() = default;
 
     data(AttributesDbRecord* ar)
         : fhinfo(ar->Fhinfo)
         , fhnode(ar->Fhnode)
         , findex(ar->FileIndex)
-        , ftype(ar->FileType)
+        //   , ftype(ar->FileType)
         , delta_seq(ar->DeltaSeq)
-        , jobid(ar->JobId)
+    //  , jobid(ar->JobId)
     {
     }
   };
@@ -627,9 +636,9 @@ class backup_context {
   // }
 };
 
-backup_context* make_backup_ctx(std::string name)
+backup_context* make_backup_ctx(std::string name, std::uint32_t jobid)
 {
-  return new backup_context{std::move(name)};
+  return new backup_context{std::move(name), jobid};
 }
 
 bool AddAttributes(backup_context* ctx, AttributesDbRecord* ar)
@@ -637,38 +646,252 @@ bool AddAttributes(backup_context* ctx, AttributesDbRecord* ar)
   return ctx->add(ar);
 }
 
+template <typename T> static T* advance_bytes(T* ptr, std::size_t add)
+{
+  return (T*)((char*)ptr + add);
+}
+
+
+struct file {
+  struct map {
+    void* ptr{MAP_FAILED};
+    std::size_t length;
+
+    map() = default;
+
+    map(int fd, const char* name, std::size_t offset, std::size_t length)
+        : length{length}
+    {
+      ptr = mmap(nullptr, length, PROT_WRITE | PROT_READ, MAP_SHARED, fd,
+                 offset);
+      if (ptr == MAP_FAILED) {
+        auto err = std::string{"Coud not map: "} + name;
+        throw std::system_error(errno, std::generic_category(), err);
+      }
+    }
+
+    map(const map&) = delete;
+    map& operator=(const map&) = delete;
+    map(map&& other) : map() { *this = std::move(other); }
+    map& operator=(map&& other)
+    {
+      std::swap(ptr, other.ptr);
+      std::swap(length, other.length);
+      return *this;
+    }
+
+    void unmap()
+    {
+      if (ptr != MAP_FAILED) {
+        msync(ptr, length, MS_SYNC);
+        munmap(ptr, length);
+        ptr = MAP_FAILED;
+      }
+    }
+
+    ~map() { unmap(); }
+
+    void* get()
+    {
+      if (ptr == MAP_FAILED) {
+        return nullptr;
+      } else {
+        return ptr;
+      }
+    }
+  };
+
+  struct write_type {};
+  struct read_type {};
+
+  static constexpr write_type write{};
+  static constexpr read_type read{};
+
+
+  file(const char* f, write_type) : name(f)
+  {
+    fd = open(f, O_CREAT | O_RDWR | O_TRUNC, 0777);
+    if (fd < 0) {
+      auto err = std::string{"Coud not open: "} + name;
+      throw std::system_error(errno, std::generic_category(), err);
+    }
+    cached_size = get_fs_size();
+  }
+
+  file(const char* f, read_type)
+  {
+    fd = open(f, O_RDWR);
+    if (fd < 0) {
+      auto err = std::string{"Coud not open: "} + name;
+      throw std::system_error(errno, std::generic_category(), err);
+    }
+    cached_size = get_fs_size();
+  }
+
+  ~file() { close(fd); }
+
+  map map_section(std::size_t offset, std::size_t length)
+  {
+    return map{fd, name.c_str(), offset, length};
+  }
+
+  void resize(std::size_t new_size)
+  {
+    if (new_size > cached_size) {
+      cached_size = new_size;
+      if (ftruncate(fd, new_size) < 0) {
+        auto err = std::string{"truncate error: "} + name;
+        throw std::system_error(errno, std::generic_category(), err);
+      }
+
+      if (lseek(fd, new_size, SEEK_SET) < 0) {
+        auto err = std::string{"seek error: "} + name;
+        throw std::system_error(errno, std::generic_category(), err);
+      }
+    }
+  }
+
+  void append(const void* ptr, std::size_t length)
+  {
+    cached_size += length;
+
+    for (;;) {
+      auto res = ::write(fd, ptr, length);
+      if (res < 0) {
+        auto err = std::string{"read error: "} + name;
+        throw std::system_error(errno, std::generic_category(), err);
+      }
+
+      ptr = advance_bytes(ptr, res);
+      length -= res;
+
+      if (length == 0) { break; }
+    }
+  }
+
+  std::size_t size() { return cached_size; }
+
+ private:
+  int fd;
+  std::string name;
+  std::size_t cached_size{0};
+
+  std::size_t get_fs_size()
+  {
+    struct stat s;
+    if (fstat(fd, &s) < 0) {
+      auto err = std::string{"Coud not stat: "} + name;
+      throw std::system_error(errno, std::generic_category(), err);
+    }
+    return s.st_size;
+  }
+};
+
 struct saved_tree {
   std::size_t cap;
+  std::size_t cur_path{0}, cur_stat{0}, cur_attr{0}, cur_end{0};
   // memory_map file;
-  std::FILE* f{nullptr};
-  saved_tree(const char* file, std::size_t cap) : cap{cap}
+  file out;
+  file::map map;
+
+  // TODO(ssura): add md5 as well
+  struct header {
+    std::size_t version;
+    std::size_t jobid;
+    std::size_t num_nodes;
+    std::size_t path_start;
+    std::size_t stat_start;
+    std::size_t end_start;
+    std::size_t attrib_start;
+  } hdr;
+
+  saved_tree(const char* outname, std::uint32_t jobid, std::size_t cap)
+      : cap{cap}, out(outname, file::write)
   {
-    (void)file;
-    // f = std::fopen(file, "w");
-    //  prepare file
-    // file = memory_map(file, 0, size);
+    auto [hdr, size] = compute_layout(jobid, cap);
+    out.resize(size);
+    map = out.map_section(0, size);
+    std::memcpy(map.get(), &hdr, sizeof(hdr));
+    this->hdr = hdr;
+  }
+
+  static std::pair<header, std::size_t> compute_layout(std::uint32_t jobid,
+                                                       std::size_t cap)
+  {
+    std::size_t header_size = sizeof(header);
+
+    static_assert(alignof(backup_context::data) == alignof(std::size_t));
+
+    std::size_t stat_size = sizeof(std::size_t) * cap;
+    std::size_t path_size = sizeof(std::size_t) * cap;
+    std::size_t end_size = sizeof(std::size_t) * cap;
+    std::size_t attr_size = sizeof(backup_context::data) * cap;
+
+
+    // everything has the same alignment so we do not need to pad anything!
+
+    header hdr = {
+        .version = 0,  // TODO(ssura): add real version
+        .jobid = jobid,
+        .num_nodes = cap,
+        .path_start = header_size,
+        .stat_start = header_size + path_size,
+        .end_start = header_size + path_size + stat_size,
+        .attrib_start = header_size + path_size + stat_size + end_size,
+    };
+
+    std::size_t total
+        = header_size + stat_size + end_size + path_size + attr_size;
+
+    return {hdr, total};
+  }
+
+  void* attr(std::size_t idx)
+  {
+    return advance_bytes(map.get(),
+                         hdr.attrib_start + idx * sizeof(backup_context::data));
+  }
+  void* stat(std::size_t idx)
+  {
+    return advance_bytes(map.get(), hdr.stat_start + idx * sizeof(std::size_t));
+  }
+  void* path(std::size_t idx)
+  {
+    return advance_bytes(map.get(), hdr.path_start + idx * sizeof(std::size_t));
+  }
+  void* end(std::size_t idx)
+  {
+    return advance_bytes(map.get(), hdr.end_start + idx * sizeof(std::size_t));
   }
 
   void push_delta_path(std::string_view s)
   {
-    if (!f) { return; }
-    std::fwrite(s.data(), s.size(), 1, f);
-    std::fwrite("\0", 1, 1, f);
+    ASSERT(cur_path < cap);
+    auto end = out.size();
+    std::memcpy(path(cur_path++), &end, sizeof(std::size_t));
+    out.append(s.data(), s.size());
+    out.append("\0", 1);
   }
 
   void push_stat(std::string_view s)
   {
-    if (!f) { return; }
-    std::fwrite(s.data(), s.size(), 1, f);
-    std::fwrite("\0", 1, 1, f);
+    ASSERT(cur_stat < cap);
+    auto end = out.size();
+    std::memcpy(stat(cur_stat++), &end, sizeof(std::size_t));
+    out.append(s.data(), s.size());
+    out.append("\0", 1);
   }
 
-  void push_attrib(std::size_t) {}
-
-  void push_end(std::size_t end)
+  void push_attrib(backup_context::data a)
   {
-    if (!f) { return; }
-    std::fwrite(&end, sizeof(end), 1, f);
+    ASSERT(cur_attr < cap);
+    std::memcpy(attr(cur_attr++), &a, sizeof(a));
+  }
+
+  void push_end(std::size_t e)
+  {
+    ASSERT(cur_end < cap);
+    std::memcpy(end(cur_end++), &e, sizeof(e));
   }
 };
 
@@ -697,7 +920,192 @@ struct saved_tree {
   }
 }
 
-TREE_ROOT* make_tree(backup_context* ctx)
+static void InsertActualNode(TREE_ROOT* root,
+                             bool mark,
+                             char* path,
+                             char* name,
+                             int32_t findex,
+                             uint32_t jobid,
+                             const char* stat,
+                             int32_t delta_seq,
+                             uint64_t fhinfo,
+                             uint64_t fhnode)
+{
+  struct stat statp;
+  TREE_NODE* node;
+  int type;
+  bool hard_link, ok;
+  int FileIndex;
+  JobId_t JobId;
+  HL_ENTRY* entry = NULL;
+  int32_t LinkFI;
+
+  Dmsg4(150, "Path=%s%s FI=%d JobId=%d\n", path, name, findex, jobid);
+  if (*name == 0) {                /* no filename => directory */
+    if (!IsPathSeparator(*path)) { /* Must be Win32 directory */
+      type = TN_DIR_NLS;
+    } else {
+      type = TN_DIR;
+    }
+  } else {
+    type = TN_FILE;
+  }
+  DecodeStat((char*)stat, &statp, sizeof(statp), &LinkFI);
+  hard_link = (LinkFI != 0);
+  node = insert_tree_node(path, name, type, root, NULL);
+  JobId = jobid;
+  FileIndex = findex;
+  node->fhinfo = fhinfo;
+  node->fhnode = fhnode;
+  Dmsg8(150,
+        "node=0x%p JobId=%d FileIndex=%d Delta=%d node.delta=%d LinkFI=%d, "
+        "fhinfo=%d, fhnode=%d\n",
+        node, jobid, findex, delta_seq, node->delta_seq, LinkFI, node->fhinfo,
+        node->fhnode);
+
+  // TODO: check with hardlinks
+  if (delta_seq > 0) {
+    if (delta_seq == (node->delta_seq + 1)) {
+      TreeAddDeltaPart(root, node, node->JobId, node->FileIndex);
+
+    } else {
+      /* File looks to be deleted */
+      if (node->delta_seq == -1) { /* just created */
+        TreeRemoveNode(root, node);
+      }
+      return;
+    }
+  }
+
+  /* - The first time we see a file (node->inserted==true), we accept it.
+   * - In the same JobId, we accept only the first copy of a
+   *   hard linked file (the others are simply pointers).
+   * - In the same JobId, we accept the last copy of any other
+   *   file -- in particular directories.
+   *
+   * All the code to set ok could be condensed to a single
+   * line, but it would be even harder to read. */
+  ok = true;
+  if (!node->inserted && JobId == node->JobId) {
+    if ((hard_link && FileIndex > node->FileIndex)
+        || (!hard_link && FileIndex < node->FileIndex)) {
+      ok = false;
+    }
+  }
+  if (ok) {
+    node->hard_link = hard_link;
+    node->FileIndex = FileIndex;
+    node->JobId = JobId;
+    node->type = type;
+    node->soft_link = S_ISLNK(statp.st_mode) != 0;
+    node->delta_seq = delta_seq;
+
+    if (mark) {
+      node->extract = true; /* extract all by default */
+      if (type == TN_DIR || type == TN_DIR_NLS) {
+        node->extract_dir = true; /* if dir, extract it */
+      }
+    }
+
+    // Insert file having hardlinks into hardlink hashtable.
+    if (statp.st_nlink > 1 && type != TN_DIR && type != TN_DIR_NLS) {
+      if (!LinkFI) {
+        // First occurence - file hardlinked to
+        entry = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
+        entry->key = (((uint64_t)JobId) << 32) + FileIndex;
+        entry->node = node;
+        root->hardlinks.insert(entry->key, entry);
+      } else {
+        // See if we are optimizing for speed or size.
+        uint64_t file_key = (((uint64_t)JobId) << 32) + LinkFI;
+        HL_ENTRY* first_hl = (HL_ENTRY*)root->hardlinks.lookup(file_key);
+
+        if (first_hl && first_hl->node) {
+          // Then add hardlink entry to linked node.
+          entry = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
+          entry->key = (((uint64_t)JobId) << 32) + FileIndex;
+          entry->node = first_hl->node;
+          root->hardlinks.insert(entry->key, entry);
+        }
+      }
+    }
+  }
+
+  return;
+}
+
+bool add_tree(TREE_ROOT* root, const char* path, std::size_t* count, bool mark)
+{
+  try {
+    file in(path, file::read);
+
+    auto map = in.map_section(0, in.size());
+
+    saved_tree::header hdr;
+    std::memcpy(&hdr, map.get(), sizeof(hdr));
+
+    *count += hdr.num_nodes;
+
+    std::size_t jobid = hdr.jobid;
+
+    std::vector<std::size_t> stack;
+    std::vector<std::size_t> reset_pos;
+    std::string current_path{""};
+    for (std::size_t i = 0; i < hdr.num_nodes; ++i) {
+      while ((stack.size() > 0) && (i >= stack.back())) {
+        current_path.resize(reset_pos.back());
+        reset_pos.pop_back();
+        stack.pop_back();
+      }
+
+      std::size_t end{};
+      std::size_t po{};
+      std::size_t so{};
+      backup_context::data attr{};
+
+      std::memcpy(&end,
+                  advance_bytes(map.get(), hdr.end_start + sizeof(end) * i),
+                  sizeof(end));
+      std::memcpy(&po,
+                  advance_bytes(map.get(), hdr.path_start + sizeof(po) * i),
+                  sizeof(po));
+      std::memcpy(&so,
+                  advance_bytes(map.get(), hdr.stat_start + sizeof(so) * i),
+                  sizeof(so));
+      std::memcpy(&attr,
+                  advance_bytes(map.get(), hdr.attrib_start + sizeof(attr) * i),
+                  sizeof(attr));
+
+      const char* delta_path = (const char*)advance_bytes(map.get(), po);
+      const char* stat = (const char*)advance_bytes(map.get(), so);
+
+
+      stack.push_back(end);
+      reset_pos.push_back(current_path.size());
+
+      current_path += delta_path;
+
+      std::string name;
+
+      auto pos = current_path.find_last_of("/");
+
+      if (pos != current_path.npos) {
+        name = current_path.substr(pos + 1);
+        current_path.resize(pos + 1);
+      }
+
+      InsertActualNode(root, mark, current_path.data(), name.data(),
+                       attr.findex, jobid, stat, attr.delta_seq, attr.fhinfo,
+                       attr.fhnode);
+    }
+
+    return true;
+  } catch (...) {
+    return false;
+  }
+}
+
+void save_tree(const char* path, backup_context* ctx)
 {
   ctx->finish();
 
@@ -708,7 +1116,10 @@ TREE_ROOT* make_tree(backup_context* ctx)
   for (std::size_t id = 0; id < ctx->num_attributes; ++id) {
     MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
     MDB_val val;
-    if (mdb_get(txn, ctx->path, &key, &val)) { return nullptr; }
+    if (mdb_get(txn, ctx->path, &key, &val)) {
+      // TODO(ssura): throw exception
+      return;
+    }
 
     views.emplace_back((const char*)val.mv_data, val.mv_size);
     sorted_ids.emplace_back(id);
@@ -717,16 +1128,14 @@ TREE_ROOT* make_tree(backup_context* ctx)
   std::sort(sorted_ids.begin(), sorted_ids.end(),
             [&views](auto l, auto r) { return views[l] < views[r]; });
 
+  // sorted_id translates
+  // (pos in result file) -> (pos in db/views)
 
-  std::vector<std::size_t> ends;
+  std::vector<std::size_t> ends;  // end in result file!
   ends.resize(views.size());
-  std::vector<std::size_t> stack;
+  std::vector<std::size_t> stack;  // also in result file
 
-  // std::string path = jcr->dir_impl->cache_dir + std::string{"/"}
-  //                    + std::to_string(jcr->JobId) + ".tree";
-
-  std::string path = "/home/ssura/test.tree";
-  saved_tree tr{path.c_str(), views.size()};
+  saved_tree tr{path, ctx->jobid, views.size()};
   for (std::size_t i = 0; i < views.size(); ++i) {
     auto id = sorted_ids[i];
     auto cur = views[id];
@@ -737,34 +1146,40 @@ TREE_ROOT* make_tree(backup_context* ctx)
     } else {
       auto dir = cur.substr(0, pos + 1);  // include the backslash
       while (stack.size() > 0) {
-        auto l = stack.back();
-        auto back = views[l];
+        auto back_pos = stack.back();
+        auto bid = sorted_ids[back_pos];
+        auto back = views[bid];
         // if its not a prefix, we can pop
         if (back.size() <= dir.size() && back == dir.substr(0, back.size())) {
           break;
         }
 
-        ends[l] = i;
+        ends[back_pos] = i;
         stack.pop_back();
       }
 
       if (stack.size() > 0) {
         // the last thing on the stack is a prefix of cur that we
         // do not need to save
-        tr.push_delta_path(cur.substr(views[stack.back()].size()));
+        auto back_pos = stack.back();
+        auto bid = sorted_ids[back_pos];
+        tr.push_delta_path(cur.substr(views[bid].size()));
       } else {
         tr.push_delta_path(cur);
       }
     }
 
-    stack.push_back(id);
+    stack.push_back(i);
   }
 
   for (auto id : sorted_ids) {
     MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
     MDB_val val;
 
-    if (mdb_get(txn, ctx->path, &key, &val)) { return nullptr; }
+    if (mdb_get(txn, ctx->stat, &key, &val)) {
+      // TODO(ssura): throw exception
+      return;
+    }
 
     std::string_view stat{(const char*)val.mv_data, val.mv_size};
 
@@ -781,9 +1196,14 @@ TREE_ROOT* make_tree(backup_context* ctx)
     MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
     MDB_val val;
 
-    if (mdb_get(txn, ctx->file, &key, &val)) { return nullptr; }
+    if (mdb_get(txn, ctx->file, &key, &val)) {
+      // TODO(ssura): throw exception
+      return;
+    }
 
-    auto attr = 0;
+    ASSERT(val.mv_size == sizeof(backup_context::data));
+    backup_context::data attr;
+    std::memcpy(&attr, val.mv_data, sizeof(backup_context::data));
 
     tr.push_attrib(attr);
   }
@@ -799,115 +1219,6 @@ TREE_ROOT* make_tree(backup_context* ctx)
 #endif
 
   ctx->commit(txn);
-
-#if 0
-  return ctx->make_tree();
-  if (!jcr->dir_impl->backup_tree_root) { return true; }
-  struct stat statp;
-  int32_t LinkFI;
-  DecodeStat(ar->attr, &statp, sizeof(statp), &LinkFI);
-
-  int FileIndex = ar->FileIndex;
-  bool hard_link = (LinkFI != 0);
-  int32_t delta_seq = ar->DeltaSeq;
-  JobId_t JobId = ar->JobId;
-
-  PoolMem Path, File;
-  if (S_ISDIR(statp.st_mode)) {
-    Path.strcpy(ar->fname);
-    File.strcpy("");
-  } else {
-    int fsize, psize;  // not used
-    SplitPathAndFilename(ar->fname, Path.addr(), &psize, File.addr(), &fsize);
-  }
-
-  int type = [&] {
-    if (*File.c_str() != 0) {
-      return TN_FILE;
-    } else if (!IsPathSeparator(*Path.c_str())) {
-      return TN_DIR_NLS;
-    } else {
-      return TN_DIR;
-    }
-  }();
-
-  auto* root = jcr->dir_impl->backup_tree_root;
-  auto* node = insert_tree_node(Path.c_str(), File.c_str(), type, root, NULL);
-
-  node->fhinfo = ar->Fhinfo;
-  node->fhnode = ar->Fhnode;
-
-  if (delta_seq > 0) {
-    if (delta_seq == (node->delta_seq + 1)) {
-      TreeAddDeltaPart(root, node, node->JobId, node->FileIndex);
-
-    } else {
-      /* File looks to be deleted */
-      if (node->delta_seq == -1) { /* just created */
-        TreeRemoveNode(root, node);
-
-      } else {
-        Dmsg3(0,
-              "Something is wrong with Delta, skip it "
-              "fname=%s d1=%d d2=%d\n",
-              File.c_str(), node->delta_seq, delta_seq);
-      }
-      return false;
-    }
-  }
-
-  /* - The first time we see a file (node->inserted==true), we accept it.
-   * - In the same JobId, we accept only the first copy of a
-   *   hard linked file (the others are simply pointers).
-   * - In the same JobId, we accept the last copy of any other
-   *   file -- in particular directories.
-   *
-   * All the code to set ok could be condensed to a single
-   * line, but it would be even harder to read. */
-  bool ok = true;
-  if (!node->inserted && JobId == node->JobId) {
-    if ((hard_link && FileIndex > node->FileIndex)
-        || (!hard_link && FileIndex < node->FileIndex)) {
-      ok = false;
-    }
-  }
-  if (ok) {
-    node->hard_link = hard_link;
-    node->FileIndex = FileIndex;
-    node->JobId = JobId;
-    node->type = type;
-    node->soft_link = S_ISLNK(statp.st_mode) != 0;
-    node->delta_seq = delta_seq;
-
-    // Insert file having hardlinks into hardlink hashtable.
-    if (statp.st_nlink > 1 && type != TN_DIR && type != TN_DIR_NLS) {
-      if (!LinkFI) {
-        // First occurence - file hardlinked to
-        auto* entry = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
-        entry->key = (((uint64_t)JobId) << 32) + FileIndex;
-        entry->node = node;
-        root->hardlinks.insert(entry->key, entry);
-      } else {
-        // See if we are optimizing for speed or size.
-        // Hardlink to known file index: lookup original file
-        uint64_t file_key = (((uint64_t)JobId) << 32) + LinkFI;
-        HL_ENTRY* first_hl = (HL_ENTRY*)root->hardlinks.lookup(file_key);
-
-        if (first_hl && first_hl->node) {
-          // Then add hardlink entry to linked node.
-          auto* entry
-              = (HL_ENTRY*)root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
-          entry->key = (((uint64_t)JobId) << 32) + FileIndex;
-          entry->node = first_hl->node;
-          root->hardlinks.insert(entry->key, entry);
-        }
-      }
-     }
-   }
-#else
-  (void)ctx;
-  return nullptr;
-#endif
 }
 
 void destroy_backup_ctx(backup_context* ctx) { delete ctx; }
