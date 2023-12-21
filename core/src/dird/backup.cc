@@ -198,8 +198,8 @@ bool DoNativeBackupInit(JobControlRecord* jcr)
   CreateClones(jcr); /* run any clone jobs */
 
   std::string name
-      = jcr->dir_impl->cache_dir + "/" + "cache" + std::to_string(jcr->JobId);
-  if (EnsurePathExists(name)) {
+      = jcr->dir_impl->cache_dir + "/" + std::to_string(jcr->JobId) + ".cache";
+  if (EnsurePathExists(jcr->dir_impl->cache_dir)) {
     jcr->dir_impl->backup_ctx
         = directordaemon::make_backup_ctx(std::move(name), jcr->JobId);
   }

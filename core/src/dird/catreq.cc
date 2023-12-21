@@ -473,7 +473,8 @@ class backup_context {
     }
 
     // interesting flags: MDB_NOMEMINIT
-    if (auto result = mdb_env_open(env, name.c_str(), MDB_NOLOCK, 0600);
+    if (auto result = mdb_env_open(
+            env, name.c_str(), MDB_NOLOCK | MDB_NOMEMINIT | MDB_NOSUBDIR, 0600);
         result != 0) {
       throw exception("env open", result);
     }
@@ -506,7 +507,10 @@ class backup_context {
 
   ~backup_context()
   {
-    if (env) { mdb_env_close(env); }
+    if (env) {
+      mdb_env_close(env);
+      unlink(name.c_str());
+    }
   }
 
   bool add(AttributesDbRecord* ar)
