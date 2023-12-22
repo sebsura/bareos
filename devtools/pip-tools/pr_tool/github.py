@@ -51,7 +51,7 @@ class InvokationError(Exception):
     def __init__(self, result):
         self.result = result
         super().__init__(
-            f"invocation of {result.args} returned {result.returned}\nMessage:\n{result.stderr}"
+            f"invocation of {result.args} returned {result.returncode}\nMessage:\n{result.stderr}"
         )
 
 
