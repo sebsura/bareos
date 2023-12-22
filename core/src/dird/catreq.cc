@@ -1119,20 +1119,31 @@ void save_tree(const char* path, backup_context* ctx)
   views.reserve(ctx->num_attributes);
   auto* txn = ctx->begin_txn();
 
+  MDB_cursor* cursor;
+  if (mdb_cursor_open(txn, ctx->path, &cursor)) {
+    // TODO(ssura): throw exception
+    return;
+  }
+
   for (std::size_t id = 0; id < ctx->num_attributes; ++id) {
-    MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
-    MDB_val val;
-    if (mdb_get(txn, ctx->path, &key, &val)) {
+    // MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
+    // MDB_val val;
+    MDB_val key, val;
+    if (mdb_cursor_get(cursor, &key, &val, id == 0 ? MDB_FIRST : MDB_NEXT)) {
       // TODO(ssura): throw exception
       return;
     }
 
     views.emplace_back((const char*)val.mv_data, val.mv_size);
-    sorted_ids.emplace_back(id);
+    auto insert_pt = std::lower_bound(
+        sorted_ids.begin(), sorted_ids.end(), id,
+        [&views](auto l, auto r) { return views[l] < views[r]; });
+    sorted_ids.insert(insert_pt, id);
+    // sorted_ids.emplace_back(id);
   }
 
-  std::sort(sorted_ids.begin(), sorted_ids.end(),
-            [&views](auto l, auto r) { return views[l] < views[r]; });
+  // std::sort(sorted_ids.begin(), sorted_ids.end(),
+  //           [&views](auto l, auto r) { return views[l] < views[r]; });
 
   // sorted_id translates
   // (pos in result file) -> (pos in db/views)
@@ -1178,6 +1189,12 @@ void save_tree(const char* path, backup_context* ctx)
     stack.push_back(i);
   }
 
+  mdb_cursor_close(cursor);
+
+  for (auto i : stack) { ends[i] = views.size(); }
+  stack.clear();
+
+
   for (auto id : sorted_ids) {
     MDB_val key = {.mv_size = sizeof(id), .mv_data = &id};
     MDB_val val;
@@ -1192,9 +1209,6 @@ void save_tree(const char* path, backup_context* ctx)
     tr.push_stat(stat);
   }
 
-
-  for (auto i : stack) { ends[i] = views.size(); }
-  stack.clear();
 
   for (auto end : ends) { tr.push_end(end); }
 
