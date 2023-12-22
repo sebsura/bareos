@@ -1038,12 +1038,21 @@ static void InsertActualNode(TREE_ROOT* root,
   return;
 }
 
+std::size_t round_to_next_page(std::size_t addr)
+{
+  constexpr std::size_t pagesize = 4096;
+
+  return ((addr + pagesize - 1) / pagesize) * pagesize;
+}
+
 bool add_tree(TREE_ROOT* root, const char* path, std::size_t* count, bool mark)
 {
   try {
     file in(path, file::read);
 
     auto map = in.map_section(0, in.size());
+
+    madvise(map.get(), in.size(), MADV_SEQUENTIAL);
 
     saved_tree::header hdr;
     std::memcpy(&hdr, map.get(), sizeof(hdr));
@@ -1055,6 +1064,13 @@ bool add_tree(TREE_ROOT* root, const char* path, std::size_t* count, bool mark)
     std::vector<std::size_t> stack;
     std::vector<std::size_t> reset_pos;
     std::string current_path{""};
+
+    // we know that map.get() is page aligned, so we just have to take care
+    // of the offsets for page alignment
+    std::size_t first_path_page = round_to_next_page(hdr.path_start);
+    std::size_t first_stat_page = round_to_next_page(hdr.stat_start);
+    std::size_t first_attrib_page = round_to_next_page(hdr.attrib_start);
+
     for (std::size_t i = 0; i < hdr.num_nodes; ++i) {
       while ((stack.size() > 0) && (i >= stack.back())) {
         current_path.resize(reset_pos.back());
@@ -1079,6 +1095,41 @@ bool add_tree(TREE_ROOT* root, const char* path, std::size_t* count, bool mark)
       std::memcpy(&attr,
                   advance_bytes(map.get(), hdr.attrib_start + sizeof(attr) * i),
                   sizeof(attr));
+
+      if (po - first_path_page > 64 * 1024) {
+        std::size_t next_path_page = (po / 4096) * 4096;
+
+
+        if (madvise(advance_bytes(map.get(), first_path_page),
+                    next_path_page - first_path_page, MADV_DONTNEED)
+            == 0) {
+          first_path_page = next_path_page;
+        }
+      }
+
+      if (so - first_stat_page > 64 * 1024) {
+        std::size_t next_stat_page = (po / 4096) * 4096;
+
+
+        if (madvise(advance_bytes(map.get(), first_stat_page),
+                    next_stat_page - first_stat_page, MADV_DONTNEED)
+            == 0) {
+          first_stat_page = next_stat_page;
+        }
+      }
+
+      if ((hdr.attrib_start + sizeof(attr) * i) - first_attrib_page
+          > 64 * 1024) {
+        std::size_t next_attrib_page
+            = ((hdr.attrib_start + sizeof(attr) * i) / 4096) * 4096;
+
+
+        if (madvise(advance_bytes(map.get(), first_attrib_page),
+                    next_attrib_page - first_attrib_page, MADV_DONTNEED)
+            == 0) {
+          first_attrib_page = next_attrib_page;
+        }
+      }
 
       const char* delta_path = (const char*)advance_bytes(map.get(), po);
       const char* stat = (const char*)advance_bytes(map.get(), so);
