@@ -309,7 +309,7 @@ def publish(*, repo, dry_run=False):
                 "base": base_branch,
                 "head": gh_branch_spec,
                 "body-file": body_fp.name,
-                "labels": labels,
+                "label": labels,
             }
             res = Gh(dryrun=dry_run).pr.create(**new_pr)
             print(res)
