@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -55,12 +55,14 @@
  * In DEBUG mode an assert that is triggered generates a segmentation
  * fault so we can capture the debug info using btraceback.
  */
-#define ASSERT(x)                                     \
-  if (!(x)) {                                         \
-    Emsg1(M_ERROR, 0, T_("Failed ASSERT: %s\n"), #x); \
-    Pmsg1(000, T_("Failed ASSERT: %s\n"), #x);        \
-    abort();                                          \
-  }
+#define ASSERT(x)                                       \
+  do {                                                  \
+    if (!(x)) {                                         \
+      Emsg1(M_ERROR, 0, T_("Failed ASSERT: %s\n"), #x); \
+      Pmsg1(000, T_("Failed ASSERT: %s\n"), #x);        \
+      abort();                                          \
+    }                                                   \
+  } while (0)
 
 // Allow printing of NULL pointers
 #define NPRT(x) (x) ? (x) : T_("*None*")
@@ -186,7 +188,7 @@ typedef void(HANDLER)();
 typedef int(INTHANDLER)();
 
 #ifndef S_ISLNK
-#  define S_ISLNK(m) (((m)&S_IFM) == S_IFLNK)
+#  define S_ISLNK(m) (((m) & S_IFM) == S_IFLNK)
 #endif
 
 /** Added by KES to deal with Win32 systems */
