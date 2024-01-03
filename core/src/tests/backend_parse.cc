@@ -100,6 +100,20 @@ TEST(parse_device_options, WeirdSpelling)
   }
 }
 
+TEST(parse_device_options, MissingEq)
+{
+  auto parsed = util::options::parse_options("\\");
+
+  auto* error = std::get_if<util::options::error>(&parsed);
+
+  EXPECT_NE(error, nullptr);
+
+  if (!error) { return; }
+
+  EXPECT_NE(error->find("[\\]"), error->npos);
+  EXPECT_NE(error->find("(expected '=' in kv-pair)"), error->npos);
+}
+
 TEST(parse_device_options, EmptyKey)
 {
   auto parsed = util::options::parse_options("=3");
@@ -126,6 +140,34 @@ TEST(parse_device_options, EmptyVal)
 
   EXPECT_NE(error->find("[blocksize=]"), error->npos);
   EXPECT_NE(error->find("(val is empty)"), error->npos);
+}
+
+TEST(parse_device_options, GoodComma)
+{
+  {
+    auto parsed = util::options::parse_options("blocksize=3\\,");
+    auto* error = std::get_if<util::options::error>(&parsed);
+    EXPECT_EQ(error ? error->c_str() : "", "");
+  }
+  {
+    auto parsed = util::options::parse_options("blocksize=3\\\\\\,");
+    auto* error = std::get_if<util::options::error>(&parsed);
+    EXPECT_EQ(error ? error->c_str() : "", "");
+  }
+}
+
+TEST(parse_device_options, BadComma)
+{
+  auto parsed = util::options::parse_options("blocksize=3,");
+
+  auto* error = std::get_if<util::options::error>(&parsed);
+
+  EXPECT_NE(error, nullptr);
+
+  if (!error) { return; }
+
+  EXPECT_NE(error->find("[]"), error->npos);
+  EXPECT_NE(error->find("(expected kv-pair)"), error->npos);
 }
 
 TEST(parse_device_options, DuplicateKey)
