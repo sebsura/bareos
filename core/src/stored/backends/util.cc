@@ -23,30 +23,31 @@
 #include "include/baconfig.h"
 
 namespace util::options {
+
+int key_compare(std::string_view l, std::string_view r)
+{
+  // NOTE(ssura): this is not unicode compliant.
+  constexpr auto npos = l.npos;
+  for (;;) {
+    auto lidx = l.find_first_not_of(" \n\t_");
+    auto ridx = r.find_first_not_of(" \n\t_");
+
+    if (lidx == npos && ridx == npos) {
+      return 0;
+    } else if (lidx == npos) {
+      return -1;
+    } else if (ridx == npos) {
+      return 1;
+    } else if (std::tolower(l[lidx]) != std::tolower(r[ridx])) {
+      return std::tolower(l[lidx]) < std::tolower(r[ridx]) ? -1 : 1;
+    } else {
+      l = l.substr(lidx + 1);
+      r = r.substr(ridx + 1);
+    }
+  }
+}
+
 namespace {
-// int option_name_eq(std::string_view l, std::string_view r)
-// {
-//   // NOTE(ssura): this is not unicode compliant.
-//   constexpr auto npos = l.npos;
-//   for (;;) {
-//     auto lidx = l.find_first_not_of(" \n\t_");
-//     auto ridx = r.find_first_not_of(" \n\t_");
-
-//     if (lidx == npos && ridx == npos) {
-// 	return 0;
-//     } else if (lidx == npos) {
-// 	return -1;
-//     } else if (ridx == npos) {
-// 	return 1;
-//     } else if (std::tolower(l[lidx]) != std::tolower(r[ridx])) {
-// 	return std::tolower(l[lidx]) < std::tolower(r[ridx]) ? -1 : 1;
-//     } else {
-// 	l = l.substr(lidx + 1);
-// 	r = r.substr(ridx + 1);
-//     }
-//   }
-// }
-
 template <typename... View>
 std::string highlight_str_parts(std::string_view str, View... subviews)
 {

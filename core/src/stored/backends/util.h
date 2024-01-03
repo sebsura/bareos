@@ -24,11 +24,21 @@
 
 #include <string_view>
 #include <string>
-#include <unordered_map>
+#include <map>
 #include <variant>
 
 namespace util::options {
-using options = std::unordered_map<std::string_view, std::string_view>;
+
+int key_compare(std::string_view l, std::string_view r);
+
+struct key_comparator {
+  bool operator()(std::string_view l, std::string_view r) const
+  {
+    return key_compare(l, r) == -1;
+  }
+};
+
+using options = std::map<std::string_view, std::string_view, key_comparator>;
 using error = std::string;
 
 std::variant<options, error> parse_options(std::string_view v);
