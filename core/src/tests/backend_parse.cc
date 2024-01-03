@@ -80,6 +80,26 @@ TEST(parse_device_options, CorrectParse)
   }
 }
 
+TEST(parse_device_options, WeirdSpelling)
+{
+  auto parsed = util::options::parse_options("  _ BlOcK _ SiZe _  =3");
+
+  auto* error = std::get_if<util::options::error>(&parsed);
+
+  EXPECT_STREQ(error ? error->c_str() : "", "");
+
+  if (error) { return; }
+
+  auto& map = std::get<util::options::options>(parsed);
+  EXPECT_EQ(map.size(), 1);
+
+  {
+    auto iter = map.find("blocksize");
+    EXPECT_NE(iter, map.end());
+    if (iter != map.end()) { EXPECT_EQ(iter->second, std::string_view{"3"}); }
+  }
+}
+
 TEST(parse_device_options, EmptyKey)
 {
   auto parsed = util::options::parse_options("=3");
@@ -110,7 +130,9 @@ TEST(parse_device_options, EmptyVal)
 
 TEST(parse_device_options, DuplicateKey)
 {
-  auto parsed = util::options::parse_options("blocksize=3,blocksize=4");
+  std::string first = "blocksize";
+  std::string second = "_Block_Size_";
+  auto parsed = util::options::parse_options(first + "=3," + second + "=4");
 
   auto* error = std::get_if<util::options::error>(&parsed);
 
@@ -118,8 +140,11 @@ TEST(parse_device_options, DuplicateKey)
 
   if (!error) { return; }
 
-  EXPECT_NE(error->find("[blocksize]"), error->npos);
-  EXPECT_NE(error->find("[blocksize]", error->find("[blocksize]") + 1),
+  std::string first_highlighted = "[" + first + "]";
+  std::string second_highlighted = "[" + second + "]";
+
+  EXPECT_NE(error->find(first_highlighted), error->npos);
+  EXPECT_NE(error->find(second_highlighted, error->find(first_highlighted) + 1),
             error->npos);
   EXPECT_NE(error->find("(duplicate key)"), error->npos);
 }
