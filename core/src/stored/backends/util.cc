@@ -103,17 +103,21 @@ std::string format_parse_error_at(std::string_view error_msg,
 
 std::variant<options, error> parse_options(std::string_view str)
 {
-  constexpr auto npos = str.npos;
-
-  auto iter = str;
-
   options parsed;
 
-  for (; iter.size();) {
+  if (!str.size()) { return parsed; }
+
+  constexpr auto npos = str.npos;
+
+  for (auto iter = str;;) {
+    if (!iter.size()) {
+      return format_parse_error_at("expected kv-pair", str, iter);
+    }
+
     auto end = iter.find(',');
 
     if (end == 0) {
-      return format_parse_error_at("found nothing expecting kv-pair", str,
+      return format_parse_error_at("expected kv-pair", str,
                                    iter.substr(0, end + 1));
     }
 
@@ -140,8 +144,7 @@ std::variant<options, error> parse_options(std::string_view str)
     if (eq_pos == npos) {
       // no '=' found -> print error
 
-      return format_parse_error_at("expected equals sign in kv pair.", str,
-                                   pair);
+      return format_parse_error_at("expected '=' in kv-pair", str, pair);
     }
     std::string_view key = pair.substr(0, eq_pos);
     std::string_view val = pair.substr(eq_pos + 1);
