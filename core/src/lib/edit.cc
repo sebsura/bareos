@@ -225,7 +225,8 @@ static bool GetModifier(std::string_view& str,
 
   mod_begin = i;
   for (; i < len; i++) {
-    if (!B_ISALPHA(str[i])) { break; }
+    // we want to allow units like kb/s as well
+    if (!B_ISALPHA(str[i]) && str[i] != '/') { break; }
   }
 
   mod_end = i;
@@ -233,8 +234,8 @@ static bool GetModifier(std::string_view& str,
     mod_len = mod_end - mod_begin + 1;
   }
 
-  Dmsg5(900, "str=%s: num_beg=%d num_end=%d mod_beg=%d mod_end=%d\n", str,
-        num_begin, num_end, mod_begin, mod_end);
+  Dmsg5(900, "str=%s: num_beg=%d num_end=%d mod_beg=%d mod_end=%d\n",
+        std::string{str}.c_str(), num_begin, num_end, mod_begin, mod_end);
   bstrncpy(num, &str[num_begin], num_len);
   bstrncpy(mod, &str[mod_begin], mod_len);
 
