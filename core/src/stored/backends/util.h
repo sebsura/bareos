@@ -38,7 +38,7 @@ struct key_comparator {
   }
 };
 
-using options = std::map<std::string_view, std::string_view, key_comparator>;
+using options = std::map<std::string, std::string, key_comparator>;
 using error = std::string;
 
 std::variant<options, error> parse_options(std::string_view v);

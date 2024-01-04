@@ -99,11 +99,60 @@ std::string format_parse_error_at(std::string_view error_msg,
 
   return error;
 }
+
+std::string parse_str(std::string_view str)
+{
+  std::string parsed;
+
+  for (auto iter = str.begin(); iter != str.end(); ++iter) {
+    switch (*iter) {
+      case '\\': {
+        auto next = iter + 1;
+
+        if (next == str.end()) {
+          // bad parse: we do not accept single backslashes
+          return {};
+        }
+
+        switch (*next) {
+          case '\\': {
+            parsed += '\\';
+          } break;
+          case ',': {
+            parsed += ',';
+          } break;
+          default: {
+            // bad parse: we only accept // and /,
+            return {};
+          } break;
+        }
+
+        iter = next;
+      } break;
+
+      default: {
+        parsed += *iter;
+      } break;
+    }
+  }
+
+  return parsed;
+}
 };  // namespace
 
+// better idea: options should own the strings that it contains
+// reason: that way we can handle backslashes bette:
+// we can transform '//' -> '/', '/,' -> ',', ','->'\0' (and use '\0' as
+//                                                         separator)
+// This transformation only takes place when inserting into the map
+// however, since searching on the raw string gives better error messages.
+//
+// NOTE(ssura): should you be able to escape '=' as well ?
+//              I.e.: a/=b = true as option; probably not
 std::variant<options, error> parse_options(std::string_view str)
 {
   options parsed;
+  std::vector<std::pair<std::string_view, std::string_view>> vec;
 
   if (!str.size()) { return parsed; }
 
@@ -157,12 +206,37 @@ std::variant<options, error> parse_options(std::string_view str)
       return format_parse_error_at("val is empty", str, pair);
     }
 
-    if (auto [miter, inserted] = parsed.emplace(key, val); !inserted) {
-      return format_parse_error_at("duplicate key", str, miter->first, key);
-    }
+    vec.emplace_back(key, val);
+
+    // if (auto [miter, inserted] = parsed.emplace(key, val); !inserted) {
+    //   return format_parse_error_at("duplicate key", str, miter->first, key);
+    // }
 
     if (end == npos) { break; }
     iter = iter.substr(end + 1);
+  }
+
+  for (auto [key, val] : vec) {
+    auto parsed_key = parse_str(key);
+    auto parsed_val = parse_str(val);
+
+    if (parsed_key.empty()) {
+      return format_parse_error_at("bad key", str, key);
+    }
+    if (parsed_val.empty()) {
+      return format_parse_error_at("bad val", str, val);
+    }
+
+    if (auto [miter, inserted] = parsed.emplace(parsed_key, parsed_val);
+        !inserted) {
+      for (auto [key2, _] : vec) {
+        if (miter->first == parse_str(key2)) {
+          return format_parse_error_at("duplicate key", str, key2, key);
+        }
+      }
+
+      ASSERT(!"unreachable");
+    }
   }
 
   return parsed;
