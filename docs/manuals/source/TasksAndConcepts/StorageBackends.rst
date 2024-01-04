@@ -389,9 +389,26 @@ A dedup (friendly) device splits up the data it receives into bareos specific da
 to store them seperately.  It tries to store the file data blocks it receives only at certain intervals
 in its storage. This should make it possible for your filesystem to deduplicate its the actual file data.
 
-For this to work correctly, :config:option:`sd/device/DedupBlockSize`\ needs to be set to the block size
-your filesystem uses to deduplicate.  It is also important that :config:option:`sd/device/MaximumBlockSize`\ is
-divisible by :config:option:`sd/device/DedupBlockSize`.
+For this to work correctly, The device option (see:
+:config:option:`sd/device/DeviceOptions`) 'BlockSize' needs to be set to the
+blocksize your filesystem uses to deduplicate.  It is also important that
+:config:option:`sd/device/MaximumBlockSize`\ is divisible by the chosen size.
+
+.. code-block:: bareosconfig
+   :caption: dedup device with a 16k Blocksize
+
+   Device {
+     Name = "MyDedup"
+     Media Type = "Dedup"
+     Device Type = dedup
+     Device Options = "Blocksize = 16k"
+     Label Media = yes                    # Lets Bareos label unlabeled media
+     Random Access = yes
+     Automatic Mount = yes                # When device opened, read it
+     Removable Media = no
+     Always Open = no
+     Maximum Concurrent Jobs = 1
+   }
 
 
 :sinceVersion:`2X.?.?: Dedup Storage`

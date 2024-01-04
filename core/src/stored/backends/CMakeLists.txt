@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2022-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2022-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -63,7 +63,7 @@ else()
   add_sd_backend(bareossd-dedup)
   target_sources(
     bareossd-dedup PRIVATE dedup_file_device.cc dedup/dedup_volume.cc
-                           dedup/dedup_config.cc
+                           dedup/dedup_config.cc util.cc
   )
   target_link_libraries(
     bareossd-dedup PRIVATE $<$<NOT:$<PLATFORM_ID:FreeBSD>>:stdc++fs>

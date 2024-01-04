@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -229,29 +229,6 @@ static void WarnOnSetMaxBlockSize(const DeviceResource& resource)
   }
 }
 
-static void WarnOnZeroDedupBlockSize(int dedup_block_size,
-                                     std::string_view name)
-{
-  if (dedup_block_size == 0) {
-    my_config->AddWarning(fmt::format(
-        FMT_STRING("Device {:s}: 'Dedup Block Size' is set to zero. "
-                   "This disables dedupability."),
-        name));
-  }
-}
-
-static void WarnOnNonZeroDedupBlockSize(int dedup_block_size,
-                                        std::string_view name)
-{
-  if (dedup_block_size > 0) {
-    my_config->AddWarning(fmt::format(
-        FMT_STRING(
-            "Device {:s}: Setting 'Dedup Block Size' is only supported on  "
-            "dedup devices"),
-        name));
-  }
-}
-
 static void WarnOnZeroMaxConcurrentJobs(int max_concurrent_jobs,
                                         std::string_view name)
 {
@@ -282,8 +259,6 @@ static bool ValidateTapeDevice(const DeviceResource& resource)
 
   WarnOnZeroMaxConcurrentJobs(resource.max_concurrent_jobs,
                               resource.resource_name_);
-  WarnOnNonZeroDedupBlockSize(resource.dedup_block_size,
-                              resource.resource_name_);
 
   return true;
 }
@@ -291,7 +266,6 @@ static bool ValidateTapeDevice(const DeviceResource& resource)
 static bool ValidateDedupDevice(const DeviceResource& resource)
 {
   WarnOnSetMaxBlockSize(resource);
-  WarnOnZeroDedupBlockSize(resource.dedup_block_size, resource.resource_name_);
   WarnOnZeroMaxConcurrentJobs(resource.max_concurrent_jobs,
                               resource.resource_name_);
   WarnOnGtOneMaxConcurrentJobs(resource.max_concurrent_jobs,
@@ -302,8 +276,6 @@ static bool ValidateDedupDevice(const DeviceResource& resource)
 static bool ValidateGenericDevice(const DeviceResource& resource)
 {
   WarnOnSetMaxBlockSize(resource);
-  WarnOnNonZeroDedupBlockSize(resource.dedup_block_size,
-                              resource.resource_name_);
   WarnOnZeroMaxConcurrentJobs(resource.max_concurrent_jobs,
                               resource.resource_name_);
   WarnOnGtOneMaxConcurrentJobs(resource.max_concurrent_jobs,

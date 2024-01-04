@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2009 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -216,9 +216,6 @@ static ResourceItem dev_items[] = {
   {"Count", CFG_TYPE_PINT32, ITEM(res_dev, count), 0, CFG_ITEM_DEFAULT, "1", NULL, "If Count is set to (1 < Count < 10000), "
   "this resource will be multiplied Count times. The names of multiplied resources will have a serial number (0001, 0002, ...) attached. "
   "If set to 1 only this single resource will be used and its name will not be altered."},
-  {"DedupBlockSize", CFG_TYPE_MAXBLOCKSIZE, ITEM(res_dev, dedup_block_size), 0, 0, NULL, "23.0.0-", R"END(
-This should be equal to the block size of your filesystem.
-)END"},
   {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
 };
 

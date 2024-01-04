@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2023-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2023-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -24,9 +24,11 @@
 #include "stored/stored_globals.h"
 #include "stored/sd_backends.h"
 #include "stored/device_control_record.h"
+#include "stored/backends/util.h"
 #include "dedup_file_device.h"
 #include "lib/berrno.h"
 #include "lib/util.h"
+#include "lib/edit.h"
 
 #include "dedup/dedup_config.h"
 
@@ -35,6 +37,7 @@
 #include <optional>
 #include <cstring>
 #include <filesystem>
+#include <variant>
 
 namespace storagedaemon {
 
@@ -100,6 +103,53 @@ bool dedup_file_device::ScanForVolumeImpl(DeviceControlRecord* dcr)
   return 0;
 }
 
+struct dedup_options {
+  std::size_t blocksize{4096};
+
+  std::string warnings{};
+
+  // correct option strings are comma separated k=v lists
+  static std::variant<dedup_options, std::string> parse(std::string_view v)
+  {
+    dedup_options result;
+
+    auto parsed = util::options::parse_options(v);
+
+    if (auto* error = std::get_if<std::string>(&parsed); error != nullptr) {
+      return std::move(*error);
+    }
+
+    auto& options = std::get<util::options::options>(parsed);
+
+    if (auto iter = options.find("blocksize"); iter != options.end()) {
+      auto& val = iter->second;
+
+      std::uint64_t blocksize;
+      if (!size_to_uint64(val.c_str(), &blocksize)) {
+        return "bad block size: " + val;
+      }
+
+      result.blocksize = blocksize;
+
+      options.erase(iter);
+    } else {
+      result.warnings
+          += "Blocksize was not set explicitly; set to default 4k\n";
+    }
+
+    if (options.size() > 0) {
+      result.warnings += "Unknown options: ";
+      for (auto [opt, _] : options) {
+        result.warnings += opt;
+        result.warnings += " ";
+      }
+      result.warnings += "\n";
+    }
+
+    return result;
+  }
+};
+
 int dedup_file_device::d_open(const char* path, int, int mode)
 {
   if (open_volume.has_value()) {
@@ -121,8 +171,26 @@ int dedup_file_device::d_open(const char* path, int, int mode)
     }
   }
 
-  auto& vol = open_volume.emplace(path, open_mode, mode,
-                                  device_resource->dedup_block_size);
+  dedup_options options{};
+  if (dev_options) {
+    auto res = dedup_options::parse(dev_options);
+    if (const std::string* emsg = std::get_if<std::string>(&res)) {
+      Emsg0(M_FATAL, 0, "Dedup device options error: %s\n", emsg->c_str());
+      return -1;
+    } else if (const dedup_options* opts = std::get_if<dedup_options>(&res)) {
+      options = *opts;
+
+      if (opts->warnings.size()) {
+        Emsg0(M_WARNING, 0, "Dedup device option warning: %s\n",
+              opts->warnings.c_str());
+      }
+    }
+  } else {
+    Emsg0(M_FATAL, 0, "No dedup device options specified. Cannot continue\n");
+    return -1;
+  }
+
+  auto& vol = open_volume.emplace(path, open_mode, mode, options.blocksize);
 
   if (vol.is_ok()) {
     return ++fd_ctr;
