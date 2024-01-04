@@ -31,8 +31,6 @@
 
 #include "stored/backends/util.h"
 
-#include <iostream>
-
 TEST(parse_device_options, Empty)
 {
   auto parsed = util::options::parse_options("");
@@ -189,4 +187,91 @@ TEST(parse_device_options, DuplicateKey)
   EXPECT_NE(error->find(second_highlighted, error->find(first_highlighted) + 1),
             error->npos);
   EXPECT_NE(error->find("(duplicate key)"), error->npos);
+}
+
+TEST(parse_device_options, GoodBackslashes)
+{
+  auto parsed = util::options::parse_options("a=3\\,b=4,c=5\\\\,d\\\\=6");
+
+  auto* error = std::get_if<util::options::error>(&parsed);
+
+  EXPECT_STREQ(error ? error->c_str() : "", "");
+
+  if (error) { return; }
+
+  auto& map = std::get<util::options::options>(parsed);
+  EXPECT_EQ(map.size(), 3);
+
+  {
+    auto iter = map.find("a");
+    EXPECT_NE(iter, map.end());
+    if (iter != map.end()) {
+      EXPECT_EQ(iter->first, std::string_view{"a"});
+      EXPECT_EQ(iter->second, std::string_view{"3,b=4"});
+    }
+  }
+  {
+    auto iter = map.find("c");
+    EXPECT_NE(iter, map.end());
+    if (iter != map.end()) {
+      EXPECT_EQ(iter->first, std::string_view{"c"});
+      EXPECT_EQ(iter->second, std::string_view{"5\\"});
+    }
+  }
+  {
+    auto iter = map.find("d\\");
+    EXPECT_NE(iter, map.end());
+    if (iter != map.end()) {
+      EXPECT_EQ(iter->first, std::string_view{"d\\"});
+      EXPECT_EQ(iter->second, std::string_view{"6"});
+    }
+  }
+}
+
+TEST(parse_device_options, BadBackslashes)
+{
+  {
+    auto parsed = util::options::parse_options("a\\=3");
+
+    auto* error = std::get_if<util::options::error>(&parsed);
+
+    EXPECT_NE(error, nullptr);
+
+    if (!error) { return; }
+
+    EXPECT_NE(error->find("(bad key)"), error->npos);
+  }
+  {
+    auto parsed = util::options::parse_options("a=\\3");
+
+    auto* error = std::get_if<util::options::error>(&parsed);
+
+    EXPECT_NE(error, nullptr);
+
+    if (!error) { return; }
+
+    EXPECT_NE(error->find("(bad val)"), error->npos);
+  }
+  {
+    auto parsed = util::options::parse_options("\\=3");
+
+    auto* error = std::get_if<util::options::error>(&parsed);
+
+    EXPECT_NE(error, nullptr);
+
+    if (!error) { return; }
+
+    EXPECT_NE(error->find("(bad key)"), error->npos);
+  }
+  {
+    auto parsed = util::options::parse_options("b=\\");
+
+    auto* error = std::get_if<util::options::error>(&parsed);
+
+    EXPECT_NE(error, nullptr);
+
+    if (!error) { return; }
+
+    EXPECT_NE(error->find("(bad val)"), error->npos);
+  }
 }
