@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -191,7 +191,7 @@ char* edit_int64_with_commas(int64_t val, char* buf)
  * Given a string "str", separate the numeric part into str, and the modifier
  * into mod.
  */
-static bool GetModifier(char* str,
+static bool GetModifier(std::string_view& str,
                         char* num,
                         int num_len,
                         char* mod,
@@ -199,8 +199,8 @@ static bool GetModifier(char* str,
 {
   int i, len, num_begin, num_end, mod_begin, mod_end;
 
-  StripTrailingJunk(str);
-  len = strlen(str);
+  std::string_view view = StripTrailingJunk(str);
+  len = view.size();
 
   for (i = 0; i < len; i++) {
     if (!B_ISSPACE(str[i])) { break; }
@@ -240,7 +240,7 @@ static bool GetModifier(char* str,
 
   if (!Is_a_number(num)) { return false; }
 
-  bstrncpy(str, &str[mod_end], len);
+  str = str.substr(mod_end);
   Dmsg2(900, "num=%s mod=%s\n", num, mod);
 
   return true;
@@ -273,8 +273,10 @@ bool DurationToUtime(char* str, utime_t* value)
                                  3600 * 24 * 365,
                                  0};
 
-  while (*str) {
-    if (!GetModifier(str, num_str, sizeof(num_str), mod_str, sizeof(mod_str))) {
+  std::string_view view{str};
+  while (view.size() > 0) {
+    if (!GetModifier(view, num_str, sizeof(num_str), mod_str,
+                     sizeof(mod_str))) {
       return false;
     }
 
@@ -349,7 +351,9 @@ char* edit_pthread(pthread_t val, char* buf, int buf_len)
   return buf;
 }
 
-static bool strunit_to_uint64(char* str, uint64_t* value, const char** mod)
+static bool strunit_to_uint64(const char* str,
+                              uint64_t* value,
+                              const char** mod)
 {
   int i, mod_len;
   double val;
@@ -378,7 +382,13 @@ static bool strunit_to_uint64(char* str, uint64_t* value, const char** mod)
 
   };
 
-  if (!GetModifier(str, num_str, sizeof(num_str), mod_str, sizeof(mod_str))) {
+  std::string_view view{str};
+  if (!GetModifier(view, num_str, sizeof(num_str), mod_str, sizeof(mod_str))) {
+    return 0;
+  }
+
+  if (view.size() > 0) {
+    // leftover garbage at the end
     return 0;
   }
 
@@ -442,7 +452,7 @@ std::string SizeAsSiPrefixFormat(uint64_t value_in)
  * Returns false: if error
  *         true:  if OK, and value stored in value
  */
-bool size_to_uint64(char* str, uint64_t* value)
+bool size_to_uint64(const char* str, uint64_t* value)
 {
   // not used
   // clang-format off

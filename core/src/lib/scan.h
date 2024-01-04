@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2020 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -21,8 +21,11 @@
 #ifndef BAREOS_LIB_SCAN_H_
 #define BAREOS_LIB_SCAN_H_
 
+#include <string_view>
+
 void StripLeadingSpace(char* str);
 void StripTrailingJunk(char* str);
+std::string_view StripTrailingJunk(std::string_view cmd);
 void StripTrailingNewline(char* str);
 void StripTrailingSlashes(char* dir);
 bool SkipSpaces(char** msg);

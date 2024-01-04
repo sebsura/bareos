@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -49,7 +49,7 @@ char* edit_int64_with_commas(int64_t val, char* buf);
 
 char* add_commas(char* val, char* buf);
 bool DurationToUtime(char* str, utime_t* value);
-bool size_to_uint64(char* str, uint64_t* value);
+bool size_to_uint64(const char* str, uint64_t* value);
 bool speed_to_uint64(char* str, uint64_t* value);
 char* edit_utime(utime_t val, char* buf, int buf_len);
 char* edit_pthread(pthread_t val, char* buf, int buf_len);
@@ -60,7 +60,6 @@ bool IsNameValid(const char* name, std::string& msg);
 bool IsNameValid(const char* name);
 bool IsAclEntryValid(const char* acl, std::vector<char>& msg);
 bool IsAclEntryValid(const char* acl);
-bool size_to_uint64(char* str, uint64_t* value);
 std::string SizeAsSiPrefixFormat(uint64_t value_in);
 
 #endif  // BAREOS_LIB_EDIT_H_
