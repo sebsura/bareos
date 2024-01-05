@@ -32,6 +32,8 @@
 #define BAREOS_INCLUDE_BACONFIG_H_
 
 #include "lib/message.h"
+#include "include/bareos_assert.h"
+#include "include/translate.h"
 
 /* Bareos common configuration defines */
 
@@ -50,19 +52,6 @@
 #else
 #  define ioctl_req_t int
 #endif
-
-/**
- * In DEBUG mode an assert that is triggered generates a segmentation
- * fault so we can capture the debug info using btraceback.
- */
-#define ASSERT(x)                                       \
-  do {                                                  \
-    if (!(x)) {                                         \
-      Emsg1(M_ERROR, 0, T_("Failed ASSERT: %s\n"), #x); \
-      Pmsg1(000, T_("Failed ASSERT: %s\n"), #x);        \
-      abort();                                          \
-    }                                                   \
-  } while (0)
 
 // Allow printing of NULL pointers
 #define NPRT(x) (x) ? (x) : T_("*None*")
@@ -83,28 +72,6 @@ void InitWinAPIWrapper();
 #  define OSDependentInit()
 
 #endif /* HAVE_WIN32 */
-
-#ifdef ENABLE_NLS
-#  include <libintl.h>
-#  include <locale.h>
-#  ifndef T_
-#    define T_(s) gettext((s))
-#  endif /* T_ */
-#else    /* !ENABLE_NLS */
-#  undef T_
-#  undef textdomain
-#  undef bindtextdomain
-#  undef setlocale
-
-#  define T_(s) (s)
-#  define textdomain(d)
-#  define bindtextdomain(p, d)
-#  define setlocale(p, d)
-#endif /* ENABLE_NLS */
-
-
-/* Use the following for strings not to be translated */
-#define NT_(s) (s)
 
 /* Maximum length to edit time/date */
 #define MAX_TIME_LENGTH 50
@@ -420,31 +387,6 @@ int Mmsg(PoolMem*& msgbuf, const char* fmt, ...);
 int Mmsg(std::vector<char>& msgbuf, const char* fmt, ...);
 
 class JobControlRecord;
-void d_msg(const char* file, int line, int level, const char* fmt, ...);
-void p_msg(const char* file, int line, int level, const char* fmt, ...);
-void p_msg_fb(const char* file, int line, int level, const char* fmt, ...);
-void e_msg(const char* file,
-           int line,
-           int type,
-           int level,
-           const char* fmt,
-           ...);
-void j_msg(const char* file,
-           int line,
-           JobControlRecord* jcr,
-           int type,
-           utime_t mtime,
-           const char* fmt,
-           ...);
-void q_msg(const char* file,
-           int line,
-           JobControlRecord* jcr,
-           int type,
-           utime_t mtime,
-           const char* fmt,
-           ...);
-int msg_(const char* file, int line, POOLMEM*& pool_buf, const char* fmt, ...);
-
 #include "lib/bsys.h"
 #include "lib/scan.h"
 

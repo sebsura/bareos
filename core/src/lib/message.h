@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -92,5 +92,30 @@ void SetDbType(const char* name);
 
 using SyslogCallback = std::function<void(int mode, const char* msg)>;
 void RegisterSyslogCallback(SyslogCallback c);
+
+void d_msg(const char* file, int line, int level, const char* fmt, ...);
+void p_msg(const char* file, int line, int level, const char* fmt, ...);
+void p_msg_fb(const char* file, int line, int level, const char* fmt, ...);
+void e_msg(const char* file,
+           int line,
+           int type,
+           int level,
+           const char* fmt,
+           ...);
+void j_msg(const char* file,
+           int line,
+           JobControlRecord* jcr,
+           int type,
+           utime_t mtime,
+           const char* fmt,
+           ...);
+void q_msg(const char* file,
+           int line,
+           JobControlRecord* jcr,
+           int type,
+           utime_t mtime,
+           const char* fmt,
+           ...);
+int msg_(const char* file, int line, POOLMEM*& pool_buf, const char* fmt, ...);
 
 #endif  // BAREOS_LIB_MESSAGE_H_

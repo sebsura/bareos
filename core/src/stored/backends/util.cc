@@ -20,7 +20,7 @@
 */
 
 #include "stored/backends/util.h"
-#include "include/baconfig.h"
+#include "include/bareos_assert.h"
 
 namespace util::options {
 
