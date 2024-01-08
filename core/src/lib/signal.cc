@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -160,11 +160,16 @@ extern "C" void SignalHandler(int sig)
       working_directory = buf;
       *buf = 0;
     }
-    if (*working_directory == 0) { strcpy((char*)working_directory, "/tmp/"); }
+    if (*working_directory == 0) {
+      fprintf(stderr, T_("No workdir set\n"));
+      strcpy((char*)working_directory, "/tmp");
+    }
     if (chdir(working_directory) != 0) { /* dump in working directory */
+      fprintf(stderr, T_("chdir to %s failed. ERR=%s\n"), working_directory,
+              strerror(errno));
       Pmsg2(000, "chdir to %s failed. ERR=%s\n", working_directory,
             strerror(errno));
-      strcpy((char*)working_directory, "/tmp/");
+      strcpy((char*)working_directory, "/tmp");
     }
     SecureErase(NULL, "./core"); /* get rid of any old core file */
 

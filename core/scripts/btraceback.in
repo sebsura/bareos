@@ -100,6 +100,6 @@ esac
 # Send the stack trace info to someone for analyzing or at least letting someone know we crashed.
 #
 PNAME="${PNAME} on `hostname`"
-echo ${WD}/bareos.$2.traceback
+cat ${WD}/bareos.$2.traceback
 cat ${WD}/bareos.$2.traceback | \
 @sbindir@/bsmtp -h @smtp_host@ -f @dump_email@ -s "Bareos ${DEBUGGER} traceback of ${PNAME}" @dump_email@
