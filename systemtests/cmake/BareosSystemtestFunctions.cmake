@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2021-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2021-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -320,6 +320,9 @@ macro(link_binaries_to_test_to_current_sbin_dir_with_individual_filename)
       "${CURRENT_SBIN_DIR}/bareos_vadp_dumper"
     )
   endif()
+  create_symlink("${CMAKE_SOURCE_DIR}/cat-script" "${CURRENT_SBIN_DIR}/bsmtp")
+  # file(GENERATE OUTPUT "${CURRENT_SBIN_DIR}/bsmtp" CONTENT "#!/bin/bash cat -
+  # " FILE_PERMISSIONS OWNER_EXECUTE )
 endmacro()
 
 macro(prepare_testdir_for_daemon_run)
