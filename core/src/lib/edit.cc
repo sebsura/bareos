@@ -236,8 +236,8 @@ static bool GetModifier(std::string_view& str,
 
   Dmsg5(900, "str=%s: num_beg=%d num_end=%d mod_beg=%d mod_end=%d\n",
         std::string{str}.c_str(), num_begin, num_end, mod_begin, mod_end);
-  bstrncpy(num, &str[num_begin], num_len);
-  bstrncpy(mod, &str[mod_begin], mod_len);
+  bstrncpy(num, str.data() + num_begin, num_len);
+  bstrncpy(mod, str.data() + mod_begin, mod_len);
 
   if (!Is_a_number(num)) { return false; }
 
