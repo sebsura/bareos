@@ -7,7 +7,6 @@ Device {
   #    block size=  - Dedup block size of actual device
   #
 
-  # currently does not do anything
   Device Options = "block size=4k"
 
   Device Type = dedup
@@ -18,5 +17,4 @@ Device {
   Always Open = no
   Description = "dedup device"
   Maximum Concurrent Jobs = 1
-  Dedup Block Size = 4k
 }

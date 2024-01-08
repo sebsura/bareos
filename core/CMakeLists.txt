@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -743,6 +743,7 @@ if(build_client_only)
 else()
   set(BACKENDS unix_tape_device.d)
   list(APPEND BACKENDS unix_fifo_device.d)
+  list(APPEND BACKENDS dedup_device.d)
   if(${HAVE_GLUSTERFS})
     list(APPEND BACKENDS gfapi_device.d)
   endif()
