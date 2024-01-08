@@ -10,6 +10,7 @@ debug/x86_64/bareos-filedaemon-debuginfo
 debug/x86_64/bareos-filedaemon-glusterfs-plugin-debuginfo
 debug/x86_64/bareos-filedaemon-python3-plugin-debuginfo
 debug/x86_64/bareos-storage-debuginfo
+debug/x86_64/bareos-storage-dedup-debuginfo
 debug/x86_64/bareos-storage-droplet-debuginfo
 debug/x86_64/bareos-storage-fifo-debuginfo
 debug/x86_64/bareos-storage-glusterfs-debuginfo
