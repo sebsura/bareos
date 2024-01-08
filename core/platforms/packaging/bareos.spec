@@ -343,6 +343,12 @@ Group:      Productivity/Archiving/Backup
 Requires:   %{name}-common  = %{version}
 Requires:   %{name}-storage = %{version}
 
+%package    storage-dedup
+Summary:    DEDUP support for the Bareos Storage backend
+Group:      Productivity/Archiving/Backup
+Requires:   %{name}-common  = %{version}
+Requires:   %{name}-storage = %{version}
+
 %package    filedaemon
 Summary:    Bareos File daemon (backup and restore client)
 Group:      Productivity/Archiving/Backup
@@ -764,6 +770,13 @@ This package contains the Storage backend for GlusterFS.
 
 This package contains the Storage backend for FIFO files.
 This package is only required, when a resource "Archive Device = fifo"
+should be used by the Bareos Storage Daemon.
+
+%description storage-dedup
+%{dscr}
+
+This package contains the Storage backend for DEDUP files.
+This package is only required, when a resource "Archive Device = dedup"
 should be used by the Bareos Storage Daemon.
 
 %description filedaemon
@@ -1245,6 +1258,12 @@ mkdir -p %{?buildroot}/%{_libdir}/bareos/plugins/vmware_plugin
 %attr(0640, %{director_daemon_user}, %{daemon_group}) %{_sysconfdir}/%{name}/bareos-dir.d/storage/NULL.conf.example
 %attr(0640, %{storage_daemon_user}, %{daemon_group})  %{_sysconfdir}/%{name}/bareos-sd.d/device/NULL.conf.example
 
+%files storage-dedup
+%defattr(-, root, root)
+%{backend_dir}/libbareossd-dedup*.so
+%attr(0640, %{director_daemon_user}, %{daemon_group}) %{_sysconfdir}/%{name}/bareos-dir.d/storage/dedup.conf.example
+%attr(0640, %{storage_daemon_user}, %{daemon_group})  %{_sysconfdir}/%{name}/bareos-sd.d/device/dedup.conf.example
+
 %if 0%{?droplet}
 %files storage-droplet
 %defattr(-, root, root)
@@ -1699,6 +1718,12 @@ a2enmod fcgid &> /dev/null || true
 
 %posttrans storage-fifo
 %posttrans_restore_file /etc/%{name}/bareos-sd.d/device-fifo.conf
+
+%post storage-dedup
+%post_backup_file /etc/%{name}/bareos-sd.d/device-dedup.conf
+
+%posttrans storage-dedup
+%posttrans_restore_file /etc/%{name}/bareos-sd.d/device-dedup.conf
 
 
 %post storage-tape
