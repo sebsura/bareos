@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2023-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2023-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -205,6 +205,7 @@ int main(int argc, const char* argv[])
 {
   CLI::App app;
   InitCLIApp(app, "bareos dedup estimate", 2023);
+  MyNameIs(argc, argv, "bdedupestimate");
 
   std::vector<std::string> volumes;
   app.add_option("-v,--volumes,volumes", volumes)->required();
