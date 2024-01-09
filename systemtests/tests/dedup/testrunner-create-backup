@@ -25,7 +25,7 @@ cat <<END_OF_DATA >"$tmp/bconcmds"
 messages
 @$out $log_home/create-backup.out
 setdebug level=200 all
-label volume=TestVolume001 storage=File pool=Full
+label volume=TestVolume001 storage=Dedup pool=Full
 run job=$JobName yes
 status director
 status client
@@ -38,7 +38,7 @@ quit
 END_OF_DATA
 
 run_bconsole
-check_for_zombie_jobs storage=File
+check_for_zombie_jobs storage=Dedup
 
 # technically these are post conditions for this test
 check_preconditions

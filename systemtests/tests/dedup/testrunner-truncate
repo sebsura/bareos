@@ -1,0 +1,44 @@
+#!/bin/bash
+set -e
+set -o pipefail
+set -u
+#
+# Label a new volume, purge it, then truncate it
+#
+TestName="$(basename "$(pwd)")"
+export TestName
+
+JobName=backup-bareos-fd
+
+#shellcheck source=../environment.in
+. ./environment
+
+#shellcheck source=../scripts/functions
+. "${rscripts}"/functions
+#shellcheck source=functions
+. functions
+
+start_test
+
+cat <<END_OF_DATA >"$tmp/bconcmds"
+@$out /dev/null
+messages
+setdebug level=200 all
+@$out $log_home/label.out
+label volume=TruncateVolume001 storage=Dedup pool=Full
+@$out $log_home/purge.out
+purge volume=TruncateVolume001 yes
+@$out $log_home/truncate.out
+truncate volstatus=Purged yes
+@$out $log_home/jobs.out
+list jobs
+quit
+END_OF_DATA
+
+run_bconsole
+
+expect_grep "OK label" "$log_home/label.out" "Did not correctly label volume."
+expect_grep "Marking it purged" "$log_home/purge.out" "Did not correctly purge volume."
+expect_not_grep "ERR=" "$log_home/truncate.out" "Encountered error while truncating."
+
+end_test
