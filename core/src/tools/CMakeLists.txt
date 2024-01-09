@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -80,6 +80,7 @@ endif()
 if(NOT HAVE_WIN32)
   add_executable(bdedupestimate bdedup-estimate.cc)
   target_link_libraries(bdedupestimate bareos bareossd CLI11::CLI11)
+  list(APPEND TOOLS_SBIN bdedupestimate)
 
   # drydedup.cc does not support api < openssl 1.1.1
   if(OPENSSL_VERSION VERSION_GREATER_EQUAL 1.1.1)
