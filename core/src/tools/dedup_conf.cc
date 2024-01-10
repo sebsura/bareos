@@ -30,82 +30,83 @@
 void print_config(const dedup::config::loaded_config& conf)
 {
   std::cout << "{\n";
-  std::cout << " \"version\" = " << conf.version << ",\n"
-            << " \"file_size\" = " << conf.file_size << ",\n"
-            << " \"section_alignment\" = " << conf.section_alignment << ",\n"
-            << " \"block_header_size\" = " << conf.info.block_header_size
+  std::cout << " \"version\": " << conf.version << ",\n"
+            << " \"file_size\": " << conf.file_size << ",\n"
+            << " \"section_alignment\": " << conf.section_alignment << ",\n"
+            << " \"block_header_size\": " << conf.info.block_header_size
             << ",\n"
-            << " \"section_header_size\" = " << conf.info.record_header_size
+            << " \"section_header_size\": " << conf.info.record_header_size
             << ",\n";
   {
-    std::cout << " \"blockfiles\" = [";
+    std::cout << " \"blockfiles\": [";
     bool first = true;
     for (auto& blockfile : conf.blockfiles) {
       if (first) {
         first = false;
       } else {
-        std::cout << "\n                 ";
+        std::cout << ",\n                 ";
       }
       std::cout << "{ "
-                << "Name: \"" << blockfile.path << "\", "
-                << "Start: " << blockfile.start_block << ", "
-                << "End: " << blockfile.start_block + blockfile.num_blocks
+                << "\"Name\": \"" << blockfile.path << "\", "
+                << "\"Start\": " << blockfile.start_block << ", "
+                << "\"End\": " << blockfile.start_block + blockfile.num_blocks
                 << " }";
     }
     std::cout << "],\n";
   }
   {
-    std::cout << " \"recordfiles\" = [";
+    std::cout << " \"recordfiles\": [";
     bool first = true;
     for (auto& recordfile : conf.recordfiles) {
       if (first) {
         first = false;
       } else {
-        std::cout << "\n                  ";
+        std::cout << ",\n                  ";
       }
       std::cout << "{ "
-                << "Name: \"" << recordfile.path << "\", "
-                << "Start: " << recordfile.start_record << ", "
-                << "End: " << recordfile.start_record + recordfile.num_records
-                << " }";
+                << "\"Name\": \"" << recordfile.path << "\", "
+                << "\"Start\": " << recordfile.start_record << ", "
+                << "\"End\": "
+                << recordfile.start_record + recordfile.num_records << " }";
     }
     std::cout << "],\n";
   }
   {
-    std::cout << " \"datafiles\" = [";
+    std::cout << " \"datafiles\": [";
     bool first = true;
     for (auto& datafile : conf.datafiles) {
       if (first) {
         first = false;
       } else {
-        std::cout << "\n                ";
+        std::cout << ",\n                ";
       }
       std::cout << "{ "
-                << "Name: \"" << datafile.path << "\", "
-                << "BytesUsed: " << datafile.data_used << ", "
-                << "BlockSize: " << datafile.block_size << ", "
-                << "ReadOnly: " << (datafile.read_only ? "yes" : "no") << ", "
-                << "Index: " << datafile.file_index << " }";
+                << "\"Name\": \"" << datafile.path << "\", "
+                << "\"BytesUsed\": " << datafile.data_used << ", "
+                << "\"BlockSize\": " << datafile.block_size << ", "
+                << "\"ReadOnly\": "
+                << (datafile.read_only ? "\"yes\"" : "\"no\"") << ", "
+                << "\"Index\": " << datafile.file_index << " }";
     }
-    std::cout << "]\n";
+    std::cout << "],\n";
   }
   {
-    std::cout << " \"unfinshed\" = [";
+    std::cout << " \"unfinished\": [";
     bool first = true;
     for (auto& unfinished : conf.unfinished) {
       if (first) {
         first = false;
       } else {
-        std::cout << "\n                ";
+        std::cout << ",\n                ";
       }
       std::cout << "{ "
-                << "VolSession: (" << unfinished.VolSessionId << ", "
-                << unfinished.VolSessionTime << "), "
-                << "FileIndex: " << unfinished.FileIndex << ", "
-                << "Stream: " << unfinished.Stream << ", "
-                << "DataIdx: " << unfinished.DataIdx << ", "
-                << "file_offset: " << unfinished.file_offset << ", "
-                << "size: " << unfinished.size << " }";
+                << "\"VolSession\": [" << unfinished.VolSessionId << ", "
+                << unfinished.VolSessionTime << "], "
+                << "\"FileIndex\": " << unfinished.FileIndex << ", "
+                << "\"Stream\": " << unfinished.Stream << ", "
+                << "\"DataIdx\": " << unfinished.DataIdx << ", "
+                << "\"file_offset\": " << unfinished.file_offset << ", "
+                << "\"size\": " << unfinished.size << " }";
     }
     std::cout << "]\n";
   }
