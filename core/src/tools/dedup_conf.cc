@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2023-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2023-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -86,6 +86,26 @@ void print_config(const dedup::config::loaded_config& conf)
                 << "BlockSize: " << datafile.block_size << ", "
                 << "ReadOnly: " << (datafile.read_only ? "yes" : "no") << ", "
                 << "Index: " << datafile.file_index << " }";
+    }
+    std::cout << "]\n";
+  }
+  {
+    std::cout << " \"unfinshed\" = [";
+    bool first = true;
+    for (auto& unfinished : conf.unfinished) {
+      if (first) {
+        first = false;
+      } else {
+        std::cout << "\n                ";
+      }
+      std::cout << "{ "
+                << "VolSession: (" << unfinished.VolSessionId << ", "
+                << unfinished.VolSessionTime << "), "
+                << "FileIndex: " << unfinished.FileIndex << ", "
+                << "Stream: " << unfinished.Stream << ", "
+                << "DataIdx: " << unfinished.DataIdx << ", "
+                << "file_offset: " << unfinished.file_offset << ", "
+                << "size: " << unfinished.size << " }";
     }
     std::cout << "]\n";
   }
