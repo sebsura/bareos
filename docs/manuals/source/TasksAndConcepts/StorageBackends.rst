@@ -392,7 +392,7 @@ in its storage. This should make it possible for your filesystem to deduplicate 
 For this to work correctly, The device option (see:
 :config:option:`sd/device/DeviceOptions`) 'BlockSize' needs to be set to the
 blocksize your filesystem uses to deduplicate.  It is also important that
-:config:option:`sd/device/MaximumBlockSize`\ is divisible by the chosen size.
+:config:option:`fd/client/MaximumNetworkBufferSize`\ is divisible by the chosen size.
 
 .. code-block:: bareosconfig
    :caption: dedup device with a 16k Blocksize
