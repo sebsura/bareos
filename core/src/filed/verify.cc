@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -30,6 +30,7 @@
 #include "include/filetypes.h"
 #include "include/streams.h"
 #include "filed/filed.h"
+#include "filed/filed_globals.h"
 #include "filed/filed_jcr_impl.h"
 #include "findlib/find.h"
 #include "findlib/attribs.h"
@@ -39,6 +40,7 @@
 #include "lib/bsock.h"
 #include "lib/util.h"
 #include "lib/base64.h"
+#include "lib/parse_conf.h"
 
 namespace filedaemon {
 
@@ -67,10 +69,11 @@ static bool calculate_file_chksum(JobControlRecord* jcr,
 void DoVerify(JobControlRecord* jcr)
 {
   jcr->setJobStatusWithPriorityCheck(JS_Running);
-  jcr->buf_size = DEFAULT_NETWORK_BUFFER_SIZE;
+  ResLocker _{my_config};
+  jcr->buf_size = me->max_network_buffer_size;
   if ((jcr->fd_impl->big_buf = (char*)malloc(jcr->buf_size)) == NULL) {
     Jmsg1(jcr, M_ABORT, 0, T_("Cannot malloc %d network read buffer\n"),
-          DEFAULT_NETWORK_BUFFER_SIZE);
+          jcr->buf_size);
   }
   SetFindOptions((FindFilesPacket*)jcr->fd_impl->ff, jcr->fd_impl->incremental,
                  jcr->fd_impl->since_time);
@@ -330,9 +333,11 @@ static int ReadDigest(BareosFilePacket* bfd,
                       DIGEST* digest,
                       JobControlRecord* jcr)
 {
-  char buf[DEFAULT_NETWORK_BUFFER_SIZE];
+  std::vector<char> buffer;
+  buffer.resize(jcr->buf_size ?: DEFAULT_READ_BUFFER_SIZE);
+  char* buf = buffer.data();
   int64_t n;
-  int64_t bufsiz = (int64_t)sizeof(buf);
+  int64_t bufsiz = buffer.size();
   FindFilesPacket* ff_pkt = (FindFilesPacket*)jcr->fd_impl->ff;
   uint64_t fileAddr = 0; /* file address */
 

@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -148,8 +148,8 @@ void InitWinAPIWrapper();
  */
 #define AUTH_TIMEOUT 60 * 10
 
-// Default network buffer size
-inline constexpr std::size_t DEFAULT_NETWORK_BUFFER_SIZE = 256 * 1024;
+// Default read buffer size
+inline constexpr std::size_t DEFAULT_READ_BUFFER_SIZE = 256 * 1024;
 
 // Tape label types -- stored in catalog
 #define B_BAREOS_LABEL 0
@@ -186,7 +186,7 @@ typedef void(HANDLER)();
 typedef int(INTHANDLER)();
 
 #ifndef S_ISLNK
-#  define S_ISLNK(m) (((m)&S_IFM) == S_IFLNK)
+#  define S_ISLNK(m) (((m) & S_IFM) == S_IFLNK)
 #endif
 
 /** Added by KES to deal with Win32 systems */

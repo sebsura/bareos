@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2007-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -656,75 +656,23 @@ int BareosSocketTCP::GetPeer(char* buf, socklen_t buflen)
  * Returns: false on failure
  *          true  on success
  */
-bool BareosSocketTCP::SetBufferSize(uint32_t size, int rw)
+bool BareosSocketTCP::SetBufferSize(uint32_t size, int)
 {
-  uint32_t dbuf_size, start_size;
+  if (size == 0) { return false; }
 
 #if defined(IP_TOS) && defined(IPTOS_THROUGHPUT)
-  int opt;
-
-  opt = IPTOS_THROUGHPUT;
+  int opt = IPTOS_THROUGHPUT;
   setsockopt(fd_, IPPROTO_IP, IP_TOS, (sockopt_val_t)&opt, sizeof(opt));
 #endif
 
-  if (size != 0) {
-    dbuf_size = size;
-  } else {
-    dbuf_size = DEFAULT_NETWORK_BUFFER_SIZE;
-  }
-  start_size = dbuf_size;
-  if ((msg = ReallocPoolMemory(msg, dbuf_size + 100)) == NULL) {
+  message_length = size;
+
+  if ((msg = ReallocPoolMemory(msg, message_length + 100)) == NULL) {
     Qmsg0(get_jcr(), M_FATAL, 0,
           T_("Could not malloc BareosSocket data buffer\n"));
     return false;
   }
 
-  /* If user has not set the size, use the OS default -- i.e. do not
-   * try to set it.  This allows sys admins to set the size they
-   * want in the OS, and BAREOS will comply. See bug #1493 */
-  if (size == 0) {
-    message_length = dbuf_size;
-    return true;
-  }
-
-  if (rw & BNET_SETBUF_READ) {
-    while ((dbuf_size > TAPE_BSIZE)
-           && (setsockopt(fd_, SOL_SOCKET, SO_RCVBUF, (sockopt_val_t)&dbuf_size,
-                          sizeof(dbuf_size))
-               < 0)) {
-      BErrNo be;
-      Qmsg1(get_jcr(), M_ERROR, 0, T_("sockopt error: %s\n"), be.bstrerror());
-      dbuf_size -= TAPE_BSIZE;
-    }
-    Dmsg1(200, "set network buffer size=%d\n", dbuf_size);
-    if (dbuf_size != start_size) {
-      Qmsg1(get_jcr(), M_WARNING, 0,
-            T_("Warning network buffer = %d bytes not max size.\n"), dbuf_size);
-    }
-  }
-  if (size != 0) {
-    dbuf_size = size;
-  } else {
-    dbuf_size = DEFAULT_NETWORK_BUFFER_SIZE;
-  }
-  start_size = dbuf_size;
-  if (rw & BNET_SETBUF_WRITE) {
-    while ((dbuf_size > TAPE_BSIZE)
-           && (setsockopt(fd_, SOL_SOCKET, SO_SNDBUF, (sockopt_val_t)&dbuf_size,
-                          sizeof(dbuf_size))
-               < 0)) {
-      BErrNo be;
-      Qmsg1(get_jcr(), M_ERROR, 0, T_("sockopt error: %s\n"), be.bstrerror());
-      dbuf_size -= TAPE_BSIZE;
-    }
-    Dmsg1(900, "set network buffer size=%d\n", dbuf_size);
-    if (dbuf_size != start_size) {
-      Qmsg1(get_jcr(), M_WARNING, 0,
-            T_("Warning network buffer = %d bytes not max size.\n"), dbuf_size);
-    }
-  }
-
-  message_length = dbuf_size;
   return true;
 }
 

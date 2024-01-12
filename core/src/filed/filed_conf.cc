@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2008 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -96,7 +96,7 @@ static ResourceItem cli_items[] = {
   {"Messages", CFG_TYPE_RES, ITEM(res_client, messages), R_MSGS, 0, NULL, NULL, NULL},
   {"SdConnectTimeout", CFG_TYPE_TIME, ITEM(res_client, SDConnectTimeout), 0, CFG_ITEM_DEFAULT, "1800" /* 30 minutes */, NULL, NULL},
   {"HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_client, heartbeat_interval), 0, CFG_ITEM_DEFAULT, "0", NULL, NULL},
-  {"MaximumNetworkBufferSize", CFG_TYPE_PINT32, ITEM(res_client, max_network_buffer_size), 0, 0, NULL, NULL, NULL},
+  {"MaximumNetworkBufferSize", CFG_TYPE_SIZE32, ITEM(res_client, max_network_buffer_size), 0, CFG_ITEM_DEFAULT, "256 KiB", NULL, NULL},
   {"PkiSignatures", CFG_TYPE_BOOL, ITEM(res_client, pki_sign), 0, CFG_ITEM_DEFAULT, "false", NULL, "Enable Data Signing."},
   {"PkiEncryption", CFG_TYPE_BOOL, ITEM(res_client, pki_encrypt), 0, CFG_ITEM_DEFAULT, "false", NULL, "Enable Data Encryption."},
   {"PkiKeyPair", CFG_TYPE_DIR, ITEM(res_client, pki_keypair_file), 0, 0, NULL, NULL,

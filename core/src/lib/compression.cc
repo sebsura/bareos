@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -493,9 +493,9 @@ bool SetupDecompressionBuffers(JobControlRecord* jcr,
 
   // Use the same buffer size to decompress all data.
   compress_buf_size = jcr->buf_size;
-  if (compress_buf_size < DEFAULT_NETWORK_BUFFER_SIZE) {
-    compress_buf_size = DEFAULT_NETWORK_BUFFER_SIZE;
-  }
+  // if (compress_buf_size < DEFAULT_NETWORK_BUFFER_SIZE) {
+  //   compress_buf_size = DEFAULT_NETWORK_BUFFER_SIZE;
+  // }
   *decompress_buf_size
       = compress_buf_size + 12 + ((compress_buf_size + 999) / 1000) + 100;
 

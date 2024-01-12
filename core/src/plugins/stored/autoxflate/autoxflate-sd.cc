@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -438,7 +438,7 @@ static bool SetupAutoDeflation(PluginContext* ctx, DeviceControlRecord* dcr)
   uint32_t compress_buf_size = 0;
   const char* compressorname = COMPRESSOR_NAME_UNSET;
 
-  if (jcr->buf_size == 0) { jcr->buf_size = DEFAULT_NETWORK_BUFFER_SIZE; }
+  if (jcr->buf_size == 0) { jcr->buf_size = DEFAULT_READ_BUFFER_SIZE; }
 
   if (!SetupCompressionBuffers(jcr, dcr->device_resource->autodeflate_algorithm,
                                &compress_buf_size)) {
@@ -531,7 +531,7 @@ static bool SetupAutoInflation(PluginContext*, DeviceControlRecord* dcr)
   JobControlRecord* jcr = dcr->jcr;
   uint32_t decompress_buf_size;
 
-  if (jcr->buf_size == 0) { jcr->buf_size = DEFAULT_NETWORK_BUFFER_SIZE; }
+  if (jcr->buf_size == 0) { jcr->buf_size = DEFAULT_READ_BUFFER_SIZE; }
 
   SetupDecompressionBuffers(jcr, &decompress_buf_size);
   if (decompress_buf_size > 0) {

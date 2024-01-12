@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2009 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -93,7 +93,7 @@ static ResourceItem store_items[] = {
   {"FdConnectTimeout", CFG_TYPE_TIME, ITEM(res_store, FDConnectTimeout), 0, CFG_ITEM_DEFAULT, "1800" /* 30 minutes */, NULL, NULL},
   {"HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_store, heartbeat_interval), 0, CFG_ITEM_DEFAULT, "0", NULL, NULL},
   {"CheckpointInterval", CFG_TYPE_TIME, ITEM(res_store, checkpoint_interval), 0, CFG_ITEM_DEFAULT, "0", NULL, NULL},
-  {"MaximumNetworkBufferSize", CFG_TYPE_PINT32, ITEM(res_store, max_network_buffer_size), 0, 0, NULL, NULL, NULL},
+  {"MaximumNetworkBufferSize", CFG_TYPE_SIZE32, ITEM(res_dev, max_network_buffer_size), 0, CFG_ITEM_DEFAULT, "256 KiB", NULL, NULL},
   {"ClientConnectWait", CFG_TYPE_TIME, ITEM(res_store, client_wait), 0, CFG_ITEM_DEFAULT, "1800" /* 30 minutes */, NULL, NULL},
   {"VerId", CFG_TYPE_STR, ITEM(res_store, verid), 0, 0, NULL, NULL, NULL},
   {"MaximumBandwidthPerJob", CFG_TYPE_SPEED, ITEM(res_store, max_bandwidth_per_job), 0, 0, NULL, NULL, NULL},
@@ -182,7 +182,7 @@ static ResourceItem dev_items[] = {
       "300" /* 5 minutes */, NULL, NULL},
   {"MaximumOpenWait", CFG_TYPE_TIME, ITEM(res_dev, max_open_wait), 0, CFG_ITEM_DEFAULT, "300" /* 5 minutes */, NULL, NULL},
   {"MaximumOpenVolumes", CFG_TYPE_PINT32, ITEM(res_dev, max_open_vols), 0, CFG_ITEM_DEFAULT, "1", NULL, NULL},
-  {"MaximumNetworkBufferSize", CFG_TYPE_PINT32, ITEM(res_dev, max_network_buffer_size), 0, 0, NULL, NULL, NULL},
+  {"MaximumNetworkBufferSize", CFG_TYPE_SIZE32, ITEM(res_dev, max_network_buffer_size), 0, CFG_ITEM_DEFAULT, "256 KiB", NULL, NULL},
   {"VolumePollInterval", CFG_TYPE_TIME, ITEM(res_dev, vol_poll_interval), 0, CFG_ITEM_DEFAULT, "300" /* 5 minutes */, NULL, NULL},
   {"MaximumRewindWait", CFG_TYPE_TIME, ITEM(res_dev, max_rewind_wait), 0, CFG_ITEM_DEFAULT,
       "300" /* 5 minutes */, NULL, NULL},
