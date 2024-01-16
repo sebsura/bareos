@@ -192,7 +192,7 @@ static void Win32ConvCleanupCache(void* arg)
   delete tcc;
 }
 
-static class PathConversionCache {
+class PathConversionCache {
  public:
   PathConversionCache()
   {
@@ -242,52 +242,9 @@ static class PathConversionCache {
   pthread_key_t key;
   int status;
   thread_conversion_cache* tcc = nullptr;
-
-  lock_mutex(tsd_mutex);
-  if (!cc_tsd_initialized) {
-    status = pthread_key_create(&conversion_cache_key, Win32ConvCleanupCache);
-    if (status != 0) {
-      unlock_mutex(tsd_mutex);
-      goto bail_out;
-    }
-    cc_tsd_initialized = true;
-  }
-  unlock_mutex(tsd_mutex);
-
-  // Create a new cache.
-  tcc = new thread_conversion_cache{};
-
-  status = pthread_setspecific(conversion_cache_key, (void*)tcc);
-  if (status != 0) { goto bail_out; }
-
-  Dmsg1(debuglevel,
-        "Win32ConvInitCache: Setup of thread specific cache at address %p\n",
-        tcc);
-
-  return tcc;
-
-bail_out:
-  if (tcc) {
-    delete tcc;
-  }
-
-  return NULL;
-}
+} path_conversion_cache;
 
 void Win32ResetConversionCache() { path_conversion_cache.ResetThreadLocal(); }
-
-thread_conversion_cache* Win32GetCache()
-{
-  thread_conversion_cache* tcc = NULL;
-
-  lock_mutex(tsd_mutex);
-  if (cc_tsd_initialized) {
-    tcc = (thread_conversion_cache*)pthread_getspecific(conversion_cache_key);
-  }
-  unlock_mutex(tsd_mutex);
-
-  return tcc;
-}
 
 // Special flag used to enable or disable Bacula compatible win32 encoding.
 static bool win32_bacula_compatible = true;
@@ -714,10 +671,9 @@ std::wstring make_win32_path_UTF8_2_wchar(std::string_view utf8)
   /* If we find the utf8 string in cache, we use the cached ucs2 version.
    * we compare the stringlength first (quick check) and then compare the
    * content. */
-  tcc = Win32GetCache();
-  if (!tcc) {
-    tcc = Win32ConvInitCache();
-  } else if (tcc->utf8 == utf8) {
+  tcc = path_conversion_cache.GetThreadLocal();
+  if (tcc && tcc->utf8 == utf8) {
+    // this creates a copy
     return tcc->utf16;
   }
 
