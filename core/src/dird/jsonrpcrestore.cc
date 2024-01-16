@@ -94,8 +94,8 @@ Json::Value InititiateRestore(const std::string& clientname,
   restore_resources.rx.ClientName = clientname;
   restore_resources.rx.RestoreClientName = clientname;
 
-  result["Restorable files"] = restore_resources.tree.FileCount;
-  result["current directory"] = cwd;
+  result["filecount"] = restore_resources.tree.FileCount;
+  result["cwd"] = cwd;
 
   restore_resources.state = RestoreState::start_select_files;
   return result;
@@ -132,7 +132,7 @@ Json::Value CdCmd(const std::string& path, TreeContext* tree)
     tree->node = node;
   }
 
-  result["current directory"] = std::string(tree_getpath(tree->node));
+  result["cwd"] = std::string(tree_getpath(tree->node));
   return result;
 }
 
@@ -211,7 +211,7 @@ Json::Value LsCmd(int limit,
       }
 
       Json::Value file;
-      file["fileindex"] = node->FileIndex;
+      file["index"] = node->FileIndex;
       file["name"] = filename;
       file["tag"] = tag;
       file["type"] = filetype;
@@ -222,7 +222,7 @@ Json::Value LsCmd(int limit,
     }
   }
 
-  result["file list"] = filelist;
+  result["filelist"] = filelist;
   return result;
 }
 
@@ -259,7 +259,7 @@ Json::Value LsCount(const std::string& path, TreeContext* tree)
     foreach_child (node, ls_node) { count++; }
   }
 
-  result["file count"] = count;
+  result["filecount"] = count;
   return result;
 }
 
