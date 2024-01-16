@@ -63,7 +63,7 @@ else()
   add_sd_backend(bareossd-dedup)
   target_sources(
     bareossd-dedup PRIVATE dedup_device.cc dedup/device_options.cc
-                           dedup/volume.cc util.cc
+                           dedup/volume.cc dedup/config.cc util.cc
   )
   target_link_libraries(
     bareossd-dedup PRIVATE $<$<NOT:$<PLATFORM_ID:FreeBSD>>:stdc++fs>

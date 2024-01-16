@@ -35,15 +35,10 @@
 
 #include "lib/network_order.h"
 
+#include "config.h"
+
 namespace dedup {
 namespace {
-using net_u64 = network_order::network<std::uint64_t>;
-using net_i64 = network_order::network<std::int64_t>;
-using net_u32 = network_order::network<std::uint32_t>;
-using net_i32 = network_order::network<std::int32_t>;
-using net_u16 = network_order::network<std::uint16_t>;
-using net_u8 = std::uint8_t;
-
 struct open_context {
   bool read_only;
   int flags;
@@ -80,38 +75,6 @@ struct save_state {
   save_state& operator=(save_state&&) = default;
   save_state(const save_state&) = delete;
   save_state& operator=(const save_state&) = delete;
-};
-
-struct config {
-  struct block_file {
-    std::string relpath;
-    std::uint64_t Start;
-    std::uint64_t End;
-    std::uint32_t Idx;
-  };
-
-  struct part_file {
-    std::string relpath;
-    std::uint64_t Start;
-    std::uint64_t End;
-    std::uint32_t Idx;
-  };
-
-  struct data_file {
-    std::string relpath;
-    std::uint64_t Size;
-    std::uint64_t BlockSize;
-    std::uint32_t Idx;
-    bool ReadOnly;
-  };
-
-  std::vector<block_file> bfiles;
-  std::vector<part_file> pfiles;
-  std::vector<data_file> dfiles;
-
-  static std::vector<char> serialize(const config& conf);
-  static config deserialize(const char* data, std::size_t size);
-  static config make_default(std::uint64_t BlockSize);
 };
 
 class data {
