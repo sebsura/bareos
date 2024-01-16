@@ -36,6 +36,14 @@ constexpr const char* bstring = "block_files";
 constexpr const char* pstring = "part_files";
 constexpr const char* dstring = "data_files";
 
+constexpr const char* spath = "path";
+constexpr const char* ssize = "size";
+constexpr const char* sbsize = "block_size";
+constexpr const char* sidx = "index";
+constexpr const char* srdonly = "read_only";
+constexpr const char* sstart = "start";
+constexpr const char* send = "end";
+
 std::vector<char> ReadInput()
 {
   return std::vector<char>{std::istreambuf_iterator<char>(std::cin),
@@ -63,10 +71,10 @@ template <>
 dedup::config::block_file LoadJson<dedup::config::block_file>(json_t* obj)
 {
   if (!json_is_object(obj)) { exit(1); }
-  auto* path = json_object_get(obj, "path");
-  auto* start = json_object_get(obj, "start");
-  auto* end = json_object_get(obj, "end");
-  auto* idx = json_object_get(obj, "index");
+  auto* path = json_object_get(obj, spath);
+  auto* start = json_object_get(obj, sstart);
+  auto* end = json_object_get(obj, send);
+  auto* idx = json_object_get(obj, sidx);
 
   if (!path || !json_is_string(path) || !start || !json_is_integer(start)
       || !end || !json_is_integer(end) || !idx || !json_is_integer(idx)) {
@@ -87,10 +95,10 @@ template <>
 dedup::config::part_file LoadJson<dedup::config::part_file>(json_t* obj)
 {
   if (!json_is_object(obj)) { exit(1); }
-  auto* path = json_object_get(obj, "path");
-  auto* start = json_object_get(obj, "start");
-  auto* end = json_object_get(obj, "end");
-  auto* idx = json_object_get(obj, "index");
+  auto* path = json_object_get(obj, spath);
+  auto* start = json_object_get(obj, sstart);
+  auto* end = json_object_get(obj, send);
+  auto* idx = json_object_get(obj, sidx);
 
   if (!path || !json_is_string(path) || !start || !json_is_integer(start)
       || !end || !json_is_integer(end) || !idx || !json_is_integer(idx)) {
@@ -111,11 +119,12 @@ template <>
 dedup::config::data_file LoadJson<dedup::config::data_file>(json_t* obj)
 {
   if (!json_is_object(obj)) { exit(1); }
-  auto* path = json_object_get(obj, "path");
-  auto* size = json_object_get(obj, "size");
-  auto* block_size = json_object_get(obj, "block_size");
-  auto* idx = json_object_get(obj, "index");
-  auto* read_only = json_object_get(obj, "read_only");
+
+  auto* path = json_object_get(obj, spath);
+  auto* size = json_object_get(obj, ssize);
+  auto* block_size = json_object_get(obj, sbsize);
+  auto* idx = json_object_get(obj, sidx);
+  auto* read_only = json_object_get(obj, srdonly);
 
   if (!path || !json_is_string(path) || !size || !json_is_integer(size)
       || !block_size || !json_is_integer(block_size) || !idx
@@ -193,10 +202,10 @@ json_t* dump_json<dedup::config::block_file>(
 {
   json_t* obj = json_object();
 
-  if (json_object_set_new(obj, "path", json_string(bf.relpath.c_str()))
-      || json_object_set_new(obj, "start", json_integer(bf.Start))
-      || json_object_set_new(obj, "end", json_integer(bf.End))
-      || json_object_set_new(obj, "index", json_integer(bf.Idx))) {
+  if (json_object_set_new(obj, spath, json_string(bf.relpath.c_str()))
+      || json_object_set_new(obj, sstart, json_integer(bf.Start))
+      || json_object_set_new(obj, send, json_integer(bf.End))
+      || json_object_set_new(obj, sidx, json_integer(bf.Idx))) {
     exit(1);
   }
 
@@ -207,10 +216,10 @@ json_t* dump_json<dedup::config::part_file>(const dedup::config::part_file& pf)
 {
   json_t* obj = json_object();
 
-  if (json_object_set_new(obj, "path", json_string(pf.relpath.c_str()))
-      || json_object_set_new(obj, "start", json_integer(pf.Start))
-      || json_object_set_new(obj, "end", json_integer(pf.End))
-      || json_object_set_new(obj, "index", json_integer(pf.Idx))) {
+  if (json_object_set_new(obj, spath, json_string(pf.relpath.c_str()))
+      || json_object_set_new(obj, sstart, json_integer(pf.Start))
+      || json_object_set_new(obj, send, json_integer(pf.End))
+      || json_object_set_new(obj, sidx, json_integer(pf.Idx))) {
     exit(1);
   }
 
@@ -221,11 +230,11 @@ json_t* dump_json<dedup::config::data_file>(const dedup::config::data_file& df)
 {
   json_t* obj = json_object();
 
-  if (json_object_set_new(obj, "path", json_string(df.relpath.c_str()))
-      || json_object_set_new(obj, "size", json_integer(df.Size))
-      || json_object_set_new(obj, "block_size", json_integer(df.BlockSize))
-      || json_object_set_new(obj, "index", json_integer(df.Idx))
-      || json_object_set_new(obj, "read_only", json_boolean(df.ReadOnly))) {
+  if (json_object_set_new(obj, spath, json_string(df.relpath.c_str()))
+      || json_object_set_new(obj, ssize, json_integer(df.Size))
+      || json_object_set_new(obj, sbsize, json_integer(df.BlockSize))
+      || json_object_set_new(obj, sidx, json_integer(df.Idx))
+      || json_object_set_new(obj, srdonly, json_boolean(df.ReadOnly))) {
     exit(1);
   }
 
@@ -248,9 +257,9 @@ json_t* conf_to_json(const dedup::config& conf)
   json_t* pfiles = DumpJsonArray(conf.pfiles);
   json_t* dfiles = DumpJsonArray(conf.dfiles);
 
-  if (json_object_set_new(json, "block_files", bfiles)
-      || json_object_set_new(json, "part_files", pfiles)
-      || json_object_set_new(json, "data_files", dfiles)) {
+  if (json_object_set_new(json, bstring, bfiles)
+      || json_object_set_new(json, pstring, pfiles)
+      || json_object_set_new(json, dstring, dfiles)) {
     exit(1);
   }
   return json;
