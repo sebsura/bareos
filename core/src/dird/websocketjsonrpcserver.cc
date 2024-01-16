@@ -43,7 +43,7 @@ void WebsocketJsonRpcServer::on_open(wsasioserver* wsserver,
 {
   try {
     wsserver->send(hdl,
-                   "welcome to the websocket console! enter you command below:",
+                   "{ \"jsonrpc\": \"2.0\", \"notification\": \"jsonrpc server ready\"}",
                    websocketpp::frame::opcode::text);
   } catch (websocketpp::exception const& e) {
     std::cout << "Operation failed because: "
