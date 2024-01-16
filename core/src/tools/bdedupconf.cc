@@ -21,20 +21,17 @@
 
 #include "lib/cli.h"
 #include "lib/version.h"
+#include "stored/backends/dedup/config.h"
 
 #include <jansson.h>
-
-// #include "stored/backends/dedup/volume.h"
-
-// void print_config(dedup::config& cfg)
-// {
-
-// }
-
 #include <iostream>
 #include <streambuf>
 #include <string>
 #include <filesystem>
+#include <fstream>
+#include <vector>
+
+// WRITING
 
 std::string ReadInput()
 {
@@ -59,6 +56,16 @@ void WriteConfig(const char* file, json_t* root)
 {
   auto* str = json_dumps(root, 0);
   std::cout << "Dumping into " << file << ":\n" << str << std::endl;
+}
+
+/// READING
+
+std::vector<char> LoadFile(const char* path)
+{
+  std::ifstream file(path);
+
+  return std::vector<char>(std::istreambuf_iterator<char>(file),
+                           std::istreambuf_iterator<char>());
 }
 
 int main(int argc, const char* argv[])
@@ -92,6 +99,8 @@ int main(int argc, const char* argv[])
     if (root) { WriteConfig(conf.c_str(), root); }
   } else if (read->parsed()) {
     std::cout << "reading from " << volume << std::endl;
+    std::vector s = LoadFile(conf.c_str());
+    auto conf = dedup::config::deserialize(s.data(), s.size());
   }
 
   return 0;

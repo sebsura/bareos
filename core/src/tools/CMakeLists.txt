@@ -76,7 +76,7 @@ if(NOT client-only)
   )
   list(APPEND TOOLS_SBIN testfind)
 
-  add_executable(bdedup-conf bdedupconf.cc)
+  add_executable(bdedup-conf bdedupconf.cc ../stored/backends/dedup/config.cc)
   target_link_libraries(bdedup-conf CLI11::CLI11 Jansson::Jansson bareos)
 endif()
 
