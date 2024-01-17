@@ -31,7 +31,7 @@
 #include <vector>
 #include "fvec.h"
 #include "util.h"
-#include "lib/util.h"
+#include "lib/hash.h"
 
 #include "lib/network_order.h"
 

@@ -23,14 +23,23 @@
 #define BAREOS_STORED_BACKENDS_DEDUP_UTIL_H_
 
 #include <cstdint>
+#include <stdexcept>
+
 #include "lib/network_order.h"
-#include "include/bareos.h"
 
 extern "C" {
 #include <unistd.h>
 }
 
 namespace dedup {
+
+#define DASSERT(expr)                                             \
+  do {                                                            \
+    if (auto x = (expr); !x) {                                    \
+      throw std::logic_error("Failed assertion: " #expr " res = " \
+                             + std::to_string(x));                \
+    }                                                             \
+  } while (0)
 
 using net_u64 = network_order::network<std::uint64_t>;
 using net_i64 = network_order::network<std::int64_t>;
@@ -48,7 +57,7 @@ class chunked_writer {
 
   bool write(const void* mem, std::size_t size)
   {
-    ASSERT(begin <= end);
+    DASSERT(begin <= end);
     if (static_cast<std::size_t>(end - begin) < size) { return false; }
 
     std::memcpy(begin, mem, size);
@@ -74,7 +83,7 @@ class chunked_reader {
 
   const char* get(std::size_t size)
   {
-    ASSERT(begin <= end);
+    DASSERT(begin <= end);
     if (static_cast<std::size_t>(end - begin) < size) { return nullptr; }
 
     begin += size;
@@ -83,7 +92,7 @@ class chunked_reader {
 
   bool read(void* mem, std::size_t size)
   {
-    ASSERT(begin <= end);
+    DASSERT(begin <= end);
     if (static_cast<std::size_t>(end - begin) < size) { return false; }
 
     std::memcpy(mem, begin, size);
@@ -151,6 +160,8 @@ struct raii_fd {
 
   int fd{-1};
 };
+
+#undef DASSERT
 
 };  // namespace dedup
 

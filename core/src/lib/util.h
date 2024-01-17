@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -33,6 +33,7 @@
 
 #include "lib/ascii_control_characters.h"
 #include "lib/message.h"
+#include "lib/hash.h"
 
 class BareosSocket;
 class ConfigurationParser;
@@ -89,14 +90,6 @@ std::string CreateDelimitedStringForSqlQueries(
 std::string TPAsString(const std::chrono::system_clock::time_point& tp);
 regex_t* StringToRegex(const char* input);
 void to_lower(std::string& s);
-
-// see N3876 / boost::hash_combine
-inline std::size_t hash_combine(std::size_t seed, std::size_t hash)
-{
-  // 0x9e3779b9 is approximately 2^32 / phi (where phi is the golden ratio)
-  std::size_t changed = hash + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-  return seed ^ changed;
-}
 
 // fixme(ssura): replace by std::expected<T, PoolMem> (C++23)
 //               or std::expected<T, std::string>

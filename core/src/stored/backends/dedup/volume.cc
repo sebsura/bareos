@@ -98,7 +98,8 @@ std::vector<char> LoadFile(int fd)
     auto res = read(fd, loaded.data() + current_size, next_size - current_size);
 
     if (res < 0) {
-      std::string errctx = "while reading";
+      std::string errctx
+          = "Could not load file (fd = " + std::to_string(fd) + ")";
       throw std::system_error(errno, std::generic_category(), errctx);
     } else if (res == 0) {
       break;
@@ -338,7 +339,12 @@ void volume::AbortBlock(save_state s)
 {
   backing->blocks.resize_uninitialized(s.block_size);
   backing->records.resize_uninitialized(s.record_size);
-  ASSERT(s.data_sizes.size() == backing->datafiles.size());
+
+  if (s.data_sizes.size() != backing->datafiles.size()) {
+    throw std::logic_error("Trying to abort a bad save state. ("
+                           + std::to_string(s.data_sizes.size()) + " != "
+                           + std::to_string(backing->datafiles.size()) + ")");
+  }
 
   for (std::size_t i = 0; i < s.data_sizes.size(); ++i) {
     backing->datafiles[i].resize_uninitialized(s.data_sizes[i]);
