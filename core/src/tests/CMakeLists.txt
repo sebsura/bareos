@@ -106,7 +106,7 @@ macro(bareos_add_test BAREOS_ADD_TEST_TESTNAME)
   # executed by systemtests with which they have dependencies.
   set(options SKIP_GTEST DISABLE)
   set(multiValueArgs ADDITIONAL_SOURCES LINK_LIBRARIES COMPILE_DEFINITIONS
-                     COMPILE_OPTIONS
+                     COMPILE_OPTIONS ADDITIONAL_INCLUDE_DIRS
   )
   cmake_parse_arguments(
     BAREOS_ADD_TEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN}
@@ -124,6 +124,11 @@ macro(bareos_add_test BAREOS_ADD_TEST_TESTNAME)
   )
   target_compile_options(
     ${BAREOS_ADD_TEST_TESTNAME} PRIVATE ${BAREOS_ADD_TEST_COMPILE_OPTIONS}
+  )
+
+  target_include_directories(
+    ${BAREOS_ADD_TEST_TESTNAME}
+    PRIVATE ${BAREOS_ADD_TEST_ADDITIONAL_INCLUDE_DIRS}
   )
   if(BAREOS_ADD_TEST_DISABLE)
     set(disable "DISABLE")
