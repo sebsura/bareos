@@ -27,6 +27,7 @@
 extern "C" {
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <unistd.h>
 }
 
 template <typename T> class fvec {
