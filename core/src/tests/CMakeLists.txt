@@ -522,6 +522,12 @@ bareos_add_test(
 
 if(NOT HAVE_WIN32)
   bareos_add_test(fvec LINK_LIBRARIES GTest::gtest_main)
+  bareos_add_test(
+    dedup
+    LINK_LIBRARIES GTest::gtest_main
+    ADDITIONAL_SOURCES "../stored/backends/dedup/volume.cc"
+                       ADDITIONAL_INCLUDE_DIRS "../stored/backends/dedup"
+  )
 endif()
 
 bareos_add_test(
