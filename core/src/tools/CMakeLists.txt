@@ -78,6 +78,9 @@ if(NOT client-only)
 
   add_executable(bdedup-conf bdedupconf.cc ../stored/backends/dedup/config.cc)
   target_link_libraries(bdedup-conf CLI11::CLI11 Jansson::Jansson bareos)
+
+  add_executable(drydedup drydedup.cc)
+  target_link_libraries(drydedup bareos CLI11::CLI11 ${OPENSSL_LIBRARIES})
 endif()
 
 install(TARGETS ${TOOLS_BIN} DESTINATION "${bindir}")
