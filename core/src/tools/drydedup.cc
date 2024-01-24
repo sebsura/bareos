@@ -183,9 +183,13 @@ int main(int argc, char* argv[])
 
   std::size_t blocksize = 1 << 16;
   std::size_t cutoff = 0;
+  ssize_t maxsize = std::numeric_limits<ssize_t>::max();
   std::vector<std::string> files;
   std::string file_list;
   std::map<std::string, std::size_t> unit_map = {{"k", 1024}};
+  bool mashine_readable;
+  app.add_flag("-m,--mashine-readable", mashine_readable);
+  app.add_option("-s,--max-size", maxsize);
   app.add_option("-b,--blocksize", blocksize)
       ->transform(CLI::AsNumberWithUnit(unit_map));
   app.add_option("-c,--cut-off", cutoff)
@@ -236,6 +240,8 @@ int main(int argc, char* argv[])
       continue;
     }
 
+    if (size > maxsize) { size = maxsize; }
+
     data.resize(size);
     auto num_read = std::fread(data.data(), 1, data.size(), f);
     std::fclose(f);
@@ -254,10 +260,16 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  std::cout << "From " << num_total_blocks << " ("
-            << human_size(num_total_blocks, blocksize) << ")"
-            << " to " << unique_blocks.size() << " ("
-            << human_size(unique_blocks.size(), blocksize) << ")" << std::endl;
+  if (mashine_readable) {
+    std::cout << num_total_blocks << std::endl
+              << unique_blocks.size() << std::endl;
+  } else {
+    std::cout << "From " << num_total_blocks << " ("
+              << human_size(num_total_blocks, blocksize) << ")"
+              << " to " << unique_blocks.size() << " ("
+              << human_size(unique_blocks.size(), blocksize) << ")"
+              << std::endl;
+  }
 
   return 0;
 }
