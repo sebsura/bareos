@@ -38,19 +38,28 @@ JobName=backup-bareos-fd
 #shellcheck source=functions
 . functions
 
+VolName=TestVolume001
+
 start_test
 
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out /dev/null
 messages
-@$out $log_home/create-backup.out
-setdebug level=200 all
-label volume=TestVolume001 storage=File pool=Full
-run job=$JobName yes
+@$out $log_home/create-full-1.out
+setdebug level=200 all trace=1
+label volume=$VolName storage=File pool=Full
+run job=$JobName yes level=Full
+wait
 status director
 status client
 status storage=File
+messages
+@$out $log_home/create-full-2.out
+run job=$JobName yes level=Full
 wait
+status director
+status client
+status storage=File
 messages
 @$out $log_home/jobs.out
 list jobs
@@ -60,19 +69,53 @@ END_OF_DATA
 run_bconsole
 check_for_zombie_jobs storage=File
 
-# technically these are post conditions for this test
-check_preconditions
+dedupconf=$(tool "bdedup-conf")
 
-expect_grep "No prior Full backup Job record found." \
-	    "$log_home/create-backup.out" \
-	    "Bad initial state. No backup should exist yet."
+blocksize=512
+config=$($dedupconf read < "storage/$VolName/config")
+sizes_ok=$(echo "$config" | jq ".data_files | map(.block_size) | sort | . == [1, $blocksize]")
+
+if ! [[ "$sizes_ok" = "true" ]]; then
+    blocksizes="$(echo "$config" | jq -r ".data_files | map(.block_size) | sort | @sh")"
+    echo "Bad sizes in config: $blocksizes; expected: 1 $blocksize"
+    estat=1
+fi
+
+drydedup=$(tool "drydedup")
+dedupable=$(echo "$config" | jq '.data_files | map(select(.block_size != 1))')
+
+i=0
+while :
+do
+    info=$(echo "$dedupable" | jq ".[$i]")
+    if [[ "$info" = "null" ]]; then
+	break
+    fi
+    file="storage/$VolName/$(echo "$info" | jq -r '.path')"
+    bs=$(echo "$info" | jq '.block_size')
+    size=$(echo "$info" | jq '.size')
+    result=($($drydedup "$file" -b "$bs" -m -s "$size"))
+    if ! ((result[0] >= result[1] * 2)); then
+	echo -e "$file: Did not dedup enough (from ${result[0]} to ${result[1]} is less than 50%)." >&2
+	estat=1
+    fi
+    i=$((i + 1))
+done
 
 expect_grep "Start Backup JobId 1" \
-	    "$log_home/create-backup.out" \
+	    "$log_home/create-full-1.out" \
 	    "Did not create backup job with id 1."
 
 expect_grep "Backup OK" \
-	    "$log_home/create-backup.out" \
+	    "$log_home/create-full-1.out" \
+	    "Backup was not created correctly."
+
+expect_grep "Start Backup JobId 2" \
+	    "$log_home/create-full-2.out" \
+	    "Did not create backup job with id 1."
+
+expect_grep "Backup OK" \
+	    "$log_home/create-full-2.out" \
 	    "Backup was not created correctly."
 
 end_test
