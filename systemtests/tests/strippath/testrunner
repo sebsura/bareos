@@ -68,7 +68,7 @@ messages
 @$out $tmp/file-list.out
 list files jobid=1
 @$out $tmp/restore.out
-restore client=bareos-fd fileset=SelfTestStripPath where=$tmp/bareos-restores/${BackupDirectory} select all done yes
+restore client=bareos-fd fileset=SelfTest where=$tmp/bareos-restores/${BackupDirectory} select all done yes
 wait
 messages
 quit
@@ -83,7 +83,5 @@ expect_grep "Start Restore Job" \
 	    "Required restore job was not started."
 
 check_restore_diff "${BackupDirectory}"
-
-#exit 1
 
 end_test
