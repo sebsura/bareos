@@ -318,22 +318,11 @@ macro(link_binaries_to_test_to_current_sbin_dir_with_individual_filename)
     )
   endif()
   # create_symlink("${CMAKE_SOURCE_DIR}/cat-script" "${CURRENT_SBIN_DIR}/bsmtp")
-  file(
-    GENERATE
-    OUTPUT "${CURRENT_SBIN_DIR}/bsmtp"
-    CONTENT
-      [=[
-    #!/bin/bash
-    cat -
-]=]
-      FILE_PERMISSIONS
-      OWNER_READ
-      OWNER_WRITE
-      OWNER_EXECUTE
-      GROUP_READ
-      GROUP_EXECUTE
-      WORLD_READ
-      WORLD_EXECUTE
+  # file( GENERATE OUTPUT "${CURRENT_SBIN_DIR}/bsmtp" CONTENT [=[ !/bin/bash cat
+  # - ]=] FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ
+  # GROUP_EXECUTE WORLD_READ WORLD_EXECUTE )
+  create_symlink(
+    "${CURRENT_SBIN_DIR}/bsmtp-${TEST_NAME}" "${CURRENT_SBIN_DIR}/bsmtp"
   )
 endmacro()
 
