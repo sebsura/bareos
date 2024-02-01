@@ -38,29 +38,30 @@ while frame:
       frame.select()
       func = frame.function()
       #val = frame.read_var(func)
-      block = frame.block()
 
       variables = []
       arguments = []
       global_vars = []
       static_vars = []
-      while block:
-            for symbol in block:
-                  if symbol.is_variable:
-                        variables.append(symbol)
-                  elif symbol.is_argument:
-                        arguments.append(symbol)
+      try:
+            block = frame.block()
+            while block:
+                  for symbol in block:
+                        if symbol.is_variable:
+                              variables.append(symbol)
+                        elif symbol.is_argument:
+                              arguments.append(symbol)
 
-            gblock = frame.block().global_block
-            sblock = frame.block().static_block
+                  gblock = frame.block().global_block
+                  sblock = frame.block().static_block
 
-            for symbol in gblock:
-                  if symbol.is_variable:
-                        global_vars.append(symbol)
+                  for symbol in gblock:
+                        if symbol.is_variable:
+                              global_vars.append(symbol)
 
-            for symbol in sblock:
-                  if symbol.is_variable:
-                        static_vars.append(symbol)
+                  for symbol in sblock:
+                        if symbol.is_variable:
+                              static_vars.append(symbol)
 
             block = block.superblock
 
