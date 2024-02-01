@@ -105,13 +105,13 @@ def backtrace():
 
       first_frame.select()
 
-current_thread = gdb.selected_thread()
-for thread in gdb.selected_inferior().threads():
-      thread.switch()
-      print("{}Thread {}{}".format("(Current) " if thread == current_thread else "",
-                                          thread.num,
-                                         " ({})".format(thread.details) if thread.details else ""))
-      backtrace()
+# current_thread = gdb.selected_thread()
+# for thread in gdb.selected_inferior().threads():
+      # thread.switch()
+      # print("{}Thread {}{}".format("(Current) " if thread == current_thread else "",
+                                          # thread.num,
+                                         # " ({})".format(thread.details) if thread.details else ""))
+backtrace()
 end
 detach
 quit
