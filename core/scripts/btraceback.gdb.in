@@ -23,12 +23,17 @@ def format_args(frame, args):
 def read_lines(path, start, end):
       lines = []
       current = 1
-      with open(path, 'r') as f:
-            while current <= end:
-                  line = f.readline()
-                  if current >= start:
-                        lines.append([current, line])
-                  current += 1
+
+      try:
+            with open(path, 'r') as f:
+                  while current <= end:
+                        line = f.readline()
+                        if current >= start:
+                              lines.append([current, line])
+                        current += 1
+      except:
+            pass
+
       return lines
 
 def backtrace():
