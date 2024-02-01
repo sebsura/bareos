@@ -76,11 +76,14 @@ def backtrace():
 
 
             func = frame.function()
-            if func:
-                  print("#{}  0x{:016X} in {} ({}) at {}:{}".format(#frame.level(),
-                        level, frame.pc(), func.print_name,
+            sal = frame.find_sal()
+            sym = sal.symtab
+            if func and sym:
+                  print("#{}  0x{:016X} in {}//{}//{} ({}) at {}:{}//{}:{}".format(#frame.level(),
+                        level, frame.pc(), func.name, func.linkage_name, func.print_name,
                         format_args(frame, arguments),
-                        func.symtab.filename, func.line))
+                        func.symtab.filename, func.line,
+                        sym.filename, sal.line))
             else:
                   print("#{}  0x{:016X} in <unknown> ({})", #frame.level(),
                         level, frame.pc(), format_args(frame, arguments))
@@ -94,8 +97,6 @@ def backtrace():
             for var in static_vars:
                   print("{} = {}".format(var.print_name, var.value(frame)))
             print("WHERE:")
-            sal = frame.find_sal()
-            sym = sal.symtab
             if sym:
                   linum = sal.line
                   path = sym.fullname()
