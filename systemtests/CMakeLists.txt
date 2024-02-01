@@ -277,8 +277,8 @@ if(ENABLE_WEBUI_SELENIUM_TEST)
     message(STATUS "Configuring test: ${WEBUI_TEST_PREFIX}${TEST_NAME}")
 
     prepare_test(${TEST_NAME})
-    prepare_testdir_for_daemon_run()
-    # split WEBUI_TEST_NAME into PROFILE and TESTNAME
+    # this already happens above prepare_testdir_for_daemon_run() split
+    # WEBUI_TEST_NAME into PROFILE and TESTNAME
     string(REPLACE "-" ";" SELENIUM_TESTCOMPONENTS ${TEST_NAME})
     # "webui-admin-restore"
     list(GET SELENIUM_TESTCOMPONENTS 0 BAREOS_WEBUI_PROFILE)
