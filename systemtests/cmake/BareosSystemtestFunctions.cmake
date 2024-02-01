@@ -298,6 +298,9 @@ macro(link_binaries_to_test_to_current_sbin_dir_with_individual_filename)
     create_symlink(${${binary_name_to_test_upcase}} ${${bareos_XXX_binary}})
   endforeach()
   create_symlink(${scriptdir}/btraceback ${CURRENT_SBIN_DIR}/btraceback)
+  # bsmtp is supposed to be installed both in bin/ and sbin/
+  create_symlink("${CMAKE_BINARY_DIR}/core/src/tools/bsmtp" "${sbindir}/bsmtp")
+  create_symlink("${CMAKE_BINARY_DIR}/core/src/tools/bsmtp" "${bindir}/bsmtp")
 
   if(TARGET bareos_vadp_dumper)
     if(RUN_SYSTEMTESTS_ON_INSTALLED_FILES)
@@ -317,13 +320,6 @@ macro(link_binaries_to_test_to_current_sbin_dir_with_individual_filename)
       "${CURRENT_SBIN_DIR}/bareos_vadp_dumper"
     )
   endif()
-  # create_symlink("${CMAKE_SOURCE_DIR}/cat-script" "${CURRENT_SBIN_DIR}/bsmtp")
-  # file( GENERATE OUTPUT "${CURRENT_SBIN_DIR}/bsmtp" CONTENT [=[ !/bin/bash cat
-  # - ]=] FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ
-  # GROUP_EXECUTE WORLD_READ WORLD_EXECUTE )
-  create_symlink(
-    "${CURRENT_SBIN_DIR}/bsmtp-${TEST_NAME}" "${CURRENT_SBIN_DIR}/bsmtp"
-  )
 endmacro()
 
 macro(prepare_testdir_for_daemon_run)
