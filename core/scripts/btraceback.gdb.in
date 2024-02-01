@@ -37,7 +37,7 @@ first_frame = frame = gdb.newest_frame()
 while frame:
       frame.select()
       func = frame.function()
-      val = frame.read_var(func)
+      #val = frame.read_var(func)
       block = frame.block()
 
       variables = []
