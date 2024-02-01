@@ -91,16 +91,19 @@ def backtrace():
             print("WHERE:")
             sal = frame.find_sal()
             sym = sal.symtab
-            linum = sal.line
-            path = sym.fullname()
-            start = linum - 5
-            end = linum + 5
-            print("{}:".format(path))
-            lines = read_lines(path, start, end)
-            content = ""
-            for number, line in lines:
-                  content += "{} {:4}: {}".format(">>" if number == linum else "  ", number, line)
-            print(content)
+            if sym:
+                  linum = sal.line
+                  path = sym.fullname()
+                  start = linum - 5
+                  end = linum + 5
+                  print("{}:".format(path))
+                  lines = read_lines(path, start, end)
+                  content = ""
+                  for number, line in lines:
+                        content += "{} {:4}: {}".format(">>" if number == linum else "  ", number, line)
+                  print(content)
+            else:
+                  print("location not found {}".format(sal))
             print("REGISTERS:")
             gdb.execute("info registers")
 
