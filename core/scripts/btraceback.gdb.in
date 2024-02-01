@@ -1,0 +1,104 @@
+print my_name
+print exename
+print exepath
+print catalog_db
+print kBareosVersionStrings.FullWithDate
+print kBareosVersionStrings.BinaryInfo
+print host_name
+show env TestName
+dir "@srcdir@"
+thread apply all bt
+python
+def format_args(frame, args):
+      result = ""
+      first = True
+      for arg in args:
+            if first:
+                  result += "{}={}".format(arg.print_name, arg.value(frame))
+                  first = False
+            else:
+                  result += ", {}={}".format(arg.print_name, arg.value(frame))
+
+      return result
+
+def read_lines(path, start, end):
+      lines = []
+      current = 1
+      with open(path, 'r') as f:
+            while current <= end:
+                  line = f.readline()
+                  if current >= start:
+                        lines.append([current, line])
+                  current += 1
+      return lines
+
+first_frame = frame = gdb.newest_frame()
+
+while frame:
+      frame.select()
+      func = frame.function()
+      val = frame.read_var(func)
+      block = frame.block()
+
+      variables = []
+      arguments = []
+      global_vars = []
+      static_vars = []
+      while block:
+            for symbol in block:
+                  if symbol.is_variable:
+                        variables.append(symbol)
+                  elif symbol.is_argument:
+                        arguments.append(symbol)
+
+            gblock = frame.block().global_block
+            sblock = frame.block().static_block
+
+            for symbol in gblock:
+                  if symbol.is_variable:
+                        global_vars.append(symbol)
+
+            for symbol in sblock:
+                  if symbol.is_variable:
+                        static_vars.append(symbol)
+
+            block = block.superblock
+
+
+      print("#{}  0x{:016X} in {} ({}) at {}:{}".format(frame.level(),
+                                                        frame.pc(),
+                                                        func.print_name,
+                                                        format_args(frame, arguments),
+                                                        func.symtab.filename,
+                                                        func.line))
+      print("LOCALS:")
+      for var in variables:
+            print("{} = {}".format(var.print_name, var.value(frame)))
+      print("GLOBALS:")
+      for var in global_vars:
+            print("{} = {}".format(var.print_name, var.value(frame)))
+      print("STATICS:")
+      for var in static_vars:
+            print("{} = {}".format(var.print_name, var.value(frame)))
+      print("WHERE:")
+      sal = frame.find_sal()
+      sym = sal.symtab
+      linum = sal.line
+      path = sym.fullname()
+      start = linum - 5
+      end = linum + 5
+      print("{}:".format(path))
+      lines = read_lines(path, start, end)
+      content = ""
+      for number, line in lines:
+            content += "{} {:4}: {}".format(">>" if number == linum else "  ", number, line)
+      print(content)
+      print("REGISTERS:")
+      gdb.execute("info registers")
+
+      frame = frame.older()
+
+first_frame.select()
+end
+detach
+quit
