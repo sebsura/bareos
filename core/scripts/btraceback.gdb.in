@@ -34,6 +34,7 @@ def read_lines(path, start, end):
 def backtrace():
       first_frame = frame = gdb.newest_frame()
 
+      level = 0
       while frame:
             frame.select()
 
@@ -71,15 +72,13 @@ def backtrace():
 
             func = frame.function()
             if func:
-                  print("#{}  0x{:016X} in {} ({}) at {}:{}".format(frame.level(),
-                                                                    frame.pc(),
-                                                                    func.print_name,
-                                                                    format_args(frame, arguments),
-                                                                    func.symtab.filename,
-                                                                    func.line))
+                  print("#{}  0x{:016X} in {} ({}) at {}:{}".format(#frame.level(),
+                        level, frame.pc(), func.print_name,
+                        format_args(frame, arguments),
+                        func.symtab.filename, func.line))
             else:
-                  print("#{}  0x{:016X} in <unknown> ({})", frame.level(),
-                        frame.pc(), format_args(frame, arguments))
+                  print("#{}  0x{:016X} in <unknown> ({})", #frame.level(),
+                        level, frame.pc(), format_args(frame, arguments))
             print("LOCALS:")
             for var in variables:
                   print("{} = {}".format(var.print_name, var.value(frame)))
@@ -106,6 +105,7 @@ def backtrace():
             gdb.execute("info registers")
 
             frame = frame.older()
+            level += 1
 
       first_frame.select()
 
