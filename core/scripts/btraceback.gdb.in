@@ -76,17 +76,29 @@ def backtrace():
 
 
             func = frame.function()
+            if func:
+                  func_name = "{}".fomat(func.print_name)
+            else:
+                  func_name = "<unkown>"
+
             sal = frame.find_sal()
             sym = sal.symtab
-            if func and sym:
-                  print("#{}  0x{:016X} in {}//{}//{} ({}) at {}:{}//{}:{}".format(#frame.level(),
-                        level, frame.pc(), func.name, func.linkage_name, func.print_name,
-                        format_args(frame, arguments),
-                        func.symtab.filename, func.line,
-                        sym.filename, sal.line))
+
+            if sym:
+                  filepos = "{}:{}".format(sym.filename, sal.line)
+            elif func:
+                  filepos = "{}:{}".format(func.symtab.filename, func.line)
             else:
-                  print("#{}  0x{:016X} in <unknown> ({})", #frame.level(),
-                        level, frame.pc(), format_args(frame, arguments))
+                  filepos = "<unknown>"
+
+            if arguments:
+                  arg_str = " ({})".format(format_args(frame, arguments))
+            else:
+                  arg_str = ""
+
+            print("#{}  0x{:016X} in {}{} at {}".format(#frame.level(),
+                  level, frame.pc(), func_name, arg_str, filepos))
+
             print("LOCALS:")
             for var in variables:
                   print("{} = {}".format(var.print_name, var.value(frame)))
