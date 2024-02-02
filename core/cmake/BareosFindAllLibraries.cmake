@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -23,7 +23,6 @@ if(${SYSTEMD_FOUND})
 endif()
 
 option(ENABLE_PYTHON "Enable Python support" ON)
-
 
 if(NOT ENABLE_PYTHON)
   set(HAVE_PYTHON 0)
@@ -142,8 +141,8 @@ elseif(
       "vmware options were set but VMware Vix Disklib was not found. Cannot run vmware tests."
   )
 endif()
-if (NOT MSVC)
- bareosfindlibraryandheaders("pthread" "pthread.h" "")
+if(NOT MSVC)
+  bareosfindlibraryandheaders("pthread" "pthread.h" "")
 endif()
 bareosfindlibraryandheaders("cap" "sys/capability.h" "")
 bareosfindlibraryandheaders("gfapi" "glusterfs/api/glfs.h" "")
@@ -184,10 +183,15 @@ find_package(Readline)
 
 option(ENABLE_JANSSON "Build with Jansson library (required for director)" ON)
 if(ENABLE_JANSSON)
-  find_package(Jansson)
+  if(MSVC)
+    find_package(jansson CONFIG)
+    add_library(Jansson::Jansson ALIAS jansson::jansson)
+  else()
+    find_package(Jansson)
+  endif()
 endif()
 
-if (NOT MSVC)
+if(NOT MSVC)
   include(thread)
 else()
   find_package(pthread)
@@ -195,4 +199,3 @@ endif()
 if(MSVC)
   find_package(Intl)
 endif()
-
