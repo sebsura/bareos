@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -69,7 +69,7 @@ void DoVerify(JobControlRecord* jcr)
   jcr->setJobStatusWithPriorityCheck(JS_Running);
   jcr->buf_size = DEFAULT_NETWORK_BUFFER_SIZE;
   if ((jcr->fd_impl->big_buf = (char*)malloc(jcr->buf_size)) == NULL) {
-    Jmsg1(jcr, M_ABORT, 0, T_("Cannot malloc %d network read buffer\n"),
+    Jmsg1(jcr, M_ABORT, 0, T_("Cannot malloc %lu network read buffer\n"),
           DEFAULT_NETWORK_BUFFER_SIZE);
   }
   SetFindOptions((FindFilesPacket*)jcr->fd_impl->ff, jcr->fd_impl->incremental,
