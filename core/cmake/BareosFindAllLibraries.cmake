@@ -179,7 +179,21 @@ if(${ZLIB_FOUND})
   set(HAVE_LIBZ 1)
 endif()
 
-find_package(Readline)
+if(MSVC)
+  find_package(unofficial-readline-win32 CONFIG)
+  add_library(readline::readline ALIAS unofficial::readline-win32::readline)
+else()
+  find_package(Readline)
+  if(${Readline_FOUND})
+    add_library(readline::readline UNKNOWN IMPORTED)
+    set_target_properties(
+      readline::readline
+      PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${Readline_INCLUDE_DIRS}"
+                 INTERFACE_DEFINITIONS "${Readline_DEFINITIONS}"
+                 IMPORTED_LOCATION "${Readline_LIBRARY}"
+    )
+  endif()
+endif()
 
 option(ENABLE_JANSSON "Build with Jansson library (required for director)" ON)
 if(ENABLE_JANSSON)
