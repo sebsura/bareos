@@ -151,11 +151,28 @@ bareosfindlibraryandheaders("pam" "security/pam_appl.h" "")
 
 option(ENABLE_LZO "Enable LZO support" ON)
 if(ENABLE_LZO)
-  bareosfindlibraryandheaders("lzo2" "lzo/lzoconf.h" "")
-  if(${LZO2_FOUND})
-    set(HAVE_LZO 1)
-    if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-      set(LZO2_LIBRARIES "${HOMEBREW_PREFIX}/opt/lzo/lib/liblzo2.a")
+  if(MSVC)
+    # lzo is only available with pkg-config on vcpkg
+    find_package(PkgConfig)
+    pkg_check_modules(PC_LZO IMPORTED_TARGET GLOBAL lzo2)
+    if(${PC_LZO_FOUND})
+      set(HAVE_LZO 1)
+      add_library(lzo2::lzo2 ALIAS PkgConfig::PC_LZO)
+    endif()
+  else()
+    bareosfindlibraryandheaders("lzo2" "lzo/lzoconf.h" "")
+    if(${LZO2_FOUND})
+      set(HAVE_LZO 1)
+      if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(LZO2_LIBRARIES "${HOMEBREW_PREFIX}/opt/lzo/lib/liblzo2.a")
+      endif()
+      add_library(lzo2::lzo2 UNKNOWN IMPORTED)
+      set_target_properties(
+        lzo2::lzo2
+        PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${LZO2_INCLUDE_DIRS}"
+                   INTERFACE_DEFINITIONS "${LZO2_DEFINITIONS}"
+                   IMPORTED_LOCATION "${LZO2_LIBRARIES}"
+      )
     endif()
   endif()
 endif()
