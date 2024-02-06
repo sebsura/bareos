@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2022 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -62,7 +62,7 @@ if(HAVE_WIN32)
   list(APPEND FDSRCS ../win32/filed/filedres.rc)
 endif()
 
-include_directories(${OPENSSL_INCLUDE_DIR})
+include_directories(OpenSSL::SSL OpenSSL::Crypto)
 
 add_library(fd_objects STATIC ${FDSRCS})
 target_link_libraries(fd_objects PRIVATE bareos bareosfastlz ${ZLIB_LIBRARIES})
@@ -71,7 +71,7 @@ if(HAVE_LMDB)
   target_link_libraries(fd_objects PRIVATE bareoslmdb)
 endif()
 
-add_executable(bareos-fd WIN32 filed.cc )
+add_executable(bareos-fd WIN32 filed.cc)
 
 set(BAREOS_FD_LIBRARIES bareosfind bareos ${THREADS_THREADS})
 if(HAVE_WIN32)
@@ -99,7 +99,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 install(
-  TARGETS bareos-fd 
+  TARGETS bareos-fd
   DESTINATION "${sbindir}"
   COMPONENT filedaemon
 )
@@ -114,4 +114,4 @@ install(SCRIPT ${PROJECT_SOURCE_DIR}/cmake/install-filed-configfiles.cmake
         COMPONENT filedaemon
 )
 
-BareosCopyDllsToBinDir()
+bareoscopydllstobindir()

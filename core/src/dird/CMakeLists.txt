@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -153,7 +153,7 @@ set(DIRD_RESTYPES
 # dird_objects is also used as library for unittests
 add_library(dird_objects STATIC ${DIRD_OBJECTS_SRCS})
 target_link_libraries(
-  dird_objects PRIVATE bareos ${OPENSSL_LIBRARIES} ${THREADS_THREADS}
+  dird_objects PRIVATE bareos OpenSSL::SSL OpenSSL::Crypto ${THREADS_THREADS}
 )
 
 add_executable(bareos-dir WIN32)
@@ -185,14 +185,15 @@ endif()
 add_executable(bareos-dbcheck ${DBCHKSRCS})
 
 target_link_libraries(
-  bareos-dbcheck PRIVATE bareossql bareos bareosfind ${OPENSSL_LIBRARIES}
-                         CLI11::CLI11
+  bareos-dbcheck PRIVATE bareossql bareos bareosfind OpenSSL::SSL
+                         OpenSSL::Crypto CLI11::CLI11
 )
 
-install(TARGETS bareos-dir bareos-dbcheck
+install(
+  TARGETS bareos-dir bareos-dbcheck
   RUNTIME COMPONENT Runtime
-  LIBRARY COMPONENT Runtime
-  DESTINATION "${sbindir}")
+  LIBRARY COMPONENT Runtime DESTINATION "${sbindir}"
+)
 
 install(FILES query.sql DESTINATION "${scriptdir}")
 
@@ -204,4 +205,4 @@ install(CODE "set(configtemplatedir \"${configtemplatedir}\")")
 install(CODE "set(SRC_DIR \"${PROJECT_SOURCE_DIR}\")")
 
 install(SCRIPT ${PROJECT_SOURCE_DIR}/cmake/install-dird-configfiles.cmake)
-BareosCopyDllsToBinDir()
+bareoscopydllstobindir()

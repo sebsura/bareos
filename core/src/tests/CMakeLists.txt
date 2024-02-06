@@ -18,7 +18,7 @@
 #   02110-1301, USA.
 message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
 
-include_directories(${OPENSSL_INCLUDE_DIR})
+include_directories(OpenSSL::SSL OpenSSL::Crypto)
 
 if(NOT (${CMAKE_SYSTEM_NAME} MATCHES "Linux"))
   set(LINUX_KERNEL_VERSION "0.0")
@@ -388,8 +388,8 @@ if(NOT client-only)
         ${PROJECT_SOURCE_DIR}/src/dird/inc_conf.cc
         ${PROJECT_SOURCE_DIR}/src/dird/ua_acl.cc
         ${PROJECT_SOURCE_DIR}/src/dird/ua_audit.cc
-      LINK_LIBRARIES bareos bareossql bareosfind GTest::gtest_main
-                     ${OPENSSL_LIBRARIES}
+      LINK_LIBRARIES bareos bareossql bareosfind GTest::gtest_main OpenSSL::SSL
+                     OpenSSL::Crypto
     )
   endif()
   bareos_add_test(
@@ -481,9 +481,10 @@ bareos_add_test(test_edit LINK_LIBRARIES bareos GTest::gtest_main)
 if(NOT MSVC)
   bareos_add_test(
     test_fd_plugins
-    ADDITIONAL_SOURCES ${PROJECT_SOURCE_DIR}/src/filed/fd_plugins.cc
-                       ${PROJECT_SOURCE_DIR}/src/filed/fileset.cc
-                       ${PROJECT_SOURCE_DIR}/src/filed/filed_globals.cc
+    ADDITIONAL_SOURCES
+      ${PROJECT_SOURCE_DIR}/src/filed/fd_plugins.cc
+      ${PROJECT_SOURCE_DIR}/src/filed/fileset.cc
+      ${PROJECT_SOURCE_DIR}/src/filed/filed_globals.cc
     LINK_LIBRARIES bareos bareosfind GTest::gtest_main
   )
 endif()
@@ -520,4 +521,4 @@ bareos_add_test(version_strings LINK_LIBRARIES bareos GTest::gtest_main)
 bareos_add_test(
   channel LINK_LIBRARIES bareos ${THREADS_THREADS} GTest::gtest_main
 )
-BareosCopyDllsToBinDir()
+bareoscopydllstobindir()

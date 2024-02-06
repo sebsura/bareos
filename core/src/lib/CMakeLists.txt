@@ -19,11 +19,11 @@
 message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
 
 include_directories(
-  ${OPENSSL_INCLUDE_DIR} ${PTHREAD_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS}
-  ${ACL_INCLUDE_DIRS} ${CAP_INCLUDE_DIRS}
+  ${PTHREAD_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} ${ACL_INCLUDE_DIRS}
+  ${CAP_INCLUDE_DIRS}
 )
 
-include_directories(lzo2::lzo2)
+include_directories(lzo2::lzo2 OpenSSL::SSL OpenSSL::Crypto)
 
 set(BAREOS_SRCS
     address_conf.cc
@@ -155,7 +155,7 @@ target_compile_definitions(
 
 target_link_libraries(
   bareos
-  PRIVATE bareosfastlz ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} lzo2::lzo2
+  PRIVATE bareosfastlz OpenSSL::SSL OpenSSL::Crypto ${ZLIB_LIBRARIES} lzo2::lzo2
           ${CAM_LIBRARIES} CLI11::CLI11 xxHash::xxhash
   PUBLIC ${THREADS_THREADS}
 )

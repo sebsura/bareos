@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -38,12 +38,14 @@ if(HAVE_WIN32)
   list(APPEND BAREOSFIND_SRCS ../win32/findlib/win32.cc)
 endif()
 
-include_directories(${OPENSSL_INCLUDE_DIR})
+include_directories(OpenSSL::SSL OpenSSL::Crypto)
 
 add_library(bareosfind SHARED ${BAREOSFIND_SRCS})
 if(MSVC)
-  target_link_libraries(bareosfind PRIVATE bareos ${ACL_LIBRARIES} ${THREADS_THREADS})
-  #target_link_options(bareosfind PRIVATE MT)
+  target_link_libraries(
+    bareosfind PRIVATE bareos ${ACL_LIBRARIES} ${THREADS_THREADS}
+  )
+  # target_link_options(bareosfind PRIVATE MT)
 else()
   target_link_libraries(bareosfind PRIVATE bareos ${ACL_LIBRARIES})
 endif()

@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -42,7 +42,7 @@ if(HAVE_WIN32)
   endif()
 endif()
 
-include_directories(${OPENSSL_INCLUDE_DIR})
+include_directories(OpenSSL::SSL OpenSSL::Crypto)
 
 add_subdirectory(python)
 
@@ -60,9 +60,11 @@ endif()
 if(HAVE_WIN32)
   add_library(mssqlvdi-fd MODULE ../../win32/plugins/filed/mssqlvdi-fd.cc)
   target_compile_options(mssqlvdi-fd PUBLIC -fpermissive)
-  if (MSVC)
-    target_link_libraries(mssqlvdi-fd PRIVATE ${THREADS_THREADS} bareos comsupp.lib)
-  else() 
+  if(MSVC)
+    target_link_libraries(
+      mssqlvdi-fd PRIVATE ${THREADS_THREADS} bareos comsupp.lib
+    )
+  else()
     target_link_libraries(mssqlvdi-fd bareos)
   endif()
   set_target_properties(

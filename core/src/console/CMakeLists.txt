@@ -24,7 +24,7 @@ if(HAVE_WIN32)
   list(APPEND BCONSSRCS ../win32/console/consoleres.rc)
 endif()
 
-include_directories(${Readline_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
+include_directories(readline::readline OpenSSL::SSL OpenSSL::Crypto)
 
 if(HAVE_PAM)
   include_directories(${PAM_INCLUDE_DIRS})
