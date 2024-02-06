@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -23,7 +23,6 @@ if(${SYSTEMD_FOUND})
 endif()
 
 option(ENABLE_PYTHON "Enable Python support" ON)
-
 
 if(NOT ENABLE_PYTHON)
   set(HAVE_PYTHON 0)
@@ -142,8 +141,8 @@ elseif(
       "vmware options were set but VMware Vix Disklib was not found. Cannot run vmware tests."
   )
 endif()
-if (NOT MSVC)
- bareosfindlibraryandheaders("pthread" "pthread.h" "")
+if(NOT MSVC)
+  bareosfindlibraryandheaders("pthread" "pthread.h" "")
 endif()
 bareosfindlibraryandheaders("cap" "sys/capability.h" "")
 bareosfindlibraryandheaders("gfapi" "glusterfs/api/glfs.h" "")
@@ -152,11 +151,28 @@ bareosfindlibraryandheaders("pam" "security/pam_appl.h" "")
 
 option(ENABLE_LZO "Enable LZO support" ON)
 if(ENABLE_LZO)
-  bareosfindlibraryandheaders("lzo2" "lzo/lzoconf.h" "")
-  if(${LZO2_FOUND})
-    set(HAVE_LZO 1)
-    if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-      set(LZO2_LIBRARIES "${HOMEBREW_PREFIX}/opt/lzo/lib/liblzo2.a")
+  if(MSVC)
+    # lzo is only available with pkg-config on vcpkg
+    find_package(PkgConfig)
+    pkg_check_modules(PC_LZO IMPORTED_TARGET GLOBAL lzo2)
+    if(${PC_LZO_FOUND})
+      set(HAVE_LZO 1)
+      add_library(lzo2::lzo2 ALIAS PkgConfig::PC_LZO)
+    endif()
+  else()
+    bareosfindlibraryandheaders("lzo2" "lzo/lzoconf.h" "")
+    if(${LZO2_FOUND})
+      set(HAVE_LZO 1)
+      if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(LZO2_LIBRARIES "${HOMEBREW_PREFIX}/opt/lzo/lib/liblzo2.a")
+      endif()
+      add_library(lzo2::lzo2 UNKNOWN IMPORTED)
+      set_target_properties(
+        lzo2::lzo2
+        PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${LZO2_INCLUDE_DIRS}"
+                   INTERFACE_DEFINITIONS "${LZO2_DEFINITIONS}"
+                   IMPORTED_LOCATION "${LZO2_LIBRARIES}"
+      )
     endif()
   endif()
 endif()
@@ -180,14 +196,33 @@ if(${ZLIB_FOUND})
   set(HAVE_LIBZ 1)
 endif()
 
-find_package(Readline)
+if(MSVC)
+  find_package(unofficial-readline-win32 CONFIG)
+  add_library(readline::readline ALIAS unofficial::readline-win32::readline)
+else()
+  find_package(Readline)
+  if(${Readline_FOUND})
+    add_library(readline::readline UNKNOWN IMPORTED)
+    set_target_properties(
+      readline::readline
+      PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${Readline_INCLUDE_DIRS}"
+                 INTERFACE_DEFINITIONS "${Readline_DEFINITIONS}"
+                 IMPORTED_LOCATION "${Readline_LIBRARY}"
+    )
+  endif()
+endif()
 
 option(ENABLE_JANSSON "Build with Jansson library (required for director)" ON)
 if(ENABLE_JANSSON)
-  find_package(Jansson)
+  if(MSVC)
+    find_package(jansson CONFIG)
+    add_library(Jansson::Jansson ALIAS jansson::jansson)
+  else()
+    find_package(Jansson)
+  endif()
 endif()
 
-if (NOT MSVC)
+if(NOT MSVC)
   include(thread)
 else()
   find_package(pthread)
@@ -195,4 +230,3 @@ endif()
 if(MSVC)
   find_package(Intl)
 endif()
-

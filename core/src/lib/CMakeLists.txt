@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -20,8 +20,10 @@ message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
 
 include_directories(
   ${OPENSSL_INCLUDE_DIR} ${PTHREAD_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS}
-  ${ACL_INCLUDE_DIRS} ${LZO2_INCLUDE_DIRS} ${CAP_INCLUDE_DIRS}
+  ${ACL_INCLUDE_DIRS} ${CAP_INCLUDE_DIRS}
 )
+
+include_directories(lzo2::lzo2)
 
 set(BAREOS_SRCS
     address_conf.cc
@@ -153,9 +155,9 @@ target_compile_definitions(
 
 target_link_libraries(
   bareos
-  PRIVATE bareosfastlz ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES}
-  ${LZO2_LIBRARIES} ${CAM_LIBRARIES} CLI11::CLI11 xxHash::xxhash 
-  PUBLIC ${THREADS_THREADS} 
+  PRIVATE bareosfastlz ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} lzo2::lzo2
+          ${CAM_LIBRARIES} CLI11::CLI11 xxHash::xxhash
+  PUBLIC ${THREADS_THREADS}
 )
 
 if(XXHASH_ENABLE_DISPATCH)

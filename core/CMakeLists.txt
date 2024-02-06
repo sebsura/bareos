@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -892,9 +892,7 @@ message(
 message(
   "   LZO2 support:                 ${LZO2_FOUND} ${LZO2_INCLUDE_DIRS} ${LZO2_LIBRARIES} "
 )
-message(
-  "   JANSSON support:              ${JANSSON_FOUND} ${JANSSON_VERSION_STRING} ${JANSSON_INCLUDE_DIRS} ${JANSSON_LIBRARIES}"
-)
+message("   JANSSON support:              ${jansson_FOUND}")
 message(
   "   VIXDISKLIB support:           ${VIXDISKLIB_FOUND} ${VIXDISKLIB_LIBRARIES} ${VIXDISKLIB_INCLUDE_DIRS} "
 )
@@ -984,7 +982,7 @@ configure_file(
   "CTestScript.cmake.in" "${CMAKE_BINARY_DIR}/CTestScript.cmake" @ONLY
 )
 
-if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
   install(
     CODE "
     file(GLOB_RECURSE ALL_DLLS \"C:/src/bareos-rebase/b\" \"*.dll\")
@@ -992,6 +990,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     foreach(dll \${ALL_DLLS})
       file(INSTALL \${dll} DESTINATION \"\${CMAKE_INSTALL_PREFIX}\")
     endforeach()
-    ")
+    "
+  )
 endif()
 BareosCopyDllsToBinDir()
