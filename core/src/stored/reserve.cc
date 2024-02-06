@@ -60,8 +60,6 @@ static bool ReserveDeviceForAppend(DeviceControlRecord* dcr,
                                    ReserveContext& rctx);
 static bool UseDeviceCmd(JobControlRecord* jcr);
 static void QueueReserveMessage(JobControlRecord* jcr);
-static void PopReserveMessages(JobControlRecord* jcr);
-// void SwitchDevice(DeviceControlRecord *dcr, Device *dev);
 
 /* Requests from the Director daemon */
 static char use_storage[]
@@ -200,7 +198,6 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
 
   /* If there are multiple devices, the director sends us
    * use_device for each device that it wants to use. */
-  jcr->sd_impl->reserve_msgs = new alist<const char*>(10, not_owned_by_alist);
   do {
     Dmsg1(debuglevel, "<dird: %s", dir->msg);
     ok = sscanf(dir->msg, use_storage, StoreName.c_str(), media_type.c_str(),
@@ -264,7 +261,7 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
 
     LockReservations();
     for (; !fail && !jcr->IsJobCanceled();) {
-      PopReserveMessages(jcr);
+      ClearReserveMessages(jcr);
       rctx.suitable_device = false;
       rctx.have_volume = false;
       rctx.VolumeName[0] = 0;
@@ -345,7 +342,7 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
     Dmsg1(debuglevel, ">dird: %s", dir->msg);
   }
 
-  ReleaseReserveMessages(jcr);
+  ClearReserveMessages(jcr);
   return ok;
 }
 
@@ -1109,52 +1106,31 @@ static int CanReserveDrive(DeviceControlRecord* dcr, ReserveContext& rctx)
 // Queue a reservation error or failure message for this jcr
 static void QueueReserveMessage(JobControlRecord* jcr)
 {
-  int i;
-  const char* msg;
-
   jcr->lock();
 
-  auto msgs = jcr->sd_impl->reserve_msgs;
-  if (!msgs) { goto bail_out; }
+  auto& msgs = jcr->sd_impl->reserve_msgs;
+  if (!msgs.size()) { goto bail_out; }
   // Look for duplicate message.  If found, do not insert
-  for (i = msgs->size() - 1; i >= 0; i--) {
-    msg = msgs->get(i);
-    if (!msg) { goto bail_out; }
-
+  for (auto& msg : msgs) {
     // Comparison based on 4 digit message number
-    if (bstrncmp(msg, jcr->errmsg, 4)) { goto bail_out; }
+    if (bstrncmp(msg.c_str(), jcr->errmsg, 4)) { goto bail_out; }
   }
 
   // Message unique, so insert it.
-  jcr->sd_impl->reserve_msgs->push(strdup(jcr->errmsg));
+  msgs.emplace_back(jcr->errmsg);
 
-bail_out:
-  jcr->unlock();
-}
-
-// Pop and release any reservations messages
-static void PopReserveMessages(JobControlRecord* jcr)
-{
-  char* msg;
-
-  jcr->lock();
-  auto msgs = jcr->sd_impl->reserve_msgs;
-  if (!msgs) { goto bail_out; }
-  while ((msg = (char*)msgs->pop())) { free(msg); }
 bail_out:
   jcr->unlock();
 }
 
 // Also called from acquire.c
-void ReleaseReserveMessages(JobControlRecord* jcr)
+void ClearReserveMessages(JobControlRecord* jcr)
 {
-  PopReserveMessages(jcr);
   jcr->lock();
-  if (!jcr->sd_impl->reserve_msgs) { goto bail_out; }
-  delete jcr->sd_impl->reserve_msgs;
-  jcr->sd_impl->reserve_msgs = NULL;
 
-bail_out:
+  auto& msgs = jcr->sd_impl->reserve_msgs;
+  msgs.clear();
+
   jcr->unlock();
 }
 

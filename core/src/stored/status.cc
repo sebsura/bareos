@@ -3,7 +3,7 @@
 
    Copyright (C) 2003-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -734,24 +734,13 @@ static void ListRunningJobs(StatusPacket* sp)
 static inline void SendDriveReserveMessages(JobControlRecord* jcr,
                                             StatusPacket* sp)
 {
-  int i;
-  alist<const char*>* msgs;
-  char* msg;
-
   jcr->lock();
-  msgs = jcr->sd_impl->reserve_msgs;
-  if (!msgs || msgs->size() == 0) { goto bail_out; }
-  for (i = msgs->size() - 1; i >= 0; i--) {
-    msg = (char*)msgs->get(i);
-    if (msg) {
-      sp->send("   ");
-      sp->send(msg, strlen(msg));
-    } else {
-      break;
-    }
+
+  for (auto& msg : jcr->sd_impl->reserve_msgs) {
+    sp->send("   ");
+    sp->send(msg.c_str());
   }
 
-bail_out:
   jcr->unlock();
 }
 
@@ -767,7 +756,7 @@ static void ListJobsWaitingOnReservation(StatusPacket* sp)
   }
 
   foreach_jcr (jcr) {
-    if (!jcr->sd_impl->reserve_msgs) { continue; }
+    if (!jcr->sd_impl->reserve_msgs.size()) { continue; }
     SendDriveReserveMessages(jcr, sp);
   }
   endeach_jcr(jcr);
