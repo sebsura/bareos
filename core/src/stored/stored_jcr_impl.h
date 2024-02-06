@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -26,6 +26,7 @@
 
 #include "stored/read_ctx.h"
 #include "stored/stored_conf.h"
+#include "stored/reserve.h"
 
 #define SD_APPEND 1
 #define SD_READ 0
@@ -38,7 +39,7 @@ struct VolumeList;
 class DeviceControlRecord;
 class DirectorResource;
 struct BootStrapRecord;
-class DirectorStorage;
+class director_storage;
 
 struct ReadSession {
   READ_CTX* rctx{};
@@ -91,8 +92,8 @@ struct StoredJcrImpl {
   bool spool_data{};              /**< Set to spool data */
   storagedaemon::DirectorResource* director{}; /**< Director resource */
   alist<const char*>* plugin_options{};        /**< Specific Plugin Options sent by DIR */
-  alist<storagedaemon::DirectorStorage*>* write_store{};           /**< List of write storage devices sent by DIR */
-  alist<storagedaemon::DirectorStorage*>* read_store{};            /**< List of read devices sent by DIR */
+  std::vector<storagedaemon::director_storage> write_store{};           /**< List of write storage devices sent by DIR */
+  std::vector<storagedaemon::director_storage> read_store{};            /**< List of read devices sent by DIR */
   alist<const char*>* reserve_msgs{};          /**< Reserve fail messages */
   bool acquired_storage{};        /**< Did we acquire our reserved storage already or not */
   bool PreferMountedVols{};       /**< Prefer mounted vols rather than new */
