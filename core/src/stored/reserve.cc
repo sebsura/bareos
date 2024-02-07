@@ -359,6 +359,8 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
   if (!ok) { return false; }
 
   if (append) {
+    jcr->sd_impl->dcr = nullptr;  // signal rest of storage daemon that
+                                  // device is not used.
     PmStrcpy(dev_name, "I am lying, its not actually reserved :)");
     BashSpaces(dev_name);
     ok = dir->fsend(OK_device, dev_name.c_str()); /* Return fake device name */
