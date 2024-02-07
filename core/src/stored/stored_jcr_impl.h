@@ -28,9 +28,6 @@
 #include "stored/stored_conf.h"
 #include "stored/reserve.h"
 
-#define SD_APPEND 1
-#define SD_READ 0
-
 template <typename T> class alist;
 
 namespace storagedaemon {
@@ -92,8 +89,7 @@ struct StoredJcrImpl {
   bool spool_data{};              /**< Set to spool data */
   storagedaemon::DirectorResource* director{}; /**< Director resource */
   alist<const char*>* plugin_options{};        /**< Specific Plugin Options sent by DIR */
-  std::vector<storagedaemon::director_storage> write_store{};           /**< List of write storage devices sent by DIR */
-  std::vector<storagedaemon::director_storage> read_store{};            /**< List of read devices sent by DIR */
+  std::vector<storagedaemon::director_storage> dirstores{};           /**< List of storage devices sent by DIR */
   std::vector<std::string> reserve_msgs{};          /**< Reserve fail messages */
   bool acquired_storage{};        /**< Did we acquire our reserved storage already or not */
   bool PreferMountedVols{};       /**< Prefer mounted vols rather than new */
