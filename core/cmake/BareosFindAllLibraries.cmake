@@ -92,6 +92,9 @@ else()
   #
   # endif()
 endif()
+if(${OpenSSL_FOUND})
+  set(HAVE_OPENSSL 1)
+endif()
 
 include(BareosFindLibraryAndHeaders)
 
