@@ -58,10 +58,16 @@ macro(create_systemtests_directory)
   configurefilestosystemtest("core/src" "console" "*.in" @ONLY "")
 
   # install special windows start scripts
-  if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    file(RENAME  ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-fd-win ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-fd)
-    file(RENAME  ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-sd-win ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-sd)
-    file(RENAME  ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-dir-win ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-dir)
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    file(RENAME ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-fd-win
+         ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-fd
+    )
+    file(RENAME ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-sd-win
+         ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-sd
+    )
+    file(RENAME ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-dir-win
+         ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-dir
+    )
   endif()
 
   file(MAKE_DIRECTORY ${subsysdir})
@@ -86,21 +92,19 @@ endmacro()
 # create and set the BINARY_NAME_TO_TEST variable to the full path of it
 macro(find_compiled_binary_and_set_binary_name_to_test_variable_for binary_name)
 
-  if (TARGET ${binary_name})
+  if(TARGET ${binary_name})
     create_variable_binary_name_to_test_for_binary_name(${binary_name})
     get_target_property(
       "${binary_name_to_test_upcase}" "${binary_name}" BINARY_DIR
     )
     set("${binary_name_to_test_upcase}"
-      "${${binary_name_to_test_upcase}}/${binary_name}${CMAKE_EXECUTABLE_SUFFIX}"
+        "${${binary_name_to_test_upcase}}/${binary_name}${CMAKE_EXECUTABLE_SUFFIX}"
     )
     message(
       "   ${binary_name_to_test_upcase} is ${${binary_name_to_test_upcase}}"
     )
   else()
-    message(
-      "Target ${binary_name} does not exist, skipping"
-    )
+    message("Target ${binary_name} does not exist, skipping")
   endif()
 endmacro()
 
@@ -307,22 +311,31 @@ macro(link_binaries_to_test_to_current_sbin_dir_with_individual_filename)
     string(TOUPPER ${binary_name} binary_name_upcase)
     string(CONCAT bareos_XXX_binary ${binary_name_upcase} "_BINARY")
 
-    if (NOT ${${binary_name_to_test_upcase}} STREQUAL "")
+    if(NOT ${${binary_name_to_test_upcase}} STREQUAL "")
       if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        set (build_configs "Debug" "Release")
+        set(build_configs "Debug" "Release")
       else()
-        set (build_configs ".")
+        set(build_configs ".")
       endif()
       foreach(build_config ${build_configs})
-        set(${bareos_XXX_binary} ${CURRENT_SBIN_DIR}/${binary_name}-${TEST_NAME})
+        set(${bareos_XXX_binary}
+            ${CURRENT_SBIN_DIR}/${binary_name}-${TEST_NAME}
+        )
 
-        get_filename_component(src_binary_path "${${binary_name_to_test_upcase}}" PATH)
-        get_filename_component(src_file_name  "${${binary_name_to_test_upcase}}" NAME)
+        get_filename_component(
+          src_binary_path "${${binary_name_to_test_upcase}}" PATH
+        )
+        get_filename_component(
+          src_file_name "${${binary_name_to_test_upcase}}" NAME
+        )
 
         get_filename_component(dst_binary_path "${${bareos_XXX_binary}}" PATH)
-        get_filename_component(dst_file_name  "${${bareos_XXX_binary}}" NAME)
+        get_filename_component(dst_file_name "${${bareos_XXX_binary}}" NAME)
 
-        create_symlink(${src_binary_path}/${build_config}/${src_file_name} ${dst_binary_path}/${build_config}/${dst_file_name})
+        create_symlink(
+          ${src_binary_path}/${build_config}/${src_file_name}
+          ${dst_binary_path}/${build_config}/${dst_file_name}
+        )
       endforeach()
 
     endif()
@@ -511,12 +524,11 @@ macro(create_symlink target link)
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.14")
     file(CREATE_LINK ${target} ${link} SYMBOLIC)
   else()
-   execute_process(
-    COMMAND ${CMAKE_COMMAND} -E create_symlink ${target} ${link}
-  )
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -E create_symlink ${target} ${link}
+    )
   endif()
 endmacro()
-
 
 function(add_disabled_systemtest PREFIX TEST_NAME)
   set(FULL_TEST_NAME "${PREFIX}${TEST_NAME}")
