@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2020-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -29,8 +29,8 @@ if(Python3_FOUND)
     DESTINATION ${plugindir}
     COMPONENT filedaemon
   )
-  target_link_libraries(python3-fd ${Python3_LIBRARIES} bareos)
-  target_include_directories(python3-fd PUBLIC ${Python3_INCLUDE_DIRS})
+  target_link_libraries(python3-fd Python3::Python bareos)
+  target_include_directories(python3-fd PUBLIC Python3::Python)
   target_compile_definitions(
     python3-fd PUBLIC PY3MODDIR=\"${Python3_SITEARCH}\"
   )
@@ -40,11 +40,9 @@ endif()
 
 if(Python3_FOUND AND NOT HAVE_WIN32)
   add_executable(bareosfd-python3-module-tester test/python-fd-module-tester.cc)
-  target_link_libraries(
-    bareosfd-python3-module-tester ${Python3_LIBRARIES} bareos
-  )
+  target_link_libraries(bareosfd-python3-module-tester Python3::Python bareos)
   target_include_directories(
-    bareosfd-python3-module-tester PUBLIC ${Python3_INCLUDE_DIRS}
+    bareosfd-python3-module-tester PUBLIC Python::Python3
   )
 
   add_test(NAME bareosfd-python3-module-tester
@@ -88,10 +86,11 @@ if(Python3_FOUND)
   bareos_disable_warnings(
     TARGET bareosfd-python3-module WARNINGS -Wc99-designator
   )
-  target_link_libraries(bareosfd-python3-module bareos ${Python3_LIBRARIES})
+  target_link_libraries(bareosfd-python3-module bareos Python3::Python)
 
   add_test(NAME bareosfd-python3-module
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/bareosfd_test.py
+           COMMAND ${Python3_EXECUTABLE}
+                   ${CMAKE_CURRENT_SOURCE_DIR}/test/bareosfd_test.py
   )
 
   set_property(
@@ -120,10 +119,7 @@ $<SHELL_PATH:${CMAKE_BINARY_DIR}/core/src/lib>\\;\
 $<SHELL_PATH:${CMAKE_BINARY_DIR}/core/src/lmdb>\\;\
 $<SHELL_PATH:${CMAKE_BINARY_DIR}/core/src/dird>\\;\
 "
-
-
-#      "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}/python3modules/$<CONFIG>\\;${CMAKE_BINARY_DIR}/core/src/cats\\;${CMAKE_BINARY_DIR}/core/src/console\\;${CMAKE_BINARY_DIR}/core/src/dird\\;${CMAKE_BINARY_DIR}/core/src/fastlz\\;${CMAKE_BINARY_DIR}/core/src/filed\\;${CMAKE_BINARY_DIR}/core/src/findlib\\;${CMAKE_BINARY_DIR}/core/src/lib\\;${CMAKE_BINARY_DIR}/core/src/lmdb\\;${CMAKE_BINARY_DIR}/core/src/plugins/dird\\;"
-
+      # "PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}/python3modules/$<CONFIG>\\;${CMAKE_BINARY_DIR}/core/src/cats\\;${CMAKE_BINARY_DIR}/core/src/console\\;${CMAKE_BINARY_DIR}/core/src/dird\\;${CMAKE_BINARY_DIR}/core/src/fastlz\\;${CMAKE_BINARY_DIR}/core/src/filed\\;${CMAKE_BINARY_DIR}/core/src/findlib\\;${CMAKE_BINARY_DIR}/core/src/lib\\;${CMAKE_BINARY_DIR}/core/src/lmdb\\;${CMAKE_BINARY_DIR}/core/src/plugins/dird\\;"
       LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}/../../../lib
       "ASAN_OPTIONS=detect_leaks=0 verify_asan_link_order=0"
   )

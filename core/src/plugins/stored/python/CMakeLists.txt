@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2020-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -23,11 +23,11 @@ if(Python3_FOUND)
     python3-sd PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY ..
   )
   install(TARGETS python3-sd DESTINATION ${plugindir})
-  target_link_libraries(python3-sd ${Python3_LIBRARIES} bareos)
+  target_link_libraries(python3-sd Python3::Python bareos)
   target_compile_definitions(
     python3-sd PUBLIC PY3MODDIR=\"${Python3_SITEARCH}\"
   )
-  target_include_directories(python3-sd PUBLIC ${Python3_INCLUDE_DIRS})
+  target_include_directories(python3-sd PUBLIC Python3::Python)
   add_dependencies(python3-sd bareossd-python3-module)
 
   set(PYFILES pyfiles/bareos-sd-class-plugin.py
@@ -57,7 +57,7 @@ if(Python3_FOUND)
                                               ${Python3_CCSHARED}
     )
   endif()
-  target_link_libraries(bareossd-python3-module bareos ${Python3_LIBRARIES})
+  target_link_libraries(bareossd-python3-module bareos Python3::Python)
 
   add_test(NAME bareossd-python3-module
            COMMAND ${Python3_EXECUTABLE}
