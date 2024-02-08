@@ -36,7 +36,7 @@ macro(BareosCopyDllsToBinDir)
       )
         add_custom_command(
           TARGET ${TGT}
-          POST_BUILD
+          PRE_BUILD
           COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:${TGT}>
                   $<TARGET_RUNTIME_DLLS:${TGT}>
           COMMAND_EXPAND_LISTS
