@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -56,15 +56,16 @@
 namespace directordaemon {
 
 /* Commands sent to File daemon */
-static char verifycmd[] = "verify level=%s\n";
-static char storaddrcmd[]
+constexpr const char* verifycmd = "verify level=%s\n";
+constexpr const char* storaddrcmd
     = "storage address=%s port=%d ssl=%d Authorization=%s\n";
-static char passiveclientcmd[] = "passive client address=%s port=%d ssl=%d\n";
+constexpr const char* passiveclientcmd
+    = "passive client address=%s port=%d ssl=%d\n";
 
 /* Responses received from File daemon */
-static char OKverify[] = "2000 OK verify\n";
-static char OKstore[] = "2000 OK storage\n";
-static char OKpassiveclient[] = "2000 OK passive client\n";
+constexpr const char* OKverify = "2000 OK verify\n";
+constexpr const char* OKstore = "2000 OK storage\n";
+constexpr const char* OKpassiveclient = "2000 OK passive client\n";
 
 /* Forward referenced functions */
 static void PrtFname(JobControlRecord* jcr);

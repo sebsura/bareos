@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -49,7 +49,7 @@
 namespace storagedaemon {
 
 /* Static variables */
-static char ferrmsg[] = "3900 Invalid command\n";
+constexpr const char* ferrmsg = "3900 Invalid command\n";
 
 /* Imported functions */
 
@@ -78,19 +78,20 @@ static struct s_fd_cmds fd_cmds[] = {
 };
 
 /* Commands from the File daemon that require additional scanning */
-static char read_open[] = "read open session = %127s %ld %ld %ld %ld %ld %ld\n";
+constexpr const char* read_open
+    = "read open session = %127s %ld %ld %ld %ld %ld %ld\n";
 
 /* Responses sent to the File daemon */
-static char NO_open[] = "3901 Error session already open\n";
-static char NOT_opened[] = "3902 Error session not opened\n";
-static char OK_end[] = "3000 OK end\n";
-static char OK_close[] = "3000 OK close Status = %d\n";
-static char OK_open[] = "3000 OK open ticket = %d\n";
-static char ERROR_append[] = "3903 Error append data\n";
+constexpr const char* NO_open = "3901 Error session already open\n";
+constexpr const char* NOT_opened = "3902 Error session not opened\n";
+constexpr const char* OK_end = "3000 OK end\n";
+constexpr const char* OK_close = "3000 OK close Status = %d\n";
+constexpr const char* OK_open = "3000 OK open ticket = %d\n";
+constexpr const char* ERROR_append = "3903 Error append data\n";
 
 /* Responses sent to the Director */
-static char Job_start[] = "3010 Job %s start\n";
-static char Job_end[]
+constexpr const char* Job_start = "3010 Job %s start\n";
+constexpr const char* Job_end
     = "3099 Job %s end JobStatus=%d JobFiles=%d JobBytes=%s JobErrors=%u\n";
 
 /**
