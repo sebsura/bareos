@@ -356,7 +356,14 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
 
   } while (ok && dir->recv() >= 0);
 
-  if (!ok) { return false; }
+  if (!ok) {
+    PmStrcpy(jcr->errmsg, dir->msg);
+    UnbashSpaces(jcr->errmsg);
+    Jmsg(jcr, M_FATAL, 0, T_("Failed command: %s\n"), jcr->errmsg);
+    dir->fsend(BAD_use, jcr->errmsg);
+    Dmsg1(debuglevel, ">dird: %s", dir->msg);
+    return false;
+  }
 
   if (me->just_in_time_reservation && append) {
     jcr->sd_impl->dcr = nullptr;  // signal rest of storage daemon that
