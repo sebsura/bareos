@@ -358,7 +358,7 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
 
   if (!ok) { return false; }
 
-  if (append) {
+  if (me->just_in_time_reservation && append) {
     jcr->sd_impl->dcr = nullptr;  // signal rest of storage daemon that
                                   // device is not used.
     PmStrcpy(dev_name, "I am lying, its not actually reserved :)");
@@ -367,7 +367,7 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
     Dmsg1(debuglevel, ">dird: %s", dir->msg);
     return ok;
   } else {
-    return TryReserveAfterUse(jcr, false);
+    return TryReserveAfterUse(jcr, append);
   }
 }
 
