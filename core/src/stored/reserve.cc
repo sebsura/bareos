@@ -331,7 +331,7 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
         = sscanf(dir->msg, use_storage, StoreName.c_str(), media_type.c_str(),
                  pool_name.c_str(), pool_type.c_str(), &append, &Copy, &Stripe);
 
-    if (res != 7 && res != 8) { ok = false; }
+    if (res != 7) { ok = false; }
 
     if (!ok) { break; }
 
