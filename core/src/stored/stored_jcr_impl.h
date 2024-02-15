@@ -36,7 +36,7 @@ struct VolumeList;
 class DeviceControlRecord;
 class DirectorResource;
 struct BootStrapRecord;
-class director_storage;
+struct director_storage;
 
 struct ReadSession {
   READ_CTX* rctx{};
