@@ -3,7 +3,7 @@
 
    Copyright (C) 2007-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -60,6 +60,11 @@ typedef bRC (*t_loadPlugin)(void* bareos_plugin_interface_version,
                             void** plugin_information,
                             void** plugin_functions);
 typedef bRC (*t_unloadPlugin)(void);
+
+#if defined(BUILDING_DLL) && defined(MSVC)
+__declspec(dllexport) bRC loadPlugin();
+__declspec(dllexport) bRC unloadPlugin();
+#endif
 }
 
 class Plugin {
