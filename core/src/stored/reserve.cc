@@ -464,7 +464,8 @@ bool FindSuitableDeviceForJob(JobControlRecord* jcr, ReserveContext& rctx)
           } else if (!bstrcmp(device_name.c_str(),
                               vol->dev->device_resource->resource_name_)) {
             Dmsg2(debuglevel, "device=%s not suitable want %s\n",
-                  vol->dev->device_resource->resource_name_, device_name);
+                  vol->dev->device_resource->resource_name_,
+                  device_name.c_str());
             continue;
           }
 
@@ -473,15 +474,16 @@ bool FindSuitableDeviceForJob(JobControlRecord* jcr, ReserveContext& rctx)
 
           // Try reserving this device and volume
           Dmsg2(debuglevel, "try vol=%s on device=%s\n", rctx.VolumeName,
-                device_name);
+                device_name.c_str());
           status = ReserveDevice(rctx);
           if (status == 1) { /* found available device */
-            Dmsg1(debuglevel, "Suitable device found=%s\n", device_name);
+            Dmsg1(debuglevel, "Suitable device found=%s\n",
+                  device_name.c_str());
             ok = true;
             break;
           } else if (status == 0) { /* device busy */
             Dmsg1(debuglevel, "Suitable device=%s, busy: not use\n",
-                  device_name);
+                  device_name.c_str());
           } else {
             Dmsg0(debuglevel, "No suitable device found.\n");
           }
@@ -519,11 +521,12 @@ bool FindSuitableDeviceForJob(JobControlRecord* jcr, ReserveContext& rctx)
       rctx.device_name = device_name.c_str();
       status = SearchResForDevice(rctx);
       if (status == 1) { /* found available device */
-        Dmsg1(debuglevel, "available device found=%s\n", device_name);
+        Dmsg1(debuglevel, "available device found=%s\n", device_name.c_str());
         ok = true;
         break;
       } else if (status == 0) { /* device busy */
-        Dmsg1(debuglevel, "No usable device=%s, busy: not use\n", device_name);
+        Dmsg1(debuglevel, "No usable device=%s, busy: not use\n",
+              device_name.c_str());
       } else {
         Dmsg0(debuglevel, "No usable device found.\n");
       }
@@ -615,8 +618,8 @@ int SearchResForDevice(ReserveContext& rctx)
       foreach_res (rctx.device_resource, R_DEVICE) {
         Dmsg3(debuglevel,
               "Try match res=%s, mediatype=%s wanted mediatype=%s\n",
-              rctx.device_resource->resource_name_, rctx.store->media_type,
-              rctx.store->media_type);
+              rctx.device_resource->resource_name_,
+              rctx.store->media_type.c_str(), rctx.store->media_type.c_str());
 
         if (bstrcmp(rctx.store->media_type.c_str(),
                     rctx.device_resource->media_type)) {
@@ -659,7 +662,7 @@ static int ReserveDevice(ReserveContext& rctx)
 
   // Make sure MediaType is OK
   Dmsg2(debuglevel, "chk MediaType device=%s request=%s\n",
-        rctx.device_resource->media_type, rctx.store->media_type);
+        rctx.device_resource->media_type, rctx.store->media_type.c_str());
   if (!bstrcmp(rctx.device_resource->media_type,
                rctx.store->media_type.c_str())) {
     return -1;
