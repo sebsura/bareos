@@ -978,7 +978,7 @@ bool PathCreate(const char* apath, mode_t mode)
 
   if (stat(apath, &statp) == 0) { /* Does dir exist? */
     if (!S_ISDIR(statp.st_mode)) {
-      Emsg1(M_ERROR, 0, "%s exists but is not a directory.\n", path);
+      Emsg1(M_ERROR, 0, "%s exists but is not a directory.\n", apath);
       return false;
     }
     return true;
