@@ -135,7 +135,8 @@ bool RegisterTimer(TimerThread::Timer* t)
     wd_copy = *t;
   }
 
-  Dmsg3(800, "Registered timer interval %zu%s\n", wd_copy.interval.count(),
+  Dmsg3(800, "Registered timer interval %lld%s\n",
+        static_cast<long long>(wd_copy.interval.count()),
         wd_copy.single_shot ? " one shot" : "");
 
   WakeTimer();
