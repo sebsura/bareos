@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2009 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -178,6 +178,7 @@ bool ReserveReadDevice(JobControlRecord* jcr,
       ok = false;
     }
     if (ok) {
+      UnbashSpaces(device_name.c_str());
       Jmsg(jcr, M_INFO, 0, T_("Using Device \"%s\" to read.\n"),
            device_name.c_str());
     }
@@ -255,6 +256,7 @@ bool ReserveWriteDevice(JobControlRecord* jcr,
       ok = false;
     }
     if (ok) {
+      UnbashSpaces(device_name.c_str());
       Jmsg(jcr, M_INFO, 0, T_("Using Device \"%s\" to write.\n"),
            device_name.c_str());
     }
