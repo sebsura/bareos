@@ -7,5 +7,5 @@ then the BDP of that connection is 128MiB/s * 4ms = 512KiB, if the connection ha
 
 You will probably also want to make the corresponding change in each of your File daemons conf files.
 
-.. warning:: Setting this variable may disable your operating systems dynamic network buffering schema.  This could cause performance degredation and
+.. warning:: Setting this variable may disable your operating systems dynamic network buffering schema.  This could cause performance degradation and
    excessive memory use. Use with care.
