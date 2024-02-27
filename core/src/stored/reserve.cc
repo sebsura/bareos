@@ -368,9 +368,9 @@ static bool UseDeviceCmd(JobControlRecord* jcr)
   }
 
   if (me->just_in_time_reservation && append) {
-    PmStrcpy(dev_name, "I am lying, its not actually reserved :)");
     jcr->sd_impl->dcr = nullptr;  // signal to rest of storage daemon that no
                                   // device was reserved.
+    PmStrcpy(dev_name, "JustInTime Device");
     BashSpaces(dev_name);
     Jmsg(jcr, M_INFO, 0, "Using just in time reservation for job %" PRIu32 "\n",
          jcr->JobId);
