@@ -2,7 +2,7 @@
 
    Copyright (C) 2001-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -2270,5 +2270,89 @@ static bool ScanCommandLineArguments(UaContext* ua, RunContext& rc)
   }
 
   return true;
+}
+
+bool ResumeCmd(UaContext* ua, const char*)
+{
+  int jobid = -1;
+
+  if (int i = FindArgWithValue(ua, "jobid"); i >= 0) {
+    jobid = atoi(ua->argv[i]);
+  } else {
+    ua->ErrorMsg("No JobId given.\n");
+    return false;
+  }
+
+  if (jobid <= 0) {
+    ua->ErrorMsg("Bad JobId given.\n");
+    return false;
+  }
+
+  if (!OpenClientDb(ua)) {
+    ua->ErrorMsg("Could not open database.\n");
+    return false;
+  }
+
+  JobDbRecord jr{};
+  jr.JobId = jobid;
+  if (!ua->db->GetJobRecord(ua->jcr, &jr)) {
+    ua->ErrorMsg("Job %d not found.\n", jobid);
+    return false;
+  }
+
+  if (jr.JobType != JT_BACKUP) {
+    ua->ErrorMsg("Job %d is not a backup job.\n", jobid);
+    return false;
+  }
+
+  if (jr.JobType != JT_BACKUP) {
+    ua->ErrorMsg("Job %d is not a backup job.\n", jobid);
+    return false;
+  }
+
+
+  struct free_jcr {
+    void operator()(JobControlRecord* jcr) const { FreeJcr(jcr); }
+  };
+
+  std::unique_ptr<JobControlRecord, free_jcr> jcr{NewDirectorJcr(DirdFreeJcr)};
+
+  auto* job = ua->GetJobResWithName(jr.Name);
+  SetJcrDefaults(jcr.get(), job);
+  jcr->dir_impl->jr = jr;
+  {
+    jcr->setJobType(jr.JobType);
+    jcr->setJobLevel(jr.JobLevel);
+    jcr->setJobStatus(JS_Resumed);
+    bstrncpy(jcr->Job, jr.Job, sizeof(jcr->Job));
+    jcr->JobId = jr.JobId;
+    jcr->sched_time = jr.SchedTime;
+    jcr->start_time = jr.StartTime;
+    jcr->end_time = jr.EndTime;
+    jcr->JobFiles = jr.JobFiles;
+    jcr->JobBytes = jr.JobBytes;
+    jcr->ReadBytes = jr.ReadBytes;
+    jcr->VolSessionId = jr.VolSessionId;
+    jcr->VolSessionTime = jr.VolSessionTime;
+    jcr->JobErrors = jr.JobErrors;
+    jcr->HasBase = jr.HasBase;
+    jcr->rerunning = true;
+  }
+
+  auto JobId = RunJob(jcr.get());
+
+  jcr->dir_impl->job_trigger = JobTrigger::kUser;
+
+  if (JobId == 0 || (int)JobId != jobid) {
+    ua->ErrorMsg(T_("Job failed.\n"));
+    return false;
+  } else {
+    char ed1[50];
+    ua->send->ObjectStart("run");
+    ua->send->ObjectKeyValue("jobid", edit_int64(JobId, ed1),
+                             T_("Resuming job JobId=%s\n"));
+    ua->send->ObjectEnd("run");
+    return true;
+  }
 }
 } /* namespace directordaemon */

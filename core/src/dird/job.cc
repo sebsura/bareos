@@ -209,9 +209,11 @@ bool SetupJob(JobControlRecord* jcr, bool suppress_output)
     if (!GetOrCreateClientRecord(jcr)) { goto bail_out; }
   }
 
-  if (!jcr->db->CreateJobRecord(jcr, &jcr->dir_impl->jr)) {
-    Jmsg(jcr, M_FATAL, 0, "%s", jcr->db->strerror());
-    goto bail_out;
+  if (jcr->dir_impl->jr.JobId == 0) {
+    if (!jcr->db->CreateJobRecord(jcr, &jcr->dir_impl->jr)) {
+      Jmsg(jcr, M_FATAL, 0, "%s", jcr->db->strerror());
+      goto bail_out;
+    }
   }
 
   jcr->JobId = jcr->dir_impl->jr.JobId;

@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -439,6 +439,8 @@ static struct ua_cmdstruct commands[] = {
          "\tstrip_prefix=<prefix> add_prefix=<prefix> add_suffix=<suffix>\n"
          "\tselect=<date> select before current copies done all"),
      false, true},
+    {NT_("resume"), ResumeCmd, T_("Resume Job"), NT_("jobid=<jobid>"), false,
+     true},
     {NT_("relabel"), RelabelCmd, T_("Relabel a tape"),
      NT_("storage=<storage-name> oldvolume=<old-volume-name>\n"
          "\tvolume=<new-volume-name> pool=<pool-name> [ encrypt ]"),
