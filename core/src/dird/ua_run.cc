@@ -2272,6 +2272,20 @@ static bool ScanCommandLineArguments(UaContext* ua, RunContext& rc)
   return true;
 }
 
+std::unique_ptr<FilesetResource> CopyFileset(FilesetResource* input)
+{
+  return std::make_unique<FilesetResource>(*input);
+}
+
+std::vector<std::string> FindSeenFiles(const JobDbRecord&)
+{
+  return {
+      "/home/ssura/Projekte/bareos/build/systemtests/tests/restore/tmp/data/"
+      "build",
+      "/home/ssura/Projekte/bareos/build/systemtests/tests/restore/tmp/data/"
+      "weird-files"};
+}
+
 bool ResumeCmd(UaContext* ua, const char*)
 {
   int jobid = -1;
@@ -2310,7 +2324,6 @@ bool ResumeCmd(UaContext* ua, const char*)
     return false;
   }
 
-
   struct free_jcr {
     void operator()(JobControlRecord* jcr) const { FreeJcr(jcr); }
   };
@@ -2339,9 +2352,20 @@ bool ResumeCmd(UaContext* ua, const char*)
     jcr->rerunning = true;
   }
 
-  auto JobId = RunJob(jcr.get());
+  auto copy = CopyFileset(jcr->dir_impl->res.fileset);
+  auto seen_files = FindSeenFiles(jr);
+  auto exclude_seen = copy->exclude_items.emplace_back(new IncludeExcludeItem);
+  for (auto& file : seen_files) {
+    exclude_seen->name_list.append(strdup(file.c_str()));
+  }
 
+  // TODO: how to fix this memory leak ?
+  jcr->dir_impl->res.fileset = copy.release();
   jcr->dir_impl->job_trigger = JobTrigger::kUser;
+
+  // jcrs are refcounted, so we need to always call FreeJcr on it, i.e.
+  // we need to jcr.get() here and not jcr.release()
+  auto JobId = RunJob(jcr.get());
 
   if (JobId == 0 || (int)JobId != jobid) {
     ua->ErrorMsg(T_("Job failed.\n"));
