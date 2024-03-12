@@ -112,7 +112,6 @@ static bool SaveFullyProcessedFilesAttributes(
     for_each(
         processed_files.begin(), processed_files.end(),
         [&jcr](ProcessedFile& file) { file.SendAttributesToDirector(jcr); });
-    jcr->JobFiles = processed_files.back().GetFileIndex();
     processed_files.clear();
     return true;
   }
@@ -422,6 +421,7 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
     if (file_index != last_file_index) {
       last_file_index = file_index;
       if (file_currently_processed.GetFileIndex() > 0) {
+        jcr->JobFiles += 1;
         processed_files.push_back(std::move(file_currently_processed));
       }
       file_currently_processed = ProcessedFile{file_index};
@@ -551,14 +551,17 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
   }
 
   Dmsg1(200, "Write EOS label JobStatus=%c\n", jcr->getJobStatus());
+  if (ok && !jcr->IsJobCanceled()) {
+    // Send attributes of the final partial block of the session
+    if (file_currently_processed.GetFileIndex() > 0) {
+      jcr->JobFiles += 1;
+      processed_files.push_back(std::move(file_currently_processed));
+    }
+  }
 
   /* Check if we can still write. This may not be the case
    * if we are at the end of the tape or we got a fatal I/O error. */
   if (ok || dev->CanWrite()) {
-    // take into account the fact that GetFileIndex() may return -1
-    // if no file is currently getting processed.
-    // This should only happen if no file was send to begin with!
-    jcr->JobFiles = std::max(file_currently_processed.GetFileIndex(), 0);
     if (!WriteSessionLabel(jcr->sd_impl->dcr, EOS_LABEL)) {
       // Print only if ok and not cancelled to avoid spurious messages
       if (ok && !jcr->IsJobCanceled()) {
@@ -581,10 +584,6 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
       jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
       ok = false;
     } else if (ok && !jcr->IsJobCanceled()) {
-      // Send attributes of the final partial block of the session
-      if (file_currently_processed.GetFileIndex() > 0) {
-        processed_files.push_back(std::move(file_currently_processed));
-      }
       SaveFullyProcessedFilesAttributes(jcr, processed_files);
     }
   }
