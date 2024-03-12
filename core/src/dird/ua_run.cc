@@ -2296,32 +2296,13 @@ static void AddVisibleFiles(TREE_NODE* current, std::vector<std::string>& vis)
   }
 }
 
-static std::vector<std::string> FindSeenFiles(UaContext* ua,
-                                              const JobDbRecord& jr)
+static std::vector<std::string> FindSeenFiles(TreeContext& tree)
 {
-  TreeContext tree;
-  tree.root = new_tree(20);
-  tree.ua = ua;
-  tree.all = false;
-
-  ua->InfoMsg("Building directory tree for JobId %d ...  ", jr.JobId);
-  ua->LogAuditEventInfoMsg("Building directory tree for JobId %d", jr.JobId);
-  if (!ua->db->GetFileList(ua->jcr, std::to_string(jr.JobId).c_str(), false,
-                           false, InsertTreeHandler, (void*)&tree)) {
-    ua->ErrorMsg(
-        "\nCould not get filelist (ERR=%s), proceeding with empty filelist.",
-        ua->db->strerror());
-    return {};
-  }
-  ua->InfoMsg("\n");
-
   TREE_NODE* node = (TREE_NODE*)tree.root;
 
   std::vector<std::string> visible_files;
 
   AddVisibleFiles(node, visible_files);
-
-  for (auto& file : visible_files) { ua->SendMsg("File: %s\n", file.c_str()); }
 
   return visible_files;
 }
@@ -2392,10 +2373,37 @@ bool ResumeCmd(UaContext* ua, const char*)
     jcr->rerunning = true;
   }
 
+  TreeContext tree;
+  tree.root = new_tree(20);
+  tree.ua = ua;
+  tree.all = false;
+
+  ua->InfoMsg("Building directory tree for JobId %d ...  ", jr.JobId);
+  ua->LogAuditEventInfoMsg("Building directory tree for JobId %d", jr.JobId);
+  if (!ua->db->GetFileList(ua->jcr, std::to_string(jr.JobId).c_str(), false,
+                           false, InsertTreeHandler, (void*)&tree)) {
+    ua->ErrorMsg(
+        "\nCould not get filelist (ERR=%s), proceeding with empty filelist.",
+        ua->db->strerror());
+    return {};
+  }
+  ua->InfoMsg("\n");
+
+  // jr.JobFiles is the number of files that the fd send, not the one that we
+  // actually have on disk, as such we use the number of elements in the tree
+  // instead.
+  // TODO: check that all file indices 1-tree.cnt actually exist
+  jcr->JobFiles = tree.cnt;
+
   auto copy = CopyFileset(jcr->dir_impl->res.fileset);
-  auto seen_files = FindSeenFiles(ua, jr);
+  auto seen_files = FindSeenFiles(tree);
+  FreeTree(tree.root);
+
+
   auto exclude_seen = copy->exclude_items.emplace_back(new IncludeExcludeItem);
+
   for (auto& file : seen_files) {
+    ua->SendMsg("excluding %s\n", file.c_str());
     exclude_seen->name_list.append(strdup(file.c_str()));
   }
 
