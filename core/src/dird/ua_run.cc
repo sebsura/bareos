@@ -2307,6 +2307,56 @@ static std::vector<std::string> FindSeenFiles(TreeContext& tree)
   return visible_files;
 }
 
+enum class max_find_result : int
+{
+  OK = 0,
+  BadData,
+  Error,
+};
+// 0: continue
+// !0: stop
+static int MaxFinder(void* user, int rows, char** rowdata)
+{
+  if (rows != 2) { return static_cast<int>(max_find_result::BadData); }
+
+  int* current = (int*)user;
+
+  int min = atoi(rowdata[0]);
+  int max = atoi(rowdata[1]);
+
+  // take care of null job media entries
+  if (min == 0 && max == 0) {
+    return static_cast<int>(max_find_result::OK);
+  } else if (*current == (min - 1) && min <= max) {
+    // max is not safe since we do not know whether it survived
+    *current = std::max(*current, max - 1);
+    return static_cast<int>(max_find_result::OK);
+  } else {
+    return static_cast<int>(max_find_result::Error);
+  }
+}
+
+static int32_t FindLastSafeFileIndex(UaContext* ua, const JobDbRecord& jr)
+{
+  // this is not good enough, we need to create a "gap list" instead
+  // delete all fileindices inside the gap; Note: a fileindex is only safe, if
+  // both x-1 AND x+1 are outside gaps (0 and max+1 are considered outside of
+  // gaps) Lets say that the following files are inside job media records: 1 2 _
+  // 4 5 6 | safe: 1 5 6 not safe: 2 4 missing 3 So we need to delete 2 & 4
+  // (since we cannot know if they were fully saved or not) and request them
+  // from the fd again if possible. if 5 is a folder containing 2 & 4, then we
+  // ignore this.
+  int max = 0;
+  PoolMem query;
+  Mmsg(query,
+       "select firstindex, lastindex from jobmedia where jobid=%d ORDER BY "
+       "firstindex;",
+       jr.JobId);
+  if (!ua->db->SqlQuery(query.c_str(), &MaxFinder, (void*)&max)) { return -1; }
+
+  return max;
+}
+
 bool ResumeCmd(UaContext* ua, const char*)
 {
   int jobid = -1;
@@ -2378,6 +2428,33 @@ bool ResumeCmd(UaContext* ua, const char*)
   tree.ua = ua;
   tree.all = false;
 
+  int32_t max_safe_findex = FindLastSafeFileIndex(ua, jr);
+
+  if (max_safe_findex < 0) {
+    ua->ErrorMsg("Unexpected error occured while parsing job media records.\n");
+    return false;
+  }
+
+  ua->InfoMsg("Last FileIndex on SD: %d\n", max_safe_findex);
+  {
+    PoolMem query;
+    Mmsg(query, R"QUERY(
+BEGIN;
+DELETE FROM file WHERE jobid=%d AND fileindex>%d;
+DELETE FROM jobmedia WHERE jobid=%d AND firstindex>%d;
+UPDATE jobmedia SET lastindex=%d WHERE jobid=%d AND lastindex>%d;
+COMMIT;
+)QUERY",
+         jobid, max_safe_findex, jobid, max_safe_findex, max_safe_findex, jobid,
+         max_safe_findex);
+    ua->InfoMsg("Deleting bad FileIndices ...Query=\n%s\n", query.c_str());
+    if (!ua->db->SqlQuery(query.c_str())) {
+      ua->ErrorMsg("Something went wrong. ERR=%s\n", ua->db->strerror());
+      return false;
+    }
+  }
+
+
   ua->InfoMsg("Building directory tree for JobId %d ...  ", jr.JobId);
   ua->LogAuditEventInfoMsg("Building directory tree for JobId %d", jr.JobId);
   if (!ua->db->GetFileList(ua->jcr, std::to_string(jr.JobId).c_str(), false,
@@ -2393,7 +2470,7 @@ bool ResumeCmd(UaContext* ua, const char*)
   // actually have on disk, as such we use the number of elements in the tree
   // instead.
   // TODO: check that all file indices 1-tree.cnt actually exist
-  jcr->JobFiles = tree.cnt;
+  jcr->JobFiles = max_safe_findex;
 
   auto copy = CopyFileset(jcr->dir_impl->res.fileset);
   auto seen_files = FindSeenFiles(tree);
