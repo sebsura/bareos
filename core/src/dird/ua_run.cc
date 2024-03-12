@@ -39,6 +39,7 @@
 #include "lib/edit.h"
 #include "lib/keyword_table_s.h"
 #include "lib/util.h"
+#include "lib/tree.h"
 #include "dird/jcr_util.h"
 
 namespace directordaemon {
@@ -2272,18 +2273,57 @@ static bool ScanCommandLineArguments(UaContext* ua, RunContext& rc)
   return true;
 }
 
-std::unique_ptr<FilesetResource> CopyFileset(FilesetResource* input)
+static std::unique_ptr<FilesetResource> CopyFileset(FilesetResource* input)
 {
   return std::make_unique<FilesetResource>(*input);
 }
 
-std::vector<std::string> FindSeenFiles(const JobDbRecord&)
+int InsertTreeHandler(void* ctx, int, char** row);
+
+static void AddVisibleFiles(TREE_NODE* current, std::vector<std::string>& vis)
 {
-  return {
-      "/home/ssura/Projekte/bareos/build/systemtests/tests/restore/tmp/data/"
-      "build",
-      "/home/ssura/Projekte/bareos/build/systemtests/tests/restore/tmp/data/"
-      "weird-files"};
+  bool is_visible = current->type != TN_ROOT && current->type != TN_NEWDIR;
+
+  if (is_visible) {
+    POOLMEM* path = tree_getpath(current);
+    auto len = strlen(path);
+    while (len > 0 && path[len - 1] == '/') { path[--len] = '\0'; }
+    vis.emplace_back(path);
+    FreePoolMemory(path);
+  } else {
+    TREE_NODE* child;
+    foreach_child (child, current) { AddVisibleFiles(child, vis); }
+  }
+}
+
+static std::vector<std::string> FindSeenFiles(UaContext* ua,
+                                              const JobDbRecord& jr)
+{
+  TreeContext tree;
+  tree.root = new_tree(20);
+  tree.ua = ua;
+  tree.all = false;
+
+  ua->InfoMsg("Building directory tree for JobId %d ...  ", jr.JobId);
+  ua->LogAuditEventInfoMsg("Building directory tree for JobId %d", jr.JobId);
+  if (!ua->db->GetFileList(ua->jcr, std::to_string(jr.JobId).c_str(), false,
+                           false, InsertTreeHandler, (void*)&tree)) {
+    ua->ErrorMsg(
+        "\nCould not get filelist (ERR=%s), proceeding with empty filelist.",
+        ua->db->strerror());
+    return {};
+  }
+  ua->InfoMsg("\n");
+
+  TREE_NODE* node = (TREE_NODE*)tree.root;
+
+  std::vector<std::string> visible_files;
+
+  AddVisibleFiles(node, visible_files);
+
+  for (auto& file : visible_files) { ua->SendMsg("File: %s\n", file.c_str()); }
+
+  return visible_files;
 }
 
 bool ResumeCmd(UaContext* ua, const char*)
@@ -2353,7 +2393,7 @@ bool ResumeCmd(UaContext* ua, const char*)
   }
 
   auto copy = CopyFileset(jcr->dir_impl->res.fileset);
-  auto seen_files = FindSeenFiles(jr);
+  auto seen_files = FindSeenFiles(ua, jr);
   auto exclude_seen = copy->exclude_items.emplace_back(new IncludeExcludeItem);
   for (auto& file : seen_files) {
     exclude_seen->name_list.append(strdup(file.c_str()));
