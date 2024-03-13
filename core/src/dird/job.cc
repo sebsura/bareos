@@ -1025,6 +1025,14 @@ bool GetLevelSinceTime(JobControlRecord* jcr)
              sizeof(jcr->dir_impl->since));
     Jmsg(jcr, M_INFO, 0, "Using since time from command line %s (%s)",
          jcr->starttime_string, jcr->dir_impl->since);
+    PoolMem query;
+    Mmsg(query, "INSERT INTO JobDepends (jobid, sincetime) VALUES (%d, '%s')",
+         jcr->JobId, jcr->starttime_string);
+    if (!jcr->db->SqlQuery(query.c_str())) {
+      Jmsg(jcr, M_FATAL, 0,
+           "Could not add to tuple (%d, '%s') to JobDepends.\n", jcr->JobId,
+           jcr->starttime_string);
+    }
     return pool_updated;
   }
 
@@ -1164,6 +1172,18 @@ bool GetLevelSinceTime(JobControlRecord* jcr)
       /* Lookup the Job record of the previous Job and store it in
        * jcr->dir_impl_->previous_jr. */
       if (prev_job) {
+        jcr->dir_impl->previous_jr.JobId = prev_job;
+        if (!jcr->db->GetJobRecord(jcr, &jcr->dir_impl->previous_jr)) {
+          Jmsg(jcr, M_FATAL, 0,
+               T_("Could not get job record for previous Job. ERR=%s\n"),
+               jcr->db->strerror());
+        } else {
+          bstrncpy(jcr->dir_impl->PrevJob, jcr->dir_impl->previous_jr.Job,
+                   sizeof(jcr->dir_impl->PrevJob));
+          bstrutime(jcr->starttime_string,
+                    SizeofPoolMemory(jcr->starttime_string),
+                    jcr->dir_impl->previous_jr.StartTime);
+        }
         PoolMem query;
         Mmsg(query,
              "INSERT INTO JobDepends (jobid, previd, sincetime) VALUES (%d, "
@@ -1179,15 +1199,9 @@ bool GetLevelSinceTime(JobControlRecord* jcr)
         bstrncat(jcr->dir_impl->since, jcr->starttime_string,
                  sizeof(jcr->dir_impl->since));
 
-        jcr->dir_impl->previous_jr.JobId = prev_job;
-        if (!jcr->db->GetJobRecord(jcr, &jcr->dir_impl->previous_jr)) {
-          Jmsg(jcr, M_FATAL, 0,
-               T_("Could not get job record for previous Job. ERR=%s\n"),
-               jcr->db->strerror());
-        } else {
-          bstrncpy(jcr->dir_impl->PrevJob, jcr->dir_impl->previous_jr.Job,
-                   sizeof(jcr->dir_impl->PrevJob));
-        }
+      } else {
+        bstrncpy(jcr->dir_impl->PrevJob, "", sizeof(jcr->dir_impl->PrevJob));
+        PmStrcpy(jcr->starttime_string, "");
       }
 
       break;

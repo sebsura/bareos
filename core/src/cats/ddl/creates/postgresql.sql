@@ -110,7 +110,7 @@ CREATE INDEX job_name_idx ON job (Name);
 CREATE TABLE JobDepends
 (
         JobId INTEGER PRIMARY KEY,
-        PrevId INTEGER NOT NULL,
+        PrevId INTEGER,
         SinceTime TIMESTAMP WITHOUT TIME ZONE,
 
         CONSTRAINT FKC_PrevId FOREIGN KEY(PrevId) REFERENCES Job(JobId)
