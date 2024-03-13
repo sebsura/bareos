@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -666,12 +666,12 @@ class BareosDb : public BareosDbQueryEnum {
   bool FindLastJobStartTime(JobControlRecord* jcr,
                             JobDbRecord* jr,
                             POOLMEM*& stime,
-                            char* job,
+                            JobId_t* job,
                             int JobLevel);
   bool FindJobStartTime(JobControlRecord* jcr,
                         JobDbRecord* jr,
                         POOLMEM*& stime,
-                        char* job);
+                        JobId_t* job);
   bool FindLastJobid(JobControlRecord* jcr, const char* Name, JobDbRecord* jr);
   bool FindJobById(JobControlRecord* jcr, const std::string id);
   int FindNextVolume(JobControlRecord* jcr,
@@ -682,7 +682,8 @@ class BareosDb : public BareosDbQueryEnum {
   bool FindFailedJobSince(JobControlRecord* jcr,
                           JobDbRecord* jr,
                           POOLMEM* stime,
-                          int& JobLevel);
+                          int& JobLevel,
+                          JobId_t* job);
 
   /* sql_get.c */
   bool GetVolumeJobids(MediaDbRecord* mr, db_list_ctx* lst);
