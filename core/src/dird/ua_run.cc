@@ -2423,6 +2423,93 @@ bool ResumeCmd(UaContext* ua, const char*)
     jcr->rerunning = true;
   }
 
+  // setup sincetime / prev_jr
+  if (jcr->getJobLevel() == L_INCREMENTAL
+      || jcr->getJobLevel() == L_DIFFERENTIAL) {
+    PoolMem query;
+    Mmsg(query, "SELECT * FROM jobdepends WHERE jobid=%d;", jcr->JobId);
+
+    struct {
+      int found = 0;       // 0 = not found, 1 = ok, else error
+      JobId_t previd = 0;  // optional
+      time_t since = 0;    // required
+    } result;
+    if (ua->db->SqlQuery(
+            query.c_str(),
+            [](void* arg, int rows, char** row_data) -> int {
+              constexpr int ret_cont = 0;
+              constexpr int ret_stop = 1;
+              auto* res = (decltype(result)*)arg;
+              if (rows != 3) {
+                res->found = 2;
+                return ret_stop;
+              }
+
+              if (res->found) {
+                res->found = 2;
+                return ret_stop;
+              }
+
+              const char* jobid = row_data[0];
+              (void)jobid;
+              const char* previd = row_data[1];
+              const char* since = row_data[2];
+
+              if (previd) {
+                res->previd = atoi(previd);
+                if (!res->previd) {
+                  res->found = 2;
+                  return ret_stop;
+                }
+              }
+
+              if (since) {
+                res->since = StrToUtime(since);
+              } else {
+                res->found = 2;
+                return ret_stop;
+              }
+
+              res->found = 1;
+              return ret_cont;
+            },
+            (void*)&result)) {
+      if (jcr->starttime_string) {
+        jcr->starttime_string
+            = CheckPoolMemorySize(jcr->starttime_string, MAX_TIME_LENGTH);
+      } else {
+        jcr->starttime_string = GetMemory(MAX_TIME_LENGTH);
+      }
+      bstrutime(jcr->starttime_string, SizeofPoolMemory(jcr->starttime_string),
+                result.since);
+      if (result.previd) {
+        jcr->dir_impl->previous_jr.JobId = result.previd;
+        if (!ua->db->GetJobRecord(ua->jcr, &jcr->dir_impl->previous_jr)) {
+          ua->ErrorMsg("Could not get job record for previous Job. ERR=%s\n",
+                       jcr->db->strerror());
+          return false;
+        }
+
+        if (jcr->dir_impl->previous_jr.StartTime != result.since) {
+          char ed1[MAX_TIME_LENGTH];
+          char ed2[MAX_TIME_LENGTH];
+          ua->WarningMsg(
+              "Start time of previous job %d (%s) differs from since time "
+              "%s.\n",
+              edit_utime(jcr->dir_impl->previous_jr.StartTime, ed1,
+                         sizeof(ed1)),
+              edit_utime(result.since, ed2, sizeof(ed2)));
+        }
+
+        bstrncpy(jcr->dir_impl->PrevJob, jcr->dir_impl->previous_jr.Job,
+                 sizeof(jcr->dir_impl->PrevJob));
+      }
+    } else {
+      ua->WarningMsg(
+          "Could not determine since time of this job (no entry in "
+          "jobdepends).\n");
+    }
+  }
   TreeContext tree;
   tree.root = new_tree(20);
   tree.ua = ua;

@@ -1026,12 +1026,14 @@ bool GetLevelSinceTime(JobControlRecord* jcr)
     Jmsg(jcr, M_INFO, 0, "Using since time from command line %s (%s)",
          jcr->starttime_string, jcr->dir_impl->since);
     PoolMem query;
-    Mmsg(query, "INSERT INTO JobDepends (jobid, sincetime) VALUES (%d, '%s')",
-         jcr->JobId, jcr->starttime_string);
-    if (!jcr->db->SqlQuery(query.c_str())) {
-      Jmsg(jcr, M_FATAL, 0,
-           "Could not add to tuple (%d, '%s') to JobDepends.\n", jcr->JobId,
-           jcr->starttime_string);
+    if (!jcr->rerunning) {
+      Mmsg(query, "INSERT INTO JobDepends (jobid, sincetime) VALUES (%d, '%s')",
+           jcr->JobId, jcr->starttime_string);
+      if (!jcr->db->SqlQuery(query.c_str())) {
+        Jmsg(jcr, M_FATAL, 0,
+             "Could not add to tuple (%d, '%s') to JobDepends.\n", jcr->JobId,
+             jcr->starttime_string);
+      }
     }
     return pool_updated;
   }
@@ -1184,6 +1186,8 @@ bool GetLevelSinceTime(JobControlRecord* jcr)
                     SizeofPoolMemory(jcr->starttime_string),
                     jcr->dir_impl->previous_jr.StartTime);
         }
+        // we should not reach this point when rerunning, since the since time
+        // is copied.
         PoolMem query;
         Mmsg(query,
              "INSERT INTO JobDepends (jobid, previd, sincetime) VALUES (%d, "
