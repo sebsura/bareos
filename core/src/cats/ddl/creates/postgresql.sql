@@ -107,6 +107,15 @@ CREATE TABLE Job
 
 CREATE INDEX job_name_idx ON job (Name);
 
+CREATE TABLE JobDepends
+(
+        JobId INTEGER PRIMARY KEY,
+        PrevId INTEGER NOT NULL,
+        SinceTime TIMESTAMP WITHOUT TIME ZONE,
+
+        CONSTRAINT FKC_PrevId FOREIGN KEY(PrevId) REFERENCES Job(JobId)
+);
+
 -- Create a table like Job for long term statistics
 CREATE TABLE JobHisto (LIKE Job);
 CREATE INDEX jobhisto_idx ON JobHisto (StartTime);

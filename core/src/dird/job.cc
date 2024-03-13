@@ -1164,6 +1164,16 @@ bool GetLevelSinceTime(JobControlRecord* jcr)
       /* Lookup the Job record of the previous Job and store it in
        * jcr->dir_impl_->previous_jr. */
       if (prev_job) {
+        PoolMem query;
+        Mmsg(query,
+             "INSERT INTO JobDepends (jobid, previd, sincetime) VALUES (%d, "
+             "%d, '%s')",
+             jcr->JobId, prev_job, jcr->starttime_string);
+        if (!jcr->db->SqlQuery(query.c_str())) {
+          Jmsg(jcr, M_FATAL, 0,
+               "Could not add to tuple (%d, %d, '%s') to JobDepends.\n",
+               jcr->JobId, prev_job, jcr->starttime_string);
+        }
         bstrncat(jcr->dir_impl->since, T_(", since="),
                  sizeof(jcr->dir_impl->since));
         bstrncat(jcr->dir_impl->since, jcr->starttime_string,
