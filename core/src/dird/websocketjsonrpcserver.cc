@@ -21,6 +21,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 
 #include "websocketjsonrpcserver.h"
 
+typedef websocketpp::server<websocketpp::config::asio> server;
+
 using namespace jsonrpc;
 
 // Define a callback to handle incoming messages
@@ -62,6 +64,21 @@ void WebsocketJsonRpcServer::on_close(wsasioserver* wsserver,
   }
 }
 
+bool WebsocketJsonRpcServer::on_validate(wsasioserver* wsserver,
+                                      websocketpp::connection_hdl hdl)
+{
+  try {
+    server::connection_ptr cp = wsserver->get_con_from_hdl(hdl);
+    std::string auth_hdr( cp->get_request_header("X-API-Key") );
+    if(auth_hdr == "secret")
+      return true;
+  } catch (websocketpp::exception const& e) {
+    std::cout << "Operation failed because: "
+              << "(" << e.what() << ")" << std::endl;
+  }
+  return false;
+}
+
 WebsocketJsonRpcServer::WebsocketJsonRpcServer(int port)
     : AbstractServerConnector(), port_(port)
 {
@@ -94,7 +111,8 @@ void WebsocketJsonRpcServer::StartWebsocket()
       bind(&WebsocketJsonRpcServer::on_open, this, &wsserver_, ::_1));
   wsserver_.set_close_handler(
       bind(&WebsocketJsonRpcServer::on_close, this, &wsserver_, ::_1));
-
+  wsserver_.set_validate_handler(
+      bind(&WebsocketJsonRpcServer::on_validate, this, &wsserver_, ::_1));
   try {
     wsserver_.listen(port_);
     // Start the server accept loop
