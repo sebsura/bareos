@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2019-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2019-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -214,6 +214,10 @@ if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     "ctest_custom_pretest.sh.in"
     "${CMAKE_CURRENT_BINARY_DIR}/ctest_custom_pretest.sh" @ONLY
   )
+  configure_file(
+    "ctest_custom_posttest.sh.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/ctest_custom_posttest.sh" @ONLY
+  )
 else()
   configure_file(
     "CTestCustom-win.cmake.in" "${CMAKE_BINARY_DIR}/CTestCustom.cmake" @ONLY
@@ -221,6 +225,10 @@ else()
   configure_file(
     "ctest_custom_pretest-win.sh.in"
     "${CMAKE_CURRENT_BINARY_DIR}/ctest_custom_pretest.sh" @ONLY
+  )
+  configure_file(
+    "ctest_custom_posttest-win.sh.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/ctest_custom_posttest.sh" @ONLY
   )
 
 endif()
