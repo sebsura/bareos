@@ -418,6 +418,14 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
       break;
     }
 
+    if (last_file_index == 0) {
+      if (jcr->rerunning) {
+        jcr->JobFiles = file_index - 1;
+      } else {
+        jcr->JobFiles = 0;
+      }
+    }
+
     if (file_index != last_file_index) {
       last_file_index = file_index;
       if (file_currently_processed.GetFileIndex() > 0) {
