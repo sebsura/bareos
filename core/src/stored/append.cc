@@ -239,6 +239,27 @@ class MessageHandler {
   static void enlist(MessageHandler* handler) { handler->do_work(); }
 };
 
+bool PrepareCheckpoint(JobControlRecord* jcr)
+{
+  Dmsg0(200, "Preparing checkpoint (jobid=%d)\n", jcr->JobId);
+  auto* dcr = jcr->sd_impl->dcr;
+
+  Dmsg0(200, "Commiting data spool for checkpoint (jobid=%d)\n", jcr->JobId);
+  if (!CommitDataSpool(dcr)) {
+    Jmsg(jcr, M_FATAL, 0, "Could not commit data spool during checkpoint.\n");
+    return false;
+  }
+
+  Dmsg0(200, "Flushing device for checkpoint (jobid=%d)\n", jcr->JobId);
+  if (!dcr->dev->d_flush(dcr)) {
+    Jmsg(jcr, M_FATAL, 0, "Could not flush device during checkpoint.\n");
+    return false;
+  }
+  Dmsg0(200, "Successfully prepared checkpoint (jobid=%d)\n", jcr->JobId);
+
+  return true;
+}
+
 // Append Data sent from File daemon
 bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
 {
@@ -516,6 +537,10 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
         }
 
         if (checkpoints_enabled && checkpoint_handler.IsReadyForCheckpoint()) {
+          if (!PrepareCheckpoint(jcr)) {
+            ok = false;
+            break;
+          }
           if (volume_changed) {
             checkpoint_handler.DoVolumeChangeBackupCheckpoint(jcr);
             current_volumeid = jcr->sd_impl->dcr->VolMediaId;
