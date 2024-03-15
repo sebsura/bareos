@@ -454,7 +454,7 @@ skipmsgbox:
 
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
-OutFile "${PRODUCT_NAME}-${PRODUCT_VERSION}-${CMAKE_CONFIG_TYPE}.exe"
+OutFile "${PRODUCT_NAME}-${PRODUCT_VERSION}-${CMAKE_CONFIG_TYPE}-unsigned.exe"
 InstallDir "$PROGRAMFILES\${PRODUCT_NAME}"
 InstallDirRegKey HKLM "${PRODUCT_DIR_REGKEY}" ""
 ShowInstDetails show
