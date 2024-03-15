@@ -54,6 +54,7 @@ class WebsocketJsonRpcServer : public AbstractServerConnector {
 
   void on_close(wsasioserver* wsserver, websocketpp::connection_hdl hdl);
   void on_open(wsasioserver* wsserver, websocketpp::connection_hdl hdl);
+  bool on_validate(wsasioserver* wsserver, websocketpp::connection_hdl hdl);
 
  private:
   wsasioserver wsserver_;
