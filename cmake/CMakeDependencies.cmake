@@ -7,7 +7,7 @@
 # set default dependencies search path
 set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "${CMAKE_SOURCE_DIR}/win32-deps")
 
-find_package(Jsoncpp REQUIRED)
+find_package(jsoncpp REQUIRED)
 message(STATUS "Jsoncpp header: ${JSONCPP_INCLUDE_DIR}")
 message(STATUS "Jsoncpp lib   : ${JSONCPP_LIBRARY}")
 include_directories(${JSONCPP_INCLUDE_DIR})
