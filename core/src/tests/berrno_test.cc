@@ -58,8 +58,8 @@ const char* open_error_message
     = "No such file or directory (errno=2 | win_error=0x00000002)";
 const char* win_open_error_message = "File not found.\r\n";
 const char* socket_error_message
-    = "No such file or directory (errno=2 | win_error=0x0000276D)";
-const char* win_socket_error_message = "Windows error 0x0000276D";
+    = "No such file or directory (errno=2 | win_error=0x0000273C)";
+const char* win_socket_error_message = "Windows error 0x0000273C";
 const char* bind_error_message
     = "No such file or directory (errno=2 | win_error=0x000027";
 #else
