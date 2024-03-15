@@ -22,7 +22,7 @@ message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
 project(bareos-systemtests)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-  if (MSVC)
+  if(MSVC)
     find_program(BASH_EXE bash.exe REQUIRED)
   endif()
 endif()
@@ -72,7 +72,12 @@ endif()
 
 # Main starts here...
 set(CMAKE_FIND_DEBUG_MODE TRUE)
-find_program(PG_CTL NAMES pg_ctl pg_ctl.exe HINTS /usr/lib/postgresql/*/bin /usr/bin /bin "C:/Program Files/PostgreSQL/14/bin" REQUIRED)
+find_program(
+  PG_CTL
+  NAMES pg_ctl pg_ctl.exe
+  HINTS /usr/lib/postgresql/*/bin /usr/bin /bin
+        "C:/Program Files/PostgreSQL/14/bin" REQUIRED
+)
 set(CMAKE_FIND_DEBUG_MODE FALSE)
 
 get_filename_component(POSTGRES_BIN_PATH ${PG_CTL} DIRECTORY)
@@ -207,20 +212,7 @@ if(MINIO)
   endif()
 endif()
 
-
-if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-  configure_file(
-    "CTestCustom.cmake.in" "${CMAKE_BINARY_DIR}/CTestCustom.cmake" @ONLY
-  )
-  configure_file(
-    "ctest_custom_pretest.sh.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/ctest_custom_pretest.sh" @ONLY
-  )
-  configure_file(
-    "ctest_custom_posttest.sh.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/ctest_custom_posttest.sh" @ONLY
-  )
-else()
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND MSVC)
   configure_file(
     "CTestCustom-win.cmake.in" "${CMAKE_BINARY_DIR}/CTestCustom.cmake" @ONLY
   )
@@ -230,6 +222,18 @@ else()
   )
   configure_file(
     "ctest_custom_posttest-win.sh.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/ctest_custom_posttest.sh" @ONLY
+  )
+else()
+  configure_file(
+    "CTestCustom.cmake.in" "${CMAKE_BINARY_DIR}/CTestCustom.cmake" @ONLY
+  )
+  configure_file(
+    "ctest_custom_pretest.sh.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/ctest_custom_pretest.sh" @ONLY
+  )
+  configure_file(
+    "ctest_custom_posttest.sh.in"
     "${CMAKE_CURRENT_BINARY_DIR}/ctest_custom_posttest.sh" @ONLY
   )
 
