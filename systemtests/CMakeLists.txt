@@ -22,7 +22,9 @@ message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
 project(bareos-systemtests)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-  find_program(BASH_EXE bash.exe REQUIRED)
+  if (MSVC)
+    find_program(BASH_EXE bash.exe REQUIRED)
+  endif()
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
