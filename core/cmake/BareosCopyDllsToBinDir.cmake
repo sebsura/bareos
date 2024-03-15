@@ -21,7 +21,7 @@
 # Windows: copy over all dlls our binaries depend on into the binary dir
 # Also create a file containing all dlls required
 macro(BareosCopyDllsToBinDir)
-  if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  if (${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND MSVC)
     set(FNAME "${CMAKE_BINARY_DIR}/required_dlls")
     #file(WRITE "${FNAME}" "")  # emtpy file
     set(DLLS_TO_COPY_MANUALLY C:/vcpkg/installed/x64-windows/bin/jansson.dll C:/vcpkg/installed/x64-windows/bin/lzo2.dll)
