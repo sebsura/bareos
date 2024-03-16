@@ -2064,14 +2064,15 @@ ConfDeleteSkip:
   Delete "$SMSTARTUP\bareos-tray-monitor.lnk"
 
   Delete "$INSTDIR\nssm.exe"
-  RMDir /r "$INSTDIR\bareos-webui"
 
 
   Delete "$SMPROGRAMS\${PRODUCT_NAME}\Website.lnk"
   Delete "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk"
   RMDir  "$SMPROGRAMS\${PRODUCT_NAME}"
-  RMDir  "$INSTDIR\Plugins"
-  RMDir  "$INSTDIR"
+
+  RMDir /r "$INSTDIR\Plugins"
+  RMDir /r "$INSTDIR\bareos-webui"
+  RMDir /r "$INSTDIR"
   DeleteRegKey ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}"
   DeleteRegKey HKLM "${PRODUCT_DIR_REGKEY}"
   SetAutoClose true
