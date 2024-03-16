@@ -1920,7 +1920,10 @@ Section Uninstall
   nsExec::ExecToLog '"$INSTDIR\bareos-dir.exe" /remove'
 
   ExecWait '$INSTDIR\nssm.exe stop bareos-webui'
+  sleep 3000
+
   ExecWait '$INSTDIR\nssm.exe remove bareos-webui confirm'
+  sleep 3000
 
   # be sure and also kill the other daemons
   KillProcWMI::KillProc "bareos-fd.exe"
@@ -2063,6 +2066,8 @@ ConfDeleteSkip:
   # traymon autostart
   Delete "$SMSTARTUP\bareos-tray-monitor.lnk"
 
+  ExecWait '$INSTDIR\nssm.exe stop bareos-webui'
+  ExecWait '$INSTDIR\nssm.exe remove bareos-webui confirm'
   Delete "$INSTDIR\nssm.exe"
   RMDir /r "$INSTDIR\bareos-webui"
 
