@@ -2025,6 +2025,10 @@ ConfDeleteSkip:
   Delete "$INSTDIR\bwild.exe"
   Delete "$INSTDIR\*template"
 
+  Delete "$INSTDIR\brotli*.dll"
+  Delete "$INSTDIR\double-conversion*.dll"
+  Delete "$INSTDIR\msys-2*.dll"
+
 
 # logs
   Delete "$INSTDIR\*.log"
