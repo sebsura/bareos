@@ -471,6 +471,7 @@ Section -StopDaemon
   # if the service doesnt exist, it fails and the installation
   # cannot start
   # so we use the shotgun:
+  nsExec::ExecToLog "net stop bareos-webui"
   KillProcWMI::KillProc "bareos-fd.exe"
   KillProcWMI::KillProc "bareos-sd.exe"
   KillProcWMI::KillProc "bareos-dir.exe"
