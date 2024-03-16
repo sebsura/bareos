@@ -2070,6 +2070,7 @@ ConfDeleteSkip:
   ExecWait '$INSTDIR\nssm.exe stop bareos-webui'
   ExecWait '$INSTDIR\nssm.exe remove bareos-webui confirm'
   Delete "$INSTDIR\nssm.exe"
+  nsExec::ExecToLog "net stop bareos-webui"
   RMDir /r "$INSTDIR\bareos-webui"
 
 
