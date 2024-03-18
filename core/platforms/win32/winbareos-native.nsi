@@ -557,6 +557,7 @@ SectionIn 1 2 3 4
   File "sed.exe"
   File "msys-2.0.dll"
   File "msys-intl-8.dll"
+  File "msys-iconv-2.dll"
 
   # install unittests
 #  File "test_*.exe"
