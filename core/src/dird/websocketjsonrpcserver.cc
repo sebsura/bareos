@@ -20,6 +20,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 */
 
 #include "websocketjsonrpcserver.h"
+#include "websocketpp/uri.hpp"
 
 typedef websocketpp::server<websocketpp::config::asio> server;
 
@@ -69,9 +70,16 @@ bool WebsocketJsonRpcServer::on_validate(wsasioserver* wsserver,
 {
   try {
     server::connection_ptr cp = wsserver->get_con_from_hdl(hdl);
-    std::string auth_hdr( cp->get_request_header("X-API-Key") );
-    if(auth_hdr == "secret")
-      return true;
+    // std::string auth_hdr( cp->get_request_header("X-API-Key") );
+    websocketpp::uri_ptr request_uri = cp->get_uri();
+    std::string q = request_uri->get_query();
+    if(q == "secret") {
+        return true;
+    }
+    else {
+        std::cout << "Authorization failed" << std::endl;
+        return false;
+    }
   } catch (websocketpp::exception const& e) {
     std::cout << "Operation failed because: "
               << "(" << e.what() << ")" << std::endl;
