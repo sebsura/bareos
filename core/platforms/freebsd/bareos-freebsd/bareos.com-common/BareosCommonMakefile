@@ -40,8 +40,9 @@ DIRECTOR_DAEMON_USER=${BAREOS_GROUP}
 DAEMON_GROUP=wheel
 STORAGE_DAEMON_GROUP=operator
 
+echo ${DISTVERSION}
 PLIST_SUB+=	LIBVERSION=${DISTVERSION:C/\..*//} # major version
-PLIST_SUB+=	DISTVERSION=${DISTVERSION:C/(.{7}).*/\1/} # full version
+PLIST_SUB+=	DISTVERSION=${DISTVERSION:C/(~.*).*/\1/} # full version
 
 USES+=ssl
 USES+=gettext-runtime
