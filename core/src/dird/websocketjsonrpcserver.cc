@@ -19,12 +19,23 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 02110-1301, USA.
 */
 
+#define NEED_JANSSON_NAMESPACE 1
+
+
+#include "dird/dird_globals.h"
+#include "dird_conf.h"
+#include "dird.h"
+#include "lib/parse_conf.h"
+
 #include "websocketjsonrpcserver.h"
 #include "websocketpp/uri.hpp"
+
+#include <sstream>
 
 typedef websocketpp::server<websocketpp::config::asio> server;
 
 using namespace jsonrpc;
+using namespace directordaemon;
 
 // Define a callback to handle incoming messages
 void WebsocketJsonRpcServer::on_message(wsasioserver* wsserver,
@@ -70,14 +81,27 @@ bool WebsocketJsonRpcServer::on_validate(wsasioserver* wsserver,
 {
   try {
     server::connection_ptr cp = wsserver->get_con_from_hdl(hdl);
-    // std::string auth_hdr( cp->get_request_header("X-API-Key") );
     websocketpp::uri_ptr request_uri = cp->get_uri();
     std::string q = request_uri->get_query();
-    if(q == "secret") {
+
+    std::stringstream sstr(q);
+    std::string username,password;
+
+    if(getline(sstr, username, '_') && getline(sstr, password, '_'))
+    {
+      ConsoleResource *cons = dynamic_cast<ConsoleResource*>(
+		my_config->GetResWithName(R_CONSOLE, username.c_str()));
+
+      if(cons->password_.value == password)
         return true;
+
+      if((directordaemon::me->password_.encoding == p_encoding_md5)
+          && (password == directordaemon::me->password_.value)) {
+          return true;
+      }
     }
     else {
-        std::cout << "Authorization failed" << std::endl;
+        std::cout << "Authentication failed" << std::endl;
         return false;
     }
   } catch (websocketpp::exception const& e) {
