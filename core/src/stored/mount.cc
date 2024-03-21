@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -300,6 +300,17 @@ read_volume:
    *  If the tape is marked as Recycle, we rewrite the label. */
   recycle = bstrcmp(dev->VolCatInfo.VolCatStatus, "Recycle");
   if (dev->VolHdr.LabelType == PRE_LABEL || recycle) {
+    if (recycle) {
+      bool is_bad = dev->VolCatInfo.is_valid == false
+                    || strcmp(dev->VolCatInfo.VolCatName, dcr->VolumeName) != 0;
+      Jmsg(dcr->jcr, is_bad ? M_ERROR : M_INFO, 0,
+           "Recyling volume \"%s\" (%s) [dcr: \"%s\" (%s)]"
+           " writing to \"%s\"\n",
+           dev->VolCatInfo.VolCatName,
+           dev->VolCatInfo.is_valid ? "valid" : "invalid",
+           dcr->VolCatInfo.VolCatName,
+           dcr->VolCatInfo.is_valid ? "valid" : "invalid", dcr->VolumeName);
+    }
     if (!dcr->RewriteVolumeLabel(recycle)) {
       MarkVolumeInError();
       goto mount_next_vol;
