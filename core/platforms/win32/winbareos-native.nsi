@@ -1457,6 +1457,14 @@ done:
   File  "C:\Program Files\Git\usr\bin\sed.exe"
 
   File "C:\vcpkg\installed\x64-windows\tools\openssl\openssl.exe"
+  !cd "C:\Windows\System32"
+!if ${CMAKE_CONFIG_TYPE} == "Debug"
+  File vcruntime140d.dll
+  File ucrtbased.dll
+!else
+  File vcruntime140.dll
+  File ucrtbase.dll
+!endif
   File "C:\vcpkg\installed\x64-windows\debug\bin\iconv-2.dll"
   File "C:\vcpkg\installed\x64-windows\debug\bin\intl-8.dll"
   File "C:\vcpkg\packages\pthreads_x64-windows\debug\bin\pthreadVC3d.dll"
