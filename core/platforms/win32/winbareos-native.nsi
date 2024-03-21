@@ -554,12 +554,12 @@ SectionIn 1 2 3 4
   # for password generation
   File C:\vcpkg\installed\x64-windows\tools\openssl\openssl.exe
 
-  !cd $WINDIR\system32\
+  !cd "C:\Windows\System32"
 !if ${CMAKE_CONFIG_TYPE} == "Debug"
   File vcruntime140d.dll
   File ucrtbased.dll
 !else
-  File vcruntime140.
+  File vcruntime140.dll
   File ucrtbase.dll
 !endif
   !cd "C:\Program Files\Git\usr\bin"
