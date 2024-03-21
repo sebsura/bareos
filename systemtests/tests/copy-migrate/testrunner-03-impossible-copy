@@ -12,6 +12,7 @@ TestName=03-impossible-copy
 . "${rscripts}"/functions
 
 log="$tmp/$TestName.log"
+log2="$tmp/$TestName-2.log"
 
 check_logged() {
   if ! grep -q "$@" "$log"; then
@@ -20,7 +21,7 @@ check_logged() {
   fi
 }
 check_not_logged() {
-  if grep -q "$@" "$log"; then
+  if grep -q "$@" "$log2"; then
     echo "'$*' found in $log" >&2
     estat=1
   fi
@@ -54,6 +55,8 @@ check_for_zombie_jobs storage=File
 check_logged -F 'Changing read device. Want Media Type="NoSuchType"'
 check_logged -F '*** Copying Error ***'
 # check if there is a stale volume in the storage's volume list
+# ignoring the mounting message
+grep -v -F "Mounting volume" "$log" > "$log2"
 check_not_logged -F 'on device "FileStorage2" (storage)'
 
 end_test
