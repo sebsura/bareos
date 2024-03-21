@@ -43,6 +43,10 @@
 #include "include/jcr.h"
 #include "lib/serial.h"
 
+#ifndef HAVE_WIN32
+#  include <unistd.h>
+#endif
+
 namespace storagedaemon {
 
 static bool TerminateWritingVolume(DeviceControlRecord* dcr);
@@ -547,6 +551,37 @@ static const bool no_tape_write_test = true;
 static const bool no_tape_write_test = false;
 #endif
 
+static void CheckVolumeOnDevice(DeviceControlRecord* dcr, Device* dev)
+{
+#ifdef HAVE_WIN32
+  (void)dcr;
+  (void)dev;
+#else
+  auto fd = dev->fd;
+
+  struct stat on_dev, on_dcr;
+  if (fstat(fd, &on_dev) < 0) { return; }
+  if (stat(dcr->VolumeName, &on_dcr) < 0) { return; }
+
+  if (on_dev.st_ino != on_dcr.st_ino || on_dev.st_dev != on_dcr.st_dev) {
+    std::string fdpath = "/proc/self/fd/" + std::to_string(fd);
+    char buffer[1024];
+    int len = readlink(fdpath.c_str(), buffer, sizeof(buffer));
+
+    const char* LoadedName = "Could not be determined";
+    if (len > 0 && (size_t)len < sizeof(buffer)) {
+      buffer[len] = 0;
+      LoadedName = buffer;
+    }
+
+    Jmsg(dcr->jcr, M_WARNING, 0,
+         "Trying to write to \"%s\" but device has"
+         " loaded volume \"%s\" (fd: %d)\n",
+         dcr->VolumeName, LoadedName, fd);
+  }
+#endif
+}
+
 /**
  * Write a block to the device
  *
@@ -716,6 +751,7 @@ bool DeviceControlRecord::WriteBlockToDev()
       Bmicrosleep(5, 0); /* pause a bit if busy or lots of errors */
       dev->clrerror(-1);
     }
+    CheckVolumeOnDevice(this, dev);
     status = dev->write(block->buf, (size_t)wlen);
   } while (status == -1 && (errno == EBUSY) && retry++ < 3);
 
