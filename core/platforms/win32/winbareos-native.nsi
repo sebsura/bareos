@@ -2042,6 +2042,8 @@ ConfDeleteSkip:
   Delete "$INSTDIR\brotli*.dll"
   Delete "$INSTDIR\double-conversion*.dll"
   Delete "$INSTDIR\msys-2*.dll"
+  Delete "$INSTDIR\vcruntime140*.dll"
+  Delete "$INSTDIR\ucrtbase*.dll"
 
 
 # logs
