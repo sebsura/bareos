@@ -320,6 +320,7 @@ bool DoNativeVbackup(JobControlRecord* jcr)
 
   // Start conversation with Storage daemon
   if (!ConnectToStorageDaemon(jcr, 10, me->SDConnectTimeout, true)) {
+    Jmsg(jcr, M_FATAL, 0, "Could not connect to storage daemon.\n");
     return false;
   }
 
