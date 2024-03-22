@@ -551,12 +551,11 @@ SectionIn 1 2 3 4
   File "*.dll"
   File "bareos-fd.exe"
 
-  File "C:\vcpkg\installed\x64-windows\tools\openssl\openssl.exe"
-  !cd "C:\Windows\System32"
-  File vcruntime140d.dll
-  File ucrtbased.dll
-  File vcruntime140.dll
-  File ucrtbase.dll
+##  !cd "C:\Program Files\Git\mingw64\bin"
+#  File "openssl.exe"
+#  File libcrypto-3-x64.dll
+#  File libssl-3-x64.dll
+#  File "C:\vcpkg\installed\x64-windows\tools\openssl\openssl.exe"
 
   !cd "C:\Program Files\Git\usr\bin"
   File "sed.exe"
@@ -1461,7 +1460,6 @@ done:
   File "openssl.exe"
   File libcrypto-3-x64.dll
   File libssl-3-x64.dll
-  File zlib1.dll
 
   !cd "C:\vcpkg\installed\x64-windows\debug\bin"
   File iconv-2.dll
