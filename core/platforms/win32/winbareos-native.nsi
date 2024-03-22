@@ -1465,27 +1465,6 @@ done:
   File iconv-2.dll
   File intl-8.dll
 
-  !cd "C:\vcpkg\packages\pthreads_x64-windows\debug\bin"
-  File "pthreadVC3d.dll"
-  File "pthreadVCE3d.dll"
-
-  !cd "C:\vcpkg\installed\x64-windows\debug\bin\"
-  File "libcrypto-3-x64.dll"
-  File "libssl-3-x64.dll"
-
-  #
-  #
-  # Either one of this two files will be available depending on 32/64 bits.
-#  File /nonfatal "/oname=$PLUGINSDIR\libgcc_s_sjlj-1.dll" "libgcc_s_sjlj-1.dll"
-#  File /nonfatal "/oname=$PLUGINSDIR\libgcc_s_seh-1.dll" "libgcc_s_seh-1.dll"
-#
-#  File /nonfatal "/oname=$PLUGINSDIR\libssl-1_1.dll" "libssl-1_1.dll"
-#  File /nonfatal "/oname=$PLUGINSDIR\libssl-1_1-x64.dll" "libssl-1_1-x64.dll"
-
-#  File "/oname=$PLUGINSDIR\libstdc++-6.dll" "libstdc++-6.dll"
-#  File "/oname=$PLUGINSDIR\zlib1.dll" "zlib1.dll"
-#  File "/oname=$PLUGINSDIR\libssp-0.dll" "libssp-0.dll"
-#
   File ${CMAKE_SOURCE_DIR}\core\src\console\bconsole.conf
   !cd ${CMAKE_SOURCE_DIR}\core\src\cats\ddl
   File "/oname=$PLUGINSDIR\postgresql-create.sql" "creates\postgresql.sql"
