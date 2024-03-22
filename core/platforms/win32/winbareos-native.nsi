@@ -1142,25 +1142,8 @@ Section -StartDaemon
   ${EndIf}
 
   ${If} ${SectionIsSelected} ${SEC_DIR}
-
-      #  MessageBox MB_OK|MB_ICONINFORMATION "To setup the bareos database, please run the script$\r$\n\
-      #                 $APPDATA\${PRODUCT_NAME}\scripts\postgres_db_setup.bat$\r$\n \
-      #                 with administrator rights now." /SD IDOK
-      #LogText "### Executing $APPDATA\${PRODUCT_NAME}\scripts\postgres_db_setup.bat"
-#      StrCmp $WriteLogs "yes" 0 +2
-#         LogEx::Init false $INSTDIR\sql.log
-#      StrCmp $WriteLogs "yes" 0 +2
-#         LogEx::Write "Now executing $APPDATA\${PRODUCT_NAME}\scripts\postgres_db_setup.bat"
-#      nsExec::ExecToLog "$APPDATA\${PRODUCT_NAME}\scripts\postgres_db_setup.bat > $PLUGINSDIR\db_setup_output.log"
-#      StrCmp $WriteLogs "yes" 0 +2
-#         LogEx::AddFile "   >" "$PLUGINSDIR\db_setup_output.log"
-
-
-
-      #LogText "### Executing net start bareos-dir"
+      nsExec::ExecToLog "$APPDATA\${PRODUCT_NAME}\scripts\postgres_db_setup.bat > $PLUGINSDIR\db_setup_output.log"
       nsExec::ExecToLog "net start bareos-dir"
-#      StrCmp $WriteLogs "yes" 0 +2
-#      LogEx::Close
   ${EndIf}
 
   ${If} ${SectionIsSelected} ${SEC_TRAYMON}
