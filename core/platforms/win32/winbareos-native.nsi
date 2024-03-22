@@ -555,13 +555,11 @@ SectionIn 1 2 3 4
   File C:\vcpkg\installed\x64-windows\tools\openssl\openssl.exe
 
   !cd "C:\Windows\System32"
-!if ${CMAKE_CONFIG_TYPE} == "Debug"
   File vcruntime140d.dll
   File ucrtbased.dll
-!else
   File vcruntime140.dll
   File ucrtbase.dll
-!endif
+
   !cd "C:\Program Files\Git\usr\bin"
   File "sed.exe"
   File "msys-2.0.dll"
@@ -1454,7 +1452,11 @@ done:
   InitPluginsDir
   SetOutPath $PLUGINSDIR
   File  "${CMAKE_SOURCE_DIR}\core\platforms\win32\*.ini"
-  File  "C:\Program Files\Git\usr\bin\sed.exe"
+  !cd "C:\Program Files\Git\usr\bin"
+  File "sed.exe"
+  File "msys-2.0.dll"
+  File "msys-intl-8.dll"
+  File "msys-iconv-2.dll"
 
   File "C:\vcpkg\installed\x64-windows\tools\openssl\openssl.exe"
   !cd "C:\Windows\System32"
