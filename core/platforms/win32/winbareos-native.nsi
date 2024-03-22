@@ -1458,22 +1458,22 @@ done:
 
   File "C:\vcpkg\installed\x64-windows\tools\openssl\openssl.exe"
   !cd "C:\Windows\System32"
-!if ${CMAKE_CONFIG_TYPE} == "Debug"
   File vcruntime140d.dll
   File ucrtbased.dll
-!else
   File vcruntime140.dll
   File ucrtbase.dll
-!endif
-  File "C:\vcpkg\installed\x64-windows\debug\bin\iconv-2.dll"
-  File "C:\vcpkg\installed\x64-windows\debug\bin\intl-8.dll"
-  File "C:\vcpkg\packages\pthreads_x64-windows\debug\bin\pthreadVC3d.dll"
-  File "C:\vcpkg\packages\pthreads_x64-windows\debug\bin\pthreadVCE3d.dll"
-# the following don't work, why?
-;  File "/oname=$PLUGINSDIR\pthreadVC3.dll"      "C:\vcpkg\installed\x64-windows\debug\bin\pthreadVC3d.dll
-;  File "/oname=$PLUGINSDIR\pthreadVCE3.dll"     "C:\vcpkg\installed\x64-windows\debug\bin\pthreadVCE3d.dll"
-  File "C:\vcpkg\installed\x64-windows\debug\bin\libcrypto-3-x64.dll"
-  File "C:\vcpkg\installed\x64-windows\debug\bin\libssl-3-x64.dll"
+
+  !cd "C:\vcpkg\installed\x64-windows\debug\bin"
+  File iconv-2.dll
+  File intl-8.dll
+
+  !cd "C:\vcpkg\packages\pthreads_x64-windows\debug\bin"
+  File "pthreadVC3d.dll"
+  File "pthreadVCE3d.dll"
+
+  !cd "C:\vcpkg\installed\x64-windows\debug\bin\"
+  File "libcrypto-3-x64.dll"
+  File "libssl-3-x64.dll"
 
   #
   #
