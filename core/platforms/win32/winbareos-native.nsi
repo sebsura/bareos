@@ -749,7 +749,7 @@ SectionIn 2 3
   FileWrite $R1 "cd $APPDATA\${PRODUCT_NAME}\scripts\$\r$\n"
 
   FileWrite $R1 "echo creating bareos database$\r$\n"
-  FileWrite $R1 "$PostgresPsqlExeFullPath -f postgresql-createdb.sql$\r$\n"
+  FileWrite $R1 "$PostgresPsqlExeFullPath -f postgresql-createdb.sql postgres$\r$\n"
 
   FileWrite $R1 "echo creating bareos database tables$\r$\n"
   FileWrite $R1 "$PostgresPsqlExeFullPath -f postgresql-create.sql $DbName$\r$\n"
