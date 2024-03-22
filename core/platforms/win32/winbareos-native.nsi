@@ -552,13 +552,11 @@ SectionIn 1 2 3 4
   File "bareos-fd.exe"
 
   # for password generation
-  File C:\vcpkg\installed\x64-windows\tools\openssl\openssl.exe
-
-  !cd "C:\Windows\System32"
-  File vcruntime140d.dll
-  File ucrtbased.dll
-  File vcruntime140.dll
-  File ucrtbase.dll
+  !cd "C:\Program Files\Git\mingw64\bin"
+  File "openssl.exe"
+  File libcrypto-3-x64.dll
+  File libssl-3-x64.dll
+  File zlib1.dll
 
   !cd "C:\Program Files\Git\usr\bin"
   File "sed.exe"
