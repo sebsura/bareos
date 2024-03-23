@@ -37,12 +37,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#ifndef _MSC_VER
-#  include <filesystem>
-#  include <libgen.h>
+#include <libgen.h>
+#include <dirent.h>
+#include <errno.h>
+
+#ifdef USE_READDIR_R
+#  ifndef HAVE_READDIR_R
+int Readdir_r(DIR* dirp, struct dirent* entry, struct dirent** result);
+#  endif
 #endif
 
-// #define GLOB_HARD_ESC __CRT_GLOB_ESCAPE_CHAR__
+#ifndef HAVE_STRICOLL
+#  define stricoll(str1, str2) strcasecmp(str1, str2)
+#endif
 
 enum
 {
@@ -66,7 +73,7 @@ enum
 #  define GLOB_INLINE static __inline__ __attribute__((__always_inline__))
 #endif
 
->>>>>>> origin/master
+// #define GLOB_HARD_ESC __CRT_GLOB_ESCAPE_CHAR__
 #define GLOB_HARD_ESC (char)(127)
 
 #if defined _WIN32 || defined __MS_DOS__
@@ -76,9 +83,8 @@ enum
  */
 #  define GLOB_DIRSEP ('\\')
 #  define glob_is_dirsep(c) (((c) == ('/')) || ((c) == GLOB_DIRSEP))
-    // ...and we use the ASCII ESC code as our escape character.
-    static int glob_escape_char
-    = GLOB_HARD_ESC;
+// ...and we use the ASCII ESC code as our escape character.
+static int glob_escape_char = GLOB_HARD_ESC;
 
 GLOB_INLINE char* glob_strdup(const char* pattern)
 {
@@ -86,7 +92,7 @@ GLOB_INLINE char* glob_strdup(const char* pattern)
    * this strips instances of the GLOB_HARD_ESC character, which
    * have not themselves been escaped, from the strdup()ed copy.
    */
-  char buf[MAX_PATH];
+  char buf[1 + strlen(pattern)];
   char* copy = buf;
   const char* origin = pattern;
   do {
@@ -101,12 +107,11 @@ GLOB_INLINE char* glob_strdup(const char* pattern)
  */
 #  define GLOB_DIRSEP ('/')
 #  define glob_is_dirsep(c) ((c) == GLOB_DIRSEP)
-    /*
-     * ...and we interpret '\', as specified by POSIX, as
-     * the escape character.
-     */
-    static int glob_escape_char
-    = '\\';
+/*
+ * ...and we interpret '\', as specified by POSIX, as
+ * the escape character.
+ */
+static int glob_escape_char = '\\';
 
 #  define glob_strdup strdup
 #endif
@@ -757,13 +762,8 @@ static int glob_match(const char* pattern,
 
   /* Begin by separating out any path prefix from the glob pattern.
    */
-<<<<<<< HEAD
-  char dirbuf[MAX_PATH];
-  const char* dir = dirname((char*)memcpy(dirbuf, pattern, sizeof(dirbuf)));
-=======
   std::string dirbuf(pattern);
   const char* dir = dirname(dirbuf.data());
->>>>>>> origin/master
   char **dirp, preferred_dirsep = GLOB_DIRSEP;
 
   /* Initialise a temporary local glob_t structure, to capture the
@@ -814,14 +814,14 @@ static int glob_match(const char* pattern,
   else
     /* ...otherwise, we simply note that there was no prefix.
      */
-    // dir = NULL;
+    dir = NULL;
 
-    /* We now have a globbed list of prefix directories, returned from
-     * recursive processing, in local_gl_buf.gl_pathv, and we also have
-     * a separate pattern which we may attempt to match in each of them;
-     * at the outset, we have yet to match this pattern to anything.
-     */
-    status = GLOB_NOMATCH;
+  /* We now have a globbed list of prefix directories, returned from
+   * recursive processing, in local_gl_buf.gl_pathv, and we also have
+   * a separate pattern which we may attempt to match in each of them;
+   * at the outset, we have yet to match this pattern to anything.
+   */
+  status = GLOB_NOMATCH;
   for (dirp = local_gl_buf.gl_pathv; *dirp != NULL; free(*dirp++)) {
     /* Provided an earlier cycle hasn't scheduled an abort...
      */
@@ -863,7 +863,7 @@ static int glob_match(const char* pattern,
             char* found;
             size_t prefix;
             size_t matchlen = D_NAMLEN(entry);
-            char matchpath[MAX_PATH];
+            char matchpath[2 + dirlen + matchlen];
             if ((prefix = dirlen) > 0) {
               /* ...first copying the prefix, if any,
                * followed by a directory name separator...
