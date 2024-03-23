@@ -61,7 +61,7 @@ GLOB_INLINE char* glob_strdup(const char* pattern)
    * this strips instances of the GLOB_HARD_ESC character, which
    * have not themselves been escaped, from the strdup()ed copy.
    */
-  char buf[1 + strlen(pattern)];
+  char buf[MAX_PATH];
   char* copy = buf;
   const char* origin = pattern;
   do {
@@ -731,8 +731,8 @@ static int glob_match(const char* pattern,
 
   /* Begin by separating out any path prefix from the glob pattern.
    */
-  std::string dirbuf(pattern);
-  const char* dir = dirname(dirbuf.data());
+  char dirbuf[MAX_PATH];
+  const char* dir = dirname((char*)memcpy(dirbuf, pattern, sizeof(dirbuf)));
   char **dirp, preferred_dirsep = GLOB_DIRSEP;
 
   /* Initialise a temporary local glob_t structure, to capture the
@@ -832,7 +832,7 @@ static int glob_match(const char* pattern,
             char* found;
             size_t prefix;
             size_t matchlen = D_NAMLEN(entry);
-            char matchpath[2 + dirlen + matchlen];
+            char matchpath[MAX_PATH];
             if ((prefix = dirlen) > 0) {
               /* ...first copying the prefix, if any,
                * followed by a directory name separator...
