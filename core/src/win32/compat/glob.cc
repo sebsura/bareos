@@ -37,40 +37,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <libgen.h>
-#include <dirent.h>
-#include <errno.h>
-
-#ifdef USE_READDIR_R
-#  ifndef HAVE_READDIR_R
-int Readdir_r(DIR* dirp, struct dirent* entry, struct dirent** result);
-#  endif
-#endif
-
-#ifndef HAVE_STRICOLL
-#  define stricoll(str1, str2) strcasecmp(str1, str2)
-#endif
-
-enum
-{
-  /* Extend the flags offset enumeration, beyond the user visible
-   * high water mark, to accommodate some additional flags which are
-   * required for private use by the implementation.
-   */
-  __GLOB_DIRONLY_OFFSET = __GLOB_FLAG_OFFSET_HIGH_WATER_MARK,
-  __GLOB_PERIOD_PRIVATE_OFFSET,
-  /* For congruency, set a new high water mark above the private data
-   * range, (which we don't otherwise use). */
-  __GLOB_PRIVATE_FLAGS_HIGH_WATER_MARK
-};
-
-#define GLOB_DIRONLY __GLOB_FLAG__(DIRONLY)
-#ifndef GLOB_PERIOD
-#  define GLOB_PERIOD __GLOB_FLAG__(PERIOD_PRIVATE)
-#endif
-
-#ifndef GLOB_INLINE
-#  define GLOB_INLINE static __inline__ __attribute__((__always_inline__))
+#ifndef _MSC_VER
+#  include <filesystem>
+#  include <libgen.h>
 #endif
 
 // #define GLOB_HARD_ESC __CRT_GLOB_ESCAPE_CHAR__
@@ -180,6 +149,19 @@ int Readdir_r(DIR* dirp, struct dirent* entry, struct dirent** result);
 #ifndef HAVE_STRICOLL
 #  define stricoll(str1, str2) strcasecmp(str1, str2)
 #endif
+
+enum
+{
+  /* Extend the flags offset enumeration, beyond the user visible
+   * high water mark, to accommodate some additional flags which are
+   * required for private use by the implementation.
+   */
+  __GLOB_DIRONLY_OFFSET = __GLOB_FLAG_OFFSET_HIGH_WATER_MARK,
+  __GLOB_PERIOD_PRIVATE_OFFSET,
+  /* For congruency, set a new high water mark above the private data
+   * range, (which we don't otherwise use). */
+  __GLOB_PRIVATE_FLAGS_HIGH_WATER_MARK
+};
 
 #define GLOB_DIRONLY __GLOB_FLAG__(DIRONLY)
 #ifndef GLOB_PERIOD
@@ -801,14 +783,14 @@ static int glob_match(const char* pattern,
   else
     /* ...otherwise, we simply note that there was no prefix.
      */
-    dir = NULL;
+    // dir = NULL;
 
-  /* We now have a globbed list of prefix directories, returned from
-   * recursive processing, in local_gl_buf.gl_pathv, and we also have
-   * a separate pattern which we may attempt to match in each of them;
-   * at the outset, we have yet to match this pattern to anything.
-   */
-  status = GLOB_NOMATCH;
+    /* We now have a globbed list of prefix directories, returned from
+     * recursive processing, in local_gl_buf.gl_pathv, and we also have
+     * a separate pattern which we may attempt to match in each of them;
+     * at the outset, we have yet to match this pattern to anything.
+     */
+    status = GLOB_NOMATCH;
   for (dirp = local_gl_buf.gl_pathv; *dirp != NULL; free(*dirp++)) {
     /* Provided an earlier cycle hasn't scheduled an abort...
      */
