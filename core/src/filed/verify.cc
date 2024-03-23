@@ -197,10 +197,19 @@ static int VerifyFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
              ff_pkt->LinkFI, 0);
   encode_attribsEx(jcr, attribsEx.c_str(), ff_pkt);
 
-  jcr->lock();
-  jcr->JobFiles++; /* increment number of files sent */
-  PmStrcpy(jcr->fd_impl->last_fname, ff_pkt->fname);
-  jcr->unlock();
+  {
+    std::unique_lock l(jcr->mutex_guard());
+    jcr->JobFiles++; /* increment number of files sent */
+    PmStrcpy(jcr->fd_impl->last_fname, ff_pkt->fname);
+  }
+
+  /* Path needs to be stripped just like during the
+   * backup. The director catalog only knows about the
+   * stripped paths. */
+  if (!IS_FT_OBJECT(ff_pkt->type)
+      && ff_pkt->type != FT_DELETED) { /* already stripped */
+    StripPath(ff_pkt);
+  }
 
   /* Send file attributes to Director
    *   File_index
@@ -230,6 +239,11 @@ static int VerifyFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   }
   Dmsg2(20, "filed>dir: attribs len=%d: msg=%s\n", dir->message_length,
         dir->msg);
+
+  if (!IS_FT_OBJECT(ff_pkt->type) && ff_pkt->type != FT_DELETED) {
+    UnstripPath(ff_pkt);
+  }
+
   if (!status) {
     Jmsg(jcr, M_FATAL, 0, T_("Network error in send to Director: ERR=%s\n"),
          BnetStrerror(dir));

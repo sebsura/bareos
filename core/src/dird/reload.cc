@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2022-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2022-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -22,6 +22,7 @@
 #include "dird/reload.h"
 
 #include <cassert>
+#include <atomic>
 
 namespace directordaemon {
 
@@ -35,9 +36,10 @@ namespace directordaemon {
 bool CheckResources()
 {
   JobResource* job;
-  const std::string& configfile = my_config->get_base_config_path();
 
   ResLocker _{my_config};
+
+  const std::string& configfile_name = my_config->get_base_config_path();
 
   job = (JobResource*)my_config->GetNextRes(R_JOB, nullptr);
   me = (DirectorResource*)my_config->GetNextRes(R_DIRECTOR, nullptr);
@@ -46,7 +48,7 @@ bool CheckResources()
     Jmsg(nullptr, M_FATAL, 0,
          T_("No Director resource defined in %s\n"
             "Without that I don't know who I am :-(\n"),
-         configfile.c_str());
+         configfile_name.c_str());
     return false;
   } else {
     my_config->omit_defaults_ = true;
@@ -57,7 +59,7 @@ bool CheckResources()
       me->messages = (MessagesResource*)my_config->GetNextRes(R_MSGS, nullptr);
       if (!me->messages) {
         Jmsg(nullptr, M_FATAL, 0, T_("No Messages resource defined in %s\n"),
-             configfile.c_str());
+             configfile_name.c_str());
         return false;
       }
     }
@@ -65,7 +67,7 @@ bool CheckResources()
     if (my_config->GetNextRes(R_DIRECTOR, (BareosResource*)me) != nullptr) {
       Jmsg(nullptr, M_FATAL, 0,
            T_("Only one Director resource permitted in %s\n"),
-           configfile.c_str());
+           configfile_name.c_str());
       return false;
     }
 
@@ -80,7 +82,7 @@ bool CheckResources()
 
   if (!job) {
     Jmsg(nullptr, M_FATAL, 0, T_("No Job records defined in %s\n"),
-         configfile.c_str());
+         configfile_name.c_str());
     return false;
   }
 
@@ -92,7 +94,7 @@ bool CheckResources()
       Jmsg(nullptr, M_FATAL, 0,
            T_("MaxFullConsolidations configured in job %s which is not of job "
               "type \"consolidate\" in file %s\n"),
-           job->resource_name_, configfile.c_str());
+           job->resource_name_, configfile_name.c_str());
       return false;
     }
 
@@ -103,7 +105,7 @@ bool CheckResources()
       Jmsg(nullptr, M_FATAL, 0,
            T_("AlwaysIncremental configured in job %s which is not of job type "
               "\"backup\" in file %s\n"),
-           job->resource_name_, configfile.c_str());
+           job->resource_name_, configfile_name.c_str());
       return false;
     }
   }
@@ -215,17 +217,18 @@ bail_out:
 
 bool DoReloadConfig()
 {
-  static bool is_reloading = false;
+  // ATOMIC_FLAG_INIT is needed until we switch to C++20;
+  // but it can be kept even after that.
+  static std::atomic_flag is_reloading = ATOMIC_FLAG_INIT;
   bool reloaded = false;
 
 
-  if (is_reloading) {
+  if (is_reloading.test_and_set()) {
     /* Note: don't use Jmsg here, as it could produce a race condition
      * on multiple parallel reloads */
     Qmsg(nullptr, M_ERROR, 0, T_("Already reloading. Request ignored.\n"));
     return false;
   }
-  is_reloading = true;
 
   StopStatisticsThread();
 
@@ -261,7 +264,8 @@ bool DoReloadConfig()
   SetWorkingDirectory(me->working_directory);
   StartStatisticsThread();
   UnlockJobs();
-  is_reloading = false;
+
+  is_reloading.clear();
   return reloaded;
 }
 

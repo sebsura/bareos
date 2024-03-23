@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
  This program is Free Software; you can redistribute it and/or
  modify it under the terms of version three of the GNU Affero General Public
@@ -22,9 +22,9 @@
 */
 // Kern Sibbald, 2000
 /**
-* @file
-* Define Message Types for BAREOS
-*/
+ * @file
+ * Define Message Types for BAREOS
+ */
 
 #ifndef BAREOS_LIB_MESSAGE_H_
 #define BAREOS_LIB_MESSAGE_H_
@@ -44,7 +44,7 @@
 class JobControlRecord;
 
 typedef std::optional<std::string> (*job_code_callback_t)(JobControlRecord*,
-                                                        const char*);
+                                                          const char*);
 
 void Jmsg(JobControlRecord* jcr, int type, utime_t mtime, const char* fmt, ...);
 void Qmsg(JobControlRecord* jcr, int type, utime_t mtime, const char* fmt, ...);
@@ -53,7 +53,7 @@ const char* get_basename(const char* pathname);
 void SetLogTimestampFormat(const char* format);
 
 using DbLogInsertCallback = std::function<
-  bool(JobControlRecord* jcr, utime_t mtime, const char* msg)>;
+    bool(JobControlRecord* jcr, utime_t mtime, const char* msg)>;
 void SetDbLogInsertCallback(DbLogInsertCallback f);
 
 class MessagesResource;
@@ -61,7 +61,7 @@ class MessagesResource;
 BAREOS_IMPORT int debug_level;
 BAREOS_IMPORT bool dbg_timestamp; /* print timestamp in debug output */
 BAREOS_IMPORT bool prt_kaboom;    /* Print kaboom output */
-BAREOS_IMPORT int verbose;
+BAREOS_IMPORT int g_verbose;
 BAREOS_IMPORT char my_name[];
 BAREOS_IMPORT const char* working_directory;
 BAREOS_IMPORT utime_t daemon_start_time;

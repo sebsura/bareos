@@ -1,7 +1,7 @@
 /**
  * @file glob.c
  * Copyright (C) 2011-2013, MinGW.org project.
- * Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+ * Copyright (C) 2016-2024 Bareos GmbH & Co. KG
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -43,6 +43,30 @@
 #endif
 
 // #define GLOB_HARD_ESC __CRT_GLOB_ESCAPE_CHAR__
+
+enum
+{
+  /* Extend the flags offset enumeration, beyond the user visible
+   * high water mark, to accommodate some additional flags which are
+   * required for private use by the implementation.
+   */
+  __GLOB_DIRONLY_OFFSET = __GLOB_FLAG_OFFSET_HIGH_WATER_MARK,
+  __GLOB_PERIOD_PRIVATE_OFFSET,
+  /* For congruency, set a new high water mark above the private data
+   * range, (which we don't otherwise use). */
+  __GLOB_PRIVATE_FLAGS_HIGH_WATER_MARK
+};
+
+#define GLOB_DIRONLY __GLOB_FLAG__(DIRONLY)
+#ifndef GLOB_PERIOD
+#  define GLOB_PERIOD __GLOB_FLAG__(PERIOD_PRIVATE)
+#endif
+
+#ifndef GLOB_INLINE
+#  define GLOB_INLINE static __inline__ __attribute__((__always_inline__))
+#endif
+
+>>>>>>> origin/master
 #define GLOB_HARD_ESC (char)(127)
 
 #if defined _WIN32 || defined __MS_DOS__
@@ -52,8 +76,9 @@
  */
 #  define GLOB_DIRSEP ('\\')
 #  define glob_is_dirsep(c) (((c) == ('/')) || ((c) == GLOB_DIRSEP))
-// ...and we use the ASCII ESC code as our escape character.
-static int glob_escape_char = GLOB_HARD_ESC;
+    // ...and we use the ASCII ESC code as our escape character.
+    static int glob_escape_char
+    = GLOB_HARD_ESC;
 
 GLOB_INLINE char* glob_strdup(const char* pattern)
 {
@@ -76,11 +101,12 @@ GLOB_INLINE char* glob_strdup(const char* pattern)
  */
 #  define GLOB_DIRSEP ('/')
 #  define glob_is_dirsep(c) ((c) == GLOB_DIRSEP)
-/*
- * ...and we interpret '\', as specified by POSIX, as
- * the escape character.
- */
-static int glob_escape_char = '\\';
+    /*
+     * ...and we interpret '\', as specified by POSIX, as
+     * the escape character.
+     */
+    static int glob_escape_char
+    = '\\';
 
 #  define glob_strdup strdup
 #endif
@@ -731,8 +757,13 @@ static int glob_match(const char* pattern,
 
   /* Begin by separating out any path prefix from the glob pattern.
    */
+<<<<<<< HEAD
   char dirbuf[MAX_PATH];
   const char* dir = dirname((char*)memcpy(dirbuf, pattern, sizeof(dirbuf)));
+=======
+  std::string dirbuf(pattern);
+  const char* dir = dirname(dirbuf.data());
+>>>>>>> origin/master
   char **dirp, preferred_dirsep = GLOB_DIRSEP;
 
   /* Initialise a temporary local glob_t structure, to capture the

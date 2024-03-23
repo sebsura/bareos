@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- add openssl 3 ulc [PR #1683]
+- Add backport tool [PR #1639]
+
 ### Changed
 - github actions: PyPi: install setuptools [PR #1589]
 - restore: add fileregex parameter [PR #1587]
@@ -23,18 +27,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - python-bareos: use socket.create_connection() to allow AF_INET6 [PR #1646]
 - Improve FreeBSD build [PR #1538]
 - core: sql_* add leading space to sql construct [PR #1656]
+- plugins: postgresql fix missing pg_backup_stop() call [PR #1655]
+- filed: fix vss during client initiated connections [PR #1665]
+- bareos-config: fix output of deploy_config [PR #1672]
+- Disable automated package-tests for SLES 12 [PR #1671]
+- Make BareosDirPluginPrometheusExporter.py work with python3 [PR #1647]
+- Improve FreeBSD dependencies [PR #1670]
+- python-bareos: integrate usage of config files [PR #1678]
+- cmake: cleanup [PR #1661]
+- bnet-server-tcp: split socket creation from listening for unittests [PR #1649]
+- webui: Backup Unit Report fixes [PR #1696]
+- windows: fix calculation of "job_metadata.xml" object size [PR #1695]
+- stored: fix storage daemon crash if passive client is unreachable, create better session keys [PR #1688]
+- bareos-triggerjob: fix parameter handling [PR #1708]
+- fvec: add mmap based vector  [PR #1662]
+- core: fix various data races (connection_pool/heartbeat_thread) [PR #1685]
+- filed: skip stripped top level directories [PR #1686]
+- jcr: fix some compiler warnings [PR #1648]
+- build: Fix debugsource RPM package generation [PR #1713]
+- Bugfix: Clean up error handling in LDAP plugin, fix dependencies [PR #1717]
+- crypto_wrap: replace aes wrap with openssl aes wrap algorithm [PR #1718]
+- dbcheck: fix dbcheck crash if password is not set in catalog resource [PR #1710]
+- Require python3 explicit [PR #1719]
+- cmake: put generated files into CMAKE_BINARY_DIR [PR #1707]
+- increase warning level on C/C++ compiler [PR #1689]
 
 ### Removed
 - plugins: remove old deprecated postgres plugin [PR #1606]
+- Remove EOL platforms [PR #1684]
 
 ### Documentation
 - docs: improvements for droplet, jobdefs [PR #1581]
+- docs: fix Pool explanation for migration jobs [PR #1728]
+- github: introduce template for issues [PR #1716]
 
 ### Fixed
 - dird: fix `purge oldest volume` [PR #1628]
 - Fix continuation on colons in plugin baseclass [PR #1637]
 - plugins: fix cancel handling crash [PR #1595]
 - Fix bareos_tasks plugin for pgsql [PR #1659]
+- core: Fix compile errors on GCC 14 [PR #1687]
+- stored: fix authentication race condition / deadlock [PR #1732]
+- Fix warning about missing delcandidates table in director [PR #1721]
 
 [PR #1538]: https://github.com/bareos/bareos/pull/1538
 [PR #1581]: https://github.com/bareos/bareos/pull/1581
@@ -56,7 +90,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [PR #1632]: https://github.com/bareos/bareos/pull/1632
 [PR #1636]: https://github.com/bareos/bareos/pull/1636
 [PR #1637]: https://github.com/bareos/bareos/pull/1637
+[PR #1639]: https://github.com/bareos/bareos/pull/1639
 [PR #1646]: https://github.com/bareos/bareos/pull/1646
+[PR #1647]: https://github.com/bareos/bareos/pull/1647
+[PR #1648]: https://github.com/bareos/bareos/pull/1648
+[PR #1649]: https://github.com/bareos/bareos/pull/1649
+[PR #1655]: https://github.com/bareos/bareos/pull/1655
 [PR #1656]: https://github.com/bareos/bareos/pull/1656
 [PR #1659]: https://github.com/bareos/bareos/pull/1659
+[PR #1661]: https://github.com/bareos/bareos/pull/1661
+[PR #1662]: https://github.com/bareos/bareos/pull/1662
+[PR #1665]: https://github.com/bareos/bareos/pull/1665
+[PR #1670]: https://github.com/bareos/bareos/pull/1670
+[PR #1671]: https://github.com/bareos/bareos/pull/1671
+[PR #1672]: https://github.com/bareos/bareos/pull/1672
+[PR #1678]: https://github.com/bareos/bareos/pull/1678
+[PR #1683]: https://github.com/bareos/bareos/pull/1683
+[PR #1684]: https://github.com/bareos/bareos/pull/1684
+[PR #1685]: https://github.com/bareos/bareos/pull/1685
+[PR #1686]: https://github.com/bareos/bareos/pull/1686
+[PR #1687]: https://github.com/bareos/bareos/pull/1687
+[PR #1688]: https://github.com/bareos/bareos/pull/1688
+[PR #1689]: https://github.com/bareos/bareos/pull/1689
+[PR #1695]: https://github.com/bareos/bareos/pull/1695
+[PR #1696]: https://github.com/bareos/bareos/pull/1696
+[PR #1707]: https://github.com/bareos/bareos/pull/1707
+[PR #1708]: https://github.com/bareos/bareos/pull/1708
+[PR #1710]: https://github.com/bareos/bareos/pull/1710
+[PR #1713]: https://github.com/bareos/bareos/pull/1713
+[PR #1716]: https://github.com/bareos/bareos/pull/1716
+[PR #1717]: https://github.com/bareos/bareos/pull/1717
+[PR #1718]: https://github.com/bareos/bareos/pull/1718
+[PR #1719]: https://github.com/bareos/bareos/pull/1719
+[PR #1721]: https://github.com/bareos/bareos/pull/1721
+[PR #1728]: https://github.com/bareos/bareos/pull/1728
+[PR #1732]: https://github.com/bareos/bareos/pull/1732
 [unreleased]: https://github.com/bareos/bareos/tree/master

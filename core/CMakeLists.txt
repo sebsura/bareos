@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -34,12 +34,7 @@ endif()
 set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME common)
 
 include(GNUInstallDirs)
-
-find_program(CCACHE_FOUND ccache)
-if(CCACHE_FOUND)
-  set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
-  set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
-endif(CCACHE_FOUND)
+include(BareosHelper)
 
 # switch on CXX 17 Support
 #
@@ -114,46 +109,6 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
   if(${compiler_error_format_security})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=format-security")
   endif()
-endif()
-
-option(DEBUG_PREFIX_MAP
-       "remap absolute debug paths to relative if compiler supports it" ON
-)
-check_c_compiler_flag(
-  -fdebug-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=. c_compiler_debug_prefix_map
-)
-check_cxx_compiler_flag(
-  -fdebug-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.
-  cxx_compiler_debug_prefix_map
-)
-if(DEBUG_PREFIX_MAP
-   AND c_compiler_debug_prefix_map
-   AND cxx_compiler_debug_prefix_map
-)
-  set(CMAKE_C_FLAGS
-      "${CMAKE_C_FLAGS} -fdebug-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=."
-  )
-  set(CMAKE_CXX_FLAGS
-      "${CMAKE_CXX_FLAGS} -fdebug-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=."
-  )
-endif()
-
-check_c_compiler_flag(
-  -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=. c_compiler_macro_prefix_map
-)
-check_cxx_compiler_flag(
-  -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.
-  cxx_compiler_macro_prefix_map
-)
-if(c_compiler_macro_prefix_map)
-  set(CMAKE_C_FLAGS
-      "${CMAKE_C_FLAGS} -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=."
-  )
-endif()
-if(cxx_compiler_macro_prefix_map)
-  set(CMAKE_CXX_FLAGS
-      "${CMAKE_CXX_FLAGS} -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=."
-  )
 endif()
 
 check_cxx_compiler_flag(-Winvalid-offsetof compiler_has_invalid_offsetof)
@@ -362,7 +317,7 @@ endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
   set(HAVE_AIX_OS 1)
-  set(lmdb 0FF)
+  set(lmdb OFF)
   link_libraries(intl)
 endif()
 
@@ -631,7 +586,7 @@ message(STATUS "CMAKE_SUPPRESS_REGENERATION: " ${CMAKE_SUPPRESS_REGENERATION})
 # there are also two variables exactly for this purpose:
 
 # wheter or not
-message(STATUS "CCACHE_FOUND: " ${CCACHE_FOUND})
+message(STATUS "CCACHE: " ${CCACHE_PROGRAM})
 
 # Choose the type of build.  Example: SET(CMAKE_BUILD_TYPE Debug)
 message(STATUS "CMAKE_BUILD_TYPE: " ${CMAKE_BUILD_TYPE})
@@ -774,9 +729,6 @@ else()
   endif()
 endif()
 
-set(support_systemd "")
-set(have_cmocka "")
-
 set(PATH_BAREOS_BACKENDDIR \"${backenddir}\")
 set(PATH_BAREOS_WORKINGDIR \"${workingdir}\")
 
@@ -799,6 +751,9 @@ else()
 endif()
 
 include(BareosConfigureFile)
+bareos_configure_file(
+  GLOB_RECURSE "${CMAKE_CURRENT_SOURCE_DIR}/src/defaultconfigs/*" COPY
+)
 
 add_subdirectory(platforms)
 add_subdirectory(src)
@@ -813,7 +768,7 @@ string(TIMESTAMP NOW "%Y-%m-%d %H:%M:%S")
 
 # give configure output
 message(" ")
-message("Configuration on ${NOW} : ")
+message("Configuration on ${NOW}: ")
 message(" ")
 
 message(
@@ -835,7 +790,6 @@ message("   Log directory:                ${logdir} ")
 message("   Scripts directory:            ${scriptdir} ")
 message("   Archive directory:            ${archivedir} ")
 message("   Working directory:            ${workingdir} ")
-message("   BSR directory:                ${bsrdir} ")
 message("   Subsys directory:             ${subsysdir} ")
 message("   Man directory:                ${mandir} ")
 message("   Data directory:               ${datarootdir} ")
@@ -901,8 +855,7 @@ message(
 message("   LMDB support:                 ${lmdb} ")
 message("   NDMP support:                 ${ndmp} ")
 message("   Build ndmjob binary:          ${build_ndmjob} ")
-message("   enable-lockmgr:               ${lockmgr} ")
-message("   tray-monitor support:         ${HAVE_TRAYMONITOR} ")
+message("   Build tray-monitor:           ${traymonitor} ")
 message("   webui:                        ${ENABLE_WEBUI} ")
 message("   client-only:                  ${build_client_only} ")
 message("   Plugin support:               ${have_plugins} ")
@@ -975,6 +928,9 @@ if(HAVE_WIN32)
   message("   WINDOWS_BITS:                 ${WINDOWS_BITS}")
   message("   WINEPATH environment:         $ENV{WINEPATH}")
 endif()
+
+print_variables("${DUMP_VARS}")
+
 # REPEAT_UNTIL requires cmake 3.17+
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.17.0")
   set(REPEAT_UNTIL "REPEAT UNTIL_PASS:2")
@@ -984,7 +940,7 @@ configure_file(
   "CTestScript.cmake.in" "${CMAKE_BINARY_DIR}/CTestScript.cmake" @ONLY
 )
 
-if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
   install(
     CODE "
     file(GLOB_RECURSE ALL_DLLS \"C:/src/bareos-rebase/b\" \"*.dll\")
@@ -992,6 +948,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     foreach(dll \${ALL_DLLS})
       file(INSTALL \${dll} DESTINATION \"\${CMAKE_INSTALL_PREFIX}\")
     endforeach()
-    ")
+    "
+  )
 endif()
-BareosCopyDllsToBinDir()
+bareoscopydllstobindir()

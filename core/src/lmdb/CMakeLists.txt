@@ -25,7 +25,7 @@ if(HAVE_FREEBSD_OS)
 endif()
 
 add_library(bareoslmdb SHARED mdb.c midl.c)
-bareos_disable_warnings(TARGET bareoslmdb WARNINGS -Wunused-parameter -Wimplicit-fallthrough -Wstringop-overflow C_ONLY)
+bareos_disable_warnings(TARGET bareoslmdb WARNINGS -Wunused-parameter -Wimplicit-fallthrough -Wstringop-overflow -Wshadow C_ONLY)
 if(HAVE_WIN32)
   bareos_disable_warnings(TARGET bareoslmdb WARNINGS -Wreturn-local-addr C_ONLY)
 endif()
@@ -43,3 +43,5 @@ if(HAVE_WIN32)
 endif()
 
 install(TARGETS bareoslmdb DESTINATION ${libdir})
+
+include(DebugEdit)

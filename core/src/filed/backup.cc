@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -48,6 +48,7 @@
 #include "lib/btimers.h"
 #include "lib/parse_conf.h"
 #include "lib/util.h"
+#include "lib/version.h"
 #include "lib/serial.h"
 #include "lib/compression.h"
 
@@ -114,6 +115,8 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
   sd = jcr->store_bsock;
 
   jcr->setJobStatusWithPriorityCheck(JS_Running);
+  Jmsg(jcr, M_INFO, 0, T_("Version: %s (%s) %s\n"), kBareosVersionStrings.Full,
+       kBareosVersionStrings.Date, kBareosVersionStrings.GetOsInfo());
 
   Dmsg1(300, "filed: opened data connection %d to stored\n", sd->fd_);
   ClientResource* client = nullptr;
@@ -148,7 +151,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
                            AccurateCheckFile);
   }
 
-  StartHeartbeatMonitor(jcr);
+  auto hb_send = MakeHeartbeatMonitor(jcr);
 
   if (have_acl) {
     jcr->fd_impl->acl_data = std::make_unique<AclData>();
@@ -190,7 +193,7 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
 
   AccurateFinish(jcr); /* send deleted or base file list to SD */
 
-  StopHeartbeatMonitor(jcr);
+  hb_send.reset();
 
   sd->signal(BNET_EOD); /* end of sending data */
 
@@ -1155,9 +1158,9 @@ static std::future<result<std::size_t>> MakeSendThread(
       [prom = std::move(promise), out = std::move(out), sd]() mutable {
         std::size_t accumulated = 0;
         for (;;) {
-          std::optional fut = out.get();
-          if (!fut) { break; }
-          result p = fut->get();
+          std::optional out_fut = out.get();
+          if (!out_fut) { break; }
+          result p = out_fut->get();
           if (p.holds_error()) {
             prom.set_value(std::move(p.error_unchecked()));
             return;
@@ -1597,11 +1600,12 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
   Dmsg3(300, "File %s\nattribs=%s\nattribsEx=%s\n", ff_pkt->fname,
         attribs.c_str(), attribsEx);
 
-  jcr->lock();
-  jcr->JobFiles++;                   /* increment number of files sent */
-  ff_pkt->FileIndex = jcr->JobFiles; /* return FileIndex */
-  PmStrcpy(jcr->fd_impl->last_fname, ff_pkt->fname);
-  jcr->unlock();
+  {
+    std::unique_lock l(jcr->mutex_guard());
+    jcr->JobFiles++;                   /* increment number of files sent */
+    ff_pkt->FileIndex = jcr->JobFiles; /* return FileIndex */
+    PmStrcpy(jcr->fd_impl->last_fname, ff_pkt->fname);
+  }
 
   // Debug code: check if we must hangup
   if (hangup && (jcr->JobFiles > (uint32_t)hangup)) {
@@ -1792,9 +1796,12 @@ void StripPath(FindFilesPacket* ff_pkt)
    * is a different link string, attempt to strip the link. If it fails,
    * back them both back. Do not strip symlinks. I.e. if either stripping
    * fails don't strip anything. */
-  if (!do_strip(ff_pkt->StripPath, ff_pkt->fname)) {
-    UnstripPath(ff_pkt);
-    goto rtn;
+  if ((ff_pkt->type != FT_DIREND && ff_pkt->type != FT_REPARSE)
+      || ff_pkt->fname == ff_pkt->link) {
+    if (!do_strip(ff_pkt->StripPath, ff_pkt->fname)) {
+      UnstripPath(ff_pkt);
+      goto rtn;
+    }
   }
 
   // Strip links but not symlinks
@@ -1854,7 +1861,7 @@ static void CloseVssBackupSession(JobControlRecord* jcr)
       ff_pkt->LinkFI = 0;
       ff_pkt->object_name = (char*)"job_metadata.xml";
       ff_pkt->object = BSTR_2_str(metadata);
-      ff_pkt->object_len = (wcslen(metadata) + 1) * sizeof(wchar_t);
+      ff_pkt->object_len = strlen(ff_pkt->object) + 1;
       ff_pkt->object_index = (int)time(NULL);
       SaveFile(jcr, ff_pkt, true);
     }

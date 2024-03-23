@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2007 Free Software Foundation Europe e.V.
-   Copyright (C) 2014-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2014-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -50,9 +50,9 @@ static char hello_client[] = "Hello Client %127s calling";
 
 /* Global variables */
 static ThreadList thread_list;
-static alist<s_sockfd*>* sock_fds = NULL;
+static std::atomic<bool> server_running;
 static pthread_t tcp_server_tid;
-static ConnectionPool* client_connections = NULL;
+static std::unique_ptr<connection_pool> client_connections{nullptr};
 
 static std::atomic<BnetServerState> server_state(BnetServerState::kUndefined);
 
@@ -65,7 +65,7 @@ struct s_addr_port {
 #define MIN_MSG_LEN 15
 #define MAX_MSG_LEN (int)sizeof(name) + 25
 
-ConnectionPool* get_client_connections() { return client_connections; }
+connection_pool& get_client_connections() { return *client_connections.get(); }
 
 static void* HandleConnectionRequest(ConfigurationParser* config, void* arg)
 {
@@ -110,7 +110,7 @@ static void* HandleConnectionRequest(ConfigurationParser* config, void* arg)
       || (sscanf(bs->msg, hello_client, name) == 1)) {
     Dmsg1(110, "Got a FD connection at %s\n",
           bstrftimes(tbuf, sizeof(tbuf), (utime_t)time(NULL)));
-    return HandleFiledConnection(client_connections, bs, name,
+    return HandleFiledConnection(*client_connections.get(), bs, name,
                                  fd_protocol_version);
   }
   return HandleUserAgentClientRequest(bs);
@@ -130,14 +130,20 @@ static void CleanupConnectionPool()
   if (client_connections) { client_connections->cleanup(); }
 }
 
-extern "C" void* connect_thread(void* arg)
+extern "C" void* connect_with_bound_thread(void* arg)
 {
   SetJcrInThreadSpecificData(nullptr);
 
-  sock_fds = new alist<s_sockfd*>(10, not_owned_by_alist);
-  BnetThreadServerTcp((dlist<IPADDR>*)arg, sock_fds, thread_list,
-                      HandleConnectionRequest, my_config, &server_state,
-                      UserAgentShutdownCallback, CleanupConnectionPool);
+  auto bound_sockets = std::move(*(std::vector<s_sockfd>*)arg);
+  if (bound_sockets.size()) {
+    server_running = true;
+    BnetThreadServerTcp(std::move(bound_sockets), thread_list,
+                        HandleConnectionRequest, my_config, &server_state,
+                        UserAgentShutdownCallback, CleanupConnectionPool);
+
+  } else {
+    server_state = BnetServerState::kError;
+  }
 
   return NULL;
 }
@@ -147,19 +153,16 @@ extern "C" void* connect_thread(void* arg)
  * command thread. This routine creates the thread and then
  * returns.
  */
-bool StartSocketServer(dlist<IPADDR>* addrs)
+bool StartSocketServer(std::vector<s_sockfd>&& bound_sockets)
 {
-  int status;
-
-  if (client_connections == nullptr) {
-    client_connections = new ConnectionPool();
-  }
+  if (!client_connections) { client_connections.reset(new connection_pool()); }
 
   server_state.store(BnetServerState::kUndefined);
 
-  if ((status
-       = pthread_create(&tcp_server_tid, nullptr, connect_thread, (void*)addrs))
-      != 0) {
+  if (int status
+      = pthread_create(&tcp_server_tid, nullptr, connect_with_bound_thread,
+                       (void*)&bound_sockets);
+      status != 0) {
     BErrNo be;
     Emsg1(M_ABORT, 0, T_("Cannot create UA thread: %s\n"),
           be.bstrerror(status));
@@ -173,25 +176,28 @@ bool StartSocketServer(dlist<IPADDR>* addrs)
   } while (--tries);
 
   if (server_state != BnetServerState::kStarted) {
-    if (client_connections) {
-      delete (client_connections);
-      client_connections = nullptr;
-    }
+    if (client_connections) { client_connections.reset(nullptr); }
     return false;
   }
   return true;
 }
 
+bool StartSocketServer(dlist<IPADDR>* addrs)
+{
+  auto bound_sockets = OpenAndBindSockets(addrs);
+
+  return StartSocketServer(std::move(bound_sockets));
+}
+
 void StopSocketServer()
 {
-  if (sock_fds) {
+  if (server_running) {
     BnetStopAndWaitForThreadServerTcp(tcp_server_tid);
-    delete sock_fds;
-    sock_fds = nullptr;
+    server_running = false;
   }
   if (client_connections) {
-    delete (client_connections);
-    client_connections = nullptr;
+    // client_connections can be NULL if the socket server was never started.
+    client_connections->clear();
   }
 }
 } /* namespace directordaemon */

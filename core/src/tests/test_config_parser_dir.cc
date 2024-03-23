@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2019-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2019-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -60,8 +60,8 @@ class ConfigParser_Dir : public ::testing::Test {
 
 TEST_F(ConfigParser_Dir, ParseSchedulerOddEvenDaysCorrectly)
 {
-  std::string path_to_config_file = std::string(
-      RELATIVE_PROJECT_SOURCE_DIR "/configs/bareos-configparser-tests");
+  std::string path_to_config_file
+      = std::string("configs/bareos-configparser-tests");
   my_config = InitDirConfig(path_to_config_file.c_str(), M_ERROR_TERM);
   my_config->ParseConfig();
 
@@ -101,8 +101,8 @@ TEST_F(ConfigParser_Dir, ParseSchedulerOddEvenDaysCorrectly)
 
 TEST_F(ConfigParser_Dir, bareos_configparser_tests)
 {
-  std::string path_to_config_file = std::string(
-      RELATIVE_PROJECT_SOURCE_DIR "/configs/bareos-configparser-tests");
+  std::string path_to_config_file
+      = std::string("configs/bareos-configparser-tests");
   my_config = InitDirConfig(path_to_config_file.c_str(), M_ERROR_TERM);
   my_config->ParseConfig();
   my_config->DumpResources(PrintMessage, NULL);
@@ -137,8 +137,8 @@ TEST_F(ConfigParser_Dir, bareos_configparser_tests)
 
 TEST_F(ConfigParser_Dir, foreach_res_and_reload)
 {
-  std::string path_to_config_file = std::string(
-      RELATIVE_PROJECT_SOURCE_DIR "/configs/bareos-configparser-tests");
+  std::string path_to_config_file
+      = std::string("configs/bareos-configparser-tests");
   my_config = InitDirConfig(path_to_config_file.c_str(), M_ERROR_TERM);
   my_config->ParseConfig();
 
@@ -193,8 +193,8 @@ TEST_F(ConfigParser_Dir, foreach_res_and_reload)
 
 TEST_F(ConfigParser_Dir, runscript_test)
 {
-  std::string path_to_config_file = std::string(
-      RELATIVE_PROJECT_SOURCE_DIR "/configs/runscript-tests/bareos-dir.conf");
+  std::string path_to_config_file
+      = std::string("configs/runscript-tests/bareos-dir.conf");
   my_config = InitDirConfig(path_to_config_file.c_str(), M_ERROR_TERM);
   my_config->ParseConfig();
 
@@ -212,9 +212,8 @@ void test_config_directive_type(
   OSDependentInit();
 
   std::string path_to_config_file
-      = std::string(RELATIVE_PROJECT_SOURCE_DIR
-                    "/configs/bareos-configparser-tests/bareos-dir-")
-        + test_name + std::string(".conf");
+      = std::string("configs/bareos-configparser-tests/bareos-dir-") + test_name
+        + std::string(".conf");
   my_config = InitDirConfig(path_to_config_file.c_str(), M_ERROR_TERM);
   my_config->ParseConfig();
 
@@ -222,21 +221,21 @@ void test_config_directive_type(
 
   const char* dir_resource_name = "bareos-dir";
 
-  DirectorResource* me
+  DirectorResource* my_res
       = (DirectorResource*)my_config->GetNextRes(R_DIRECTOR, NULL);
-  EXPECT_STREQ(dir_resource_name, me->resource_name_);
+  EXPECT_STREQ(dir_resource_name, my_res->resource_name_);
 
-  test_func(me);
+  test_func(my_res);
 
   delete my_config;
 }
 
 
-void test_CFG_TYPE_AUDIT(DirectorResource* me)
+void test_CFG_TYPE_AUDIT(DirectorResource* res)
 {
   const char* val = nullptr;
-  foreach_alist (val, me->audit_events) { printf("AuditEvents = %s\n", val); }
-  EXPECT_EQ(me->audit_events->size(), 8);
+  foreach_alist (val, res->audit_events) { printf("AuditEvents = %s\n", val); }
+  EXPECT_EQ(res->audit_events->size(), 8);
 }
 
 TEST_F(ConfigParser_Dir, CFG_TYPE_AUDIT)
@@ -245,11 +244,11 @@ TEST_F(ConfigParser_Dir, CFG_TYPE_AUDIT)
 }
 
 
-void test_CFG_TYPE_PLUGIN_NAMES(DirectorResource* me)
+void test_CFG_TYPE_PLUGIN_NAMES(DirectorResource* res)
 {
   const char* val = nullptr;
-  foreach_alist (val, me->plugin_names) { printf("PluginNames = %s\n", val); }
-  EXPECT_EQ(me->plugin_names->size(), 16);
+  foreach_alist (val, res->plugin_names) { printf("PluginNames = %s\n", val); }
+  EXPECT_EQ(res->plugin_names->size(), 16);
 }
 
 TEST_F(ConfigParser_Dir, CFG_TYPE_PLUGIN_NAMES)
@@ -258,9 +257,9 @@ TEST_F(ConfigParser_Dir, CFG_TYPE_PLUGIN_NAMES)
 }
 
 
-void test_CFG_TYPE_STR_VECTOR(DirectorResource* me)
+void test_CFG_TYPE_STR_VECTOR(DirectorResource* res)
 {
-  EXPECT_EQ(me->tls_cert_.allowed_certificate_common_names_.size(), 8);
+  EXPECT_EQ(res->tls_cert_.allowed_certificate_common_names_.size(), 8);
 }
 
 TEST_F(ConfigParser_Dir, CFG_TYPE_STR_VECTOR)
@@ -304,11 +303,11 @@ TEST_F(ConfigParser_Dir, CFG_TYPE_ALIST_RES)
 }
 
 
-void test_CFG_TYPE_STR(DirectorResource* me)
+void test_CFG_TYPE_STR(DirectorResource* res)
 {
   /* Only the first entry from the last "Description" config directive is taken.
    * This can be considered as a bug. */
-  EXPECT_STREQ(me->description_, "item31");
+  EXPECT_STREQ(res->description_, "item31");
 }
 
 TEST_F(ConfigParser_Dir, CFG_TYPE_STR)
@@ -336,12 +335,12 @@ TEST_F(ConfigParser_Dir, CFG_TYPE_FNAME)
   test_config_directive_type(test_CFG_TYPE_FNAME);
 }
 
-void test_CFG_TYPE_TIME(DirectorResource* me)
+void test_CFG_TYPE_TIME(DirectorResource* res)
 {
   /* clang-format off */
   // Heartbeat Interval = 1 years 2 months 3 weeks 4 days 5 hours 6 minutes 7 seconds
   /* clang-format on */
-  EXPECT_EQ(me->heartbeat_interval, 38898367);
+  EXPECT_EQ(res->heartbeat_interval, 38898367);
 }
 
 TEST_F(ConfigParser_Dir, CFG_TYPE_TIME)

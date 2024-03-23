@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2022-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2022-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -18,6 +18,8 @@
 #   02110-1301, USA.
 
 message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
+include(BareosConfigureFile)
+bareos_configure_file(GLOB_RECURSE "*.d/*" COPY)
 
 list(APPEND CMAKE_INSTALL_RPATH ${backenddir})
 
@@ -78,3 +80,5 @@ if(HAVE_DYNAMIC_SD_BACKENDS)
                                       unix_file_device.cc
   )
 endif()
+
+include(DebugEdit)

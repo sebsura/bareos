@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2022 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -17,6 +17,8 @@
 #   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 #   02110-1301, USA.
 message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
+
+include(BareosConfigureFile)
 
 if(HAVE_WIN32)
   include_directories(
@@ -59,7 +61,8 @@ if(HAVE_WIN32)
 endif()
 
 if(HAVE_WIN32)
-  list(APPEND FDSRCS ../win32/filed/filedres.rc)
+  bareos_configure_file(FILES ../win32/filed/filedres.rc.in)
+  list(APPEND FDSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/filed/filedres.rc)
 endif()
 
 include_directories(${OPENSSL_INCLUDE_DIR})
@@ -71,7 +74,7 @@ if(HAVE_LMDB)
   target_link_libraries(fd_objects PRIVATE bareoslmdb)
 endif()
 
-add_executable(bareos-fd WIN32 filed.cc )
+add_executable(bareos-fd WIN32 filed.cc)
 
 set(BAREOS_FD_LIBRARIES bareosfind bareos ${THREADS_THREADS})
 if(HAVE_WIN32)
@@ -99,7 +102,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 install(
-  TARGETS bareos-fd 
+  TARGETS bareos-fd
   DESTINATION "${sbindir}"
   COMPONENT filedaemon
 )
@@ -109,9 +112,10 @@ install(CODE "set(BACKENDS \"${BACKENDS}\")" COMPONENT filedaemon)
 install(CODE "set(configtemplatedir \"${configtemplatedir}\")"
         COMPONENT filedaemon
 )
-install(CODE "set(SRC_DIR \"${PROJECT_SOURCE_DIR}\")" COMPONENT filedaemon)
+install(CODE "set(SRC_DIR \"${PROJECT_BINARY_DIR}\")" COMPONENT filedaemon)
 install(SCRIPT ${PROJECT_SOURCE_DIR}/cmake/install-filed-configfiles.cmake
         COMPONENT filedaemon
 )
 
-BareosCopyDllsToBinDir()
+bareoscopydllstobindir()
+include(DebugEdit)

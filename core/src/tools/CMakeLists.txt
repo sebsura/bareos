@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -18,9 +18,12 @@
 #   02110-1301, USA.
 message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
 
+include(BareosConfigureFile)
+
 set(BSMTPSRCS bsmtp.cc)
 if(HAVE_WIN32)
-  list(APPEND BSMTPSRCS ../win32/tools/bsmtpres.rc)
+  bareos_configure_file(FILES ../win32/tools/bsmtpres.rc.in)
+  list(APPEND BSMTPSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/tools/bsmtpres.rc)
 endif()
 add_executable(bsmtp ${BSMTPSRCS})
 target_link_libraries(bsmtp bareos CLI11::CLI11)
@@ -28,14 +31,18 @@ target_link_libraries(bsmtp bareos CLI11::CLI11)
 
 set(BREGEXSRCS bregex.cc)
 if(HAVE_WIN32)
-  list(APPEND BREGEXSRCS ../win32/tools/bregexres.rc)
+  bareos_configure_file(FILES ../win32/tools/bregexres.rc.in)
+  list(APPEND BREGEXSRCS
+       ${CMAKE_CURRENT_BINARY_DIR}/../win32/tools/bregexres.rc
+  )
 endif()
 add_executable(bregex ${BREGEXSRCS})
 target_link_libraries(bregex bareos bareosfind CLI11::CLI11)
 
 set(BWILDSRCS bwild.cc)
 if(HAVE_WIN32)
-  list(APPEND BWILDSRCS ../win32/tools/bwildres.rc)
+  bareos_configure_file(FILES ../win32/tools/bwildres.rc.in)
+  list(APPEND BWILDSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/tools/bwildres.rc)
 endif()
 add_executable(bwild ${BWILDSRCS})
 target_link_libraries(bwild bareos CLI11::CLI11)
@@ -86,3 +93,5 @@ install(TARGETS ${TOOLS_SBIN} DESTINATION "${sbindir}")
 # install bsmtp for non-root directors
 install(TARGETS bsmtp DESTINATION "${bindir}")
 install(TARGETS bsmtp DESTINATION "${sbindir}")
+
+include(DebugEdit)

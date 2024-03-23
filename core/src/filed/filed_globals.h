@@ -3,7 +3,7 @@
 
    Copyright (C) 2007-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -37,7 +37,7 @@ BAREOS_IMPORT bool restore_only_mode;
 class ClientResource;
 BAREOS_IMPORT ClientResource* me;
 BAREOS_IMPORT void* start_heap;
-BAREOS_IMPORT char* configfile;
+BAREOS_IMPORT char* g_filed_configfile;
 
 } /* namespace filedaemon */
 

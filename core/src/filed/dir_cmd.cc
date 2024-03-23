@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -398,78 +398,93 @@ JobControlRecord* create_new_director_session(BareosSocket* dir)
   return jcr;
 }
 
-void* process_director_commands(void* p_jcr)
+void* process_fd_initiated_director_commands(void* p_jcr)
 {
   JobControlRecord* jcr = (JobControlRecord*)p_jcr;
+
+  SetJcrInThreadSpecificData(jcr);
+
   return process_director_commands(jcr, jcr->dir_bsock);
+}
+
+static s_fd_dir_cmds* SelectCommandByName(const char* name)
+{
+  for (auto candidate = &cmds[0]; candidate->cmd; ++candidate) {
+    if (bstrncmp(candidate->cmd, name, strlen(candidate->cmd))) {
+      return candidate;
+    }
+  }
+
+  return nullptr;
 }
 
 void* process_director_commands(JobControlRecord* jcr, BareosSocket* dir)
 {
-  bool found;
-  bool quit = false;
+  // only do the cleanup if dir is not authenticated
+  if (jcr->authenticated) {
+    /**********FIXME******* add command handler error code */
 
-  /**********FIXME******* add command handler error code */
+    for (;;) {
+      // Read command
+      if (dir->recv() < 0) { break; /* connection terminated */ }
+      dir->msg[dir->message_length] = 0;
+      Dmsg1(100, "<dird: %s\n", dir->msg);
 
-  while (jcr->authenticated && (!quit)) {
-    // Read command
-    if (dir->recv() < 0) { break; /* connection terminated */ }
+      auto* to_execute = SelectCommandByName(dir->msg);
 
-    dir->msg[dir->message_length] = 0;
-    Dmsg1(100, "<dird: %s\n", dir->msg);
-    found = false;
-    for (int i = 0; cmds[i].cmd; i++) {
-      if (bstrncmp(cmds[i].cmd, dir->msg, strlen(cmds[i].cmd))) {
-        found = true; /* indicate command found */
-        if ((!cmds[i].monitoraccess) && (jcr->fd_impl->director->monitor)) {
-          Dmsg1(100, "Command \"%s\" is invalid.\n", cmds[i].cmd);
-          dir->fsend(invalid_cmd);
-          dir->signal(BNET_EOD);
-          break;
-        }
-        Dmsg1(100, "Executing %s command.\n", cmds[i].cmd);
-        if (!cmds[i].func(jcr)) { /* do command */
-          quit = true;            /* error or fully terminated, get out */
-          Dmsg1(100, "Quit command loop. Canceled=%d\n", jcr->IsJobCanceled());
-        }
+      if (!to_execute) {
+        Dmsg1(100, "Command \"%s\" not found.\n", dir->msg);
+        dir->fsend(errmsg);
         break;
       }
+
+      /* if director is a monitor but the command does not allow monitor access,
+       * we reject the command and stop. */
+      if (!to_execute->monitoraccess && jcr->fd_impl->director->monitor) {
+        Dmsg1(100, "Command \"%s\" is invalid.\n", to_execute->cmd);
+        dir->fsend(invalid_cmd);
+        dir->signal(BNET_EOD);
+        break;
+      }
+
+      Dmsg1(100, "Executing %s command.\n", to_execute->cmd);
+
+      if (!to_execute->func(jcr)) { /* do command */
+        Dmsg1(100, "Quit command loop. Canceled=%d\n", jcr->IsJobCanceled());
+        break; /* error or fully terminated, get out */
+      }
     }
-    if (!found) { /* command not found */
-      dir->fsend(errmsg);
-      quit = true;
-      break;
+
+    // Inform Storage daemon that we are done
+    if (jcr->store_bsock) { jcr->store_bsock->signal(BNET_TERMINATE); }
+
+    // Run the after job
+    if (jcr->fd_impl->RunScripts) {
+      RunScripts(jcr, jcr->fd_impl->RunScripts, "ClientAfterJob",
+                 (jcr->fd_impl->director
+                  && jcr->fd_impl->director->allowed_script_dirs)
+                     ? jcr->fd_impl->director->allowed_script_dirs
+                     : me->allowed_script_dirs);
     }
+
+    if (jcr->JobId) { /* send EndJob if running a job */
+      char ed1[50], ed2[50];
+      // Send termination status back to Dir
+      dir->fsend(EndJob, jcr->getJobStatus(), jcr->JobFiles,
+                 edit_uint64(jcr->ReadBytes, ed1),
+                 edit_uint64(jcr->JobBytes, ed2), jcr->JobErrors,
+                 jcr->fd_impl->enable_vss, jcr->fd_impl->crypto.pki_encrypt);
+      Dmsg1(110, "End FD msg: %s\n", dir->msg);
+    }
+
+    GeneratePluginEvent(jcr, bEventJobEnd);
+
+    DequeueMessages(jcr); /* send any queued messages */
+
+    // Inform Director that we are done
+    dir->signal(BNET_TERMINATE);
   }
 
-  // Inform Storage daemon that we are done
-  if (jcr->store_bsock) { jcr->store_bsock->signal(BNET_TERMINATE); }
-
-  // Run the after job
-  if (jcr->fd_impl->RunScripts) {
-    RunScripts(
-        jcr, jcr->fd_impl->RunScripts, "ClientAfterJob",
-        (jcr->fd_impl->director && jcr->fd_impl->director->allowed_script_dirs)
-            ? jcr->fd_impl->director->allowed_script_dirs
-            : me->allowed_script_dirs);
-  }
-
-  if (jcr->JobId) { /* send EndJob if running a job */
-    char ed1[50], ed2[50];
-    // Send termination status back to Dir
-    dir->fsend(EndJob, jcr->getJobStatus(), jcr->JobFiles,
-               edit_uint64(jcr->ReadBytes, ed1),
-               edit_uint64(jcr->JobBytes, ed2), jcr->JobErrors,
-               jcr->fd_impl->enable_vss, jcr->fd_impl->crypto.pki_encrypt);
-    Dmsg1(110, "End FD msg: %s\n", dir->msg);
-  }
-
-  GeneratePluginEvent(jcr, bEventJobEnd);
-
-  DequeueMessages(jcr); /* send any queued messages */
-
-  // Inform Director that we are done
-  dir->signal(BNET_TERMINATE);
   jcr->EnterFinish();
 
   FreePlugins(jcr); /* release instantiated plugins */
@@ -494,8 +509,9 @@ static bool StartProcessDirectorCommands(JobControlRecord* jcr)
   int result = 0;
   pthread_t thread;
 
-  if ((result = pthread_create(&thread, nullptr, process_director_commands,
-                               (void*)jcr))
+  if ((result
+       = pthread_create(&thread, nullptr,
+                        process_fd_initiated_director_commands, (void*)jcr))
       != 0) {
     BErrNo be;
     Emsg1(M_ABORT, 0, T_("Cannot create Director connect thread: %s\n"),
@@ -2007,11 +2023,11 @@ static bool VerifyCmd(JobControlRecord* jcr)
     case L_VERIFY_CATALOG:
       DoVerify(jcr);
       break;
-    case L_VERIFY_VOLUME_TO_CATALOG:
+    case L_VERIFY_VOLUME_TO_CATALOG: {
       if (!OpenSdReadSession(jcr)) { return false; }
-      StartDirHeartbeat(jcr);
+      auto send_hb = MakeDirHeartbeat(jcr);
       DoVerifyVolume(jcr);
-      StopDirHeartbeat(jcr);
+      send_hb.reset();
       // Send Close session command to Storage daemon
       sd->fsend(read_close, jcr->fd_impl->Ticket);
       Dmsg1(130, "filed>stored: %s", sd->msg);
@@ -2021,8 +2037,7 @@ static bool VerifyCmd(JobControlRecord* jcr)
 
       /* Inform Storage daemon that we are done */
       sd->signal(BNET_TERMINATE);
-
-      break;
+    } break;
     case L_VERIFY_DISK_TO_CATALOG:
       DoVerify(jcr);
       break;
@@ -2189,32 +2204,35 @@ static bool RestoreCmd(JobControlRecord* jcr)
   jcr->setJobStatusWithPriorityCheck(JS_Running);
 
   // Do restore of files and data
-  StartDirHeartbeat(jcr);
-  GeneratePluginEvent(jcr, bEventStartRestoreJob);
+  {
+    auto hb_send = MakeDirHeartbeat(jcr);
+
+    GeneratePluginEvent(jcr, bEventStartRestoreJob);
 
 #if defined(WIN32_VSS)
-  // START VSS ON WIN32
-  if (jcr->fd_impl->pVSSClient) {
-    if (!jcr->fd_impl->pVSSClient->InitializeForRestore(jcr)) {
-      BErrNo be;
-      Jmsg(jcr, M_WARNING, 0,
-           T_("VSS was not initialized properly. VSS support is disabled. "
-              "ERR=%s\n"),
-           be.bstrerror());
+    // START VSS ON WIN32
+    if (jcr->fd_impl->pVSSClient) {
+      if (!jcr->fd_impl->pVSSClient->InitializeForRestore(jcr)) {
+        BErrNo be;
+        Jmsg(jcr, M_WARNING, 0,
+             T_("VSS was not initialized properly. VSS support is disabled. "
+                "ERR=%s\n"),
+             be.bstrerror());
+      }
+
+      GeneratePluginEvent(jcr, bEventVssRestoreLoadComponentMetadata);
+
+      RunScripts(jcr, jcr->fd_impl->RunScripts, "ClientAfterVSS",
+                 (jcr->fd_impl->director
+                  && jcr->fd_impl->director->allowed_script_dirs)
+                     ? jcr->fd_impl->director->allowed_script_dirs
+                     : me->allowed_script_dirs);
     }
-
-    GeneratePluginEvent(jcr, bEventVssRestoreLoadComponentMetadata);
-
-    RunScripts(
-        jcr, jcr->fd_impl->RunScripts, "ClientAfterVSS",
-        (jcr->fd_impl->director && jcr->fd_impl->director->allowed_script_dirs)
-            ? jcr->fd_impl->director->allowed_script_dirs
-            : me->allowed_script_dirs);
-  }
 #endif
 
-  DoRestore(jcr);
-  StopDirHeartbeat(jcr);
+    DoRestore(jcr);
+    hb_send.reset();
+  }
 
   if (jcr->JobWarnings) {
     jcr->setJobStatusWithPriorityCheck(JS_Warnings);

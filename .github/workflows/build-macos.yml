@@ -79,12 +79,12 @@ jobs:
     - name: Build package
       run: |
         eval "$(brew shellenv)"
-        cmake -S . -B cmake-build -DCMAKE_INSTALL_PREFIX=/usr/local/bareos -DENABLE_JANSSON=OFF -Dclient-only=yes
+        cmake -S . -B cmake-build -DCMAKE_INSTALL_PREFIX=/usr/local/bareos -DUSE_RELATIVE_PATHS=ON -Dconfigtemplatedir=lib/bareos/defaultconfigs -DENABLE_JANSSON=OFF -Dclient-only=yes
         cmake --build cmake-build -- package
         ls -la cmake-build/*.pkg
         mkdir -p "${{ env.artifact_dir }}/BUILD_RESULTS/MacOS"
         mv cmake-build/*.pkg "${{ env.artifact_dir }}/BUILD_RESULTS/MacOS"
-        cp core/src/include/config.h "${{ env.artifact_dir }}"
+        cp cmake-build/core/src/include/config.h "${{ env.artifact_dir }}"
         find cmake-build/core/src -type f -perm +0111 -exec otool -L {} ";" > "${{ env.artifact_dir }}/libdepends.txt"
       env:
         CFLAGS: -I/usr/local/include

@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -545,7 +545,8 @@ extern "C" ndmp9_error bndmp_tape_open(struct ndm_session* sess,
   /* There is a native storage daemon session waiting for the FD to connect.
    * In NDMP terms this is the same as a FD connecting so wake any waiting
    * threads.  */
-  pthread_cond_signal(&jcr->sd_impl->job_start_wait);
+  *jcr->sd_impl->client_available.lock() = true;
+  jcr->sd_impl->job_start_wait.notify_one();
 
   /* Save the JobControlRecord to ndm_session binding so everything furher
    * knows which JobControlRecord belongs to which NDMP session. We have
@@ -1128,7 +1129,7 @@ extern "C" void* ndmp_thread_server(void* arg)
     dlink<s_sockfd> link; /* this MUST be the first item */
     int fd;
     int port;
-  }* fd_ptr = NULL;
+  }* sockfd_ptr = NULL;
   char buf[128];
   std::vector<s_sockfd*> sockfds;
 #  ifdef HAVE_POLL
@@ -1150,12 +1151,13 @@ extern "C" void* ndmp_thread_server(void* arg)
 #  endif
   foreach_dlist (ipaddr, ntsa->addr_list) {
     // Allocate on stack from -- no need to free
-    fd_ptr = (s_sockfd*)alloca(sizeof(s_sockfd));
-    fd_ptr->port = ipaddr->GetPortNetOrder();
+    sockfd_ptr = (s_sockfd*)alloca(sizeof(s_sockfd));
+    sockfd_ptr->port = ipaddr->GetPortNetOrder();
 
-    fd_ptr->fd = OpenSocketAndBind(ipaddr, ntsa->addr_list, fd_ptr->port);
+    sockfd_ptr->fd
+        = OpenSocketAndBind(ipaddr, ntsa->addr_list, sockfd_ptr->port);
 
-    if (fd_ptr->fd < 0) {
+    if (sockfd_ptr->fd < 0) {
       BErrNo be;
       char tmp[1024];
 #  ifdef HAVE_WIN32
@@ -1164,12 +1166,12 @@ extern "C" void* ndmp_thread_server(void* arg)
             WSAGetLastError());
 #  else
       Emsg2(M_ERROR, 0, T_("Cannot bind address %s port %d: ERR=%s.\n"),
-            ipaddr->GetAddress(tmp, sizeof(tmp) - 1), ntohs(fd_ptr->port),
+            ipaddr->GetAddress(tmp, sizeof(tmp) - 1), ntohs(sockfd_ptr->port),
             be.bstrerror());
 #  endif
     }
-    listen(fd_ptr->fd, kListenBacklog); /* tell system we are ready */
-    sockfds.push_back(fd_ptr);
+    listen(sockfd_ptr->fd, kListenBacklog); /* tell system we are ready */
+    sockfds.push_back(sockfd_ptr);
 #  ifdef HAVE_POLL
     nfds++;
 #  endif

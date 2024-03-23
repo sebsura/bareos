@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2019-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2019-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -114,7 +114,7 @@ if(docs-build-json)
   if(NOT traymonitor)
     message(
       FATAL_ERROR
-        "\n\"docs-build-json\" needs the traymonitor executable: add \"-Dtraymonitor=yes\""
+        "\n\"docs-build-json\" needs the traymonitor executable: add \"-Dtraymonitor=on\""
     )
   endif()
 endif()
@@ -137,6 +137,8 @@ if(BUILD_BAREOS_BINARIES)
   )
     set(CMAKE_BUILD_TYPE "RelWithDebInfo")
   endif()
+  include(BareosCcache)
+  include(PrefixMap)
   add_subdirectory(third-party EXCLUDE_FROM_ALL)
   add_subdirectory(core)
   if(ENABLE_WEBUI)

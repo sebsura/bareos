@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2022 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -17,6 +17,7 @@
 #   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 #   02110-1301, USA.
 message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
+include(BareosConfigureFile)
 
 if(HAVE_WIN32)
   add_definitions(-D_STAT_DEFINED=1)
@@ -39,7 +40,9 @@ else()
     message(STATUS "QT5Widgets NOT found, checking for Qt4 ...")
     find_package(Qt4)
     if(NOT Qt4_FOUND)
-      message(FATAL_ERROR "Both Qt5 and Qt4 not found, cannot build tray-monitor")
+      message(
+        FATAL_ERROR "Both Qt5 and Qt4 not found, cannot build tray-monitor"
+      )
     endif()
   endif()
 endif()
@@ -63,7 +66,10 @@ set(SOURCES
 )
 
 if(HAVE_WIN32)
-  list(APPEND SOURCES ../win32/qt-tray-monitor/traymon.rc)
+  bareos_configure_file(FILES ../win32/qt-tray-monitor/traymon.rc.in)
+  list(APPEND SOURCES
+       ${CMAKE_CURRENT_BINARY_DIR}/../win32/qt-tray-monitor/traymon.rc
+  )
 endif()
 
 if(HAVE_WIN32)
@@ -86,19 +92,21 @@ if(TARGET Qt6::Widgets)
   target_link_libraries(bareos-tray-monitor PRIVATE Qt6::Widgets)
 endif()
 
+bareos_configure_file(FILES bareos-tray-monitor.desktop.in)
+
 install(TARGETS bareos-tray-monitor DESTINATION "${bindir}")
 
 install(CODE "set(configtemplatedir \"${configtemplatedir}\")")
-install(CODE "set(SRC_DIR \"${PROJECT_SOURCE_DIR}\")")
+install(CODE "set(SRC_DIR \"${PROJECT_BINARY_DIR}\")")
 
 install(
   SCRIPT ${PROJECT_SOURCE_DIR}/cmake/install-tray-monitor-configfiles.cmake
 )
 
-install(FILES bareos-tray-monitor.desktop
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/bareos-tray-monitor.desktop
         DESTINATION ${datarootdir}/applications/
 )
-install(FILES bareos-tray-monitor.desktop
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/bareos-tray-monitor.desktop
         DESTINATION ${sysconfdir}/xdg/autostart/
 )
 install(
@@ -106,4 +114,5 @@ install(
   DESTINATION ${datarootdir}/pixmaps/
   RENAME bareos-tray-monitor.png
 )
-BareosCopyDllsToBinDir()
+bareoscopydllstobindir()
+include(DebugEdit)

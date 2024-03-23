@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -68,6 +68,7 @@
 #include "lib/thread_specific_data.h"
 #include "lib/tree.h"
 #include "lib/util.h"
+#include "lib/version.h"
 #include "lib/watchdog.h"
 #include "include/protocol_types.h"
 #include "include/allow_deprecated.h"
@@ -139,39 +140,30 @@ bool SetupJob(JobControlRecord* jcr, bool suppress_output)
 {
   int errstat;
 
-  jcr->lock();
+  {
+    std::unique_lock l(jcr->mutex_guard());
 
-  // See if we should suppress all output.
-  if (!suppress_output) {
-    InitMsg(jcr, jcr->dir_impl->res.messages, job_code_callback_director);
-  } else {
-    jcr->suppress_output = true;
+    // See if we should suppress all output.
+    if (!suppress_output) {
+      InitMsg(jcr, jcr->dir_impl->res.messages, job_code_callback_director);
+    } else {
+      jcr->suppress_output = true;
+    }
+
+    // Initialize nextrun ready condition variable
+    if ((errstat = pthread_cond_init(&jcr->dir_impl->nextrun_ready, NULL))
+        != 0) {
+      BErrNo be;
+      Jmsg1(jcr, M_FATAL, 0,
+            T_("Unable to init job nextrun cond variable: ERR=%s\n"),
+            be.bstrerror(errstat));
+      goto bail_out;
+    }
+    jcr->dir_impl->nextrun_ready_inited = true;
+
+    CreateUniqueJobName(jcr, jcr->dir_impl->res.job->resource_name_);
+    jcr->setJobStatusWithPriorityCheck(JS_Created);
   }
-
-  // Initialize termination condition variable
-  if ((errstat = pthread_cond_init(&jcr->dir_impl->term_wait, NULL)) != 0) {
-    BErrNo be;
-    Jmsg1(jcr, M_FATAL, 0, T_("Unable to init job cond variable: ERR=%s\n"),
-          be.bstrerror(errstat));
-    jcr->unlock();
-    goto bail_out;
-  }
-  jcr->dir_impl->term_wait_inited = true;
-
-  // Initialize nextrun ready condition variable
-  if ((errstat = pthread_cond_init(&jcr->dir_impl->nextrun_ready, NULL)) != 0) {
-    BErrNo be;
-    Jmsg1(jcr, M_FATAL, 0,
-          T_("Unable to init job nextrun cond variable: ERR=%s\n"),
-          be.bstrerror(errstat));
-    jcr->unlock();
-    goto bail_out;
-  }
-  jcr->dir_impl->nextrun_ready_inited = true;
-
-  CreateUniqueJobName(jcr, jcr->dir_impl->res.job->resource_name_);
-  jcr->setJobStatusWithPriorityCheck(JS_Created);
-  jcr->unlock();
 
   // Open database
   Dmsg0(100, "Open database\n");
@@ -394,20 +386,19 @@ bool IsConnectFromClientAllowed(JobControlRecord* jcr)
 bool UseWaitingClient(JobControlRecord* jcr, int timeout)
 {
   bool result = false;
-  Connection* connection = NULL;
-  ConnectionPool* connections = get_client_connections();
+  auto& connections = get_client_connections();
 
   if (!IsConnectFromClientAllowed(jcr)) {
     Dmsg1(120, "Connection from client \"%s\" to director is not allowed.\n",
           jcr->dir_impl->res.client->resource_name_);
   } else {
-    connection = connections->remove(jcr->dir_impl->res.client->resource_name_,
-                                     timeout);
+    auto connection
+        = connections.take_by_name(jcr->dir_impl->res.client->resource_name_,
+                                   std::chrono::seconds{timeout});
     if (connection) {
-      jcr->file_bsock = connection->bsock();
-      jcr->dir_impl->FDVersion = connection->protocol_version();
-      jcr->authenticated = connection->authenticated();
-      delete (connection);
+      jcr->file_bsock = connection->socket.release();
+      jcr->dir_impl->FDVersion = connection->protocol_version;
+      jcr->authenticated = true;
       Jmsg(jcr, M_INFO, 0, T_("Using Client Initiated Connection (%s).\n"),
            jcr->dir_impl->res.client->resource_name_);
       result = true;
@@ -445,6 +436,9 @@ static void* job_thread(void* arg)
 
   // Let the statistics subsystem know a new Job was started.
   stats_job_started();
+
+  Jmsg(jcr, M_INFO, 0, T_("Version: %s (%s) %s\n"), kBareosVersionStrings.Full,
+       kBareosVersionStrings.Date, kBareosVersionStrings.GetOsInfo());
 
   if (jcr->dir_impl->res.job->MaxStartDelay != 0
       && jcr->dir_impl->res.job->MaxStartDelay
@@ -651,13 +645,12 @@ static void* job_thread(void* arg)
 
 void SdMsgThreadSendSignal(JobControlRecord* jcr, int sig)
 {
-  jcr->lock();
+  std::unique_lock l(jcr->mutex_guard());
   if (!jcr->dir_impl->sd_msg_thread_done && jcr->dir_impl->SD_msg_chan_started
       && !pthread_equal(jcr->dir_impl->SD_msg_chan, pthread_self())) {
     Dmsg1(800, "Send kill to SD msg chan jid=%d\n", jcr->JobId);
     pthread_kill(jcr->dir_impl->SD_msg_chan, sig);
   }
-  jcr->unlock();
 }
 
 /**
@@ -1524,11 +1517,6 @@ void DirdFreeJcr(JobControlRecord* jcr)
   }
 
   DirdFreeJcrPointers(jcr);
-
-  if (jcr->dir_impl->term_wait_inited) {
-    pthread_cond_destroy(&jcr->dir_impl->term_wait);
-    jcr->dir_impl->term_wait_inited = false;
-  }
 
   if (jcr->dir_impl->nextrun_ready_inited) {
     pthread_cond_destroy(&jcr->dir_impl->nextrun_ready);

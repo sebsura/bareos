@@ -102,7 +102,6 @@ set(ALL_BINARIES_BEING_USED_BY_SYSTEMTESTS
     bls
     bscan
     bconsole
-    bsmtp
     bwild
     bpluginfo
     bsmtp

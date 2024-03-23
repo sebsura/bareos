@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -44,6 +44,7 @@
 #include "lib/berrno.h"
 #include <algorithm>
 
+#include <algorithm>
 #include <thread>
 #include <variant>
 #include <deque>
@@ -142,8 +143,8 @@ class MessageHandler {
 
   using result_type = std::variant<signal_type, message_type, error_type>;
 
-  MessageHandler(BareosSocket* fd)
-      : MessageHandler{fd,
+  MessageHandler(BareosSocket* t_fd)
+      : MessageHandler{t_fd,
                        // 500 msg reserves at most 256MB in size
                        // probably much less because of signals
                        channel::CreateBufferedChannel<result_type>(500)}
@@ -160,24 +161,21 @@ class MessageHandler {
 
   BareosSocket* close_and_get_sock()
   {
-    end.store(true);
+    output.close();
     receive_thread.join();
     return fd;
   }
 
  private:
-  MessageHandler(BareosSocket* fd,
+  MessageHandler(BareosSocket* t_fd,
                  std::pair<channel::input<result_type>,
                            channel::output<result_type>> chan_pair)
-      : fd{fd}
+      : fd{t_fd}
       , input{std::move(chan_pair.first)}
       , output{std::move(chan_pair.second)}
       , receive_thread{enlist, this}
   {
   }
-
-  bool error_while_reading{false};
-  std::atomic<bool> end{false};
 
   BareosSocket* fd;
   channel::input<result_type> input;
@@ -218,17 +216,22 @@ class MessageHandler {
         fd->msg = nullptr;
 
         if (!input.emplace(std::move(result))) {
-          Dmsg1(20,
-                "Tried to put message into queue; but it did not succeed.\n");
+          if (input.closed()) {
+            Dmsg1(20, "Tried to put message into closed queue.\n");
+          } else {
+            Dmsg1(20,
+                  "Tried to put message into queue; but it did not succeed.\n");
+          }
           cont = false;
         }
       } else if (res == fd->Error) {
         cont = false;
-        error_while_reading = true;
       } else {
         ASSERT(res == fd->Timeout);
+        input.try_update_status();
       }
-      if (end.load()) { cont = false; }
+
+      if (input.closed()) { cont = false; }
     }
 
     input.close();
@@ -431,16 +434,16 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
      * that after the loop ends. */
     rec_data = jcr->sd_impl->dcr->rec->data;
     while (!jcr->IsJobCanceled()) {
-      auto msg = handler.get_msg();
+      auto msg2 = handler.get_msg();
 
-      if (!msg) {
+      if (!msg2) {
         Jmsg2(jcr, M_FATAL, 0,
               T_("Internal Error reading data header from %s.\n"), what);
         ok = false;
         break;
       }
 
-      if (auto* error = std::get_if<error_type>(&msg.value())) {
+      if (auto* error = std::get_if<error_type>(&msg2.value())) {
         Jmsg2(jcr, M_FATAL, 0,
               T_("Error reading data header from %s. ERR=%s\n"), what,
               error->msg.c_str());
@@ -448,7 +451,7 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
         break;
       }
 
-      if (auto* signal = std::get_if<signal_type>(&msg.value())) {
+      if (auto* signal = std::get_if<signal_type>(&msg2.value())) {
         if (*signal != BNET_EOD) {
           Jmsg2(jcr, M_FATAL, 0, T_("Unexpected signal from %s: %d\n"), what,
                 *signal);
@@ -457,8 +460,8 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
         break;
       }
 
-      auto content = std::get<message_type>(std::move(msg).value());
-      n = content.size;
+      auto content2 = std::get<message_type>(std::move(msg2).value());
+      n = content2.size;
 
       jcr->sd_impl->dcr->rec->VolSessionId = jcr->VolSessionId;
       jcr->sd_impl->dcr->rec->VolSessionTime = jcr->VolSessionTime;
@@ -466,9 +469,9 @@ bool DoAppendData(JobControlRecord* jcr, BareosSocket* bs, const char* what)
       jcr->sd_impl->dcr->rec->Stream = stream;
       jcr->sd_impl->dcr->rec->maskedStream
           = stream & STREAMMASK_TYPE; /* strip high bits */
-      jcr->sd_impl->dcr->rec->data_len = content.size;
+      jcr->sd_impl->dcr->rec->data_len = content2.size;
       jcr->sd_impl->dcr->rec->data
-          = content.data.addr(); /* use message buffer */
+          = content2.data.addr(); /* use message buffer */
 
       Dmsg4(850, "before writ_rec FI=%d SessId=%d Strm=%s len=%d\n",
             jcr->sd_impl->dcr->rec->FileIndex,

@@ -3,7 +3,7 @@
 
    Copyright (C) 2008-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -367,8 +367,10 @@ bool DoNativeVbackup(JobControlRecord* jcr)
    * Note, the SD stores in jcr->JobFiles/ReadBytes/JobBytes/JobErrors */
   WaitForStorageDaemonTermination(jcr);
   jcr->setJobStatusWithPriorityCheck(jcr->dir_impl->SDJobStatus);
-  jcr->db_batch->WriteBatchFileRecords(
-      jcr); /* used by bulk batch file insert */
+  if (jcr->batch_started) {
+    jcr->db_batch->WriteBatchFileRecords(
+        jcr); /* used by bulk batch file insert */
+  }
   if (!jcr->is_JobStatus(JS_Terminated)) { return false; }
 
   NativeVbackupCleanup(jcr, jcr->getJobStatus(), JobLevel_of_first_job);
@@ -445,17 +447,18 @@ void NativeVbackupCleanup(JobControlRecord* jcr, int TermCode, int JobLevel)
     Jmsg(jcr, M_INFO, 0,
          "Replicating deleted files from jobids %s to jobid %d\n",
          jcr->dir_impl->vf_jobids, jcr->JobId);
-    PoolMem q1(PM_MESSAGE);
+    PoolMem inner_query(PM_MESSAGE);
     jcr->db->FillQuery(
-        q1, BareosDbQueryEnum::SQL_QUERY::select_recent_version_with_basejob,
+        inner_query,
+        BareosDbQueryEnum::SQL_QUERY::select_recent_version_with_basejob,
         jcr->dir_impl->vf_jobids, jcr->dir_impl->vf_jobids,
         jcr->dir_impl->vf_jobids, jcr->dir_impl->vf_jobids);
-    std::string query
+    std::string outer_query
         = "INSERT INTO File (FileIndex, JobId, PathId, LStat, MD5, Name) "s
           + "SELECT FileIndex, "s + std::to_string(jcr->JobId) + " AS JobId, "s
-          + "PathId, LStat, MD5, Name FROM ("s + q1.c_str() + ") T "s
+          + "PathId, LStat, MD5, Name FROM ("s + inner_query.c_str() + ") T "s
           + "WHERE FileIndex = 0"s;
-    if (!jcr->db->SqlQuery(query.c_str())) {
+    if (!jcr->db->SqlQuery(outer_query.c_str())) {
       Jmsg(jcr, M_WARNING, 0, "Error replicating deleted files: ERR=%s\n",
            jcr->db->strerror());
     }

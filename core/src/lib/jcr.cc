@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -197,7 +197,6 @@ JobControlRecord::JobControlRecord()
   job_end_callbacks.init(1, false);
   sched_time = time(nullptr);
   initial_sched_time = sched_time;
-  InitMutex();
   IncUseCount();
   VolumeName = GetPoolMemory(PM_FNAME);
   VolumeName[0] = 0;
@@ -246,7 +245,7 @@ void InitJcr(std::shared_ptr<JobControlRecord> jcr,
 
   LockJobs();
   LockJcrChain();
-  job_control_record_cache.emplace_back(jcr);
+  job_control_record_cache.emplace_back(std::move(jcr));
   UnlockJcrChain();
   UnlockJobs();
 }
@@ -264,8 +263,7 @@ static void RemoveJcr(JobControlRecord* jcr)
   Dmsg0(debuglevel, "Leave RemoveJcr\n");
 }
 
-static void FreeCommonJcr(JobControlRecord* jcr,
-                          bool is_destructor_call = false)
+static void FreeCommonJcr(JobControlRecord* jcr)
 {
   Dmsg1(100, "FreeCommonJcr: %p \n", jcr);
 
@@ -273,8 +271,6 @@ static void FreeCommonJcr(JobControlRecord* jcr,
 
   RemoveJcrFromThreadSpecificData(jcr);
   jcr->SetKillable(false);
-
-  jcr->DestroyMutex();
 
   if (jcr->msg_queue) {
     delete jcr->msg_queue;
@@ -344,11 +340,9 @@ static void FreeCommonJcr(JobControlRecord* jcr,
     FreePoolMemory(jcr->comment);
     jcr->comment = nullptr;
   }
-
-  if (!is_destructor_call) { free(jcr); }
 }
 
-static void JcrCleanup(JobControlRecord* jcr, bool is_destructor_call = false)
+static void JcrCleanup(JobControlRecord* jcr)
 {
   DequeueMessages(jcr);
   CallJobEndCallbacks(jcr);
@@ -375,14 +369,14 @@ static void JcrCleanup(JobControlRecord* jcr, bool is_destructor_call = false)
 
   if (jcr->daemon_free_jcr) { jcr->daemon_free_jcr(jcr); }
 
-  FreeCommonJcr(jcr, is_destructor_call);
+  FreeCommonJcr(jcr);
   CloseMsg(nullptr);  // flush any daemon messages
 }
 
 JobControlRecord::~JobControlRecord()
 {
   Dmsg0(100, "Destruct JobControlRecord\n");
-  JcrCleanup(this, true);
+  JcrCleanup(this);
   Dmsg0(debuglevel, "JobControlRecord Destructor finished\n");
 }
 
@@ -417,14 +411,17 @@ void b_free_jcr(const char* file, int line, JobControlRecord* jcr)
   Dmsg3(debuglevel, "Enter FreeJcr jid=%u from %s:%d\n", jcr->JobId, file,
         line);
 
-  if (RunJcrGarbageCollector(jcr)) { JcrCleanup(jcr); }
+  if (RunJcrGarbageCollector(jcr)) {
+    std::destroy_at(jcr);
+    free(jcr);
+  }
 
   Dmsg0(debuglevel, "Exit FreeJcr\n");
 }
 
 void JobControlRecord::SetKillable(bool killable)
 {
-  lock();
+  std::unique_lock l(mutex_);
 
   my_thread_killable_ = killable;
   if (killable) {
@@ -432,13 +429,11 @@ void JobControlRecord::SetKillable(bool killable)
   } else {
     memset(&my_thread_id, 0, sizeof(my_thread_id));
   }
-
-  unlock();
 }
 
 void JobControlRecord::MyThreadSendSignal(int sig)
 {
-  lock();
+  std::unique_lock l(mutex_);
 
   if (IsKillable() && !pthread_equal(my_thread_id, pthread_self())) {
     Dmsg1(800, "Send kill to jid=%d\n", JobId);
@@ -446,8 +441,6 @@ void JobControlRecord::MyThreadSendSignal(int sig)
   } else if (!IsKillable()) {
     Dmsg1(10, "Warning, can't send kill to jid=%d\n", JobId);
   }
-
-  unlock();
 }
 
 
@@ -474,45 +467,34 @@ JobControlRecord* get_jcr_by_id(uint32_t JobId)
   return jcr;
 }
 
-std::size_t GetJcrCount()
+static void CleanupExpired(std::vector<std::weak_ptr<JobControlRecord>>& v)
 {
-  LockJcrChain();
-  std::size_t count = count_if(
-      job_control_record_cache.begin(), job_control_record_cache.end(),
-      [](std::weak_ptr<JobControlRecord>& p) { return !p.expired(); });
-  UnlockJcrChain();
-
-  return count;
+  v.erase(std::remove_if(v.begin(), v.end(),
+                         [](const auto& p) { return p.expired(); }),
+          v.end());
 }
 
-static std::shared_ptr<JobControlRecord> GetJcr(
-    std::function<bool(const JobControlRecord*)> compare)
+std::size_t GetJcrCount()
 {
-  std::shared_ptr<JobControlRecord> result;
+  std::unique_lock _{jcr_chain_mutex};
 
-  LockJcrChain();
+  CleanupExpired(job_control_record_cache);
 
-  // cleanup chache
-  job_control_record_cache.erase(
-      std::remove_if(
-          job_control_record_cache.begin(), job_control_record_cache.end(),
-          [](std::weak_ptr<JobControlRecord>& p) { return p.expired(); }),
-      job_control_record_cache.end());
+  return job_control_record_cache.size();
+}
 
-  std::ignore = find_if(
-      job_control_record_cache.begin(), job_control_record_cache.end(),
-      [&compare, &result](std::weak_ptr<JobControlRecord>& p) {
-        auto jcr = p.lock();
-        if (compare(jcr.get())) {
-          result = jcr;
-          return true;
-        }
-        return false;
-      });
+template <typename P>
+static std::shared_ptr<JobControlRecord> GetJcr(P predicate)
+{
+  std::unique_lock _{jcr_chain_mutex};
 
-  UnlockJcrChain();
+  CleanupExpired(job_control_record_cache);
 
-  return result;
+  for (const auto& ptr : job_control_record_cache) {
+    if (auto jcr = ptr.lock(); jcr && predicate(jcr.get())) { return jcr; }
+  }
+
+  return {};
 }
 
 std::shared_ptr<JobControlRecord> GetJcrById(uint32_t JobId)
@@ -521,23 +503,24 @@ std::shared_ptr<JobControlRecord> GetJcrById(uint32_t JobId)
       [JobId](const JobControlRecord* jcr) { return jcr->JobId == JobId; });
 }
 
-std::shared_ptr<JobControlRecord> GetJcrByFullName(std::string name)
+std::shared_ptr<JobControlRecord> GetJcrByFullName(std::string_view name)
 {
-  return GetJcr([&name](const JobControlRecord* jcr) {
-    return std::string{jcr->Job} == name;
+  return GetJcr([name](const JobControlRecord* jcr) {
+    return std::string_view{jcr->Job} == name;
   });
 }
 
-std::shared_ptr<JobControlRecord> GetJcrByPartialName(std::string name)
+std::shared_ptr<JobControlRecord> GetJcrByPartialName(std::string_view name)
 {
-  return GetJcr([&name](const JobControlRecord* jcr) {
-    return std::string{jcr->Job}.find(name) == 0;
+  return GetJcr([name](const JobControlRecord* jcr) {
+    return std::string_view{jcr->Job}.find(name) == 0;
   });
 }
 
-std::shared_ptr<JobControlRecord> GetJcrBySession(const VolumeSessionInfo& vsi)
+std::shared_ptr<JobControlRecord> GetJcrBySession(VolumeSessionInfo vsi)
 {
-  return GetJcr([&vsi](const JobControlRecord* jcr) {
+  static_assert(sizeof(vsi) == 8);
+  return GetJcr([vsi](const JobControlRecord* jcr) {
     return (VolumeSessionInfo{jcr->VolSessionId, jcr->VolSessionTime} == vsi);
   });
 }
