@@ -169,14 +169,9 @@ if(HAVE_WIN32)
     comdlg32
     advapi32
   )
-<<<<<<< HEAD
   set(RELATIVE_PROJECT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
   set(TEST_ORIGINAL_FILE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/statefile)
   set(TEST_TEMP_DIR ${CMAKE_CURRENT_BINARY_DIR}/statefile_tmp)
-=======
-  set(TEST_ORIGINAL_FILE_DIR Z:${CMAKE_CURRENT_SOURCE_DIR}/statefile)
-  set(TEST_TEMP_DIR Z:${CMAKE_CURRENT_BINARY_DIR}/statefile_tmp)
->>>>>>> origin/master
   file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/statefile_tmp/write-test)
   set(CERTDIR ${CMAKE_CURRENT_SOURCE_DIR}/configs/test_bsock/tls)
 else() # NOT HAVE_WIN32
@@ -482,9 +477,10 @@ bareos_add_test(test_edit LINK_LIBRARIES bareos GTest::gtest_main)
 if(NOT MSVC)
   bareos_add_test(
     test_fd_plugins
-    ADDITIONAL_SOURCES ${PROJECT_SOURCE_DIR}/src/filed/fd_plugins.cc
-                       ${PROJECT_SOURCE_DIR}/src/filed/fileset.cc
-                       ${PROJECT_SOURCE_DIR}/src/filed/filed_globals.cc
+    ADDITIONAL_SOURCES
+      ${PROJECT_SOURCE_DIR}/src/filed/fd_plugins.cc
+      ${PROJECT_SOURCE_DIR}/src/filed/fileset.cc
+      ${PROJECT_SOURCE_DIR}/src/filed/filed_globals.cc
     LINK_LIBRARIES bareos bareosfind GTest::gtest_main
   )
 endif()
@@ -530,5 +526,5 @@ if(NOT HAVE_WIN32)
   bareos_add_test(fvec LINK_LIBRARIES GTest::gtest_main)
 endif()
 
-BareosCopyDllsToBinDir()
+bareoscopydllstobindir()
 include(DebugEdit)

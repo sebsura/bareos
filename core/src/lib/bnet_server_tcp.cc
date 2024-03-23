@@ -92,15 +92,6 @@ static void CleanupBnetThreadServerTcp(ThreadList& thread_list)
 {
   Dmsg0(100, "CleanupBnetThreadServerTcp: start\n");
 
-  if (sockfds && !sockfds->empty()) {
-    s_sockfd* fd_ptr = (s_sockfd*)sockfds->first();
-    while (fd_ptr) {
-      socketClose(fd_ptr->fd);
-      fd_ptr = (s_sockfd*)sockfds->next();
-    }
-    sockfds->destroy();
-  }
-
   if (!thread_list.ShutdownAndWaitForThreadsToFinish()) {
     Emsg1(M_ERROR, 0, T_("Could not destroy thread list.\n"));
   }
