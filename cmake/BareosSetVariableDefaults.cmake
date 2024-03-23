@@ -36,8 +36,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
   set(HAVE_EXTENDED_ACL 1)
 endif()
 
-<<<<<<< HEAD
-
 if (MSVC)
   set(bindir
     "C:/Program Files/${CMAKE_PROJECT_NAME}"
@@ -49,20 +47,6 @@ if (MSVC)
   )
   set(libdir
     "C:/Program Files/${CMAKE_PROJECT_NAME}"
-=======
-if(USE_RELATIVE_PATHS)
-
-  set(bindir
-      "${CMAKE_INSTALL_BINDIR}"
-      CACHE STRING "bin directory"
-  )
-  set(sbindir
-      "${CMAKE_INSTALL_SBINDIR}"
-      CACHE STRING "sbin directory"
-  )
-  set(libdir
-      "${CMAKE_INSTALL_LIBDIR}/${CMAKE_PROJECT_NAME}"
->>>>>>> origin/master
       CACHE STRING "lib directory"
   )
   set(backenddir
@@ -74,19 +58,11 @@ if(USE_RELATIVE_PATHS)
       CACHE STRING "directory for Bareos plugins"
   )
   set(scriptdir
-<<<<<<< HEAD
     "C:/ProgramData/${CMAKE_PROJECT_NAME}/scripts"
       CACHE STRING "directory for Bareos helper scripts"
   )
   set(sysconfdir
     "C:/ProgramData"
-=======
-      "lib/${CMAKE_PROJECT_NAME}/scripts"
-      CACHE STRING "directory for Bareos helper scripts"
-  )
-  set(sysconfdir
-      "${CMAKE_INSTALL_SYSCONFDIR}"
->>>>>>> origin/master
       CACHE STRING "system configuration directory"
   )
   set(SYSCONFDIR "\"${sysconfdir}\"")
@@ -99,7 +75,6 @@ if(USE_RELATIVE_PATHS)
       CACHE STRING "directory for Bareos configuration templates (optional)"
   )
   set(includedir
-<<<<<<< HEAD
       "${CMAKE_INSTALL_FULL_INCLUDEDIR}/${CMAKE_PROJECT_NAME}"
       CACHE STRING "include directory"
   )
@@ -109,26 +84,11 @@ if(USE_RELATIVE_PATHS)
   )
   set(workingdir
     "${sysconfdir}/${CMAKE_PROJECT_NAME}/working"
-=======
-      "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PROJECT_NAME}"
-      CACHE STRING "include directory"
-  )
-  set(mandir
-      ${CMAKE_INSTALL_MANDIR}
-      CACHE STRING "man(uals) directory"
-  )
-  set(workingdir
-      "${CMAKE_INSTALL_LOCALSTATEDIR}/lib/${CMAKE_PROJECT_NAME}"
->>>>>>> origin/master
       CACHE STRING "Bareos working directory"
   )
   set(working_dir "${workingdir}")
   set(archivedir
-<<<<<<< HEAD
     "C:/bareos-storage"
-=======
-      "${workingdir}/storage"
->>>>>>> origin/master
       CACHE STRING "Bareos archive directory"
   )
   set(subsysdir
@@ -136,7 +96,6 @@ if(USE_RELATIVE_PATHS)
       CACHE STRING "subsys directory"
   )
   set(logdir
-<<<<<<< HEAD
     "C:/ProgramData/${CMAKE_PROJECT_NAME}/logs"
       CACHE STRING "log directory"
   )
@@ -157,28 +116,6 @@ elseif(USE_RELATIVE_PATHS)
   )
   set(libdir
       "${CMAKE_INSTALL_LIBDIR}/${CMAKE_PROJECT_NAME}"
-=======
-      "${CMAKE_INSTALL_LOCALSTATEDIR}/log/${CMAKE_PROJECT_NAME}"
-      CACHE STRING "log directory"
-  )
-  set(datarootdir
-      "${CMAKE_INSTALL_DATAROOTDIR}"
-      CACHE STRING "data root directory"
-  )
-
-else() # if(USE_RELATIVE_PATHS)
-
-  set(bindir
-      "${CMAKE_INSTALL_FULL_BINDIR}"
-      CACHE STRING "bin directory"
-  )
-  set(sbindir
-      "${CMAKE_INSTALL_FULL_SBINDIR}"
-      CACHE STRING "sbin directory"
-  )
-  set(libdir
-      "${CMAKE_INSTALL_FULL_LIBDIR}/${CMAKE_PROJECT_NAME}"
->>>>>>> origin/master
       CACHE STRING "lib directory"
   )
   set(backenddir
@@ -190,19 +127,11 @@ else() # if(USE_RELATIVE_PATHS)
       CACHE STRING "directory for Bareos plugins"
   )
   set(scriptdir
-<<<<<<< HEAD
       "lib/${CMAKE_PROJECT_NAME}/scripts"
       CACHE STRING "directory for Bareos helper scripts"
   )
   set(sysconfdir
       "${CMAKE_INSTALL_SYSCONFDIR}"
-=======
-      "${CMAKE_INSTALL_PREFIX}/lib/${CMAKE_PROJECT_NAME}/scripts"
-      CACHE STRING "directory for Bareos helper scripts"
-  )
-  set(sysconfdir
-      "${CMAKE_INSTALL_FULL_SYSCONFDIR}"
->>>>>>> origin/master
       CACHE STRING "system configuration directory"
   )
   set(SYSCONFDIR "\"${sysconfdir}\"")
@@ -215,7 +144,6 @@ else() # if(USE_RELATIVE_PATHS)
       CACHE STRING "directory for Bareos configuration templates (optional)"
   )
   set(includedir
-<<<<<<< HEAD
       "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PROJECT_NAME}"
       CACHE STRING "include directory"
   )
@@ -225,17 +153,6 @@ else() # if(USE_RELATIVE_PATHS)
   )
   set(workingdir
       "${CMAKE_INSTALL_LOCALSTATEDIR}/lib/${CMAKE_PROJECT_NAME}"
-=======
-      "${CMAKE_INSTALL_FULL_INCLUDEDIR}/${CMAKE_PROJECT_NAME}"
-      CACHE STRING "include directory"
-  )
-  set(mandir
-      ${CMAKE_INSTALL_FULL_MANDIR}
-      CACHE STRING "man(uals) directory"
-  )
-  set(workingdir
-      "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/lib/${CMAKE_PROJECT_NAME}"
->>>>>>> origin/master
       CACHE STRING "Bareos working directory"
   )
   set(working_dir "${workingdir}")
@@ -248,7 +165,6 @@ else() # if(USE_RELATIVE_PATHS)
       CACHE STRING "subsys directory"
   )
   set(logdir
-<<<<<<< HEAD
       "${CMAKE_INSTALL_LOCALSTATEDIR}/log/${CMAKE_PROJECT_NAME}"
       CACHE STRING "log directory"
   )
@@ -327,19 +243,6 @@ else() # if(USE_RELATIVE_PATHS)
   )
 
 endif() # if(USE_RELATIVE_PATHS)
-
-
-=======
-      "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/log/${CMAKE_PROJECT_NAME}"
-      CACHE STRING "log directory"
-  )
-  set(datarootdir
-      "${CMAKE_INSTALL_FULL_DATAROOTDIR}"
-      CACHE STRING "data root directory"
-  )
-
-endif() # if(USE_RELATIVE_PATHS)
->>>>>>> origin/master
 
 set(PYTHON_MODULE_PATH
     "${plugindir}"
