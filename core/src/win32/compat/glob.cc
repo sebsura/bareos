@@ -181,19 +181,6 @@ int Readdir_r(DIR* dirp, struct dirent* entry, struct dirent** result);
 #  define stricoll(str1, str2) strcasecmp(str1, str2)
 #endif
 
-enum
-{
-  /* Extend the flags offset enumeration, beyond the user visible
-   * high water mark, to accommodate some additional flags which are
-   * required for private use by the implementation.
-   */
-  __GLOB_DIRONLY_OFFSET = __GLOB_FLAG_OFFSET_HIGH_WATER_MARK,
-  __GLOB_PERIOD_PRIVATE_OFFSET,
-  /* For congruency, set a new high water mark above the private data
-   * range, (which we don't otherwise use). */
-  __GLOB_PRIVATE_FLAGS_HIGH_WATER_MARK
-};
-
 #define GLOB_DIRONLY __GLOB_FLAG__(DIRONLY)
 #ifndef GLOB_PERIOD
 #  define GLOB_PERIOD __GLOB_FLAG__(PERIOD_PRIVATE)
