@@ -572,7 +572,7 @@ SectionIn 1 2 3 4
 
   # install configuration as templates
   SetOutPath "$INSTDIR\defaultconfigs\tray-monitor.d\client\"
-  File ${CMAKE_SOURCE_DIR}\core\src\defaultconfigs\tray-monitor.d\client\FileDaemon-local.conf
+  File ${CMAKE_BINARY_DIR}\core\src\defaultconfigs\tray-monitor.d\client\FileDaemon-local.conf
 
   SetOutPath "$APPDATA\${PRODUCT_NAME}"
   !cd "${CMAKE_SOURCE_DIR}\core\platforms\win32"
