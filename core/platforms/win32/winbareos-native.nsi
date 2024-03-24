@@ -568,7 +568,7 @@ SectionIn 1 2 3 4
 
   # install configuration as templates
   SetOutPath "$INSTDIR\defaultconfigs\bareos-fd.d"
-  File /r ${CMAKE_SOURCE_DIR}\core\src\defaultconfigs\bareos-fd.d\*.conf
+  File /r ${CMAKE_BINARY_DIR}\core\src\defaultconfigs\bareos-fd.d\*.conf
 
   # install configuration as templates
   SetOutPath "$INSTDIR\defaultconfigs\tray-monitor.d\client\"
@@ -636,11 +636,11 @@ SectionIn 2 3
 
   # install configuration as templates
   SetOutPath "$INSTDIR\defaultconfigs\bareos-sd.d"
-  File /r ${CMAKE_SOURCE_DIR}\core\src\defaultconfigs\bareos-sd.d\*.conf
+  File /r ${CMAKE_BINARY_DIR}\core\src\defaultconfigs\bareos-sd.d\*.conf
 
   # install configuration as templates
   SetOutPath "$INSTDIR\defaultconfigs\tray-monitor.d\storage"
-  File "${CMAKE_SOURCE_DIR}\core\src\defaultconfigs\tray-monitor.d\storage\StorageDaemon-local.conf"
+  File "${CMAKE_BINARY_DIR}\core\src\defaultconfigs\tray-monitor.d\storage\StorageDaemon-local.conf"
 
 SectionEnd
 
@@ -696,11 +696,11 @@ SectionIn 2 3
 
   # install configuration as templates
   SetOutPath "$INSTDIR\defaultconfigs\bareos-dir.d"
-  File /r ${CMAKE_SOURCE_DIR}\core\src\defaultconfigs\bareos-dir.d\*.conf
+  File /r ${CMAKE_BINARY_DIR}\core\src\defaultconfigs\bareos-dir.d\*.conf
 
   # install configuration as templates
   SetOutPath "$INSTDIR\defaultconfigs\tray-monitor.d\director"
-  File "${CMAKE_SOURCE_DIR}\core\src\defaultconfigs\tray-monitor.d\director\Director-local.conf"
+  File "${CMAKE_BINARY_DIR}\core\src\defaultconfigs\tray-monitor.d\director\Director-local.conf"
 
 SectionEnd
 
@@ -863,7 +863,7 @@ SectionIn 1 2 3
 #
   # install configuration as templates
   SetOutPath "$INSTDIR\defaultconfigs\tray-monitor.d\monitor"
-  File "${CMAKE_SOURCE_DIR}\core\src\defaultconfigs\tray-monitor.d\monitor\bareos-mon.conf"
+  File "${CMAKE_BINARY_DIR}\core\src\defaultconfigs\tray-monitor.d\monitor\bareos-mon.conf"
 SectionEnd
 
 
@@ -1448,7 +1448,7 @@ done:
   File iconv-2.dll
   File intl-8.dll
 
-  File ${CMAKE_SOURCE_DIR}\core\src\console\bconsole.conf
+  File ${CMAKE_BINARY_DIR}\core\src\console\bconsole.conf
   !cd ${CMAKE_SOURCE_DIR}\core\src\cats\ddl
   File "/oname=$PLUGINSDIR\postgresql-create.sql" "creates\postgresql.sql"
   File "/oname=$PLUGINSDIR\postgresql-drop.sql" "drops\postgresql.sql"
