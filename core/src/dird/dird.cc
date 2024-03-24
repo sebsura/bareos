@@ -405,6 +405,7 @@ static
   }
   Scheduler::GetMainScheduler().Terminate();
   TermJobServer();
+  TermMsg(); /* Terminate message handler */
 
   if (configfile != nullptr) { free(configfile); }
   if (my_config) {
@@ -412,7 +413,6 @@ static
     my_config = nullptr;
   }
 
-  TermMsg(); /* Terminate message handler */
   CleanupCrypto();
 
   exit(sig);
