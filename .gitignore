@@ -14,4 +14,4 @@ webui/module/Application/view/layout/login.phtml
 webui/tests/regress/webui-bsock-connection-test
 webui/tests/regress/webui-bsock-connection-test-tls
 webui/tests/regress/webui-bsock-connection-test-tls.php
-gebui/version.php
+webui/version.php
