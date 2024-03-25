@@ -29,7 +29,7 @@ macro(BareosCopyDllsToBinDir)
     get_property(current_targets DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} PROPERTY BUILDSYSTEM_TARGETS)
     foreach(TGT ${current_targets})
       get_target_property(targettype ${TGT} TYPE)
-      message(STATUS "Type of ${TGT} is ${targettype}")
+      #message(STATUS "Type of ${TGT} is ${targettype}")
       if (${targettype} MATCHES "EXECUTABLE" OR ${targettype} MATCHES "SHARED_LIBRARY")
         add_custom_command(TARGET ${TGT} POST_BUILD
           COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:${TGT}> $<TARGET_RUNTIME_DLLS:${TGT}>;${DLLS_TO_COPY_MANUALLY}

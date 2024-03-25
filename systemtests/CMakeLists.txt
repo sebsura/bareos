@@ -71,14 +71,12 @@ else()
 endif()
 
 # Main starts here...
-set(CMAKE_FIND_DEBUG_MODE TRUE)
 find_program(
   PG_CTL
   NAMES pg_ctl pg_ctl.exe
   HINTS /usr/lib/postgresql/*/bin /usr/bin /bin
         "C:/Program Files/PostgreSQL/14/bin" REQUIRED
 )
-set(CMAKE_FIND_DEBUG_MODE FALSE)
 
 get_filename_component(POSTGRES_BIN_PATH ${PG_CTL} DIRECTORY)
 # message(STATUS "PG_CTL is ${PG_CTL}")
