@@ -36,17 +36,17 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
   set(HAVE_EXTENDED_ACL 1)
 endif()
 
-if (MSVC)
+if(MSVC)
   set(bindir
-    "C:/Program Files/${CMAKE_PROJECT_NAME}"
+      "C:/Program Files/${CMAKE_PROJECT_NAME}"
       CACHE STRING "bin directory"
   )
   set(sbindir
-    "C:/Program Files/${CMAKE_PROJECT_NAME}"
+      "C:/Program Files/${CMAKE_PROJECT_NAME}"
       CACHE STRING "sbin directory"
   )
   set(libdir
-    "C:/Program Files/${CMAKE_PROJECT_NAME}"
+      "C:/Program Files/${CMAKE_PROJECT_NAME}"
       CACHE STRING "lib directory"
   )
   set(backenddir
@@ -58,11 +58,11 @@ if (MSVC)
       CACHE STRING "directory for Bareos plugins"
   )
   set(scriptdir
-    "C:/ProgramData/${CMAKE_PROJECT_NAME}/scripts"
+      "C:/ProgramData/${CMAKE_PROJECT_NAME}/scripts"
       CACHE STRING "directory for Bareos helper scripts"
   )
   set(sysconfdir
-    "C:/ProgramData"
+      "C:/ProgramData"
       CACHE STRING "system configuration directory"
   )
   set(SYSCONFDIR "\"${sysconfdir}\"")
@@ -83,12 +83,12 @@ if (MSVC)
       CACHE STRING "man(uals) directory"
   )
   set(workingdir
-    "${sysconfdir}/${CMAKE_PROJECT_NAME}/working"
+      "${sysconfdir}/${CMAKE_PROJECT_NAME}/working"
       CACHE STRING "Bareos working directory"
   )
   set(working_dir "${workingdir}")
   set(archivedir
-    "C:/bareos-storage"
+      "C:/bareos-storage"
       CACHE STRING "Bareos archive directory"
   )
   set(subsysdir
@@ -96,11 +96,11 @@ if (MSVC)
       CACHE STRING "subsys directory"
   )
   set(logdir
-    "C:/ProgramData/${CMAKE_PROJECT_NAME}/logs"
+      "C:/ProgramData/${CMAKE_PROJECT_NAME}/logs"
       CACHE STRING "log directory"
   )
   set(datarootdir
-    "C:/ProgramData/${CMAKE_PROJECT_NAME}"
+      "C:/ProgramData/${CMAKE_PROJECT_NAME}"
       CACHE STRING "data root directory"
   )
 
