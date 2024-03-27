@@ -1977,9 +1977,9 @@ ConfDeleteSkip:
   Delete "$INSTDIR\libtermcap-0.dll"
   Delete "$INSTDIR\*pthread*.dll"
   Delete "$INSTDIR\zlib*.dll"
-  Delete "$INSTDIR\Qt*Core.dll"
-  Delete "$INSTDIR\Qt*Gui.dll"
-  Delete "$INSTDIR\Qt*Widgets.dll"
+  Delete "$INSTDIR\Qt*Core*.dll"
+  Delete "$INSTDIR\Qt*Gui*.dll"
+  Delete "$INSTDIR\Qt*Widgets*.dll"
   Delete "$INSTDIR\icu*.dll"
   Delete "$INSTDIR\*freetype*.dll"
   Delete "$INSTDIR\libglib-2.0-0.dll"
@@ -2014,9 +2014,6 @@ ConfDeleteSkip:
   Delete "$INSTDIR\vcruntime140*.dll"
   Delete "$INSTDIR\ucrtbase*.dll"
   Delete "$INSTDIR\msvcp140d.dll
-  Delete "$INSTDIR\Qt6Cored.dll
-  Delete "$INSTDIR\Qt6Guid.dll
-  Delete "$INSTDIR\Qt6Widgetsd.dll
 
 # logs
   Delete "$INSTDIR\*.log"
