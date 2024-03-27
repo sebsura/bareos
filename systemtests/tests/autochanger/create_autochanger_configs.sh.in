@@ -102,6 +102,9 @@ Device {
 
 EOF
 
+  # make sure every tape device is unlocked
+  mt -f "${tape_device}" unlock
+
   (( drive_index=drive_index+1 ))
   done # for tape_device in ${!tape_devices}; do
 
