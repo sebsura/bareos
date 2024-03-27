@@ -1,7 +1,7 @@
 #
 #   BAREOS - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2021-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2021-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -40,7 +40,7 @@ import bareos.exceptions
 import bareos_unittest
 
 
-class PythonBareosListCommandTest(bareos_unittest.Base):
+class PythonBareosListCommandTest(bareos_unittest.Json):
     def test_list_jobs(self):
         """
         verifying `list jobs` and `llist jobs ...` outputs correct data
@@ -55,7 +55,7 @@ class PythonBareosListCommandTest(bareos_unittest.Base):
             port=self.director_port,
             name=username,
             password=password,
-            **self.director_extra_options
+            **self.director_extra_options,
         )
 
         director.call("run job=backup-bareos-fd yes")
@@ -332,7 +332,7 @@ class PythonBareosListCommandTest(bareos_unittest.Base):
             port=self.director_port,
             name=username,
             password=password,
-            **self.director_extra_options
+            **self.director_extra_options,
         )
 
         director.call("run job=backup-bareos-fd yes")
@@ -418,7 +418,7 @@ class PythonBareosListCommandTest(bareos_unittest.Base):
             port=self.director_port,
             name=username,
             password=password,
-            **self.director_extra_options
+            **self.director_extra_options,
         )
 
         director.call("run job=backup-bareos-fd yes")
@@ -508,4 +508,37 @@ class PythonBareosListCommandTest(bareos_unittest.Base):
         self.assertEqual(
             result["pools"][0]["poolid"],
             "3",
+        )
+
+    def test_list_files(self):
+        """
+        verifying `list files` outputs correct data
+        """
+        logger = logging.getLogger()
+
+        username = self.get_operator_username()
+        password = self.get_operator_password(username)
+
+        director = bareos.bsock.DirectorConsoleJson(
+            address=self.director_address,
+            port=self.director_port,
+            name=username,
+            password=password,
+            **self.director_extra_options,
+        )
+
+        jobid = self.run_job(
+            director,
+            jobname="backup-bareos-fd",
+            level="Full",
+            extra="fileset=NumberedFiles",
+            wait=True,
+        )
+        result = director.call(f"list files jobid={jobid}")
+        # Before fixing https://bugs.bareos.org/view.php?id=1007 the keys could be scrambled after 100 entries.
+        # Will raise a KeyError, if key "filename" does not exist.
+        filenames = [i["filename"] for i in result["filenames"]]
+        self.assertTrue(
+            len(filenames) > 100,
+            f"More than 100 entries are required for this test, only {len(filenames)} given.",
         )
