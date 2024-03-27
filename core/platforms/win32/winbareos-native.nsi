@@ -551,20 +551,19 @@ SectionIn 1 2 3 4
   File "*.dll"
   File "bareos-fd.exe"
 
-##  !cd "C:\Program Files\Git\mingw64\bin"
-#  File "openssl.exe"
-#  File libcrypto-3-x64.dll
-#  File libssl-3-x64.dll
-#  File "C:\vcpkg\installed\x64-windows\tools\openssl\openssl.exe"
+  !if ${CMAKE_CONFIG_TYPE} == "Debug"
+  !cd "C:\Windows\System32\"
+    File msvcp140d.dll
+    File ucrtbased.dll
+    File vcruntime140_1d.dll
+    File vcruntime140d.dll
+  !endif
 
   !cd "C:\Program Files\Git\usr\bin"
   File "sed.exe"
   File "msys-2.0.dll"
   File "msys-intl-8.dll"
   File "msys-iconv-2.dll"
-
-  # install unittests
-#  File "test_*.exe"
 
   # install configuration as templates
   SetOutPath "$INSTDIR\defaultconfigs\bareos-fd.d"
@@ -578,14 +577,6 @@ SectionIn 1 2 3 4
   !cd "${CMAKE_SOURCE_DIR}\core\platforms\win32"
   File "fillup.sed"
 
-  !if ${CMAKE_CONFIG_TYPE} == "Debug"
-  !cd "C:\Windows\System32\"
-    File "msvcp140d.dll"
-    File "vcruntime14*d.dll"
-    #File "vcruntime140d.dll"
-    #File "vcruntime140_1d.dll"
-    File "ucrtbased.dll"
-  !endif
 
 SectionEnd
 
