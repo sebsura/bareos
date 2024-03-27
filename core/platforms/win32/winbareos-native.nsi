@@ -552,7 +552,7 @@ SectionIn 1 2 3 4
   File "bareos-fd.exe"
 
   !if ${CMAKE_CONFIG_TYPE} == "Debug"
-  !cd "C:\Windows\System32\"
+  !cd "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC\14.38.33130\debug_nonredist\x64\Microsoft.VC143.DebugCRT"
     File msvcp140d.dll
     File ucrtbased.dll
     File vcruntime140_1d.dll
