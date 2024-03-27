@@ -36,9 +36,12 @@ for changer_index in {0..9}; do
   drive_index=0
   tape_devices="TAPE_DEVICES${changer_index}[@]"
   for tape_device in ${!tape_devices}; do
-    echo "  Unlocking ${tape_device}"
-    mt -f "${tape_device}" unlock
-
+    if mt -f "${tape_device}" status | grep ONLINE; then
+      echo "  Tape is loaded in ${tape_device}, unlocking"
+      mt -f "${tape_device}" unlock
+    else
+      echo " ${tape_device} is empty, not unlocking"
+    fi
   done # for tape_device in ${!tape_devices}; do
 done # for changer_index in {0..9}; do
 
