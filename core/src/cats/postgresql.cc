@@ -577,6 +577,7 @@ retry_query:
   }
 
   status_ = PQresultStatus(result_);
+  fields_fetched_ = false;
   switch (status_) {
     case PGRES_TUPLES_OK:
     case PGRES_COMMAND_OK:
@@ -584,7 +585,6 @@ retry_query:
 
       num_fields_ = (int)PQnfields(result_);
       Dmsg1(500, "we have %d fields\n", num_fields_);
-      fields_fetched_ = false;
 
       num_rows_ = PQntuples(result_);
       Dmsg1(500, "we have %d rows\n", num_rows_);
@@ -820,7 +820,7 @@ void BareosDbPostgresql::SqlUpdateField(int i)
   fields_[i].max_length = max_length;
 
   Dmsg4(500,
-        "SqlFetchField finds field '%s' has length='%d' type='%d' and "
+        "SqlUpdateField finds field '%s' has length='%d' type='%d' and "
         "IsNull=%d\n",
         fields_[i].name, fields_[i].max_length, fields_[i].type,
         fields_[i].flags);
@@ -837,10 +837,10 @@ SQL_FIELD* BareosDbPostgresql::SqlFetchField(void)
   }
 
   if (!fields_ || fields_size_ < num_fields_) {
+    fields_fetched_ = false;
     if (fields_) {
       free(fields_);
       fields_ = NULL;
-      fields_fetched_ = false;
     }
     Dmsg1(500, "allocating space for %d fields\n", num_fields_);
     fields_ = (SQL_FIELD*)malloc(sizeof(SQL_FIELD) * num_fields_);
