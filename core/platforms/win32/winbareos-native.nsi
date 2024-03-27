@@ -2013,7 +2013,7 @@ ConfDeleteSkip:
   Delete "$INSTDIR\msys-2*.dll"
   Delete "$INSTDIR\vcruntime140*.dll"
   Delete "$INSTDIR\ucrtbase*.dll"
-  Delete "$INSTDIR\msvcp140d.dll
+  Delete "$INSTDIR\msvcp140d.dll"
 
 # logs
   Delete "$INSTDIR\*.log"
