@@ -581,8 +581,9 @@ SectionIn 1 2 3 4
   !if ${CMAKE_CONFIG_TYPE} == "Debug"
   !cd "C:\Windows\System32\"
     File "msvcp140d.dll"
-    File "vcruntime140d.dll"
-    File "vcruntime140_1d.dll"
+    File "vcruntime14*d.dll"
+    #File "vcruntime140d.dll"
+    #File "vcruntime140_1d.dll"
     File "ucrtbased.dll"
   !endif
 
