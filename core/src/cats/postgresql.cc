@@ -54,8 +54,9 @@
  * -----------------------------------------------------------------------
  */
 
+static dlist<BareosDbPostgresql>* db_list = NULL;
+
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-static size_t num_open = 0;
 
 BareosDbPostgresql::BareosDbPostgresql(JobControlRecord*,
                                        const char*,
@@ -125,7 +126,8 @@ BareosDbPostgresql::BareosDbPostgresql(JobControlRecord*,
   result_ = NULL;
 
   // Put the db in the list.
-  num_open += 1;
+  if (db_list == NULL) { db_list = new dlist<BareosDbPostgresql>(); }
+  db_list->append(this);
 
   /* make the queries available using the queries variable from the parent class
    */
@@ -265,8 +267,8 @@ void BareosDbPostgresql::CloseDatabase(JobControlRecord* jcr)
   ref_count_--;
   if (ref_count_ == 0) {
     if (connected_) { SqlFreeResult(); }
-    num_open -= 1;
-    if (db_handle_) { PQfinish(db_handle_); }
+    db_list->remove(this);
+    if (connected_ && db_handle_) { PQfinish(db_handle_); }
     if (RwlIsInit(&lock_)) { RwlDestroy(&lock_); }
     FreePoolMemory(errmsg);
     FreePoolMemory(cmd);
@@ -284,6 +286,10 @@ void BareosDbPostgresql::CloseDatabase(JobControlRecord* jcr)
     if (db_address_) { free(db_address_); }
     if (db_socket_) { free(db_socket_); }
     delete this;
+    if (db_list->size() == 0) {
+      delete db_list;
+      db_list = NULL;
+    }
   }
   unlock_mutex(mutex);
 }
@@ -909,24 +915,24 @@ BareosDb* db_init_database(JobControlRecord* jcr,
   lock_mutex(mutex); /* lock DB queue */
 
   // Look to see if DB already open
-  // if (db_list && !mult_db_connections && !need_private) {
-  //   foreach_dlist (mdb, db_list) {
-  //     if (mdb->IsPrivate()) { continue; }
+  if (db_list && !mult_db_connections && !need_private) {
+    foreach_dlist (mdb, db_list) {
+      if (mdb->IsPrivate()) { continue; }
 
-  //     if (mdb->MatchDatabase(db_driver, db_name, db_address, db_port)) {
-  //       Dmsg1(100, "DB REopen %s\n", db_name);
-  //       mdb->IncrementRefcount();
-  //       goto bail_out;
-  //     }
-  //   }
-  // }
+      if (mdb->MatchDatabase(db_driver, db_name, db_address, db_port)) {
+        Dmsg1(100, "DB REopen %s\n", db_name);
+        mdb->IncrementRefcount();
+        goto bail_out;
+      }
+    }
+  }
   Dmsg0(100, "db_init_database first time\n");
   mdb = new BareosDbPostgresql(jcr, db_driver, db_name, db_user, db_password,
                                db_address, db_port, db_socket,
                                mult_db_connections, disable_batch_insert,
                                try_reconnect, exit_on_fatal, need_private);
 
-  // bail_out:
+bail_out:
   unlock_mutex(mutex);
   return mdb;
 }
