@@ -144,7 +144,9 @@ bool OpenDb(UaContext* ua, bool use_private)
                  ua->catalog->db_name);
     return false;
   }
-  if (ua->jcr->db) { DbSqlClosePooledConnection(ua->jcr, ua->jcr->db); }
+  // this does not work because ua->private_db / ua->shared_db are still set
+  // to this value
+  // if (ua->jcr->db) { DbSqlClosePooledConnection(ua->jcr, ua->jcr->db); }
   ua->jcr->db = ua->db;
 
   /* Save the new database connection under the right label e.g. shared or
