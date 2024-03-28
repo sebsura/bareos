@@ -1363,6 +1363,8 @@ bool CompleteJcrForJob(JobControlRecord* jcr,
   PoolDbRecord pr;
   bstrncpy(pr.Name, jcr->dir_impl->res.pool->resource_name_, sizeof(pr.Name));
   while (!jcr->db->GetPoolRecord(jcr, &pr)) { /* get by Name */
+    Jmsg(jcr, M_INFO, 0, "Could not find pool %s. ERR=%s\n", pr.Name,
+         jcr->db->strerror());
     /* Try to create the pool */
     if (CreatePool(jcr, jcr->db, jcr->dir_impl->res.pool, POOL_OP_CREATE) < 0) {
       Jmsg(jcr, M_FATAL, 0, T_("Pool %s not in database. %s\n"), pr.Name,
@@ -1382,7 +1384,7 @@ bool CompleteJcrForJob(JobControlRecord* jcr,
 
 static void ConLockRelease(void*) { Vw(con_lock); }
 
-void DoMessages(UaContext* ua, const char*)
+bool DoMessages(UaContext* ua, const char*)
 {
   char msg[2000];
   int mlen;
@@ -1391,10 +1393,12 @@ void DoMessages(UaContext* ua, const char*)
   // Flush any queued messages.
   if (ua->jcr) { DequeueMessages(ua->jcr); }
 
+  bool had_messages = false;
   Pw(con_lock);
   pthread_cleanup_push(ConLockRelease, (void*)NULL);
   rewind(con_fd);
   while (fgets(msg, sizeof(msg), con_fd)) {
+    had_messages = true;
     mlen = strlen(msg);
     ua->UA_sock->msg = CheckPoolMemorySize(ua->UA_sock->msg, mlen + 1);
     strcpy(ua->UA_sock->msg, msg);
@@ -1407,12 +1411,12 @@ void DoMessages(UaContext* ua, const char*)
   ua->user_notified_msg_pending = false;
   pthread_cleanup_pop(0);
   Vw(con_lock);
+  return had_messages;
 }
 
 bool DotMessagesCmd(UaContext* ua, const char* cmd)
 {
-  if (console_msg_pending && ua->AclAccessOk(Command_ACL, cmd)
-      && ua->auto_display_messages) {
+  if (ua->AclAccessOk(Command_ACL, cmd) && ua->auto_display_messages) {
     DoMessages(ua, cmd);
   }
   return true;
@@ -1420,9 +1424,7 @@ bool DotMessagesCmd(UaContext* ua, const char* cmd)
 
 bool MessagesCmd(UaContext* ua, const char* cmd)
 {
-  if (console_msg_pending && ua->AclAccessOk(Command_ACL, cmd)) {
-    DoMessages(ua, cmd);
-  } else {
+  if (!ua->AclAccessOk(Command_ACL, cmd) || !DoMessages(ua, cmd)) {
     ua->send->Decoration(T_("You have no messages.\n"));
   }
   return true;

@@ -381,8 +381,7 @@ bool DoVerify(JobControlRecord* jcr)
     case L_VERIFY_CATALOG:
       // Verify from catalog
       Dmsg0(10, "Verify level=catalog\n");
-      jcr->dir_impl->sd_msg_thread_done
-          = true; /* no SD msg thread, so it is done */
+      mark_sd_chan_done(jcr); /* no SD msg thread, so it is done */
       jcr->dir_impl->SDJobStatus = JS_Terminated;
       GetAttributesAndCompareToCatalog(jcr, jcr->dir_impl->previous_jr.JobId);
       break;
@@ -394,16 +393,14 @@ bool DoVerify(JobControlRecord* jcr)
     case L_VERIFY_DISK_TO_CATALOG:
       // Verify Disk attributes to catalog
       Dmsg0(10, "Verify level=disk_to_catalog\n");
-      jcr->dir_impl->sd_msg_thread_done
-          = true; /* no SD msg thread, so it is done */
+      mark_sd_chan_done(jcr); /* no SD msg thread, so it is done */
       jcr->dir_impl->SDJobStatus = JS_Terminated;
       GetAttributesAndCompareToCatalog(jcr, jcr->dir_impl->previous_jr.JobId);
       break;
     case L_VERIFY_INIT:
       // Build catalog
       Dmsg0(10, "Verify level=init\n");
-      jcr->dir_impl->sd_msg_thread_done
-          = true; /* no SD msg thread, so it is done */
+      mark_sd_chan_done(jcr); /* no SD msg thread, so it is done */
       jcr->dir_impl->SDJobStatus = JS_Terminated;
       GetAttributesAndPutInCatalog(jcr);
       jcr->db->EndTransaction(jcr); /* Terminate any open transaction */

@@ -760,6 +760,10 @@ void NativeBackupCleanup(JobControlRecord* jcr, int TermCode)
 
   UpdateBootstrapFile(jcr);
 
+  auto sd_chan_started = [&] {
+    std::unique_lock l{jcr->mutex_guard()};
+    return jcr->dir_impl->SD_msg_chan_status == msg_chan_status::STARTED;
+  }();
   switch (jcr->getJobStatus()) {
     case JS_Terminated:
       TermMsg = T_("Backup OK");
@@ -776,18 +780,20 @@ void NativeBackupCleanup(JobControlRecord* jcr, int TermCode)
       msg_type = M_ERROR; /* Generate error message */
       if (jcr->store_bsock) {
         jcr->store_bsock->signal(BNET_TERMINATE);
-        if (jcr->dir_impl->SD_msg_chan_started) {
-          pthread_cancel(jcr->dir_impl->SD_msg_chan);
+
+        {
+          std::unique_lock l{jcr->mutex_guard()};
+          jcr->dir_impl->SD_msg_chan_status = msg_chan_status::STARTED;
+          jcr->dir_impl->SD_msg_chan_status_change.notify_all();
         }
+        if (sd_chan_started) { pthread_cancel(jcr->dir_impl->SD_msg_chan); }
       }
       break;
     case JS_Canceled:
       TermMsg = T_("Backup Canceled");
       if (jcr->store_bsock) {
         jcr->store_bsock->signal(BNET_TERMINATE);
-        if (jcr->dir_impl->SD_msg_chan_started) {
-          pthread_cancel(jcr->dir_impl->SD_msg_chan);
-        }
+        if (sd_chan_started) { pthread_cancel(jcr->dir_impl->SD_msg_chan); }
       }
       break;
     default:

@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -36,8 +36,9 @@
 
 
 /* Exported globals */
-utime_t watchdog_time = 0;        /* this has granularity of SLEEP_TIME */
-utime_t watchdog_sleep_time = 60; /* examine things every 60 seconds */
+std::atomic<utime_t> watchdog_time = 0; /* this has granularity of SLEEP_TIME */
+std::atomic<utime_t> watchdog_sleep_time
+    = 60; /* examine things every 60 seconds */
 
 /* Locals */
 static pthread_mutex_t timer_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -50,7 +51,7 @@ static void wd_lock();
 static void wd_unlock();
 
 /* Static globals */
-static bool quit = false;
+static std::atomic<bool> quit = false;
 static bool wd_is_init = false;
 static brwlock_t lock; /* watchdog lock */
 

@@ -78,11 +78,11 @@ void ConfigurationParser::b_UnlockRes(const char* file, int line) const
 {
   int errstat;
 
+  res_locked--;
   if ((errstat = RwlWriteunlock(&res_lock_)) != 0) {
     Emsg3(M_ABORT, 0, T_("RwlWriteunlock failure at %s:%d:. ERR=%s\n"), file,
           line, strerror(errstat));
   }
-  res_locked--;
 #ifdef TRACE_RES
   Pmsg4(000, "UnLockRes locked=%d wactive=%d at %s:%d\n", res_locked,
         res_lock_.w_active, file, line);

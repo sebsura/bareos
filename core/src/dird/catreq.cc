@@ -222,8 +222,6 @@ void CatalogRequest(JobControlRecord* jcr, BareosSocket* bs)
      * of a Storage daemon Job Session, when labeling/relabeling a
      * Volume, or when an EOF mark is written. */
     DbLocker _{jcr->db};
-    Dmsg3(400, "Update media %s oldStat=%s newStat=%s\n", sdmr.VolumeName,
-          mr.VolStatus, sdmr.VolStatus);
     bstrncpy(mr.VolumeName, sdmr.VolumeName,
              sizeof(mr.VolumeName)); /* copy Volume name */
     UnbashSpaces(mr.VolumeName);
@@ -235,6 +233,8 @@ void CatalogRequest(JobControlRecord* jcr, BareosSocket* bs)
                 jcr->db->strerror());
       goto bail_out;
     }
+    Dmsg3(400, "Update media %s oldStat=%s newStat=%s\n", sdmr.VolumeName,
+          mr.VolStatus, sdmr.VolStatus);
 
     // Set first written time if this is first job
     if (mr.FirstWritten == 0) {

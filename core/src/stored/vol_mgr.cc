@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2013 Free Software Foundation Europe e.V.
-   Copyright (C) 2015-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2015-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -108,12 +108,12 @@ void LockVolumes()
 {
   int errstat;
 
-  vol_list_lock_count++;
   if ((errstat = RwlWritelock(&vol_list_lock)) != 0) {
     BErrNo be;
     Emsg2(M_ABORT, 0, "RwlWritelock failure. stat=%d: ERR=%s\n", errstat,
           be.bstrerror(errstat));
   }
+  vol_list_lock_count++;
 }
 
 void UnlockVolumes()
@@ -130,8 +130,8 @@ void UnlockVolumes()
 
 void LockReadVolumes()
 {
-  read_vol_list_lock_count++;
   pthread_mutex_lock(&read_vol_lock);
+  read_vol_list_lock_count++;
 }
 
 void UnlockReadVolumes()

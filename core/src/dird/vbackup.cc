@@ -473,6 +473,8 @@ void NativeVbackupCleanup(JobControlRecord* jcr, int TermCode, int JobLevel)
 
   UpdateBootstrapFile(jcr);
 
+  auto sd_chan_started = is_sd_chan_started(jcr);
+
   switch (jcr->getJobStatus()) {
     case JS_Terminated:
       TermMsg = T_("Backup OK");
@@ -486,18 +488,14 @@ void NativeVbackupCleanup(JobControlRecord* jcr, int TermCode, int JobLevel)
       msg_type = M_ERROR; /* Generate error message */
       if (jcr->store_bsock) {
         jcr->store_bsock->signal(BNET_TERMINATE);
-        if (jcr->dir_impl->SD_msg_chan_started) {
-          pthread_cancel(jcr->dir_impl->SD_msg_chan);
-        }
+        if (sd_chan_started) { pthread_cancel(jcr->dir_impl->SD_msg_chan); }
       }
       break;
     case JS_Canceled:
       TermMsg = T_("Backup Canceled");
       if (jcr->store_bsock) {
         jcr->store_bsock->signal(BNET_TERMINATE);
-        if (jcr->dir_impl->SD_msg_chan_started) {
-          pthread_cancel(jcr->dir_impl->SD_msg_chan);
-        }
+        if (sd_chan_started) { pthread_cancel(jcr->dir_impl->SD_msg_chan); }
       }
       break;
     default:

@@ -181,12 +181,12 @@ void SchedulerPrivate::FillSchedulerJobQueueOrSleep()
   }
 }
 
-static time_t CalculateRuntime(time_t time, uint32_t minute)
+static time_t CalculateRuntime(time_t time, uint32_t minute, int32_t second)
 {
   struct tm tm {};
   Blocaltime(&time, &tm);
   tm.tm_min = minute;
-  tm.tm_sec = 0;
+  tm.tm_sec = second;
   return mktime(&tm);
 }
 
@@ -216,7 +216,8 @@ void SchedulerPrivate::AddJobsForThisAndNextHourToQueue()
             run_this_hour, run_next_hour);
 
       if (run_this_hour || run_next_hour) {
-        time_t runtime = CalculateRuntime(this_hour.Time(), run->minute);
+        time_t runtime
+            = CalculateRuntime(this_hour.Time(), run->minute, run->second);
         if (run_this_hour) {
           AddJobToQueue(job, run, this_hour.Time(), runtime,
                         JobTrigger::kScheduler);

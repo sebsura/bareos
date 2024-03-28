@@ -68,13 +68,13 @@ FindFilesPacket* init_find_files()
   ff->sys_fname = GetPoolMemory(PM_FNAME);
 
   /* Get system path and filename maximum lengths */
-  path_max = pathconf(".", _PC_PATH_MAX);
-  if (path_max < 2048) { path_max = 2048; }
+  ff->path_max = pathconf(".", _PC_PATH_MAX);
+  if (ff->path_max < 2048) { ff->path_max = 2048; }
 
-  name_max = pathconf(".", _PC_NAME_MAX);
-  if (name_max < 2048) { name_max = 2048; }
-  path_max++; /* add for EOS */
-  name_max++; /* add for EOS */
+  ff->name_max = pathconf(".", _PC_NAME_MAX);
+  if (ff->name_max < 2048) { ff->name_max = 2048; }
+  ff->path_max++; /* add for EOS */
+  ff->name_max++; /* add for EOS */
 
   Dmsg1(debuglevel, "init_find_files ff=%p\n", ff);
   return ff;

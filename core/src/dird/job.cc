@@ -646,7 +646,7 @@ static void* job_thread(void* arg)
 void SdMsgThreadSendSignal(JobControlRecord* jcr, int sig)
 {
   std::unique_lock l(jcr->mutex_guard());
-  if (!jcr->dir_impl->sd_msg_thread_done && jcr->dir_impl->SD_msg_chan_started
+  if (jcr->dir_impl->SD_msg_chan_status == msg_chan_status::STARTED
       && !pthread_equal(jcr->dir_impl->SD_msg_chan, pthread_self())) {
     Dmsg1(800, "Send kill to SD msg chan jid=%d\n", jcr->JobId);
     pthread_kill(jcr->dir_impl->SD_msg_chan, sig);
@@ -802,7 +802,7 @@ static bool JobCheckMaxruntime(JobControlRecord* jcr)
   }
   run_time = watchdog_time - jcr->start_time;
   Dmsg7(200, "check_maxruntime %llu-%u=%llu >= %llu|%llu|%llu|%llu\n",
-        watchdog_time, jcr->start_time, run_time, job->MaxRunTime,
+        watchdog_time.load(), jcr->start_time, run_time, job->MaxRunTime,
         job->FullMaxRunTime, job->IncMaxRunTime, job->DiffMaxRunTime);
 
   if (jcr->getJobLevel() == L_FULL && job->FullMaxRunTime != 0

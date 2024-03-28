@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -53,6 +53,7 @@ enum e_state
   s_weekly,
   s_monthly,
   s_hourly,
+  s_minutely,
   s_wom,   /* 1st, 2nd, ...*/
   s_woy,   /* week of year w00 - w53 */
   s_last,  /* last week of month */
@@ -66,69 +67,43 @@ struct s_keyw {
 };
 
 // Keywords understood by parser
-static struct s_keyw keyw[] = {{NT_("on"), s_none, 0},
-                               {NT_("at"), s_at, 0},
-                               {NT_("last"), s_last, 0},
-                               {NT_("sun"), s_wday, 0},
-                               {NT_("mon"), s_wday, 1},
-                               {NT_("tue"), s_wday, 2},
-                               {NT_("wed"), s_wday, 3},
-                               {NT_("thu"), s_wday, 4},
-                               {NT_("fri"), s_wday, 5},
-                               {NT_("sat"), s_wday, 6},
-                               {NT_("jan"), s_month, 0},
-                               {NT_("feb"), s_month, 1},
-                               {NT_("mar"), s_month, 2},
-                               {NT_("apr"), s_month, 3},
-                               {NT_("may"), s_month, 4},
-                               {NT_("jun"), s_month, 5},
-                               {NT_("jul"), s_month, 6},
-                               {NT_("aug"), s_month, 7},
-                               {NT_("sep"), s_month, 8},
-                               {NT_("oct"), s_month, 9},
-                               {NT_("nov"), s_month, 10},
-                               {NT_("dec"), s_month, 11},
-                               {NT_("sunday"), s_wday, 0},
-                               {NT_("monday"), s_wday, 1},
-                               {NT_("tuesday"), s_wday, 2},
-                               {NT_("wednesday"), s_wday, 3},
-                               {NT_("thursday"), s_wday, 4},
-                               {NT_("friday"), s_wday, 5},
-                               {NT_("saturday"), s_wday, 6},
-                               {NT_("january"), s_month, 0},
-                               {NT_("february"), s_month, 1},
-                               {NT_("march"), s_month, 2},
-                               {NT_("april"), s_month, 3},
-                               {NT_("june"), s_month, 5},
-                               {NT_("july"), s_month, 6},
-                               {NT_("august"), s_month, 7},
-                               {NT_("september"), s_month, 8},
-                               {NT_("october"), s_month, 9},
-                               {NT_("november"), s_month, 10},
-                               {NT_("december"), s_month, 11},
-                               {NT_("daily"), s_daily, 0},
-                               {NT_("weekly"), s_weekly, 0},
-                               {NT_("monthly"), s_monthly, 0},
-                               {NT_("hourly"), s_hourly, 0},
-                               {NT_("1st"), s_wom, 0},
-                               {NT_("2nd"), s_wom, 1},
-                               {NT_("3rd"), s_wom, 2},
-                               {NT_("4th"), s_wom, 3},
-                               {NT_("5th"), s_wom, 4},
-                               {NT_("first"), s_wom, 0},
-                               {NT_("second"), s_wom, 1},
-                               {NT_("third"), s_wom, 2},
-                               {NT_("fourth"), s_wom, 3},
-                               {NT_("fifth"), s_wom, 4},
-                               {NULL, s_none, 0}};
+static struct s_keyw keyw[]
+    = {{NT_("on"), s_none, 0},           {NT_("at"), s_at, 0},
+       {NT_("last"), s_last, 0},         {NT_("sun"), s_wday, 0},
+       {NT_("mon"), s_wday, 1},          {NT_("tue"), s_wday, 2},
+       {NT_("wed"), s_wday, 3},          {NT_("thu"), s_wday, 4},
+       {NT_("fri"), s_wday, 5},          {NT_("sat"), s_wday, 6},
+       {NT_("jan"), s_month, 0},         {NT_("feb"), s_month, 1},
+       {NT_("mar"), s_month, 2},         {NT_("apr"), s_month, 3},
+       {NT_("may"), s_month, 4},         {NT_("jun"), s_month, 5},
+       {NT_("jul"), s_month, 6},         {NT_("aug"), s_month, 7},
+       {NT_("sep"), s_month, 8},         {NT_("oct"), s_month, 9},
+       {NT_("nov"), s_month, 10},        {NT_("dec"), s_month, 11},
+       {NT_("sunday"), s_wday, 0},       {NT_("monday"), s_wday, 1},
+       {NT_("tuesday"), s_wday, 2},      {NT_("wednesday"), s_wday, 3},
+       {NT_("thursday"), s_wday, 4},     {NT_("friday"), s_wday, 5},
+       {NT_("saturday"), s_wday, 6},     {NT_("january"), s_month, 0},
+       {NT_("february"), s_month, 1},    {NT_("march"), s_month, 2},
+       {NT_("april"), s_month, 3},       {NT_("june"), s_month, 5},
+       {NT_("july"), s_month, 6},        {NT_("august"), s_month, 7},
+       {NT_("september"), s_month, 8},   {NT_("october"), s_month, 9},
+       {NT_("november"), s_month, 10},   {NT_("december"), s_month, 11},
+       {NT_("daily"), s_daily, 0},       {NT_("weekly"), s_weekly, 0},
+       {NT_("monthly"), s_monthly, 0},   {NT_("hourly"), s_hourly, 0},
+       {NT_("minutely"), s_minutely, 0}, {NT_("1st"), s_wom, 0},
+       {NT_("2nd"), s_wom, 1},           {NT_("3rd"), s_wom, 2},
+       {NT_("4th"), s_wom, 3},           {NT_("5th"), s_wom, 4},
+       {NT_("first"), s_wom, 0},         {NT_("second"), s_wom, 1},
+       {NT_("third"), s_wom, 2},         {NT_("fourth"), s_wom, 3},
+       {NT_("fifth"), s_wom, 4},         {NULL, s_none, 0}};
 
-static bool have_hour, have_mday, have_wday, have_month, have_wom;
+static bool have_minute, have_hour, have_mday, have_wday, have_month, have_wom;
 static bool have_at, have_woy;
 
 static void set_defaults(RunResource& res_run)
 {
   have_hour = have_mday = have_wday = have_month = have_wom = have_woy = false;
-  have_at = false;
+  have_at = have_minute = false;
   SetBitRange(0, 23, res_run.date_time_bitfield.hour);
   SetBitRange(0, 30, res_run.date_time_bitfield.mday);
   SetBitRange(0, 6, res_run.date_time_bitfield.wday);
@@ -672,6 +647,11 @@ void StoreRun(LEX* lc, ResourceItem* item, int index, int pass)
         have_hour = true;
         SetBitRange(0, 23, res_run.date_time_bitfield.hour);
         break;
+      case s_minutely:
+        have_hour = true;
+        SetBitRange(0, 23, res_run.date_time_bitfield.hour);
+        res_run.minutely = true;
+        break;
       case s_weekly:
         have_mday = have_wom = have_woy = true;
         SetBitRange(0, 30, res_run.date_time_bitfield.mday);
@@ -701,9 +681,24 @@ void StoreRun(LEX* lc, ResourceItem* item, int index, int pass)
     RunResource** run = GetItemVariablePointer<RunResource**>(*item);
     RunResource* tail;
 
+
     RunResource* nrun = new RunResource(std::move(res_run));
 
-    nrun->next = NULL;
+    if (nrun->minutely) {
+      nrun->second = nrun->minute;
+      nrun->minute = 0;
+      RunResource* prev = nrun;
+      for (int minute = 1; minute < 59; ++minute) {
+        RunResource* next = new RunResource(*nrun);
+        next->minute = minute;
+        prev->next = next;
+        prev = next;
+      }
+      prev->next = NULL;
+    } else {
+      nrun->next = NULL;
+    }
+
 
     if (!*run) {   /* If empty list */
       *run = nrun; /* Add new record */

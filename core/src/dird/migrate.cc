@@ -3,7 +3,7 @@
 
    Copyright (C) 2004-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -1812,6 +1812,7 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
       }
     }
 
+    bool sd_chan_started = is_sd_chan_started(jcr);
     switch (jcr->getJobStatus()) {
       case JS_Terminated:
         TermMsg = T_("%s OK");
@@ -1839,15 +1840,13 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
         // Close connection to Reading SD.
         if (jcr->store_bsock) {
           jcr->store_bsock->signal(BNET_TERMINATE);
-          if (jcr->dir_impl->SD_msg_chan_started) {
-            pthread_cancel(jcr->dir_impl->SD_msg_chan);
-          }
+          if (sd_chan_started) { pthread_cancel(jcr->dir_impl->SD_msg_chan); }
         }
 
         // Close connection to Writing SD (if SD-SD replication)
         if (mig_jcr->store_bsock) {
           mig_jcr->store_bsock->signal(BNET_TERMINATE);
-          if (mig_jcr->dir_impl->SD_msg_chan_started) {
+          if (sd_chan_started) {
             pthread_cancel(mig_jcr->dir_impl->SD_msg_chan);
           }
         }

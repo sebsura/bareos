@@ -6,6 +6,7 @@ FileSet {
       Signature = XXH128
     }
    #File = "@sbindir@"
+   File = /home/ssura/test_data/data-1/firefox
     File=<@tmpdir@/file-list
   }
 }

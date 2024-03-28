@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -289,6 +289,8 @@ void NdmpBackupCleanup(JobControlRecord* jcr, int TermCode)
 
   UpdateBootstrapFile(jcr);
 
+  auto sd_chan_started = is_sd_chan_started(jcr);
+
   switch (jcr->getJobStatus()) {
     case JS_Terminated:
       TermMsg = T_("Backup OK");
@@ -302,18 +304,14 @@ void NdmpBackupCleanup(JobControlRecord* jcr, int TermCode)
       msg_type = M_ERROR; /* Generate error message */
       if (jcr->store_bsock) {
         jcr->store_bsock->signal(BNET_TERMINATE);
-        if (jcr->dir_impl->SD_msg_chan_started) {
-          pthread_cancel(jcr->dir_impl->SD_msg_chan);
-        }
+        if (sd_chan_started) { pthread_cancel(jcr->dir_impl->SD_msg_chan); }
       }
       break;
     case JS_Canceled:
       TermMsg = T_("Backup Canceled");
       if (jcr->store_bsock) {
         jcr->store_bsock->signal(BNET_TERMINATE);
-        if (jcr->dir_impl->SD_msg_chan_started) {
-          pthread_cancel(jcr->dir_impl->SD_msg_chan);
-        }
+        if (sd_chan_started) { pthread_cancel(jcr->dir_impl->SD_msg_chan); }
       }
       break;
     default:

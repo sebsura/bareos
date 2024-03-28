@@ -100,14 +100,19 @@ struct Resources {
   bool run_next_pool_override{};  /**< Next pool override was given on run cmdline */
 };
 
+enum class msg_chan_status
+{
+  NOT_CONNECTED, STARTED, STOPPED,
+};
+
 struct DirectorJcrImpl {
   DirectorJcrImpl( std::shared_ptr<ConfigResourcesContainer> configuration_resources_container) : job_config_resources_container_(configuration_resources_container) {
     RestoreJobId = 0; MigrateJobId = 0; VerifyJobId = 0;
   }
   std::shared_ptr<ConfigResourcesContainer> job_config_resources_container_;
   pthread_t SD_msg_chan{};        /**< Message channel thread id */
-  bool SD_msg_chan_started{};     /**< Message channel thread started */
-  std::condition_variable term_wait{}; /**< Wait for job termination */
+  std::condition_variable SD_msg_chan_status_change{};
+  msg_chan_status SD_msg_chan_status{};     /**< Message channel thread started */
   pthread_cond_t nextrun_ready = PTHREAD_COND_INITIALIZER;  /**< Wait for job next run to become ready */
   Resources res;                  /**< Resources assigned */
   TREE_ROOT* restore_tree_root{}; /**< Selected files to restore (some protocols need this info) */
@@ -145,7 +150,6 @@ struct DirectorJcrImpl {
   int32_t reschedule_count{};           /**< Number of times rescheduled */
   int32_t FDVersion{};                  /**< File daemon version number */
   int64_t spool_size{};                 /**< Spool size for this job */
-  std::atomic<bool> sd_msg_thread_done{};   /**< Set when Storage message thread done */
   bool IgnoreDuplicateJobChecking{};    /**< Set in migration jobs */
   bool IgnoreLevelPoolOverrides{};       /**< Set if a cmdline pool was specified */
   bool IgnoreClientConcurrency{};       /**< Set in migration jobs */
@@ -171,6 +175,19 @@ struct DirectorJcrImpl {
     directordaemon::ClientConnectionHandshakeMode::kUndefined};
   JobTrigger job_trigger{JobTrigger::kUndefined};
 };
+
 /* clang-format on */
+static inline bool is_sd_chan_started(JobControlRecord* jcr)
+{
+  std::unique_lock l{jcr->mutex_guard()};
+  return jcr->dir_impl->SD_msg_chan_status == msg_chan_status::STARTED;
+}
+
+static inline void mark_sd_chan_done(JobControlRecord* jcr)
+{
+  std::unique_lock l{jcr->mutex_guard()};
+  jcr->dir_impl->SD_msg_chan_status = msg_chan_status::STOPPED;
+  jcr->dir_impl->SD_msg_chan_status_change.notify_all();
+}
 
 #endif  // BAREOS_DIRD_DIRECTOR_JCR_IMPL_H_

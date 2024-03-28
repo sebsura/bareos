@@ -113,12 +113,12 @@ void TermReservationsLock()
 void LockReservations()
 {
   int errstat;
-  reservations_lock_count++;
   if ((errstat = RwlWritelock(&reservation_lock)) != 0) {
     BErrNo be;
     Emsg2(M_ABORT, 0, "RwlWritelock failure. stat=%d: ERR=%s\n", errstat,
           be.bstrerror(errstat));
   }
+  reservations_lock_count++;
 }
 
 void UnlockReservations()

@@ -410,8 +410,8 @@ bool StartStorageDaemonMessageThread(JobControlRecord* jcr)
   pthread_t thid;
 
   jcr->IncUseCount(); /* mark in use by msg thread */
-  jcr->dir_impl->sd_msg_thread_done = false;
-  jcr->dir_impl->SD_msg_chan_started = false;
+  std::unique_lock l{jcr->mutex_guard()};
+  jcr->dir_impl->SD_msg_chan_status = msg_chan_status::NOT_CONNECTED;
   Dmsg0(100, "Start SD msg_thread.\n");
   if ((status = pthread_create(&thid, NULL, msg_thread, (void*)jcr)) != 0) {
     BErrNo be;
@@ -419,12 +419,16 @@ bool StartStorageDaemonMessageThread(JobControlRecord* jcr)
           be.bstrerror(status));
   }
   /* Wait for thread to start */
-  while (!jcr->dir_impl->SD_msg_chan_started) {
-    Bmicrosleep(0, 50);
-    if (jcr->IsJobCanceled() || jcr->dir_impl->sd_msg_thread_done) {
-      return false;
-    }
+  while (jcr->dir_impl->SD_msg_chan_status == msg_chan_status::NOT_CONNECTED
+         && !jcr->IsJobCanceled()) {
+    jcr->dir_impl->SD_msg_chan_status_change.wait(l);
   }
+
+  if (jcr->IsJobCanceled()
+      || jcr->dir_impl->SD_msg_chan_status == msg_chan_status::STOPPED) {
+    return false;
+  }
+
   Dmsg1(100, "SD msg_thread started. use=%d\n", jcr->UseCount());
   return true;
 }
@@ -438,13 +442,12 @@ extern "C" void MsgThreadCleanup(void* arg)
   {
     std::unique_lock l(jcr->mutex_guard());
 
-    jcr->dir_impl->sd_msg_thread_done = true;
-    jcr->dir_impl->SD_msg_chan_started = false;
+    jcr->dir_impl->SD_msg_chan_status = msg_chan_status::STOPPED;
+    jcr->dir_impl->SD_msg_chan_status_change.notify_all();
   }
 
   pthread_cond_broadcast(
-      &jcr->dir_impl->nextrun_ready);    /* wakeup any waiting threads */
-  jcr->dir_impl->term_wait.notify_all(); /* wakeup any waiting threads */
+      &jcr->dir_impl->nextrun_ready); /* wakeup any waiting threads */
   Dmsg2(100, "=== End msg_thread. JobId=%d usecnt=%d\n", jcr->JobId,
         jcr->UseCount());
   jcr->db->ThreadCleanup(); /* remove thread specific data */
@@ -469,7 +472,11 @@ extern "C" void* msg_thread(void* arg)
   pthread_detach(pthread_self());
   SetJcrInThreadSpecificData(jcr);
   jcr->dir_impl->SD_msg_chan = pthread_self();
-  jcr->dir_impl->SD_msg_chan_started = true;
+  {
+    std::unique_lock l{jcr->mutex_guard()};
+    jcr->dir_impl->SD_msg_chan_status = msg_chan_status::STARTED;
+    jcr->dir_impl->SD_msg_chan_status_change.notify_all();
+  }
   pthread_cleanup_push(MsgThreadCleanup, arg);
   sd = jcr->store_bsock;
 
@@ -525,14 +532,12 @@ static void WaitForCanceledStorageDaemonTermination(
   /* Give SD 30 seconds to clean up after cancel */
   auto timeout = std::chrono::system_clock::now() + std::chrono::seconds(30);
 
-  while (!jcr->dir_impl->sd_msg_thread_done) {
-    if (jcr->dir_impl->SD_msg_chan_started) {
-      jcr->store_bsock->SetTimedOut();
-      jcr->store_bsock->SetTerminated();
-      SdMsgThreadSendSignal(jcr, TIMEOUT_SIGNAL);
-    }
+  while (jcr->dir_impl->SD_msg_chan_status == msg_chan_status::STARTED) {
+    jcr->store_bsock->SetTimedOut();
+    jcr->store_bsock->SetTerminated();
+    SdMsgThreadSendSignal(jcr, TIMEOUT_SIGNAL);
 
-    if (jcr->dir_impl->term_wait.wait_until(l, timeout)
+    if (jcr->dir_impl->SD_msg_chan_status_change.wait_until(l, timeout)
         == std::cv_status::timeout) {
       // we waited for 30 seconds so we just give up now
       break;
@@ -545,12 +550,15 @@ void WaitForStorageDaemonTermination(JobControlRecord* jcr)
   /* Now wait for Storage daemon to Terminate our message thread */
   {
     std::unique_lock l(jcr->mutex_guard());
-    if (jcr->dir_impl->sd_msg_thread_done) { goto bail_out; }
+    if (jcr->dir_impl->SD_msg_chan_status != msg_chan_status::STARTED) {
+      goto bail_out;
+    }
 
     for (;;) {
       Dmsg0(400, "I'm waiting for message thread termination.\n");
-      jcr->dir_impl->term_wait.wait_for(l, std::chrono::seconds(6));
-      if (jcr->dir_impl->sd_msg_thread_done) {
+      jcr->dir_impl->SD_msg_chan_status_change.wait_for(
+          l, std::chrono::seconds(6));
+      if (jcr->dir_impl->SD_msg_chan_status != msg_chan_status::STARTED) {
         break;
       } else if (jcr->IsJobCanceled()) {
         WaitForCanceledStorageDaemonTermination(jcr, std::move(l));

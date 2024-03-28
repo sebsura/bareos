@@ -6,3 +6,30 @@ Client {
   FD PORT = @fd_port@
   Maximum Concurrent Jobs = 10
 }
+
+Client {
+  Name = bareos-2-fd
+  Description = "Client resource of the Director itself."
+  Address = @hostname@
+  Password = "@fd_password@"          # password for FileDaemon
+  FD PORT = 11115
+  Maximum Concurrent Jobs = 10
+}
+
+Client {
+  Name = bareos-3-fd
+  Description = "Client resource of the Director itself."
+  Address = @hostname@
+  Password = "@fd_password@"          # password for FileDaemon
+  FD PORT = 11116
+  Maximum Concurrent Jobs = 10
+}
+
+Client {
+  Name = bareos-4-fd
+  Description = "Client resource of the Director itself."
+  Address = @hostname@
+  Password = "@fd_password@"          # password for FileDaemon
+  FD PORT = 11117
+  Maximum Concurrent Jobs = 10
+}

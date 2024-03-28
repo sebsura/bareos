@@ -306,7 +306,7 @@ int TlsOpenSslPrivate::OpensslBsockReadwrite(BareosSocket* bsock,
 
   int flags = bsock->SetNonblocking();
 
-  bsock->timer_start = watchdog_time;
+  bsock->timer_start = watchdog_time.load();
   bsock->ClearTimedOut();
   bsock->SetKillable(false);
 
@@ -382,7 +382,7 @@ bool TlsOpenSslPrivate::OpensslBsockSessionStart(BareosSocket* bsock,
 
   int flags = bsock->SetNonblocking();
 
-  bsock->timer_start = watchdog_time;
+  bsock->timer_start = watchdog_time.load();
   bsock->ClearTimedOut();
   bsock->SetKillable(false);
 

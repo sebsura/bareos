@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -41,15 +41,13 @@
 #include "findlib/fstype.h"
 #include "findlib/drivetype.h"
 #include "lib/berrno.h"
+#include <atomic>
 
 #ifdef HAVE_DARWIN_OS
 #  include <sys/param.h>
 #  include <sys/mount.h>
 #  include <sys/attr.h>
 #endif
-
-extern int32_t name_max; /* filename max length */
-extern int32_t path_max; /* path name max length */
 
 /**
  * Create a new directory Find File packet, but copy
@@ -512,9 +510,9 @@ static inline int process_symlink(JobControlRecord* jcr,
   int rtn_stat;
   int size;
 
-  assert(path_max + name_max + 102 > 0);
-  char* buffer = (char*)alloca(path_max + name_max + 102);
-  size = readlink(fname, buffer, path_max + name_max + 101);
+  assert(ff_pkt->path_max + ff_pkt->name_max + 102 > 0);
+  char* buffer = (char*)alloca(ff_pkt->path_max + ff_pkt->name_max + 102);
+  size = readlink(fname, buffer, ff_pkt->path_max + ff_pkt->name_max + 101);
   if (size < 0) {
     // Could not follow link
     ff_pkt->type = FT_NOFOLLOW;
@@ -734,7 +732,7 @@ static inline int process_directory(JobControlRecord* jcr,
 
     /* Some filesystems violate against the rules and return filenames
      * longer than _PC_NAME_MAX. Log the error and continue. */
-    if ((name_max + 1) <= ((int)sizeof(struct dirent) + name_length)) {
+    if ((ff_pkt->name_max + 1) <= ((int)sizeof(struct dirent) + name_length)) {
       Jmsg2(jcr, M_ERROR, 0, T_("%s: File name too long [%d]\n"),
             result->d_name, name_length);
       continue;
