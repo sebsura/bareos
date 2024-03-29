@@ -11,7 +11,7 @@ default:
   warnings_unhealthy: 1
   warnings_healthy: 0
 
-win-native-64-release:
+win:
   ctest_unstable: 75
   warnings_unhealthy: 222
   warnings_healthy: 199
