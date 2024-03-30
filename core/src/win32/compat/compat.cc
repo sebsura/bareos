@@ -2887,10 +2887,10 @@ Bpipe* OpenBpipe(char* prog, int wait, const char* mode, bool)
 
   // Spawn program with redirected handles as appropriate
   bpipe->worker_pid
-      = (pid_t)CreateChildProcess(prog,            /* Commandline */
+      = reinterpret_cast<pid_t>(CreateChildProcess(prog,            /* Commandline */
                                   hChildStdinRd,   /* stdin HANDLE */
                                   hChildStdoutWr,  /* stdout HANDLE */
-                                  hChildStdoutWr); /* stderr HANDLE */
+                                  hChildStdoutWr)); /* stderr HANDLE */
 
   if ((HANDLE)bpipe->worker_pid == INVALID_HANDLE_VALUE) goto cleanup;
 
