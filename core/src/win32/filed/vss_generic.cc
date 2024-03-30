@@ -61,13 +61,13 @@ using namespace std;
 #    define __in IN
 #    define __out OUT
 #    define __RPC_unique_pointer
+#    define __RPC_string
+#    ifndef __RPC__out_ecount_part
+#      define __RPC__out_ecount_part(x, y)
+#    endif
+#    define __RPC__deref_inout_opt
+#    define __RPC__out
 #  endif
-#  define __RPC_string
-#  ifndef __RPC__out_ecount_part
-#    define __RPC__out_ecount_part(x, y)
-#  endif
-#  define __RPC__deref_inout_opt
-#  define __RPC__out
 
 #  if !defined(ENABLE_NLS)
 #    define setlocale(p, d)
