@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2022-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2022-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -21,11 +21,16 @@
 
 #ifndef BAREOS_INCLUDE_ALLOW_DEPRECATED_H_
 #define BAREOS_INCLUDE_ALLOW_DEPRECATED_H_
-
+/* clang-format off */
+#if __GNUC__
 #define ALLOW_DEPRECATED(deprecated_expression)                       \
   _Pragma("GCC diagnostic push")                                      \
       _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"") \
           deprecated_expression;                                      \
   _Pragma("GCC diagnostic pop")
 
+#else
+#define ALLOW_DEPRECATED(deprecated_expression)
+#endif
+/* clang-format on */
 #endif  // BAREOS_INCLUDE_ALLOW_DEPRECATED_H_
