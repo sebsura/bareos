@@ -57,9 +57,11 @@ using namespace std;
 #  include <objbase.h>
 
 // Kludges to get Vista code to compile.
-#  define __in IN
-#  define __out OUT
-#  define __RPC_unique_pointer
+#  ifndef _MSVC_LANG
+#    define __in IN
+#    define __out OUT
+#    define __RPC_unique_pointer
+#  endif
 #  define __RPC_string
 #  ifndef __RPC__out_ecount_part
 #    define __RPC__out_ecount_part(x, y)
@@ -737,13 +739,14 @@ bool VSSClientGeneric::WaitAndCheckForAsyncOperation(IVssAsync* pAsync)
   }
 
   if (hrReturned != VSS_S_ASYNC_FINISHED) {
-        Jmsg(jcr_, M_WARNING, 0,
-             "WaitAndCheckForAsyncOperation: QueryStatus did not return ASYNC_FINISHED: %lu\n",
-	     hrReturned);
+    Jmsg(jcr_, M_WARNING, 0,
+         "WaitAndCheckForAsyncOperation: QueryStatus did not return "
+         "ASYNC_FINISHED: %lu\n",
+         hrReturned);
     return false;
   }
   return true;
- // Add all drive letters that need to be snapshotted.
+  // Add all drive letters that need to be snapshotted.
 }
 
 // Add all drive letters that need to be snapshotted.
