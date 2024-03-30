@@ -30,7 +30,7 @@
   _Pragma("GCC diagnostic pop")
 
 #else
-#define ALLOW_DEPRECATED(deprecated_expression)
+#define ALLOW_DEPRECATED(deprecated_expression) deprecated_expression;
 #endif
 /* clang-format on */
 #endif  // BAREOS_INCLUDE_ALLOW_DEPRECATED_H_
