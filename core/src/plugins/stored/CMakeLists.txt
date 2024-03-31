@@ -28,8 +28,10 @@ if(HAVE_WIN32)
     ${PROJECT_SOURCE_DIR}/src/win32/plugins/python/lib/${WINDOWS_BITS}
   )
   if(WINDOWS_BITS EQUAL 64)
-    # work around https://bugs.python.org/issue4709
-    add_definitions(-DMS_WIN64)
+    if(NOT MSVC)
+      # work around https://bugs.python.org/issue4709
+      add_definitions(-DMS_WIN64)
+    endif()
   endif()
 endif()
 
@@ -38,14 +40,13 @@ add_subdirectory(python)
 add_library(autoxflate-sd MODULE autoxflate/autoxflate-sd.cc)
 set_target_properties(autoxflate-sd PROPERTIES PREFIX "")
 
-if (MSVC)
-target_link_libraries(
-  autoxflate-sd bareos bareosfastlz ${ZLIB_LIBRARIES}
-)
+if(MSVC)
+  target_link_libraries(autoxflate-sd bareos bareosfastlz ${ZLIB_LIBRARIES})
 else()
-target_link_libraries(
-  autoxflate-sd bareos bareosfastlz $<$<PLATFORM_ID:Windows>:${ZLIB_LIBRARIES}>
-)
+  target_link_libraries(
+    autoxflate-sd bareos bareosfastlz
+    $<$<PLATFORM_ID:Windows>:${ZLIB_LIBRARIES}>
+  )
 endif()
 install(TARGETS autoxflate-sd DESTINATION ${plugindir})
 

@@ -39,8 +39,10 @@ if(HAVE_WIN32)
     ${PROJECT_SOURCE_DIR}/src/win32/plugins/python/lib/${WINDOWS_BITS}
   )
   if(WINDOWS_BITS EQUAL 64)
-    # work around https://bugs.python.org/issue4709
-    add_definitions(-DMS_WIN64)
+    if(NOT MSVC)
+      # work around https://bugs.python.org/issue4709
+      add_definitions(-DMS_WIN64)
+    endif()
   endif()
 endif()
 
@@ -62,9 +64,11 @@ endif()
 if(HAVE_WIN32)
   add_library(mssqlvdi-fd MODULE ../../win32/plugins/filed/mssqlvdi-fd.cc)
   target_compile_options(mssqlvdi-fd PUBLIC -fpermissive)
-  if (MSVC)
-    target_link_libraries(mssqlvdi-fd PRIVATE ${THREADS_THREADS} bareos comsupp.lib)
-  else() 
+  if(MSVC)
+    target_link_libraries(
+      mssqlvdi-fd PRIVATE ${THREADS_THREADS} bareos comsupp.lib
+    )
+  else()
     target_link_libraries(mssqlvdi-fd bareos)
   endif()
   set_target_properties(
