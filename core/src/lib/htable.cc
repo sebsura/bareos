@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2003-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2014-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2014-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -97,13 +97,13 @@ void htableImpl::HashIndex(uint8_t* key, uint32_t keylen)
 }
 
 // tsize is the estimated number of entries in the hash table
-htableImpl::htableImpl(int t_loffset, int tsize)
+htableImpl::htableImpl(int t_loffset, size_t tsize)
 {
   init(tsize);
   loffset = t_loffset;
 }
 
-void htableImpl::init(int tsize)
+void htableImpl::init(size_t tsize)
 {
   memset(this, 0, sizeof(htableImpl));
   if (tsize < 31) { tsize = 31; }

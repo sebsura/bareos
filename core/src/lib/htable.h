@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2004-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2014-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2014-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -79,9 +79,9 @@ class htableImpl {
 
  public:
   htableImpl() = default;
-  htableImpl(int t_loffset, int tsize = 31);
+  htableImpl(int t_loffset, size_t tsize = 31);
   ~htableImpl() { destroy(); }
-  void init(int tsize = 31);
+  void init(size_t tsize = 31);
   bool insert(char* key, void* item);
   bool insert(uint32_t key, void* item);
   bool insert(uint64_t key, void* item);
@@ -110,7 +110,7 @@ class htable {
   MonotonicBuffer monobuf{BufferSize};
 
  public:
-  htable(int tsize = 31)
+  htable(size_t tsize = 31)
   {
     if constexpr (std::is_same<T, hlink>::value) {
       pimpl = std::make_unique<htableImpl>(0, tsize);
