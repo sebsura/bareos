@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2007-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2015-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2015-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -35,7 +35,7 @@ PathList* path_list_init() { return new PathList(10000); }
  * Add a path to the hash when we create a directory with the replace=NEVER
  * option
  */
-bool PathListAdd(PathList* path_list, uint32_t len, const char* fname)
+bool PathListAdd(PathList* path_list, size_t len, const char* fname)
 {
   CurDir* item;
 
