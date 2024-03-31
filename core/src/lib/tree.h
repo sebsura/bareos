@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2009 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -35,7 +35,7 @@
 
 struct s_mem {
   struct s_mem* next; /* next buffer */
-  int rem;            /* remaining bytes */
+  size_t rem;         /* remaining bytes */
   void* mem;          /* memory pointer */
   char first[1];      /* first byte */
 };
@@ -139,7 +139,7 @@ struct s_tree_root {
   struct s_tree_node* first{}; /* first entry in the tree */
   struct s_tree_node* last{};  /* last entry in tree */
   struct s_mem* mem{};         /* tree memory */
-  uint32_t total_size{};       /* total bytes allocated */
+  size_t total_size{};         /* total bytes allocated */
   uint32_t blocks{};           /* total mallocs */
   int cached_path_len{};       /* length of cached path */
   char* cached_path{};         /* cached current path */

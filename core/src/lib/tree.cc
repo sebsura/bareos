@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -39,7 +39,7 @@ static TREE_NODE* search_and_insert_tree_node(char* fname,
                                               int type,
                                               TREE_ROOT* root,
                                               TREE_NODE* parent);
-template <typename T> static T* tree_alloc(TREE_ROOT* root, int size);
+template <typename T> static T* tree_alloc(TREE_ROOT* root, size_t size);
 
 // NOTE !!!!! we turn off Debug messages for performance reasons.
 #undef Dmsg0
@@ -52,7 +52,7 @@ template <typename T> static T* tree_alloc(TREE_ROOT* root, int size);
 #define Dmsg3(n, f, a1, a2, a3)
 
 // This subroutine gets a big buffer.
-static void MallocBuf(TREE_ROOT* root, int size)
+static void MallocBuf(TREE_ROOT* root, size_t size)
 {
   struct s_mem* mem;
 
@@ -75,7 +75,7 @@ static void MallocBuf(TREE_ROOT* root, int size)
 TREE_ROOT* new_tree(int count)
 {
   TREE_ROOT* root;
-  uint32_t size;
+  size_t size;
 
   if (count < 1000) { /* minimum tree size */
     count = 1000;
@@ -99,7 +99,7 @@ TREE_ROOT* new_tree(int count)
 static TREE_NODE* new_tree_node(TREE_ROOT* root)
 {
   TREE_NODE* node;
-  int size = sizeof(TREE_NODE);
+  size_t size = sizeof(TREE_NODE);
   node = tree_alloc<TREE_NODE>(root, size);
   node = new (node) TREE_NODE();
   node->delta_seq = -1;
@@ -109,14 +109,14 @@ static TREE_NODE* new_tree_node(TREE_ROOT* root)
 // This routine can be called to release the previously allocated tree node.
 static void FreeTreeNode(TREE_ROOT* root)
 {
-  int asize = BALIGN(sizeof(TREE_NODE));
+  size_t asize = BALIGN(sizeof(TREE_NODE));
   root->mem->rem += asize;
   root->mem->mem = (char*)root->mem->mem - asize;
 }
 
 void TreeRemoveNode(TREE_ROOT* root, TREE_NODE* node)
 {
-  int asize = BALIGN(sizeof(TREE_NODE));
+  size_t asize = BALIGN(sizeof(TREE_NODE));
   node->parent->child.remove(node);
   if (((char*)root->mem->mem - asize) == (char*)node) {
     FreeTreeNode(root);
@@ -130,13 +130,13 @@ void TreeRemoveNode(TREE_ROOT* root, TREE_NODE* node)
  * Keep the pointers properly aligned by allocating
  * sizes that are aligned.
  */
-template <typename T> static T* tree_alloc(TREE_ROOT* root, int size)
+template <typename T> static T* tree_alloc(TREE_ROOT* root, size_t size)
 {
   T* buf;
-  int asize = BALIGN(size);
+  size_t asize = BALIGN(size);
 
   if (root->mem->rem < asize) {
-    uint32_t mb_size;
+    size_t mb_size;
     if (root->total_size >= (MAX_BUF_SIZE / 2)) {
       mb_size = MAX_BUF_SIZE;
     } else {
