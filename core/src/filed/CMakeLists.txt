@@ -54,8 +54,7 @@ set(FDSRCS
 )
 
 if(HAVE_WIN32)
-  list(APPEND FDSRCS ../win32/filed/vss.cc ../win32/filed/vss_XP.cc
-       ../win32/filed/vss_W2K3.cc ../win32/filed/vss_Vista.cc
+  list(APPEND FDSRCS ../win32/filed/vss.cc ../win32/filed/vss_Vista.cc
        ../win32/generic/service.cc ../win32/generic/main.cc
   )
 endif()
