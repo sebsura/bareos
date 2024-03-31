@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2023-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2023-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -25,15 +25,15 @@
 #if defined(_MSVC_LANG)
 #  define BAREOS_EXPORT __declspec(dllexport) extern
 #  define BAREOS_IMPORT __declspec(dllimport) extern
-# if bareossd_EXPORTS
-#  define BAREOS_IMPEXP __declspec(dllexport) extern
-#else
-#  define BAREOS_IMPEXP __declspec(dllimport)
-#endif
+#  if bareossd_EXPORTS
+#    define BAREOS_IMPEXP __declspec(dllexport) extern
+#  else
+#    define BAREOS_IMPEXP __declspec(dllimport)
+#  endif
 #else
 #  define BAREOS_EXPORT extern
 #  define BAREOS_IMPORT extern
-#  define BAREOS_IMPEXP  extern
+#  define BAREOS_IMPEXP extern
 #endif
 
 #endif  // BAREOS_CORE_SRC_INCLUDE_DLL_EXPORT_IMPORT_H_
