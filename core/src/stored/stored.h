@@ -69,7 +69,7 @@ int Readdir_r(DIR* dirp, struct dirent* entry, struct dirent** result);
 #include "sd_plugins.h"
 
 namespace storagedaemon {
-BAREOS_IMPORT bool forge_on; /* Proceed inspite of I/O errors */
+BAREOS_IMPEXP bool forge_on; /* Proceed inspite of I/O errors */
 uint32_t new_VolSessionId();
 
 } /* namespace storagedaemon */

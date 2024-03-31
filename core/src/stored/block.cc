@@ -49,7 +49,7 @@ static bool TerminateWritingVolume(DeviceControlRecord* dcr);
 static bool DoNewFileBookkeeping(DeviceControlRecord* dcr);
 static void RereadLastBlock(DeviceControlRecord* dcr);
 
-bool forge_on = false; /* proceed inspite of I/O errors */
+BAREOS_IMPEXP bool forge_on = false; /* proceed inspite of I/O errors */
 
 /**
  * Dump the block header, then walk through

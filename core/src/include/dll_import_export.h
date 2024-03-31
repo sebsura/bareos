@@ -25,9 +25,15 @@
 #if defined(_MSVC_LANG)
 #  define BAREOS_EXPORT __declspec(dllexport) extern
 #  define BAREOS_IMPORT __declspec(dllimport) extern
+# if bareossd_EXPORTS
+#  define BAREOS_IMPEXP __declspec(dllexport) extern
+#else
+#  define BAREOS_IMPEXP __declspec(dllimport)
+#endif
 #else
 #  define BAREOS_EXPORT extern
 #  define BAREOS_IMPORT extern
+#  define BAREOS_IMPEXP  extern
 #endif
 
 #endif  // BAREOS_CORE_SRC_INCLUDE_DLL_EXPORT_IMPORT_H_
