@@ -13,7 +13,6 @@ Job {
   Spool Data = no
   Run Script {
       Runs When = Before
-      Command = "sleep 5"
       Command = "/home/ssura/update-test-data.sh"
   }
 }
@@ -33,7 +32,6 @@ Job {
   Spool Data = no
   Run Script {
       Runs When = Before
-      Command = "sleep 5"
       Command = "/home/ssura/update-test-data.sh"
   }
 }
@@ -53,7 +51,6 @@ Job {
   Spool Data = no
   Run Script {
       Runs When = Before
-      Command = "sleep 5"
       Command = "/home/ssura/update-test-data.sh"
   }
 }
@@ -73,7 +70,6 @@ Job {
   Spool Data = no
   Run Script {
       Runs When = Before
-      Command = "sleep 5"
       Command = "/home/ssura/update-test-data.sh"
   }
 }

@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -298,6 +298,12 @@ read_volume:
    *  before writing the overflow block.
    *
    *  If the tape is marked as Recycle, we rewrite the label. */
+  {
+    auto type = dev->VolCatInfo.is_valid ? M_INFO : M_ERROR;
+    Jmsg(jcr, type, 0, "%s: VolCatName: %s Status: %s [%s]\n", dcr->VolumeName,
+         dev->VolCatInfo.VolCatName, dev->VolCatInfo.VolCatStatus,
+         dev->VolCatInfo.is_valid ? "valid" : "invalid");
+  }
   recycle = bstrcmp(dev->VolCatInfo.VolCatStatus, "Recycle");
   if (dev->VolHdr.LabelType == PRE_LABEL || recycle) {
     if (!dcr->RewriteVolumeLabel(recycle)) {
