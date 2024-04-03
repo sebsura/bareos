@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -40,12 +40,20 @@ BareosAccurateFilelistHtable::BareosAccurateFilelistHtable(
     uint32_t number_of_files)
 {
   jcr_ = jcr;
-  filenr_ = 0;
-  number_of_previous_files_ = number_of_files;
 
-  file_list_ = new FileList(number_of_previous_files_);
-  seen_bitmap_ = (char*)malloc(NbytesForBits(number_of_previous_files_));
-  ClearAllBits(number_of_previous_files_, seen_bitmap_);
+  file_list_ = new FileList(number_of_files);
+}
+
+void BareosAccurateFilelistHtable::MarkAllFilesAsSeen()
+{
+  CurFile* elt;
+  foreach_htable (elt, file_list_) { elt->payload.seen = true; }
+}
+
+void BareosAccurateFilelistHtable::UnmarkAllFilesAsSeen()
+{
+  CurFile* elt;
+  foreach_htable (elt, file_list_) { elt->payload.seen = false; }
 }
 
 bool BareosAccurateFilelistHtable::AddFile(char* fname,
@@ -77,7 +85,7 @@ bool BareosAccurateFilelistHtable::AddFile(char* fname,
   item->payload.chksum[chksum_length] = '\0';
 
   item->payload.delta_seq = delta_seq;
-  item->payload.filenr = filenr_++;
+  item->payload.seen = false;
   file_list_->insert(item->fname, item);
 
   if (chksum) {
@@ -125,7 +133,7 @@ bool BareosAccurateFilelistHtable::SendBaseFileList()
   ff_pkt->type = FT_BASE;
 
   foreach_htable (elt, file_list_) {
-    if (BitIsSet(elt->payload.filenr, seen_bitmap_)) {
+    if (elt->payload.seen) {
       Dmsg1(debuglevel, "base file fname=%s\n", elt->fname);
       DecodeStat(elt->payload.lstat, &statp, sizeof(statp),
                  &LinkFIc); /* decode catalog stat */
@@ -153,10 +161,7 @@ bool BareosAccurateFilelistHtable::SendDeletedList()
   ff_pkt->type = FT_DELETED;
 
   foreach_htable (elt, file_list_) {
-    if (BitIsSet(elt->payload.filenr, seen_bitmap_)
-        || PluginCheckFile(jcr_, elt->fname)) {
-      continue;
-    }
+    if (elt->payload.seen || PluginCheckFile(jcr_, elt->fname)) { continue; }
     Dmsg1(debuglevel, "deleted fname=%s\n", elt->fname);
     ff_pkt->fname = elt->fname;
     DecodeStat(elt->payload.lstat, &statp, sizeof(statp),
@@ -174,13 +179,6 @@ void BareosAccurateFilelistHtable::destroy()
 {
   delete file_list_;
   file_list_ = nullptr;
-
-  if (seen_bitmap_) {
-    free(seen_bitmap_);
-    seen_bitmap_ = NULL;
-  }
-
-  filenr_ = 0;
 }
 
 } /* namespace filedaemon */

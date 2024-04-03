@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -41,11 +41,8 @@ static int debuglevel = 100;
 BareosAccurateFilelistLmdb::BareosAccurateFilelistLmdb(JobControlRecord*,
                                                        uint32_t number_of_files)
 {
-  filenr_ = 0;
   pay_load_ = GetPoolMemory(PM_MESSAGE);
   lmdb_name_ = GetPoolMemory(PM_FNAME);
-  seen_bitmap_ = (char*)malloc(NbytesForBits(number_of_previous_files_));
-  ClearAllBits(number_of_previous_files_, seen_bitmap_);
   db_env_ = NULL;
   db_ro_txn_ = NULL;
   db_rw_txn_ = NULL;
@@ -152,11 +149,9 @@ bool BareosAccurateFilelistLmdb::AddFile(char* fname,
   // Make sure pay_load_ is large enough.
   pay_load_ = CheckPoolMemorySize(pay_load_, total_length);
 
-  /*
-   * We store the total pay load as:
+  /* We store the total pay load as:
    *
-   * accurate_payload structure\0lstat\0chksum\0
-   */
+   * accurate_payload structure\0lstat\0chksum\0 */
   payload = (accurate_payload*)pay_load_;
 
   payload->lstat = (char*)payload + sizeof(accurate_payload);
@@ -168,7 +163,7 @@ bool BareosAccurateFilelistLmdb::AddFile(char* fname,
   payload->chksum[chksulength_] = '\0';
 
   payload->delta_seq = delta_seq;
-  payload->filenr = filenr_++;
+  payload->seen = false;
 
   key.mv_data = fname;
   key.mv_size = strlen(fname) + 1;
@@ -189,10 +184,8 @@ retry:
       retval = true;
       break;
     case MDB_TXN_FULL:
-      /*
-       * Seems we filled the transaction.
-       * Flush the current transaction start a new one and retry the put.
-       */
+      /* Seems we filled the transaction.
+       * Flush the current transaction start a new one and retry the put. */
       result = mdb_txn_commit(db_rw_txn_);
       if (result == 0) {
         result = mdb_txn_begin(db_env_, NULL, 0, &db_rw_txn_);
@@ -236,10 +229,8 @@ bool BareosAccurateFilelistLmdb::EndLoad()
     }
   }
 
-  /*
-   * From now on we also will be doing read transactions so create a read
-   * transaction context.
-   */
+  /* From now on we also will be doing read transactions so create a read
+   * transaction context. */
   if (!db_ro_txn_) {
     result = mdb_txn_begin(db_env_, NULL, MDB_RDONLY, &db_ro_txn_);
     if (result != 0) {
@@ -265,14 +256,12 @@ accurate_payload* BareosAccurateFilelistLmdb::lookup_payload(char* fname)
   result = mdb_get(db_ro_txn_, db_dbi_, &key, &data);
   switch (result) {
     case 0:
-      /*
-       * Success.
+      /* Success.
        *
        * We need to make a private copy of the LDMB data as we are not
        * allowed to change its content and we need to update the lstat
        * and chksum pointer to point to the actual lstat and chksum that
-       * is stored behind the accurate_payload structure in the LMDB.
-       */
+       * is stored behind the accurate_payload structure in the LMDB. */
       pay_load_ = CheckPoolMemorySize(pay_load_, data.mv_size);
 
       payload = (accurate_payload*)pay_load_;
@@ -281,11 +270,9 @@ accurate_payload* BareosAccurateFilelistLmdb::lookup_payload(char* fname)
       lstat_length = strlen(payload->lstat);
       payload->chksum = (char*)payload->lstat + lstat_length + 1;
 
-      /*
-       * We keep the transaction as short a possible so after a lookup
+      /* We keep the transaction as short a possible so after a lookup
        * and copying the actual data out we reset the read transaction
-       * and do a renew of the read transaction for a new run.
-       */
+       * and do a renew of the read transaction for a new run. */
       mdb_txn_reset(db_ro_txn_);
       result = mdb_txn_renew(db_ro_txn_);
       if (result != 0) {
@@ -319,11 +306,9 @@ bool BareosAccurateFilelistLmdb::UpdatePayload(char* fname,
   // Make sure pay_load_ is large enough.
   pay_load_ = CheckPoolMemorySize(pay_load_, total_length);
 
-  /*
-   * We store the total pay load as:
+  /* We store the total pay load as:
    *
-   * accurate_payload structure\0lstat\0chksum\0
-   */
+   * accurate_payload structure\0lstat\0chksum\0 */
   new_payload = (accurate_payload*)pay_load_;
 
   new_payload->lstat = (char*)payload + sizeof(accurate_payload);
@@ -337,7 +322,7 @@ bool BareosAccurateFilelistLmdb::UpdatePayload(char* fname,
   new_payload->chksum[chksulength_] = '\0';
 
   new_payload->delta_seq = payload->delta_seq;
-  new_payload->filenr = payload->filenr;
+  new_payload->seen = payload->seen;
 
   key.mv_data = fname;
   key.mv_size = strlen(fname) + 1;
@@ -364,10 +349,8 @@ retry:
       }
       break;
     case MDB_TXN_FULL:
-      /*
-       * Seems we filled the transaction.
-       * Flush the current transaction start a new one and retry the put.
-       */
+      /* Seems we filled the transaction.
+       * Flush the current transaction start a new one and retry the put. */
       result = mdb_txn_commit(db_rw_txn_);
       if (result == 0) {
         result = mdb_txn_begin(db_env_, NULL, 0, &db_rw_txn_);
@@ -422,7 +405,7 @@ bool BareosAccurateFilelistLmdb::SendBaseFileList()
   if (result == 0) {
     while ((result = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
       payload = (accurate_payload*)data.mv_data;
-      if (BitIsSet(payload->filenr, seen_bitmap_)) {
+      if (payload->seen) {
         Dmsg1(debuglevel, "base file fname=%s\n", key.mv_data);
         DecodeStat(payload->lstat, &ff_pkt->statp, sizeof(struct stat),
                    &LinkFIc); /* decode catalog stat */
@@ -484,8 +467,7 @@ bool BareosAccurateFilelistLmdb::SendDeletedList()
     while ((result = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
       payload = (accurate_payload*)data.mv_data;
 
-      if (BitIsSet(payload->filenr, seen_bitmap_)
-          || PluginCheckFile(jcr_, (char*)key.mv_data)) {
+      if (payload->seen || PluginCheckFile(jcr_, (char*)key.mv_data)) {
         continue;
       }
 
@@ -565,13 +547,20 @@ void BareosAccurateFilelistLmdb::destroy()
     FreePoolMemory(lmdb_name_);
     lmdb_name_ = NULL;
   }
+}
 
-  if (seen_bitmap_) {
-    free(seen_bitmap_);
-    seen_bitmap_ = NULL;
-  }
+void BareosAccurateFilelistLmdb::MarkAllFilesAsSeen()
+{
+  // TODO: write implementation for this
+  Jmsg1(jcr_, M_FATAL, 0,
+        _("MarkAllFilesAsSeen not supported by lmdb backend"));
+}
 
-  filenr_ = 0;
+void BareosAccurateFilelistLmdb::UnmarkAllFilesAsSeen()
+{
+  // TODO: write implementation for this
+  Jmsg1(jcr_, M_FATAL, 0,
+        _("UnmarkAllFilesAsSeen not supported by lmdb backend"));
 }
 #endif /* HAVE_LMDB */
 } /* namespace filedaemon */

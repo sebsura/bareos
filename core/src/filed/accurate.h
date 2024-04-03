@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -50,7 +50,7 @@
 namespace filedaemon {
 
 struct accurate_payload {
-  int64_t filenr;
+  bool seen;
   int32_t delta_seq;
   char* lstat;
   char* chksum;
@@ -60,10 +60,7 @@ struct accurate_payload {
 // Accurate payload storage abstraction classes.
 class BareosAccurateFilelist {
  protected:
-  int64_t filenr_ = 0;
-  char* seen_bitmap_ = nullptr;
   JobControlRecord* jcr_ = nullptr;
-  uint32_t number_of_previous_files_ = 0;
 
  public:
   BareosAccurateFilelist() = default;
@@ -83,19 +80,12 @@ class BareosAccurateFilelist {
   virtual bool UpdatePayload(char* fname, accurate_payload* payload) = 0;
   virtual bool SendBaseFileList() = 0;
   virtual bool SendDeletedList() = 0;
-  void MarkFileAsSeen(accurate_payload* payload)
-  {
-    SetBit(payload->filenr, seen_bitmap_);
-  }
+  void MarkFileAsSeen(accurate_payload* payload) { payload->seen = true; }
 
-  void UnmarkFileAsSeen(accurate_payload* payload)
-  {
-    ClearBit(payload->filenr, seen_bitmap_);
-  }
+  void UnmarkFileAsSeen(accurate_payload* payload) { payload->seen = true; }
 
-  void MarkAllFilesAsSeen() { SetBitRange(0, filenr_ - 1, seen_bitmap_); }
-
-  void UnmarkAllFilesAsSeen() { ClearBitRange(0, filenr_ - 1, seen_bitmap_); }
+  virtual void MarkAllFilesAsSeen() = 0;
+  virtual void UnmarkAllFilesAsSeen() = 0;
 };
 
 /*
@@ -139,6 +129,8 @@ class BareosAccurateFilelistHtable : public BareosAccurateFilelist {
   bool UpdatePayload(char* fname, accurate_payload* payload) override;
   bool SendBaseFileList() override;
   bool SendDeletedList() override;
+  void MarkAllFilesAsSeen() override;
+  void UnmarkAllFilesAsSeen() override;
 };
 
 #ifdef HAVE_LMDB
@@ -158,6 +150,7 @@ class BareosAccurateFilelistLmdb : public BareosAccurateFilelist {
   MDB_dbi db_dbi_;
   MDB_txn* db_rw_txn_;
   MDB_txn* db_ro_txn_;
+  uint32_t number_of_previous_files_ = 0;
 
   void destroy();
 
@@ -179,6 +172,8 @@ class BareosAccurateFilelistLmdb : public BareosAccurateFilelist {
   bool UpdatePayload(char* fname, accurate_payload* payload) override;
   bool SendBaseFileList() override;
   bool SendDeletedList() override;
+  void MarkAllFilesAsSeen() override;
+  void UnmarkAllFilesAsSeen() override;
 };
 #endif /* HAVE_LMDB */
 
