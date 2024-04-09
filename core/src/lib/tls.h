@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2005-2009 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version two of the GNU Lesser General
@@ -38,18 +38,11 @@ class PskCredentials;
 
 class Tls {
  public:
-  Tls();
-  virtual ~Tls();
+  virtual ~Tls() = default;
+  Tls() = default;
   Tls(Tls& other) = delete;
 
   virtual bool init() = 0;
-
-  enum class TlsImplementationType
-  {
-    kTlsUnknown,
-    kTlsOpenSsl
-  };
-  static Tls* CreateNewTlsContext(Tls::TlsImplementationType type);
 
   virtual void SetTlsPskClientContext(const PskCredentials& credentials) = 0;
   virtual void SetTlsPskServerContext(ConfigurationParser* config) = 0;
@@ -81,7 +74,7 @@ class Tls {
   virtual bool KtlsSendStatus() = 0;
   virtual bool KtlsRecvStatus() = 0;
 
-  virtual void Setca_certfile_(const std::string& ca_certfile) = 0;
+  virtual void SetCaCertfile(const std::string& ca_certfile) = 0;
   virtual void SetCaCertdir(const std::string& ca_certdir) = 0;
   virtual void SetCrlfile(const std::string& crlfile_) = 0;
   virtual void SetCertfile(const std::string& certfile_) = 0;
@@ -94,4 +87,14 @@ class Tls {
   virtual void SetTcpFileDescriptor(const int& fd) = 0;
 };
 
+namespace tls {
+enum class ImplementationType
+{
+  Unknown,
+  OpenSsl,
+  Schannel,
+};
+
+Tls* CreateNewTlsContext(ImplementationType type);
+};      // namespace tls
 #endif  // BAREOS_LIB_TLS_H_

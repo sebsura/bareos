@@ -498,7 +498,7 @@ bool BareosSocket::DoTlsHandshakeAsAServer(ConfigurationParser* config,
 void BareosSocket::ParameterizeTlsCert(Tls* conn_init,
                                        TlsResource* tls_resource)
 {
-  conn_init->Setca_certfile_(tls_resource->tls_cert_.ca_certfile_);
+  conn_init->SetCaCertfile(tls_resource->tls_cert_.ca_certfile_);
   conn_init->SetCaCertdir(tls_resource->tls_cert_.ca_certdir_);
   conn_init->SetCrlfile(tls_resource->tls_cert_.crlfile_);
   conn_init->SetCertfile(tls_resource->tls_cert_.certfile_);
@@ -518,7 +518,7 @@ bool BareosSocket::ParameterizeAndInitTlsConnectionAsAServer(
     ConfigurationParser* config)
 {
   tls_conn_init.reset(
-      Tls::CreateNewTlsContext(Tls::TlsImplementationType::kTlsOpenSsl));
+      tls::CreateNewTlsContext(tls::ImplementationType::OpenSsl));
   if (!tls_conn_init) {
     Qmsg0(BareosSocket::jcr(), M_FATAL, 0,
           T_("TLS connection initialization failed.\n"));
@@ -601,7 +601,7 @@ bool BareosSocket::ParameterizeAndInitTlsConnection(TlsResource* tls_resource,
                                                     bool initiated_by_remote)
 {
   tls_conn_init.reset(
-      Tls::CreateNewTlsContext(Tls::TlsImplementationType::kTlsOpenSsl));
+      tls::CreateNewTlsContext(tls::ImplementationType::OpenSsl));
   if (!tls_conn_init) {
     Qmsg0(BareosSocket::jcr(), M_FATAL, 0,
           T_("TLS connection initialization failed.\n"));

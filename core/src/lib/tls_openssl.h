@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -60,7 +60,7 @@ class TlsOpenSsl : public Tls {
   void SetTlsPskClientContext(const PskCredentials& credentials) override;
   void SetTlsPskServerContext(ConfigurationParser* config) override;
 
-  void Setca_certfile_(const std::string& ca_certfile) override;
+  void SetCaCertfile(const std::string& ca_certfile) override;
   void SetCaCertdir(const std::string& ca_certdir) override;
   void SetCrlfile(const std::string& crlfile_) override;
   void SetCertfile(const std::string& certfile_) override;

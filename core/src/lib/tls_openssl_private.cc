@@ -567,7 +567,7 @@ unsigned int TlsOpenSslPrivate::psk_client_cb(SSL* ssl,
 }
 
 // public interfaces from TlsOpenSsl that set private data
-void TlsOpenSsl::Setca_certfile_(const std::string& ca_certfile)
+void TlsOpenSsl::SetCaCertfile(const std::string& ca_certfile)
 {
   Dmsg1(100, "Set ca_certfile:\t<%s>\n", ca_certfile.c_str());
   d_->ca_certfile_ = ca_certfile;

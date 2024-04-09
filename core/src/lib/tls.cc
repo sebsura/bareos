@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2018 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -21,19 +21,20 @@
 
 #include "lib/tls.h"
 #include "lib/tls_openssl.h"
+#include "lib/tls_schannel.h"
 
-Tls::Tls() { return; }
-
-Tls::~Tls() { return; }
-
-Tls* Tls::CreateNewTlsContext(Tls::TlsImplementationType type)
+namespace tls {
+Tls* CreateNewTlsContext(ImplementationType type)
 {
   switch (type) {
-    case Tls::TlsImplementationType::kTlsOpenSsl:
+    case ImplementationType::OpenSsl:
       return new TlsOpenSsl();
 
-    case Tls::TlsImplementationType::kTlsUnknown:
+    case ImplementationType::Schannel:
+      return new TlsSchannel();
+    case ImplementationType::Unknown:
     default:
       return nullptr;
   }
 }
+}  // namespace tls
