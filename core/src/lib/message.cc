@@ -34,6 +34,7 @@
 #include <vector>
 #include <unistd.h>
 #include <syslog.h>
+#include <jansson.h>
 
 #include "include/fcntl_def.h"
 #include "include/bareos.h"
@@ -1647,3 +1648,69 @@ void SetLogTimestampFormat(const char* format)
 {
   log_timestamp_format = format;
 }
+
+struct message {
+  virtual ~message();
+  virtual void AddU64(const char* name, std::uint64_t value) = 0;
+  virtual void AddI32(const char* name, std::uint32_t value) = 0;
+  virtual void AddString(const char* name, const char* value) = 0;
+  virtual void Format(PoolMem& mem) = 0;
+};
+
+struct cformat_message : public message {
+  PoolMem msg;
+  PoolMem tmp;
+  void AddU64(const char*, std::uint64_t value) override
+  {
+    Mmsg(tmp, "%lu", value);
+    msg.strcat(tmp);
+  }
+  void AddI32(const char*, std::uint32_t value) override
+  {
+    Mmsg(tmp, "%lu", value);
+    msg.strcat(tmp);
+  }
+  void AddString(const char*, const char* value) override { msg.strcat(value); }
+  void Format(PoolMem& mem) override { mem.strcat(msg); }
+};
+
+struct json_message : public message {
+  json_t* root{nullptr};
+  json_message() : root{json_object()} {}
+  ~json_message() { json_decref(root); }
+
+  void AddU64(const char* name, std::uint64_t value) override
+  {
+    json_object_set_new(root, name, json_integer(value));
+  }
+
+  void AddI32(const char* name, std::uint32_t value) override
+  {
+    json_object_set_new(root, name, json_integer(value));
+  }
+
+  void AddString(const char* name, const char* value) override
+  {
+    json_object_set_new(root, name, json_string(value));
+  }
+
+  void Format(PoolMem& mem) override
+  {
+    char* str = json_dumps(root, 0);
+    mem.strcat("json");
+    mem.strcat(str);
+    free(str);
+  }
+};
+
+struct message_formatter {
+  bool json = false;
+  message* start()
+  {
+    if (json) {
+      return new json_message();
+    } else {
+      return new cformat_message();
+    }
+  }
+};

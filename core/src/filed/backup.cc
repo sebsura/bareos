@@ -259,6 +259,19 @@ static inline bool SaveRsrcAndFinder(b_save_ctx& bsctx)
   }
 
   Dmsg1(300, "Saving Finder Info for \"%s\"\n", bsctx.ff_pkt->fname);
+
+  {
+    message_formatter* formatter;
+    auto m = formatter->begin();
+
+
+    m.AddU64("jobfiles", bsctx.jcr->JobFiles);
+    m.AddI32("stream", STREAM_HFSPLUS_ATTRIBUTES);
+    m.AddI32("end", 0);
+
+    sd->send(m.Format());
+  }
+
   sd->fsend("%ld %d 0", bsctx.jcr->JobFiles, STREAM_HFSPLUS_ATTRIBUTES);
   Dmsg1(300, "filed>stored:header %s", sd->msg);
   PmMemcpy(sd->msg, bsctx.ff_pkt->hfsinfo.fndrinfo, 32);
