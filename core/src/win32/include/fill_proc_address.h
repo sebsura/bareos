@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2022-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2022-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -44,5 +44,19 @@ T BareosFillProcAddress(T& func_ptr, HMODULE hModule, LPCSTR lpProcName)
 #pragma GCC diagnostic pop
   return func_ptr;
 }
+
+#define DEFINE_DYNAMIC_FUNCTION(Name)     \
+  struct Name {                           \
+    static constexpr char name[] = #Name; \
+    using type = decltype(::Name);        \
+  }
+DEFINE_DYNAMIC_FUNCTION(
+    RtlTest);  // -> struct RtlTest { static constexpr char name[] = "RtlTest";
+               // using type = decltype(::RtlTest); };
+struct DebugHelp : function_bundle<RtlTest> {};
+
+Debughelp.load(library);
+DebugHelp.call<Fun1>(Arg1);
+DebugHelp.call<Fun2>(Brg1, Brg2);
 
 #endif  // BAREOS_WIN32_INCLUDE_FILL_PROC_ADDRESS_H_

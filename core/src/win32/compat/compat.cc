@@ -3031,3 +3031,61 @@ void PreventOsSuspensions()
 }
 
 void AllowOsSuspensions() { SetThreadExecutionState(ES_CONTINUOUS); }
+
+template <char... cs> struct char_sequence {
+  static constexpr char str[] = {cs..., '\0'};
+};
+
+template <typename Str, std::size_t len, char... cs> struct to_sequence_impl {
+  using value =
+      typename static_str_impl<Str, len - 1, Str::str()[len - 1], cs...>::value;
+};
+
+template <typename Str, char... cs> struct to_sequence_impl<Str, 0, cs...> {
+  using value = char_sequence<cs...>;
+};
+
+static constexpr std::size_t constexpr_strlen(const char* str,
+                                              std::size_t count = 0)
+{
+  if (str[count]) {
+    return constexpr_strlen(str, count + 1);
+  } else {
+    return count;
+  }
+}
+
+template <typename Str>
+using to_sequence =
+    typename to_sequence_impl<Str, constexpr_strlen(Str::str())>;
+
+template <typename FunctionType, typename Str> struct winfunc {
+  using fun = FunctionType;
+  using str = Str::str;
+};
+
+template <typename Func> struct loaded_winfunc {
+  using Name = Func;
+  Func::fun* ptr;
+};
+
+
+template <typename Name, typename... Args> auto call(Args&&... args)
+{
+  return std::get<loaded_winfunc<Name>>(functions).ptr(
+      std::forward<Args>(args)...);
+}
+
+struct dynamic_loader {
+  template <typename Function>
+  static Function* load(HANDLE* library, const char* name)
+  {
+    return reinterpret_cast<Function*>(GetProcAddress(library, name));
+  }
+};
+
+
+#define dynamic_load(library, func) \
+  dynamic_loader::load<decltype(::func)>(libary, #func)
+
+auto* RtlReadScript = dynamic_load(handle, RtlReadScript);
