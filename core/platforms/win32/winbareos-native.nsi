@@ -782,6 +782,9 @@ SectionIn 2 3
   FileWrite $R1 'REM this script deletes the db dump $\r$\n'
   FileWrite $R1 'del $APPDATA\${PRODUCT_NAME}\working\bareos.sql $\r$\n'
   FileClose $R1
+
+  SetOutPath "$APPDATA\${PRODUCT_NAME}\scripts\updates"
+  File "${CMAKE_SOURCE_DIR}\core\src\cats\ddl\updates\*.sql"
 SectionEnd
 
 
