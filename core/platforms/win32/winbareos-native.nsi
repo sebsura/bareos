@@ -1146,7 +1146,9 @@ Section -StartDaemon
   ${EndIf}
 
   ${If} ${SectionIsSelected} ${SEC_DIR}
+  StrCmp $Upgrading "yes" skip_db_setup
       nsExec::ExecToLog "$APPDATA\${PRODUCT_NAME}\scripts\postgres_db_setup.bat > $PLUGINSDIR\db_setup_output.log"
+  skip_db_setup:
       nsExec::ExecToLog "net start bareos-dir"
   ${EndIf}
 
