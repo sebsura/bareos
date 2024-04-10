@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2005-2010 Free Software Foundation Europe e.V.
-   Copyright (C) 2014-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2014-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -72,13 +72,7 @@ static wchar_t* VSSPathConvertW(const wchar_t* szFilePath)
 
 void VSSInit(JobControlRecord* jcr)
 {
-  // Decide which vss class to initialize
-  if (g_MajorVersion == 5) {
-    Jmsg(jcr, M_FATAL, 0, "Your windows version is not supported anymore.\n");
-    // Vista or Longhorn or later
-  } else if (g_MajorVersion >= 6) {
-    jcr->fd_impl->pVSSClient = new VSSClientVista();
-  }
+  jcr->fd_impl->pVSSClient = new VSSClientVista();
 
   // Setup the callback functions.
   if (!SetVSSPathConvert(VSSPathConvert, VSSPathConvertW)) {

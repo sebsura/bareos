@@ -76,11 +76,6 @@ BSTR str_2_BSTR(const char* pSrc);
 char* BSTR_2_str(const BSTR pSrc);
 std::wstring make_win32_path_UTF8_2_wchar(std::string_view utf8);
 
-// init with win9x, but maybe set to NT in InitWinAPI
-extern DWORD g_platform_id;
-extern DWORD g_MinorVersion;
-extern DWORD g_MajorVersion;
-
 /* In ADVAPI32.DLL */
 typedef BOOL(WINAPI* t_OpenProcessToken)(HANDLE, DWORD, PHANDLE);
 typedef BOOL(WINAPI* t_AdjustTokenPrivileges)(HANDLE,

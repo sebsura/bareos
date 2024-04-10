@@ -38,11 +38,6 @@
 
 #define SET_API_POINTER(symbol) BareosFillProcAddress(p_##symbol, hLib, #symbol)
 
-// Init with win9x, but maybe set to NT in InitWinAPI
-DWORD g_platform_id = VER_PLATFORM_WIN32_WINDOWS;
-DWORD g_MinorVersion = 0;
-DWORD g_MajorVersion = 0;
-
 // API Pointers
 t_OpenProcessToken p_OpenProcessToken = NULL;
 t_AdjustTokenPrivileges p_AdjustTokenPrivileges = NULL;
@@ -117,11 +112,12 @@ void InitWinAPIWrapper()
 
   // Get the current OS version
   if (!GetVersionEx(&osversioninfo)) {
-    g_platform_id = 0;
+    ASSERT(0);
   } else {
-    g_platform_id = osversioninfo.dwPlatformId;
-    g_MinorVersion = osversioninfo.dwMinorVersion;
-    g_MajorVersion = osversioninfo.dwMajorVersion;
+    // Ensure NT kernel (i.e. Win2k+)
+    ASSERT(osversioninfo.dwPlatformId == VER_PLATFORM_WIN32_NT);
+    // Ensure Vista+
+    ASSERT(osversioninfo.dwMajorVersion >= 6);
   }
 
   HMODULE hLib = LoadLibraryA("KERNEL32.DLL");
@@ -164,52 +160,48 @@ void InitWinAPIWrapper()
     SET_API_POINTER(GetCurrentDirectoryA);
     SET_API_POINTER(SetCurrentDirectoryA);
 
-    if (g_platform_id != VER_PLATFORM_WIN32_WINDOWS) {
-      SET_API_POINTER(CreateFileW);
-      SET_API_POINTER(CreateDirectoryW);
-      SET_API_POINTER(CreateSymbolicLinkW);
+    SET_API_POINTER(CreateFileW);
+    SET_API_POINTER(CreateDirectoryW);
+    SET_API_POINTER(CreateSymbolicLinkW);
 
-      // Backup calls
-      SET_API_POINTER(BackupRead);
-      SET_API_POINTER(BackupWrite);
+    // Backup calls
+    SET_API_POINTER(BackupRead);
+    SET_API_POINTER(BackupWrite);
 
-      SET_API_POINTER(GetFileAttributesW);
-      SET_API_POINTER(GetFileAttributesExW);
-      SET_API_POINTER(SetFileAttributesW);
-      SET_API_POINTER(FindFirstFileW);
-      SET_API_POINTER(FindNextFileW);
-      SET_API_POINTER(GetCurrentDirectoryW);
-      SET_API_POINTER(SetCurrentDirectoryW);
+    SET_API_POINTER(GetFileAttributesW);
+    SET_API_POINTER(GetFileAttributesExW);
+    SET_API_POINTER(SetFileAttributesW);
+    SET_API_POINTER(FindFirstFileW);
+    SET_API_POINTER(FindNextFileW);
+    SET_API_POINTER(GetCurrentDirectoryW);
+    SET_API_POINTER(SetCurrentDirectoryW);
 
-      /* Some special stuff we need for VSS
-       * but static linkage doesn't work on Win 9x */
-      SET_API_POINTER(GetVolumePathNameW);
-      SET_API_POINTER(GetVolumeNameForVolumeMountPointW);
+    /* Some special stuff we need for VSS
+     * but static linkage doesn't work on Win 9x */
+    SET_API_POINTER(GetVolumePathNameW);
+    SET_API_POINTER(GetVolumeNameForVolumeMountPointW);
 
-      SET_API_POINTER(AttachConsole);
-    }
+    SET_API_POINTER(AttachConsole);
   }
 
-  if (g_platform_id != VER_PLATFORM_WIN32_WINDOWS) {
-    hLib = LoadLibraryA("MSVCRT.DLL");
-    if (hLib) {
-      SET_API_POINTER_EX(wunlink, _wunlink);
-      SET_API_POINTER_EX(wmkdir, _wmkdir);
-    }
+  hLib = LoadLibraryA("MSVCRT.DLL");
+  if (hLib) {
+    SET_API_POINTER_EX(wunlink, _wunlink);
+    SET_API_POINTER_EX(wmkdir, _wmkdir);
+  }
 
-    hLib = LoadLibraryA("ADVAPI32.DLL");
-    if (hLib) {
-      SET_API_POINTER(OpenProcessToken);
-      SET_API_POINTER(AdjustTokenPrivileges);
-      SET_API_POINTER_EX(LookupPrivilegeValue, LookupPrivilegeValueA);
+  hLib = LoadLibraryA("ADVAPI32.DLL");
+  if (hLib) {
+    SET_API_POINTER(OpenProcessToken);
+    SET_API_POINTER(AdjustTokenPrivileges);
+    SET_API_POINTER_EX(LookupPrivilegeValue, LookupPrivilegeValueA);
 
-      // EFS calls
-      SET_API_POINTER(OpenEncryptedFileRawA);
-      SET_API_POINTER(OpenEncryptedFileRawW);
-      SET_API_POINTER(ReadEncryptedFileRaw);
-      SET_API_POINTER(WriteEncryptedFileRaw);
-      SET_API_POINTER(CloseEncryptedFileRaw);
-    }
+    // EFS calls
+    SET_API_POINTER(OpenEncryptedFileRawA);
+    SET_API_POINTER(OpenEncryptedFileRawW);
+    SET_API_POINTER(ReadEncryptedFileRaw);
+    SET_API_POINTER(WriteEncryptedFileRaw);
+    SET_API_POINTER(CloseEncryptedFileRaw);
   }
 
   dyn::LoadDynamicFunctions();
