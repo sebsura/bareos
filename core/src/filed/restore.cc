@@ -792,13 +792,15 @@ void DoRestore(JobControlRecord* jcr)
                 break;
             }
 
+#if !defined(HAVE_WIN32)
             /* Check for a win32 stream type on a system without the win32 API.
              * On those we decompose the BackupWrite data. */
-            if (is_win32_stream(rctx.stream) && !have_win32_api()) {
+            if (is_win32_stream(rctx.stream)) {
               SetPortableBackup(&rctx.bfd);
               // "decompose" BackupWrite data
               SetBit(FO_WIN32DECOMP, rctx.flags);
             }
+#endif
 
             if (ExtractData(jcr, &rctx.bfd, sd->msg, sd->message_length,
                             &rctx.fileAddr, rctx.flags, rctx.stream,

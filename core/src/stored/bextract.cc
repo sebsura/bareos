@@ -483,7 +483,8 @@ static void DoExtract(char* devname,
 
 static bool StoreData(BareosFilePacket* bfd, char* data, const int32_t length)
 {
-  if (is_win32_stream(attr->data_stream) && !have_win32_api()) {
+#if !defined(HAVE_WIN32)
+  if (is_win32_stream(attr->data_stream)) {
     SetPortableBackup(bfd);
     if (!processWin32BackupAPIBlock(bfd, data, length)) {
       BErrNo be;
@@ -491,7 +492,11 @@ static bool StoreData(BareosFilePacket* bfd, char* data, const int32_t length)
             be.bstrerror());
       return false;
     }
-  } else if (bwrite(bfd, data, length) != (ssize_t)length) {
+    return true;
+  }
+#endif
+
+  if (bwrite(bfd, data, length) != (ssize_t)length) {
     BErrNo be;
     Emsg2(M_ERROR_TERM, 0, T_("Write error on %s: %s\n"), attr->ofname,
           be.bstrerror());

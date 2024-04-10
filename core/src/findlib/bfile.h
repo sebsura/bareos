@@ -3,7 +3,7 @@
 
    Copyright (C) 2003-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -130,7 +130,6 @@ bool IsBopen(BareosFilePacket* bfd);
 bool set_win32_backup(BareosFilePacket* bfd);
 bool SetPortableBackup(BareosFilePacket* bfd);
 bool SetCmdPlugin(BareosFilePacket* bfd, JobControlRecord* jcr);
-bool have_win32_api();
 bool IsPortableBackup(BareosFilePacket* bfd);
 bool IsRestoreStreamSupported(int stream);
 bool is_win32_stream(int stream);

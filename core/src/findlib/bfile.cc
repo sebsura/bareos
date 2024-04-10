@@ -368,7 +368,7 @@ void binit(BareosFilePacket* bfd)
 {
   new (bfd) BareosFilePacket();
   bfd->filedes = -1;
-  bfd->use_backup_api = have_win32_api();
+  bfd->use_backup_api = true;
 }
 
 /**
@@ -379,7 +379,7 @@ void binit(BareosFilePacket* bfd)
 bool set_win32_backup(BareosFilePacket* bfd)
 {
   /* We enable if possible here */
-  bfd->use_backup_api = have_win32_api();
+  bfd->use_backup_api = true;
   return bfd->use_backup_api;
 }
 
@@ -401,8 +401,6 @@ bool SetCmdPlugin(BareosFilePacket* bfd, JobControlRecord* jcr)
  * return 0 if are
  */
 bool IsPortableBackup(BareosFilePacket* bfd) { return !bfd->use_backup_api; }
-
-bool have_win32_api() { return true; }
 
 /**
  * Return true  if we support the stream
@@ -861,8 +859,6 @@ boffset_t blseek(BareosFilePacket* bfd, boffset_t offset, int whence)
  * ===============================================================
  */
 void binit(BareosFilePacket* bfd) { bfd->filedes = kInvalidFiledescriptor; }
-
-bool have_win32_api() { return false; /* no can do */ }
 
 /**
  * Enables using the Backup API (win32_data).
