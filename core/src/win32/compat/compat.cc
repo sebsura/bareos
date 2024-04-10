@@ -559,15 +559,9 @@ int wchar_2_UTF8(POOLMEM*& pszUTF, const WCHAR* pszUCS)
 {
   /* The return value is the number of bytes written to the buffer.
    * The number includes the byte for the null terminator. */
-  if (p_WideCharToMultiByte) {
-    int nRet
-        = p_WideCharToMultiByte(CP_UTF8, 0, pszUCS, -1, NULL, 0, NULL, NULL);
-    pszUTF = CheckPoolMemorySize(pszUTF, nRet);
-    return p_WideCharToMultiByte(CP_UTF8, 0, pszUCS, -1, pszUTF, nRet, NULL,
-                                 NULL);
-  } else {
-    return 0;
-  }
+  int nRet = WideCharToMultiByte(CP_UTF8, 0, pszUCS, -1, NULL, 0, NULL, NULL);
+  pszUTF = CheckPoolMemorySize(pszUTF, nRet);
+  return WideCharToMultiByte(CP_UTF8, 0, pszUCS, -1, pszUTF, nRet, NULL, NULL);
 }
 
 // Convert from WCHAR (UTF-16) to UTF-8
@@ -575,14 +569,10 @@ int wchar_2_UTF8(char* pszUTF, const WCHAR* pszUCS, int cchChar)
 {
   /* The return value is the number of bytes written to the buffer.
    * The number includes the byte for the null terminator. */
-  if (p_WideCharToMultiByte) {
-    int nRet = p_WideCharToMultiByte(CP_UTF8, 0, pszUCS, -1, pszUTF, cchChar,
-                                     NULL, NULL);
-    ASSERT(nRet > 0);
-    return nRet;
-  } else {
-    return 0;
-  }
+  int nRet = WideCharToMultiByte(CP_UTF8, 0, pszUCS, -1, pszUTF, cchChar, NULL,
+                                 NULL);
+  ASSERT(nRet > 0);
+  return nRet;
 }
 
 int UTF8_2_wchar(POOLMEM*& ppszUCS, const char* pszUTF)
@@ -590,18 +580,14 @@ int UTF8_2_wchar(POOLMEM*& ppszUCS, const char* pszUTF)
   /* The return value is the number of wide characters written to the buffer.
    * convert null terminated string from utf-8 to ucs2, enlarge buffer if
    * necessary */
-  if (p_MultiByteToWideChar) {
-    // strlen of UTF8 +1 is enough
-    DWORD cchSize = (strlen(pszUTF) + 1);
-    ppszUCS = CheckPoolMemorySize(ppszUCS, cchSize * sizeof(wchar_t));
+  // strlen of UTF8 +1 is enough
+  DWORD cchSize = (strlen(pszUTF) + 1);
+  ppszUCS = CheckPoolMemorySize(ppszUCS, cchSize * sizeof(wchar_t));
 
-    int nRet = p_MultiByteToWideChar(CP_UTF8, 0, pszUTF, -1, (LPWSTR)ppszUCS,
-                                     cchSize);
-    ASSERT(nRet > 0);
-    return nRet;
-  } else {
-    return 0;
-  }
+  int nRet
+      = MultiByteToWideChar(CP_UTF8, 0, pszUTF, -1, (LPWSTR)ppszUCS, cchSize);
+  ASSERT(nRet > 0);
+  return nRet;
 }
 
 // Convert a C character string into an BSTR.
@@ -612,16 +598,14 @@ BSTR str_2_BSTR(const char* pSrc)
 
   if (!pSrc) { return NULL; }
 
-  if (p_MultiByteToWideChar) {
-    if ((cwch = p_MultiByteToWideChar(CP_ACP, 0, pSrc, -1, NULL, 0))) {
-      cwch--;
-      wsOut = SysAllocStringLen(NULL, cwch);
-      if (wsOut) {
-        if (!p_MultiByteToWideChar(CP_ACP, 0, pSrc, -1, wsOut, cwch)) {
-          if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) { return wsOut; }
-          SysFreeString(wsOut);
-          wsOut = NULL;
-        }
+  if ((cwch = MultiByteToWideChar(CP_ACP, 0, pSrc, -1, NULL, 0))) {
+    cwch--;
+    wsOut = SysAllocStringLen(NULL, cwch);
+    if (wsOut) {
+      if (!MultiByteToWideChar(CP_ACP, 0, pSrc, -1, wsOut, cwch)) {
+        if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) { return wsOut; }
+        SysFreeString(wsOut);
+        wsOut = NULL;
       }
     }
   }
@@ -637,16 +621,13 @@ char* BSTR_2_str(const BSTR pSrc)
 
   if (!pSrc) { return NULL; }
 
-  if (p_WideCharToMultiByte) {
-    cwch = SysStringLen(pSrc);
-    if ((cb
-         = p_WideCharToMultiByte(CP_ACP, 0, pSrc, cwch + 1, NULL, 0, 0, 0))) {
-      szOut = (char*)malloc(cb);
-      szOut[cb - 1] = '\0';
-      if (!p_WideCharToMultiByte(CP_ACP, 0, pSrc, cwch + 1, szOut, cb, 0, 0)) {
-        free(szOut);
-        szOut = NULL;
-      }
+  cwch = SysStringLen(pSrc);
+  if ((cb = WideCharToMultiByte(CP_ACP, 0, pSrc, cwch + 1, NULL, 0, 0, 0))) {
+    szOut = (char*)malloc(cb);
+    szOut[cb - 1] = '\0';
+    if (!WideCharToMultiByte(CP_ACP, 0, pSrc, cwch + 1, szOut, cb, 0, 0)) {
+      free(szOut);
+      szOut = NULL;
     }
   }
 
@@ -795,14 +776,6 @@ bool CreateJunction(const char* szJunction, const char* szPath)
   PoolMem szDestDir(PM_FNAME);
   POOLMEM *buf, *szJunctionW, *szPrintName, *szSubstituteName;
 
-  /* We only implement a Wide string version of CreateJunction.
-   * So if p_CreateDirectoryW is not available we refuse to do anything. */
-  if (!p_CreateDirectoryW) {
-    Dmsg0(debuglevel,
-          "CreateJunction: CreateDirectoryW not found, doing nothing\n");
-    return false;
-  }
-
   // Create three buffers to hold the wide char strings.
   szJunctionW = GetPoolMemory(PM_FNAME);
 
@@ -821,13 +794,13 @@ bool CreateJunction(const char* szJunction, const char* szPath)
   // Create directory
   if (!UTF8_2_wchar(szJunctionW, szJunction)) { goto bail_out; }
 
-  if (!p_CreateDirectoryW((LPCWSTR)szJunctionW, NULL)) {
+  if (!CreateDirectoryW((LPCWSTR)szJunctionW, NULL)) {
     Dmsg1(debuglevel, "CreateDirectory Failed:%s\n", errorString());
     goto bail_out;
   }
 
   // Create file/open reparse point
-  hDir = p_CreateFileW(
+  hDir = CreateFileW(
       (LPCWSTR)szJunctionW, GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
       FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, NULL);
 
@@ -920,34 +893,17 @@ static inline bool GetVolumeMountPointData(const char* filename,
   /* Now to find out if the directory is a mount point or a reparse point.
    * Explicitly open the file to read the reparse point, then call
    * DeviceIoControl to find out if it points to a Volume or to a directory. */
-  if (p_GetFileAttributesW) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
 
-    if (p_CreateFileW) {
-      h = CreateFileW(
-          utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-          FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-    }
+  h = CreateFileW(
+      utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+      FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
 
-    if (h == INVALID_HANDLE_VALUE) {
-      Dmsg1(debuglevel, "Invalid handle from CreateFileW(%s)\n", utf16.c_str());
-      return false;
-    }
-
-  } else if (p_GetFileAttributesA) {
-    PoolMem win32_fname(PM_FNAME);
-    unix_name_to_win32(win32_fname.addr(), filename);
-
-    h = CreateFileA(
-        win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-
-    if (h == INVALID_HANDLE_VALUE) {
-      Dmsg1(debuglevel, "Invalid handle from CreateFile(%s)\n",
-            win32_fname.c_str());
-      return false;
-    }
+  if (h == INVALID_HANDLE_VALUE) {
+    Dmsg1(debuglevel, "Invalid handle from CreateFileW(%s)\n", utf16.c_str());
+    return false;
   }
+
 
   if (h != INVALID_HANDLE_VALUE) {
     bool ok;
@@ -989,31 +945,15 @@ static inline ssize_t GetSymlinkData(const char* filename,
   ssize_t nrconverted = -1;
   HANDLE h = INVALID_HANDLE_VALUE;
 
-  if (p_GetFileAttributesW) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
 
-    if (p_CreateFileW) {
-      h = CreateFileW(
-          utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-          FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-    }
+  h = CreateFileW(
+      utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+      FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
 
-    if (h == INVALID_HANDLE_VALUE) {
-      Dmsg1(debuglevel, "Invalid handle from CreateFileW(%s)\n", utf16.c_str());
-      return -1;
-    }
-  } else if (p_GetFileAttributesA) {
-    PoolMem win32_fname(PM_FNAME);
-    unix_name_to_win32(win32_fname.addr(), filename);
-    h = CreateFileA(
-        win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
-
-    if (h == INVALID_HANDLE_VALUE) {
-      Dmsg1(debuglevel, "Invalid handle from CreateFile(%s)\n",
-            win32_fname.c_str());
-      return -1;
-    }
+  if (h == INVALID_HANDLE_VALUE) {
+    Dmsg1(debuglevel, "Invalid handle from CreateFileW(%s)\n", utf16.c_str());
+    return -1;
   }
   if (h != INVALID_HANDLE_VALUE) {
     bool ok;
@@ -1092,7 +1032,6 @@ static int GetWindowsFileInfo(const char* filename,
 {
   bool use_fallback_data = true;
   WIN32_FIND_DATAW info_w;     // window's file info
-  WIN32_FIND_DATAA info_a;     // window's file info
   FILE_BASIC_INFO basic_info;  // window's basic file info
   HANDLE h = INVALID_HANDLE_VALUE;
   HANDLE fh = INVALID_HANDLE_VALUE;
@@ -1106,69 +1045,43 @@ static int GetWindowsFileInfo(const char* filename,
   FILETIME* pftLastWriteTime;
   FILETIME* pftChangeTime;
 
-
   // First get a findhandle and a file handle to the file.
-  if (p_FindFirstFileW) { /* use unicode */
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
 
-    Dmsg1(debuglevel, "FindFirstFileW=%s\n", utf16.c_str());
-    fh = p_FindFirstFileW(utf16.c_str(), &info_w);
-    if (fh != INVALID_HANDLE_VALUE) {
-      h = p_CreateFileW(
-          utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-          FILE_FLAG_BACKUP_SEMANTICS, /* Required for directories */
-          NULL);
-    }
-
-  } else if (p_FindFirstFileA) {  // use ASCII
-    PoolMem win32_fname(PM_FNAME);
-    unix_name_to_win32(win32_fname.addr(), filename);
-    Dmsg1(debuglevel, "FindFirstFileA=%s\n", win32_fname.c_str());
-    fh = p_FindFirstFileA(win32_fname.c_str(), &info_a);
-    if (h != INVALID_HANDLE_VALUE) {
-      h = CreateFileA(win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                      OPEN_EXISTING,
-                      FILE_FLAG_BACKUP_SEMANTICS, /* Required for directories */
-                      NULL);
-    }
-  } else {
-    Dmsg0(debuglevel, "No findFirstFile A or W found\n");
+  Dmsg1(debuglevel, "FindFirstFileW=%s\n", utf16.c_str());
+  fh = FindFirstFileW(utf16.c_str(), &info_w);
+  if (fh != INVALID_HANDLE_VALUE) {
+    h = CreateFileW(utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
+                    OPEN_EXISTING,
+                    FILE_FLAG_BACKUP_SEMANTICS, /* Required for directories */
+                    NULL);
   }
 
   // If we got a valid handle start processing the info.
   if (fh != INVALID_HANDLE_VALUE) {
-    if (p_FindFirstFileW) { /* use unicode */
-      pdwFileAttributes = &info_w.dwFileAttributes;
-      pdwReserved0 = &info_w.dwReserved0;
-      pnFileSizeHigh = &info_w.nFileSizeHigh;
-      pnFileSizeLow = &info_w.nFileSizeLow;
-    } else {
-      pdwFileAttributes = &info_a.dwFileAttributes;
-      pdwReserved0 = &info_a.dwReserved0;
-      pnFileSizeHigh = &info_a.nFileSizeHigh;
-      pnFileSizeLow = &info_a.nFileSizeLow;
-    }
+    pdwFileAttributes = &info_w.dwFileAttributes;
+    pdwReserved0 = &info_w.dwReserved0;
+    pnFileSizeHigh = &info_w.nFileSizeHigh;
+    pnFileSizeLow = &info_w.nFileSizeLow;
 
     // As this is retrieved by handle it has no specific A or W call.
     if (h != INVALID_HANDLE_VALUE) {
-      if (p_GetFileInformationByHandleEx) {
-        if (p_GetFileInformationByHandleEx(h, FileBasicInfo, &basic_info,
-                                           sizeof(basic_info))) {
-          pftLastAccessTime = (FILETIME*)&basic_info.LastAccessTime;
-          pftLastWriteTime = (FILETIME*)&basic_info.LastWriteTime;
-          // changetime is not updated when a file is copied to a new location
-          // only creation time is updated (dont ask me how you update
-          // the creation time without updating the meta data)
-          // as such we need to take the maximum here!
-          if (CompareFileTime((FILETIME*)&basic_info.ChangeTime,
-                              (FILETIME*)&basic_info.CreationTime)
-              < 0) {
-            pftChangeTime = (FILETIME*)&basic_info.CreationTime;
-          } else {
-            pftChangeTime = (FILETIME*)&basic_info.ChangeTime;
-          }
-          use_fallback_data = false;
+      if (GetFileInformationByHandleEx(h, FileBasicInfo, &basic_info,
+                                       sizeof(basic_info))) {
+        pftLastAccessTime = (FILETIME*)&basic_info.LastAccessTime;
+        pftLastWriteTime = (FILETIME*)&basic_info.LastWriteTime;
+        // changetime is not updated when a file is copied to a new location
+        // only creation time is updated (dont ask me how you update
+        // the creation time without updating the meta data)
+        // as such we need to take the maximum here!
+        if (CompareFileTime((FILETIME*)&basic_info.ChangeTime,
+                            (FILETIME*)&basic_info.CreationTime)
+            < 0) {
+          pftChangeTime = (FILETIME*)&basic_info.CreationTime;
+        } else {
+          pftChangeTime = (FILETIME*)&basic_info.ChangeTime;
         }
+        use_fallback_data = false;
       }
       CloseHandle(h);
     }
@@ -1177,26 +1090,15 @@ static int GetWindowsFileInfo(const char* filename,
      * not fallback to the normal info data returned by FindFirstFileW() or
      * FindFirstFileA() */
     if (use_fallback_data) {
-      if (p_FindFirstFileW) { /* use unicode */
-        pftLastAccessTime = &info_w.ftLastAccessTime;
-        pftLastWriteTime = &info_w.ftLastWriteTime;
-        // if change time is not available we fallback to
-        // using lastwritetime instead
-        if (CompareFileTime(&info_w.ftLastWriteTime, &info_w.ftCreationTime)
-            < 0) {
-          pftChangeTime = &info_w.ftCreationTime;
-        } else {
-          pftChangeTime = &info_w.ftLastWriteTime;
-        }
+      pftLastAccessTime = &info_w.ftLastAccessTime;
+      pftLastWriteTime = &info_w.ftLastWriteTime;
+      // if change time is not available we fallback to
+      // using lastwritetime instead
+      if (CompareFileTime(&info_w.ftLastWriteTime, &info_w.ftCreationTime)
+          < 0) {
+        pftChangeTime = &info_w.ftCreationTime;
       } else {
-        pftLastAccessTime = &info_a.ftLastAccessTime;
-        pftLastWriteTime = &info_a.ftLastWriteTime;
-        if (CompareFileTime(&info_a.ftLastWriteTime, &info_a.ftCreationTime)
-            < 0) {
-          pftChangeTime = &info_a.ftCreationTime;
-        } else {
-          pftChangeTime = &info_a.ftLastWriteTime;
-        }
+        pftChangeTime = &info_w.ftLastWriteTime;
       }
     }
 
@@ -1382,28 +1284,25 @@ int fstat(intptr_t fd, struct stat* sb)
   sb->st_blksize = 4096;
   sb->st_blocks = (uint32_t)(sb->st_size + 4095) / 4096;
 
-  if (p_GetFileInformationByHandleEx) {
-    FILE_BASIC_INFO basic_info;
+  FILE_BASIC_INFO basic_info;
 
-    if (p_GetFileInformationByHandleEx((HANDLE)_get_osfhandle(fd),
-                                       FileBasicInfo, &basic_info,
-                                       sizeof(basic_info))) {
-      sb->st_atime = CvtFtimeToUtime(basic_info.LastAccessTime);
-      sb->st_mtime = CvtFtimeToUtime(basic_info.LastWriteTime);
+  if (GetFileInformationByHandleEx((HANDLE)_get_osfhandle(fd), FileBasicInfo,
+                                   &basic_info, sizeof(basic_info))) {
+    sb->st_atime = CvtFtimeToUtime(basic_info.LastAccessTime);
+    sb->st_mtime = CvtFtimeToUtime(basic_info.LastWriteTime);
 
-      // changetime is not updated when a file is copied to a new location
-      // only creation time is updated (dont ask me how you update
-      // the creation time without updating the meta data)
-      // as such we need to take the maximum here!
-      if (CompareFileTime((FILETIME*)&basic_info.ChangeTime,
-                          (FILETIME*)&basic_info.CreationTime)
-          < 0) {
-        sb->st_ctime = CvtFtimeToUtime(basic_info.CreationTime);
-      } else {
-        sb->st_ctime = CvtFtimeToUtime(basic_info.ChangeTime);
-      }
-      use_fallback_data = false;
+    // changetime is not updated when a file is copied to a new location
+    // only creation time is updated (dont ask me how you update
+    // the creation time without updating the meta data)
+    // as such we need to take the maximum here!
+    if (CompareFileTime((FILETIME*)&basic_info.ChangeTime,
+                        (FILETIME*)&basic_info.CreationTime)
+        < 0) {
+      sb->st_ctime = CvtFtimeToUtime(basic_info.CreationTime);
+    } else {
+      sb->st_ctime = CvtFtimeToUtime(basic_info.ChangeTime);
     }
+    use_fallback_data = false;
   }
 
   if (use_fallback_data) {
@@ -1433,25 +1332,10 @@ static int stat2(const char* filename, struct stat* sb)
   DWORD attr = (DWORD)-1;
 
 
-  if (p_GetFileAttributesW) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
-    attr = p_GetFileAttributesW(utf16.c_str());
-    if (p_CreateFileW) {
-      h = CreateFileW(utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                      OPEN_EXISTING, 0, NULL);
-    }
-  } else if (p_GetFileAttributesA) {
-    PoolMem win32_fname(PM_FNAME);
-    unix_name_to_win32(win32_fname.addr(), filename);
-    attr = p_GetFileAttributesA(win32_fname.c_str());
-    h = CreateFileA(win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                    OPEN_EXISTING, 0, NULL);
-
-  } else {
-    Emsg0(M_FATAL, 0,
-          T_("p_GetFileAttributesW and p_GetFileAttributesA undefined. "
-             "probably missing OSDependentInit() call\n"));
-  }
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
+  attr = GetFileAttributesW(utf16.c_str());
+  h = CreateFileW(utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
+                  OPEN_EXISTING, 0, NULL);
 
   if (attr == (DWORD)-1) {
     const char* err = errorString();
@@ -1506,21 +1390,8 @@ int stat(const char* filename, struct stat* sb)
 
   std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
 
-  if (p_GetFileAttributesExW) {
-    BOOL b
-        = p_GetFileAttributesExW(utf16.c_str(), GetFileExInfoStandard, &data);
-    if (!b) { goto bail_out; }
-  } else if (p_GetFileAttributesExA) {
-    if (!p_GetFileAttributesExA(win32_fname.c_str(), GetFileExInfoStandard,
-                                &data)) {
-      goto bail_out;
-    }
-  } else {
-    Emsg0(M_FATAL, 0,
-          T_("p_GetFileAttributesExW and p_GetFileAttributesExA undefined. "
-             "probably missing OSDependentInit() call\n"));
-    goto bail_out;
-  }
+  BOOL b = GetFileAttributesExW(utf16.c_str(), GetFileExInfoStandard, &data);
+  if (!b) { goto bail_out; }
 
   /* See if this is a directory or a reparse point and not a single drive
    * letter. If so we call GetWindowsFileInfo() which retrieves the lowlevel
@@ -1554,32 +1425,25 @@ int stat(const char* filename, struct stat* sb)
     sb->st_blocks = (uint32_t)(sb->st_size + 4095) / 4096;
 
     // See if GetFileInformationByHandleEx API is available.
-    if (p_GetFileInformationByHandleEx) {
-      HANDLE h = INVALID_HANDLE_VALUE;
+    HANDLE h = INVALID_HANDLE_VALUE;
 
-      /* The GetFileInformationByHandleEx need a file handle so we have to
-       * open the file or directory read-only. */
-      if (p_CreateFileW) {
-        h = p_CreateFileW(utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                          OPEN_EXISTING, 0, NULL);
-      } else {
-        h = CreateFileA(win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ,
-                        NULL, OPEN_EXISTING, 0, NULL);
+    /* The GetFileInformationByHandleEx need a file handle so we have to
+     * open the file or directory read-only. */
+    h = CreateFileW(utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
+                    OPEN_EXISTING, 0, NULL);
+
+    if (h != INVALID_HANDLE_VALUE) {
+      FILE_BASIC_INFO basic_info;
+
+      if (GetFileInformationByHandleEx(h, FileBasicInfo, &basic_info,
+                                       sizeof(basic_info))) {
+        sb->st_atime = CvtFtimeToUtime(basic_info.LastAccessTime);
+        sb->st_mtime = CvtFtimeToUtime(basic_info.LastWriteTime);
+        sb->st_ctime = CvtFtimeToUtime(basic_info.ChangeTime);
+        use_fallback_data = false;
       }
 
-      if (h != INVALID_HANDLE_VALUE) {
-        FILE_BASIC_INFO basic_info;
-
-        if (p_GetFileInformationByHandleEx(h, FileBasicInfo, &basic_info,
-                                           sizeof(basic_info))) {
-          sb->st_atime = CvtFtimeToUtime(basic_info.LastAccessTime);
-          sb->st_mtime = CvtFtimeToUtime(basic_info.LastWriteTime);
-          sb->st_ctime = CvtFtimeToUtime(basic_info.ChangeTime);
-          use_fallback_data = false;
-        }
-
-        CloseHandle(h);
-      }
+      CloseHandle(h);
     }
 
     if (use_fallback_data) {
@@ -1726,41 +1590,18 @@ int win32_symlink(const char* name1, const char* name2, _dev_t st_rdev)
   }
 
   Dmsg2(debuglevel, "symlink called name1=%s, name2=%s\n", name1, name2);
-  if (p_CreateSymbolicLinkW) {
-    std::wstring target = FromUtf8(name1);
-    if (target.size() == 0) { goto bail_out; }
-    std::wstring symlink = make_win32_path_UTF8_2_wchar(name2);
+  std::wstring target = FromUtf8(name1);
+  if (target.size() == 0) { return -1; }
+  std::wstring symlink = make_win32_path_UTF8_2_wchar(name2);
 
-    BOOL b = p_CreateSymbolicLinkW(symlink.c_str(), target.c_str(), dwFlags);
+  BOOL b = CreateSymbolicLinkW(symlink.c_str(), target.c_str(), dwFlags);
 
-    if (!b) {
-      Dmsg1(debuglevel, "CreateSymbolicLinkW failed:%s\n", errorString());
-      goto bail_out;
-    }
-  } else if (p_CreateSymbolicLinkA) {
-    POOLMEM* win32_name1 = GetPoolMemory(PM_FNAME);
-    POOLMEM* win32_name2 = GetPoolMemory(PM_FNAME);
-    unix_name_to_win32(win32_name1, name1);
-    unix_name_to_win32(win32_name2, name2);
-
-    BOOL b = p_CreateSymbolicLinkA(win32_name2, win32_name1, dwFlags);
-
-    FreePoolMemory(win32_name1);
-    FreePoolMemory(win32_name2);
-
-    if (!b) {
-      Dmsg1(debuglevel, "CreateSymbolicLinkA failed:%s\n", errorString());
-      goto bail_out;
-    }
-  } else {
-    errno = ENOSYS;
-    goto bail_out;
+  if (!b) {
+    Dmsg1(debuglevel, "CreateSymbolicLinkW failed:%s\n", errorString());
+    return -1;
   }
 
   return 0;
-
-bail_out:
-  return -1;
 }
 
 // Create a hardlink
@@ -1844,16 +1685,9 @@ DIR* opendir(const char* path)
   rval->spec = win32_path;
 
   // convert to wchar_t
-  if (p_FindFirstFileW) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(dir_path.c_str());
-    rval->dirh = p_FindFirstFileW(utf16.c_str(), &rval->data_w);
-    if (rval->dirh != INVALID_HANDLE_VALUE) { rval->valid_w = 1; }
-  } else if (p_FindFirstFileA) {
-    rval->dirh = p_FindFirstFileA(rval->spec, &rval->data_a);
-    if (rval->dirh != INVALID_HANDLE_VALUE) { rval->valid_a = 1; }
-  } else {
-    goto bail_out;
-  }
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(dir_path.c_str());
+  rval->dirh = FindFirstFileW(utf16.c_str(), &rval->data_w);
+  if (rval->dirh != INVALID_HANDLE_VALUE) { rval->valid_w = 1; }
 
   Dmsg3(debuglevel, "opendir(%s)\n\tspec=%s,\n\tFindFirstFile returns %d\n",
         path, rval->spec, rval->dirh);
@@ -1933,14 +1767,7 @@ int Readdir_r(DIR* dirp, struct dirent* entry, struct dirent** result)
   }
 
   // get next file, try unicode first
-  if (p_FindNextFileW) {
-    dp->valid_w = p_FindNextFileW(dp->dirh, &dp->data_w);
-  } else if (p_FindNextFileA) {
-    dp->valid_a = p_FindNextFileA(dp->dirh, &dp->data_a);
-  } else {
-    dp->valid_a = FALSE;
-    dp->valid_w = FALSE;
-  }
+  dp->valid_w = FindNextFileW(dp->dirh, &dp->data_w);
 
   return 0;
 }
@@ -2107,25 +1934,14 @@ int win32_chmod(const char* path, mode_t mode, _dev_t rdev)
   Dmsg3(debuglevel, "win32_chmod(path=%s mode=%lld, rdev=%lld)\n", path,
         (uint64_t)mode, (uint64_t)rdev);
 
-  if (p_GetFileAttributesW) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(path);
-    attr = p_GetFileAttributesW(utf16.c_str());
-    if (attr != INVALID_FILE_ATTRIBUTES) {
-      // Use Bareos mappings define in stat() above
-      attr = fill_attribute(attr, mode, rdev);
-      ret = p_SetFileAttributesW(utf16.c_str(), attr);
-    }
-    Dmsg0(debuglevel, "Leave win32_chmod. AttributesW\n");
-  } else if (p_GetFileAttributesA) {
-    attr = p_GetFileAttributesA(path);
-    if (attr != INVALID_FILE_ATTRIBUTES) {
-      attr = fill_attribute(attr, mode, rdev);
-      ret = p_SetFileAttributesA(path, attr);
-    }
-    Dmsg0(debuglevel, "Leave win32_chmod did AttributesA\n");
-  } else {
-    Dmsg0(debuglevel, "Leave win32_chmod did nothing\n");
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(path);
+  attr = GetFileAttributesW(utf16.c_str());
+  if (attr != INVALID_FILE_ATTRIBUTES) {
+    // Use Bareos mappings define in stat() above
+    attr = fill_attribute(attr, mode, rdev);
+    ret = SetFileAttributesW(utf16.c_str(), attr);
   }
+  Dmsg0(debuglevel, "Leave win32_chmod. AttributesW\n");
 
   if (!ret) {
     const char* err = errorString();
@@ -2142,18 +1958,9 @@ int win32_chmod(const char* path, mode_t mode, _dev_t rdev)
 
 int win32_chdir(const char* dir)
 {
-  if (p_SetCurrentDirectoryW) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(dir);
-    if (!p_SetCurrentDirectoryW(utf16.c_str())) {
-      errno = b_errno_win32;
-      return -1;
-    }
-  } else if (p_SetCurrentDirectoryA) {
-    if (0 == p_SetCurrentDirectoryA(dir)) {
-      errno = b_errno_win32;
-      return -1;
-    }
-  } else {
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(dir);
+  if (!SetCurrentDirectoryW(utf16.c_str())) {
+    errno = b_errno_win32;
     return -1;
   }
 
@@ -2163,33 +1970,24 @@ int win32_chdir(const char* dir)
 int win32_mkdir(const char* dir)
 {
   Dmsg1(debuglevel, "enter win32_mkdir. dir=%s\n", dir);
-  if (p_wmkdir) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(dir);
-    int n = p_wmkdir(utf16.c_str());
-    Dmsg0(debuglevel, "Leave win32_mkdir did wmkdir\n");
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(dir);
+  int n = _wmkdir(utf16.c_str());
+  Dmsg0(debuglevel, "Leave win32_mkdir did wmkdir\n");
 
-    return n;
-  }
-
-  Dmsg0(debuglevel, "Leave win32_mkdir did _mkdir\n");
-  return _mkdir(dir);
+  return n;
 }
 
 char* win32_getcwd(char* buf, int maxlen)
 {
   int n = 0;
 
-  if (p_GetCurrentDirectoryW) {
-    POOLMEM* pwszBuf;
+  POOLMEM* pwszBuf;
 
-    pwszBuf = GetPoolMemory(PM_FNAME);
-    pwszBuf = CheckPoolMemorySize(pwszBuf, maxlen * sizeof(wchar_t));
-    n = p_GetCurrentDirectoryW(maxlen, (LPWSTR)pwszBuf);
-    if (n != 0) { n = wchar_2_UTF8(buf, (wchar_t*)pwszBuf, maxlen) - 1; }
-    FreePoolMemory(pwszBuf);
-  } else if (p_GetCurrentDirectoryA) {
-    n = p_GetCurrentDirectoryA(maxlen, buf);
-  }
+  pwszBuf = GetPoolMemory(PM_FNAME);
+  pwszBuf = CheckPoolMemorySize(pwszBuf, maxlen * sizeof(wchar_t));
+  n = GetCurrentDirectoryW(maxlen, (LPWSTR)pwszBuf);
+  if (n != 0) { n = wchar_2_UTF8(buf, (wchar_t*)pwszBuf, maxlen) - 1; }
+  FreePoolMemory(pwszBuf);
 
   if (n <= 0 || n > maxlen) { return NULL; }
 
@@ -2208,8 +2006,7 @@ int win32_fputs(const char* string, FILE* stream)
   /* We use WriteConsoleW / WriteConsoleA so we can be sure that unicode support
    * works on win32. with fallback if something fails */
   HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-  if (hOut && (hOut != INVALID_HANDLE_VALUE) && p_WideCharToMultiByte
-      && p_MultiByteToWideChar && (stream == stdout)) {
+  if (hOut && (hOut != INVALID_HANDLE_VALUE) && (stream == stdout)) {
     POOLMEM* pszBuf;
     DWORD dwCharsWritten;
     DWORD dwChars;
@@ -2223,13 +2020,13 @@ int win32_fputs(const char* string, FILE* stream)
     }
 
 
-    DWORD needed = p_WideCharToMultiByte(GetConsoleOutputCP(), 0, utf16.c_str(),
-                                         -1, nullptr, 0, nullptr, nullptr);
+    DWORD needed = WideCharToMultiByte(GetConsoleOutputCP(), 0, utf16.c_str(),
+                                       -1, nullptr, 0, nullptr, nullptr);
     // Convert to local codepage and try WriteConsoleA
     pszBuf = GetPoolMemory(PM_MESSAGE);
     pszBuf = CheckPoolMemorySize(pszBuf, needed);
-    dwChars = p_WideCharToMultiByte(GetConsoleOutputCP(), 0, utf16.c_str(), -1,
-                                    pszBuf, needed, NULL, NULL);
+    dwChars = WideCharToMultiByte(GetConsoleOutputCP(), 0, utf16.c_str(), -1,
+                                  pszBuf, needed, NULL, NULL);
     if (WriteConsoleA(hOut, pszBuf, dwChars - 1, &dwCharsWritten, NULL)) {
       FreePoolMemory(pszBuf);
       return dwCharsWritten;
@@ -2246,8 +2043,7 @@ char* win32_cgets(char* buffer, int len)
   /* We use console ReadConsoleA / ReadConsoleW to be able to read unicode
    * from the win32 console and fallback if seomething fails */
   HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
-  if (hIn && (hIn != INVALID_HANDLE_VALUE) && p_WideCharToMultiByte
-      && p_MultiByteToWideChar) {
+  if (hIn && (hIn != INVALID_HANDLE_VALUE)) {
     DWORD dwRead;
     wchar_t wszBuf[1024];
     char szBuf[1024];
@@ -2283,7 +2079,7 @@ char* win32_cgets(char* buffer, int len)
       }
 
       // Convert from ansii to wchar_t
-      p_MultiByteToWideChar(GetConsoleCP(), 0, szBuf, -1, wszBuf, 1024);
+      MultiByteToWideChar(GetConsoleCP(), 0, szBuf, -1, wszBuf, 1024);
 
       // Convert from wchar_t to UTF-8
       if (wchar_2_UTF8(buffer, wszBuf, len)) return buffer;
@@ -2300,66 +2096,49 @@ char* win32_cgets(char* buffer, int len)
 int win32_unlink(const char* filename)
 {
   int nRetCode;
-  if (p_wunlink) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
-    nRetCode = _wunlink(utf16.c_str());
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
+  nRetCode = _wunlink(utf16.c_str());
 
-    // Special case if file is readonly, we retry but unset attribute before
-    if (nRetCode == -1 && errno == EACCES && p_SetFileAttributesW
-        && p_GetFileAttributesW) {
-      DWORD dwAttr = p_GetFileAttributesW(utf16.c_str());
-      if (dwAttr != INVALID_FILE_ATTRIBUTES) {
-        if (p_SetFileAttributesW(utf16.c_str(),
-                                 dwAttr & ~FILE_ATTRIBUTE_READONLY)) {
-          nRetCode = _wunlink(utf16.c_str());
-          /* reset to original if it didn't help */
-          if (nRetCode == -1) p_SetFileAttributesW(utf16.c_str(), dwAttr);
-        }
-      }
-    }
-
-    /* if deletion with _unlink failed, try to use DeleteFileW (which also can
-     * remove file links) */
-    if (nRetCode == -1) {
-      Dmsg0(100, "_unlink failed, trying DeleteFileW \n");
-      if (DeleteFileW(utf16.c_str()) == 0) {  // 0 = fail
-        Dmsg0(100, "DeleteFileW failed\n");
-        nRetCode = -1;
-      } else {
-        Dmsg0(100, "DeleteFileW success\n");
-        nRetCode = 0;
-      }
-    }
-
-
-    /* if deletion with DeleteFileW failed, try to use RemoveDirectoryW (which
-     * also can remove directory links) */
-    if (nRetCode == -1) {
-      Dmsg0(100, "DeleteFileW failed, trying RemoveDirectoryW \n");
-      if (RemoveDirectoryW(utf16.c_str()) == 0) {  // 0 = fail
-        Dmsg0(100, "RemoveDirectoryW failed\n");
-        nRetCode = -1;
-      } else {
-        Dmsg0(100, "RemoveDirectoryW success\n");
-        nRetCode = 0;
-      }
-    }
-  } else {
-    nRetCode = _unlink(filename);
-
-    // Special case if file is readonly, we retry but unset attribute before
-    if (nRetCode == -1 && errno == EACCES && p_SetFileAttributesA
-        && p_GetFileAttributesA) {
-      DWORD dwAttr = p_GetFileAttributesA(filename);
-      if (dwAttr != INVALID_FILE_ATTRIBUTES) {
-        if (p_SetFileAttributesA(filename, dwAttr & ~FILE_ATTRIBUTE_READONLY)) {
-          nRetCode = _unlink(filename);
-          // Reset to original if it didn't help
-          if (nRetCode == -1) p_SetFileAttributesA(filename, dwAttr);
-        }
+  // Special case if file is readonly, we retry but unset attribute before
+  if (nRetCode == -1 && errno == EACCES) {
+    DWORD dwAttr = GetFileAttributesW(utf16.c_str());
+    if (dwAttr != INVALID_FILE_ATTRIBUTES) {
+      if (SetFileAttributesW(utf16.c_str(),
+                             dwAttr & ~FILE_ATTRIBUTE_READONLY)) {
+        nRetCode = _wunlink(utf16.c_str());
+        /* reset to original if it didn't help */
+        if (nRetCode == -1) SetFileAttributesW(utf16.c_str(), dwAttr);
       }
     }
   }
+
+  /* if deletion with _unlink failed, try to use DeleteFileW (which also can
+   * remove file links) */
+  if (nRetCode == -1) {
+    Dmsg0(100, "_unlink failed, trying DeleteFileW \n");
+    if (DeleteFileW(utf16.c_str()) == 0) {  // 0 = fail
+      Dmsg0(100, "DeleteFileW failed\n");
+      nRetCode = -1;
+    } else {
+      Dmsg0(100, "DeleteFileW success\n");
+      nRetCode = 0;
+    }
+  }
+
+
+  /* if deletion with DeleteFileW failed, try to use RemoveDirectoryW (which
+   * also can remove directory links) */
+  if (nRetCode == -1) {
+    Dmsg0(100, "DeleteFileW failed, trying RemoveDirectoryW \n");
+    if (RemoveDirectoryW(utf16.c_str()) == 0) {  // 0 = fail
+      Dmsg0(100, "RemoveDirectoryW failed\n");
+      nRetCode = -1;
+    } else {
+      Dmsg0(100, "RemoveDirectoryW success\n");
+      nRetCode = 0;
+    }
+  }
+
   return nRetCode;
 }
 
@@ -2378,19 +2157,11 @@ bool win32_restore_file_attributes(POOLMEM* ofname,
 
   Dmsg1(100, "SetFileAtts %s\n", ofname);
 
-  if (p_SetFileAttributesW) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(ofname);
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(ofname);
 
-    BOOL b = p_SetFileAttributesW(utf16.c_str(),
-                                  atts->dwFileAttributes & SET_ATTRS);
-    if (!b) { goto bail_out; }
-  } else {
-    PoolMem win32_ofile(PM_FNAME);
-    unix_name_to_win32(win32_ofile.addr(), ofname);
-    BOOL b = p_SetFileAttributesA(win32_ofile.c_str(),
-                                  atts->dwFileAttributes & SET_ATTRS);
-    if (!b) { goto bail_out; }
-  }
+  BOOL b
+      = SetFileAttributesW(utf16.c_str(), atts->dwFileAttributes & SET_ATTRS);
+  if (!b) { goto bail_out; }
 
   if (handle != INVALID_HANDLE_VALUE) {
     if (atts->dwFileAttributes & FILE_ATTRIBUTES_DEDUPED_ITEM) {
@@ -2650,59 +2421,19 @@ static BOOL CreateChildProcessW(const char* comspec,
         cmdLine_wchar);
 
   // Try to execute program
-  bFuncRetn = p_CreateProcessW((wchar_t*)comspec_wchar,
-                               (wchar_t*)cmdLine_wchar, /* Command line */
-                               NULL, /* Process security attributes */
-                               NULL, /* Primary thread security attributes */
-                               TRUE, /* Handles are inherited */
-                               0,    /* Creation flags */
-                               NULL, /* Use parent's environment */
-                               NULL, /* Use parent's current directory */
-                               &siStartInfo, /* STARTUPINFO pointer */
-                               hProcInfo);   /* Receives PROCESS_INFORMATION */
+  bFuncRetn = CreateProcessW((wchar_t*)comspec_wchar,
+                             (wchar_t*)cmdLine_wchar, /* Command line */
+                             NULL, /* Process security attributes */
+                             NULL, /* Primary thread security attributes */
+                             TRUE, /* Handles are inherited */
+                             0,    /* Creation flags */
+                             NULL, /* Use parent's environment */
+                             NULL, /* Use parent's current directory */
+                             &siStartInfo, /* STARTUPINFO pointer */
+                             hProcInfo);   /* Receives PROCESS_INFORMATION */
   FreePoolMemory(cmdLine_wchar);
   FreePoolMemory(comspec_wchar);
 
-  return bFuncRetn;
-}
-
-
-// Create the process with ANSI API
-static BOOL CreateChildProcessA(const char* comspec,
-                                char* cmdLine,
-                                PROCESS_INFORMATION* hProcInfo,
-                                HANDLE in,
-                                HANDLE out,
-                                HANDLE err)
-{
-  STARTUPINFOA siStartInfo;
-  BOOL bFuncRetn = FALSE;
-
-  // Set up members of the STARTUPINFO structure.
-  ZeroMemory(&siStartInfo, sizeof(siStartInfo));
-  siStartInfo.cb = sizeof(siStartInfo);
-
-  // setup new process to use supplied handles for stdin,stdout,stderr
-  siStartInfo.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
-  siStartInfo.wShowWindow = SW_SHOWMINNOACTIVE;
-
-  siStartInfo.hStdInput = in;
-  siStartInfo.hStdOutput = out;
-  siStartInfo.hStdError = err;
-
-  // Create the child process.
-  Dmsg2(debuglevel, "Calling CreateProcess(%s, %s, ...)\n", comspec, cmdLine);
-
-  // Try to execute program
-  bFuncRetn = p_CreateProcessA(comspec, cmdLine, /* Command line */
-                               NULL, /* Process security attributes */
-                               NULL, /* Primary thread security attributes */
-                               TRUE, /* Handles are inherited */
-                               0,    /* Creation flags */
-                               NULL, /* Use parent's environment */
-                               NULL, /* Use parent's current directory */
-                               &siStartInfo, /* STARTUPINFO pointer */
-                               hProcInfo);   /* Receives PROCESS_INFORMATION */
   return bFuncRetn;
 }
 
@@ -2718,8 +2449,6 @@ HANDLE CreateChildProcess(const char* cmdline,
   static const char* comspec = NULL;
   PROCESS_INFORMATION piProcInfo;
   BOOL bFuncRetn = FALSE;
-
-  if (!p_CreateProcessA || !p_CreateProcessW) return INVALID_HANDLE_VALUE;
 
   if (comspec == NULL) comspec = getenv("COMSPEC");
   if (comspec == NULL)  // should never happen
@@ -2749,13 +2478,8 @@ HANDLE CreateChildProcess(const char* cmdline,
   free(exeFile);
 
   // New function disabled
-  if (p_CreateProcessW && p_MultiByteToWideChar) {
-    bFuncRetn = CreateChildProcessW(comspec, cmdLine.c_str(), &piProcInfo, in,
-                                    out, err);
-  } else {
-    bFuncRetn = CreateChildProcessA(comspec, cmdLine.c_str(), &piProcInfo, in,
-                                    out, err);
-  }
+  bFuncRetn = CreateChildProcessW(comspec, cmdLine.c_str(), &piProcInfo, in,
+                                  out, err);
 
   if (bFuncRetn == 0) {
     ErrorExit("CreateProcess failed\n");

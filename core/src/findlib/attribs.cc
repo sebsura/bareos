@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -519,23 +519,12 @@ int encode_attribsEx(JobControlRecord* jcr,
   }
 
   unix_name_to_win32(ff_pkt->sys_fname, ff_pkt->fname);
-  if (p_GetFileAttributesExW) {
-    // Try unicode version
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(ff_pkt->fname);
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(ff_pkt->fname);
 
-    if (!p_GetFileAttributesExW(utf16.c_str(), GetFileExInfoStandard,
-                                (LPVOID)&atts)) {
-      WinError(jcr, "GetFileAttributesExW:", ff_pkt->sys_fname);
-      return STREAM_UNIX_ATTRIBUTES;
-    }
-  } else {
-    if (!p_GetFileAttributesExA) return STREAM_UNIX_ATTRIBUTES;
-
-    if (!p_GetFileAttributesExA(ff_pkt->sys_fname, GetFileExInfoStandard,
-                                (LPVOID)&atts)) {
-      WinError(jcr, "GetFileAttributesExA:", ff_pkt->sys_fname);
-      return STREAM_UNIX_ATTRIBUTES;
-    }
+  if (!GetFileAttributesExW(utf16.c_str(), GetFileExInfoStandard,
+                            (LPVOID)&atts)) {
+    WinError(jcr, "GetFileAttributesExW:", ff_pkt->sys_fname);
+    return STREAM_UNIX_ATTRIBUTES;
   }
 
   /* Instead of using the current dwFileAttributes use the
@@ -588,9 +577,6 @@ static bool set_win32_attributes(JobControlRecord* jcr,
   int64_t val;
   WIN32_FILE_ATTRIBUTE_DATA atts;
   ULARGE_INTEGER li;
-
-  /** if we have neither Win ansi nor wchar API, get out */
-  if (!(p_SetFileAttributesW || p_SetFileAttributesA)) { return false; }
 
   if (!p || !*p) { /* we should have attributes */
     Dmsg2(100, "Attributes missing. of=%s ofd=%d\n", attr->ofname,

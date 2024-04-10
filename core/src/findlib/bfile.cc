@@ -3,7 +3,7 @@
 
    Copyright (C) 2003-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -402,7 +402,7 @@ bool SetCmdPlugin(BareosFilePacket* bfd, JobControlRecord* jcr)
  */
 bool IsPortableBackup(BareosFilePacket* bfd) { return !bfd->use_backup_api; }
 
-bool have_win32_api() { return p_BackupRead && p_BackupWrite; }
+bool have_win32_api() { return true; }
 
 /**
  * Return true  if we support the stream
@@ -489,12 +489,6 @@ static inline int BopenEncrypted(BareosFilePacket* bfd,
   bool is_dir;
   ULONG ulFlags = 0;
 
-  if (!p_OpenEncryptedFileRawA && !p_OpenEncryptedFileRawW) {
-    Dmsg0(50,
-          "No p_OpenEncryptedFileRawA and no p_OpenEncryptedFileRawW!!!!!\n");
-    return 0;
-  }
-
   is_dir = S_ISDIR(mode);
 
   // Convert to Windows path format
@@ -512,23 +506,12 @@ static inline int BopenEncrypted(BareosFilePacket* bfd,
     bfd->mode = BF_READ;
   }
 
-  if (p_OpenEncryptedFileRawW && p_MultiByteToWideChar) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(fname);
+  std::wstring utf16 = make_win32_path_UTF8_2_wchar(fname);
 
-    // Unicode open.
-    Dmsg1(100, "OpenEncryptedFileRawW=%s\n", FromUtf16(utf16).c_str());
-    if (p_OpenEncryptedFileRawW(utf16.c_str(), ulFlags, &(bfd->pvContext))) {
-      bfd->mode = BF_CLOSED;
-    }
-  } else {
-    // ASCII open.
-    PoolMem win32_fname(PM_FNAME);
-    unix_name_to_win32(win32_fname.addr(), fname);
-    Dmsg1(100, "OpenEncryptedFileRawA=%s\n", win32_fname.c_str());
-    if (p_OpenEncryptedFileRawA(win32_fname.c_str(), ulFlags,
-                                &(bfd->pvContext))) {
-      bfd->mode = BF_CLOSED;
-    }
+  // Unicode open.
+  Dmsg1(100, "OpenEncryptedFileRawW=%s\n", FromUtf16(utf16).c_str());
+  if (OpenEncryptedFileRawW(utf16.c_str(), ulFlags, &(bfd->pvContext))) {
+    bfd->mode = BF_CLOSED;
   }
 
   bfd->encrypted = true;
@@ -564,11 +547,6 @@ static inline int BopenNonencrypted(BareosFilePacket* bfd,
   }
   Dmsg0(50, "=== NO plugin\n");
 
-  if (!(p_CreateFileA || p_CreateFileW)) {
-    Dmsg0(50, "No CreateFileA and no CreateFileW!!!!!\n");
-    return 0;
-  }
-
   if (flags & O_CREAT) { /* Create */
     if (bfd->use_backup_api) {
       dwaccess = GENERIC_WRITE | FILE_ALL_ACCESS | WRITE_OWNER | WRITE_DAC
@@ -580,27 +558,14 @@ static inline int BopenNonencrypted(BareosFilePacket* bfd,
     }
 
     // Unicode open for create write
-    if (p_CreateFileW && p_MultiByteToWideChar) {
-      std::wstring utf16 = make_win32_path_UTF8_2_wchar(fname);
-      Dmsg1(100, "Create CreateFileW=%s\n", FromUtf16(utf16).c_str());
-      bfd->fh = p_CreateFileW(utf16.c_str(), dwaccess, /* Requested access */
-                              0,                       /* Shared mode */
-                              NULL,                    /* SecurityAttributes */
-                              CREATE_ALWAYS,           /* CreationDisposition */
-                              dwflags, /* Flags and attributes */
-                              NULL);   /* TemplateFile */
-    } else {
-      PoolMem ansi(PM_FNAME);
-      unix_name_to_win32(ansi.addr(), fname);
-      // ASCII open
-      Dmsg1(100, "Create CreateFileA=%s\n", ansi.c_str());
-      bfd->fh = p_CreateFileA(ansi.c_str(), dwaccess, /* Requested access */
-                              0,                      /* Shared mode */
-                              NULL,                   /* SecurityAttributes */
-                              CREATE_ALWAYS,          /* CreationDisposition */
-                              dwflags,                /* Flags and attributes */
-                              NULL);                  /* TemplateFile */
-    }
+    std::wstring utf16 = make_win32_path_UTF8_2_wchar(fname);
+    Dmsg1(100, "Create CreateFileW=%s\n", FromUtf16(utf16).c_str());
+    bfd->fh = CreateFileW(utf16.c_str(), dwaccess, /* Requested access */
+                          0,                       /* Shared mode */
+                          NULL,                    /* SecurityAttributes */
+                          CREATE_ALWAYS,           /* CreationDisposition */
+                          dwflags,                 /* Flags and attributes */
+                          NULL);                   /* TemplateFile */
 
     bfd->mode = BF_WRITE;
   } else if (flags & O_WRONLY) {
@@ -617,28 +582,15 @@ static inline int BopenNonencrypted(BareosFilePacket* bfd,
       dwflags = 0;
     }
 
-    if (p_CreateFileW && p_MultiByteToWideChar) {
-      // unicode open for open existing write
-      std::wstring utf16 = make_win32_path_UTF8_2_wchar(fname);
-      Dmsg1(100, "Write only CreateFileW=%s\n", FromUtf16(utf16).c_str());
-      bfd->fh = p_CreateFileW(utf16.c_str(), dwaccess, /* Requested access */
-                              0,                       /* Shared mode */
-                              NULL,                    /* SecurityAttributes */
-                              OPEN_EXISTING,           /* CreationDisposition */
-                              dwflags, /* Flags and attributes */
-                              NULL);   /* TemplateFile */
-    } else {
-      PoolMem ansi(PM_FNAME);
-      unix_name_to_win32(ansi.addr(), fname);
-      // ASCII open
-      Dmsg1(100, "Write only CreateFileA=%s\n", ansi.c_str());
-      bfd->fh = p_CreateFileA(ansi.c_str(), dwaccess, /* Requested access */
-                              0,                      /* Shared mode */
-                              NULL,                   /* SecurityAttributes */
-                              OPEN_EXISTING,          /* CreationDisposition */
-                              dwflags,                /* Flags and attributes */
-                              NULL);                  /* TemplateFile */
-    }
+    // unicode open for open existing write
+    std::wstring utf16 = make_win32_path_UTF8_2_wchar(fname);
+    Dmsg1(100, "Write only CreateFileW=%s\n", FromUtf16(utf16).c_str());
+    bfd->fh = CreateFileW(utf16.c_str(), dwaccess, /* Requested access */
+                          0,                       /* Shared mode */
+                          NULL,                    /* SecurityAttributes */
+                          OPEN_EXISTING,           /* CreationDisposition */
+                          dwflags,                 /* Flags and attributes */
+                          NULL);                   /* TemplateFile */
 
     bfd->mode = BF_WRITE;
   } else {
@@ -658,28 +610,15 @@ static inline int BopenNonencrypted(BareosFilePacket* bfd,
       dwshare = FILE_SHARE_READ | FILE_SHARE_WRITE;
     }
 
-    if (p_CreateFileW && p_MultiByteToWideChar) {
-      // Unicode open for open existing read
-      std::wstring utf16 = make_win32_path_UTF8_2_wchar(fname);
-      Dmsg1(100, "Read CreateFileW=%s\n", FromUtf16(utf16).c_str());
-      bfd->fh = p_CreateFileW(utf16.c_str(), dwaccess, /* Requested access */
-                              dwshare,                 /* Share modes */
-                              NULL,                    /* SecurityAttributes */
-                              OPEN_EXISTING,           /* CreationDisposition */
-                              dwflags, /* Flags and attributes */
-                              NULL);   /* TemplateFile */
-    } else {
-      PoolMem ansi(PM_FNAME);
-      unix_name_to_win32(ansi.addr(), fname);
-      // ASCII open
-      Dmsg1(100, "Read CreateFileA=%s\n", ansi.c_str());
-      bfd->fh = p_CreateFileA(ansi.c_str(), dwaccess, /* Requested access */
-                              dwshare,                /* Share modes */
-                              NULL,                   /* SecurityAttributes */
-                              OPEN_EXISTING,          /* CreationDisposition */
-                              dwflags,                /* Flags and attributes */
-                              NULL);                  /* TemplateFile */
-    }
+    // Unicode open for open existing read
+    std::wstring utf16 = make_win32_path_UTF8_2_wchar(fname);
+    Dmsg1(100, "Read CreateFileW=%s\n", FromUtf16(utf16).c_str());
+    bfd->fh = CreateFileW(utf16.c_str(), dwaccess, /* Requested access */
+                          dwshare,                 /* Share modes */
+                          NULL,                    /* SecurityAttributes */
+                          OPEN_EXISTING,           /* CreationDisposition */
+                          dwflags,                 /* Flags and attributes */
+                          NULL);                   /* TemplateFile */
 
     bfd->mode = BF_READ;
   }
@@ -736,12 +675,7 @@ static inline int BcloseEncrypted(BareosFilePacket* bfd)
     return 0;
   }
 
-  if (!p_CloseEncryptedFileRaw) {
-    Dmsg0(50, "No p_CloseEncryptedFileRaw !!!!!\n");
-    return 0;
-  }
-
-  p_CloseEncryptedFileRaw(bfd->pvContext);
+  CloseEncryptedFileRaw(bfd->pvContext);
   bfd->pvContext = NULL;
   bfd->mode = BF_CLOSED;
 
@@ -773,24 +707,24 @@ static inline int BcloseNonencrypted(BareosFilePacket* bfd)
   if (bfd->use_backup_api && bfd->mode == BF_READ) {
     BYTE buf[10];
     if (bfd->lplugin_private_context
-        && !p_BackupRead(bfd->fh, buf,                     /* buffer */
-                         (DWORD)0,                         /* bytes to read */
-                         &bfd->rw_bytes,                   /* bytes read */
-                         1,                                /* Abort */
-                         1,                                /* ProcessSecurity */
-                         &bfd->lplugin_private_context)) { /* Read context */
+        && !BackupRead(bfd->fh, buf,                     /* buffer */
+                       (DWORD)0,                         /* bytes to read */
+                       &bfd->rw_bytes,                   /* bytes read */
+                       1,                                /* Abort */
+                       1,                                /* ProcessSecurity */
+                       &bfd->lplugin_private_context)) { /* Read context */
       errno = b_errno_win32;
       status = -1;
     }
   } else if (bfd->use_backup_api && bfd->mode == BF_WRITE) {
     BYTE buf[10];
     if (bfd->lplugin_private_context
-        && !p_BackupWrite(bfd->fh, buf,   /* buffer */
-                          (DWORD)0,       /* bytes to read */
-                          &bfd->rw_bytes, /* bytes written */
-                          1,              /* Abort */
-                          1,              /* ProcessSecurity */
-                          &bfd->lplugin_private_context)) { /* Write context */
+        && !BackupWrite(bfd->fh, buf,                     /* buffer */
+                        (DWORD)0,                         /* bytes to read */
+                        &bfd->rw_bytes,                   /* bytes written */
+                        1,                                /* Abort */
+                        1,                                /* ProcessSecurity */
+                        &bfd->lplugin_private_context)) { /* Write context */
       errno = b_errno_win32;
       status = -1;
     }
@@ -841,10 +775,10 @@ ssize_t bread(BareosFilePacket* bfd, void* buf, size_t count)
     Dmsg1(400, "bread handled in core via bfd->fh=%d\n", bfd->fh);
   }
   if (bfd->use_backup_api) {
-    if (!p_BackupRead(bfd->fh, (BYTE*)buf, count, &bfd->rw_bytes,
-                      0,                                /* no Abort */
-                      1,                                /* Process Security */
-                      &bfd->lplugin_private_context)) { /* Context */
+    if (!BackupRead(bfd->fh, (BYTE*)buf, count, &bfd->rw_bytes,
+                    0,                                /* no Abort */
+                    1,                                /* Process Security */
+                    &bfd->lplugin_private_context)) { /* Context */
       bfd->lerror = GetLastError();
       bfd->BErrNo = b_errno_win32;
       errno = b_errno_win32;
@@ -876,10 +810,10 @@ ssize_t bwrite(BareosFilePacket* bfd, void* buf, size_t count)
 
 
   if (bfd->use_backup_api) {
-    if (!p_BackupWrite(bfd->fh, (BYTE*)buf, count, &bfd->rw_bytes,
-                       0,                                /* No abort */
-                       1,                                /* Process Security */
-                       &bfd->lplugin_private_context)) { /* Context */
+    if (!BackupWrite(bfd->fh, (BYTE*)buf, count, &bfd->rw_bytes,
+                     0,                                /* No abort */
+                     1,                                /* Process Security */
+                     &bfd->lplugin_private_context)) { /* Context */
       bfd->lerror = GetLastError();
       bfd->BErrNo = b_errno_win32;
       errno = b_errno_win32;

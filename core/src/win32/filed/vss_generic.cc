@@ -266,15 +266,13 @@ static inline std::wstring GetUniqueVolumeNameForPath(const std::wstring& path)
   }
   /* Get the volume name alias (might be different from the unique volume name
    * in rare cases). */
-  if (!p_GetVolumeNameForVolumeMountPointW
-      || !p_GetVolumeNameForVolumeMountPointW(volumeRoot, volumeName,
-                                              MAX_PATH)) {
+  if (!GetVolumeNameForVolumeMountPointW(volumeRoot, volumeName, MAX_PATH)) {
     return L"";
   }
 
   // Get the unique volume name.
-  if (!p_GetVolumeNameForVolumeMountPointW(volumeName, volumeUniqueName,
-                                           MAX_PATH)) {
+  if (!GetVolumeNameForVolumeMountPointW(volumeName, volumeUniqueName,
+                                         MAX_PATH)) {
     return L"";
   }
 

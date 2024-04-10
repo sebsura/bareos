@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -158,15 +158,12 @@ bool expand_win32_fileset(findFILESET* fileset)
     foreach_dlist (node, &incexe->name_list) {
       Dmsg1(100, "Checking %s\n", node->c_str());
       if (bstrcmp(node->c_str(), "/")) {
-        // Request for auto expansion but no support for it.
-        if (!p_GetLogicalDriveStringsA) { return false; }
-
         /* we want to add all available local drives to our fileset
          * if we have "/" specified in the fileset. We want to remove
          * the "/" pattern itself that gets expanded into all
          * available drives. */
         incexe->name_list.remove(node);
-        if (p_GetLogicalDriveStringsA(sizeof(drives), drives) != 0) {
+        if (GetLogicalDriveStringsA(sizeof(drives), drives) != 0) {
           bp = drives;
           while (bp && strlen(bp) > 0) {
             /* Apply any Drivetype selection to the currently
@@ -483,8 +480,8 @@ static void* copy_thread(void* data)
 
     pthread_mutex_unlock(&context->lock);
 
-    if (p_WriteEncryptedFileRaw((PFE_IMPORT_FUNC)receive_efs_data, context,
-                                context->bfd->pvContext)) {
+    if (WriteEncryptedFileRaw((PFE_IMPORT_FUNC)receive_efs_data, context,
+                              context->bfd->pvContext)) {
       goto bail_out;
     }
 
@@ -559,11 +556,6 @@ int win32_send_to_copy_thread(JobControlRecord* jcr,
   CircularBuffer* cb;
   int slotnr;
   CopyThreadSaveData* save_data;
-
-  if (!p_WriteEncryptedFileRaw) {
-    Jmsg0(jcr, M_FATAL, 0,
-          T_("Encrypted file restore but no EFS support functions\n"));
-  }
 
   // If no copy thread started do it now.
   if (!jcr->cp_thread) {

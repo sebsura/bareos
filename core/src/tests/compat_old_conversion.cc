@@ -58,7 +58,7 @@ static int UTF8_2_wchar(POOLMEM*& ppszUCS, const char* pszUTF)
   ppszUCS = CheckPoolMemorySize(ppszUCS, cchSize * sizeof(wchar_t));
 
   int nRet
-      = p_MultiByteToWideChar(CP_UTF8, 0, pszUTF, -1, (LPWSTR)ppszUCS, cchSize);
+      = MultiByteToWideChar(CP_UTF8, 0, pszUTF, -1, (LPWSTR)ppszUCS, cchSize);
   ASSERT(nRet > 0);
   return nRet;
 }
@@ -205,13 +205,13 @@ static inline POOLMEM* make_wchar_win32_path(POOLMEM* pszUCSPath,
 
   // Get current path if needed
   if (bAddDrive || bAddCurrentPath) {
-    dwCurDirPathSize = p_GetCurrentDirectoryW(0, NULL);
+    dwCurDirPathSize = GetCurrentDirectoryW(0, NULL);
     if (dwCurDirPathSize > 0) {
       /* Get directory into own buffer as it may either return c:\... or
        * \\?\C:\.... */
       pwszCurDirBuf = (wchar_t*)CheckPoolMemorySize(
           (POOLMEM*)pwszCurDirBuf, (dwCurDirPathSize + 1) * sizeof(wchar_t));
-      p_GetCurrentDirectoryW(dwCurDirPathSize, pwszCurDirBuf);
+      GetCurrentDirectoryW(dwCurDirPathSize, pwszCurDirBuf);
     } else {
       // We have no info for doing so
       bAddDrive = FALSE;

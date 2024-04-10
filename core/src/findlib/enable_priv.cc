@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2003-2009 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -57,12 +57,8 @@ static int enable_priv(JobControlRecord* jcr,
   TOKEN_PRIVILEGES tkp;
   DWORD lerror;
 
-  if (!(p_LookupPrivilegeValue && p_AdjustTokenPrivileges)) {
-    return 0; /* not avail on this OS */
-  }
-
   // Get the LUID for the security privilege.
-  if (!p_LookupPrivilegeValue(NULL, name, &tkp.Privileges[0].Luid)) {
+  if (!LookupPrivilegeValue(NULL, name, &tkp.Privileges[0].Luid)) {
     WinError(jcr, "LookupPrivilegeValue", GetLastError());
     return 0;
   }
@@ -70,8 +66,8 @@ static int enable_priv(JobControlRecord* jcr,
   /* Set the security privilege for this process. */
   tkp.PrivilegeCount = 1;
   tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-  p_AdjustTokenPrivileges(hToken, FALSE, &tkp, sizeof(TOKEN_PRIVILEGES), NULL,
-                          NULL);
+  AdjustTokenPrivileges(hToken, FALSE, &tkp, sizeof(TOKEN_PRIVILEGES), NULL,
+                        NULL);
   lerror = GetLastError();
   if (lerror != ERROR_SUCCESS) {
     if (!ignore_errors) {
@@ -95,13 +91,11 @@ int EnableBackupPrivileges(JobControlRecord* jcr, int ignore_errors)
   HANDLE hToken, hProcess;
   int status = 0;
 
-  if (!p_OpenProcessToken) { return 0; /* No avail on this OS */ }
-
   hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetCurrentProcessId());
 
   // Get a token for this process.
-  if (!p_OpenProcessToken(hProcess, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
-                          &hToken)) {
+  if (!OpenProcessToken(hProcess, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+                        &hToken)) {
     if (!ignore_errors) { WinError(jcr, "OpenProcessToken", GetLastError()); }
     /* Forge on anyway */
   }

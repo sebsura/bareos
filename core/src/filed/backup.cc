@@ -999,19 +999,14 @@ static inline bool SendEncryptedData(b_ctx& bctx)
 {
   bool retval = false;
 
-  if (!p_ReadEncryptedFileRaw) {
-    Jmsg0(bctx.jcr, M_FATAL, 0,
-          T_("Encrypted file but no EFS support functions\n"));
-  }
-
   /* The EFS read function, ReadEncryptedFileRaw(), works in a specific way.
    * You have to give it a function that it calls repeatedly every time the
    * read buffer is filled.
    *
    * So ReadEncryptedFileRaw() will not return until it has read the whole file.
    */
-  if (p_ReadEncryptedFileRaw((PFE_EXPORT_FUNC)send_efs_data, &bctx,
-                             bctx.ff_pkt->bfd.pvContext)) {
+  if (ReadEncryptedFileRaw((PFE_EXPORT_FUNC)send_efs_data, &bctx,
+                           bctx.ff_pkt->bfd.pvContext)) {
     goto bail_out;
   }
   retval = true;
