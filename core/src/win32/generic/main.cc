@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2007-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -42,14 +42,11 @@
 #include <signal.h>
 #include <pthread.h>
 
-#undef _WIN32_IE
-#ifdef MINGW64
-#  define _WIN32_IE 0x0501
-#else
-#  define _WIN32_IE 0x0401
-#endif  // MINGW64
-#undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0501
+#if !defined(_WIN32_WINNT)
+#  error _WIN32_WINNT is not defined
+#endif
+/* SdkDdkVer.h (included by windows.h) sets up _WIN32_IE, NTDDI_VERSION,
+ * WIN_VERSION, etc. based on _WIN32_WINNT, so we do not need to do so here. */
 #include <commctrl.h>
 
 
