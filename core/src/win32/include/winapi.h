@@ -79,189 +79,259 @@ BSTR str_2_BSTR(const char* pSrc);
 char* BSTR_2_str(const BSTR pSrc);
 std::wstring make_win32_path_UTF8_2_wchar(std::string_view utf8);
 
-/* In ADVAPI32.DLL */
-typedef BOOL(WINAPI* t_OpenProcessToken)(HANDLE, DWORD, PHANDLE);
-typedef BOOL(WINAPI* t_AdjustTokenPrivileges)(HANDLE,
-                                              BOOL,
-                                              PTOKEN_PRIVILEGES,
-                                              DWORD,
-                                              PTOKEN_PRIVILEGES,
-                                              PDWORD);
-typedef BOOL(WINAPI* t_LookupPrivilegeValue)(LPCTSTR, LPCTSTR, PLUID);
+/* /\* In ADVAPI32.DLL *\/ */
+/* typedef BOOL(WINAPI* t_OpenProcessToken)(HANDLE, DWORD, PHANDLE); */
+/* typedef BOOL(WINAPI* t_AdjustTokenPrivileges)(HANDLE, */
+/*                                               BOOL, */
+/*                                               PTOKEN_PRIVILEGES, */
+/*                                               DWORD, */
+/*                                               PTOKEN_PRIVILEGES, */
+/*                                               PDWORD); */
+/* typedef BOOL(WINAPI* t_LookupPrivilegeValue)(LPCTSTR, LPCTSTR, PLUID); */
 
-extern t_OpenProcessToken p_OpenProcessToken;
-extern t_AdjustTokenPrivileges p_AdjustTokenPrivileges;
-extern t_LookupPrivilegeValue p_LookupPrivilegeValue;
+/* extern t_OpenProcessToken p_OpenProcessToken; */
+/* extern t_AdjustTokenPrivileges p_AdjustTokenPrivileges; */
+/* extern t_LookupPrivilegeValue p_LookupPrivilegeValue; */
 
-/* In MSVCRT.DLL */
-typedef int(__cdecl* t_wunlink)(const wchar_t*);
-typedef int(__cdecl* t_wmkdir)(const wchar_t*);
-typedef int(__cdecl* t_wopen)(const wchar_t*, int, ...);
+/* /\* In MSVCRT.DLL *\/ */
+/* typedef int(__cdecl* t_wunlink)(const wchar_t*); */
+/* typedef int(__cdecl* t_wmkdir)(const wchar_t*); */
+/* typedef int(__cdecl* t_wopen)(const wchar_t*, int, ...); */
 
-extern t_wunlink p_wunlink;
-extern t_wmkdir p_wmkdir;
+/* extern t_wunlink p_wunlink; */
+/* extern t_wmkdir p_wmkdir; */
 
-/* In KERNEL32.DLL */
-typedef BOOL(WINAPI* t_GetFileAttributesExA)(LPCSTR,
-                                             GET_FILEEX_INFO_LEVELS,
-                                             LPVOID);
-typedef BOOL(WINAPI* t_GetFileAttributesExW)(LPCWSTR,
-                                             GET_FILEEX_INFO_LEVELS,
-                                             LPVOID);
+/* /\* In KERNEL32.DLL *\/ */
+/* typedef BOOL(WINAPI* t_GetFileAttributesExA)(LPCSTR, */
+/*                                              GET_FILEEX_INFO_LEVELS, */
+/*                                              LPVOID); */
+/* typedef BOOL(WINAPI* t_GetFileAttributesExW)(LPCWSTR, */
+/*                                              GET_FILEEX_INFO_LEVELS, */
+/*                                              LPVOID); */
 
-typedef DWORD(WINAPI* t_GetFileInformationByHandleEx)(HANDLE,
-                                                      FILE_INFO_BY_HANDLE_CLASS,
-                                                      LPVOID,
-                                                      DWORD);
+/* typedef DWORD(WINAPI* t_GetFileInformationByHandleEx)(HANDLE, */
+/*                                                       FILE_INFO_BY_HANDLE_CLASS,
+ */
+/*                                                       LPVOID, */
+/*                                                       DWORD); */
 
-typedef DWORD(WINAPI* t_GetFileAttributesA)(LPCSTR);
-typedef DWORD(WINAPI* t_GetFileAttributesW)(LPCWSTR);
-typedef BOOL(WINAPI* t_SetFileAttributesA)(LPCSTR, DWORD);
-typedef BOOL(WINAPI* t_SetFileAttributesW)(LPCWSTR, DWORD);
+/* typedef DWORD(WINAPI* t_GetFileAttributesA)(LPCSTR); */
+/* typedef DWORD(WINAPI* t_GetFileAttributesW)(LPCWSTR); */
+/* typedef BOOL(WINAPI* t_SetFileAttributesA)(LPCSTR, DWORD); */
+/* typedef BOOL(WINAPI* t_SetFileAttributesW)(LPCWSTR, DWORD); */
 
-typedef HANDLE(WINAPI* t_CreateFileA)(LPCSTR,
-                                      DWORD,
-                                      DWORD,
-                                      LPSECURITY_ATTRIBUTES,
-                                      DWORD,
-                                      DWORD,
-                                      HANDLE);
-typedef HANDLE(WINAPI* t_CreateFileW)(LPCWSTR,
-                                      DWORD,
-                                      DWORD,
-                                      LPSECURITY_ATTRIBUTES,
-                                      DWORD,
-                                      DWORD,
-                                      HANDLE);
+/* typedef HANDLE(WINAPI* t_CreateFileA)(LPCSTR, */
+/*                                       DWORD, */
+/*                                       DWORD, */
+/*                                       LPSECURITY_ATTRIBUTES, */
+/*                                       DWORD, */
+/*                                       DWORD, */
+/*                                       HANDLE); */
+/* typedef HANDLE(WINAPI* t_CreateFileW)(LPCWSTR, */
+/*                                       DWORD, */
+/*                                       DWORD, */
+/*                                       LPSECURITY_ATTRIBUTES, */
+/*                                       DWORD, */
+/*                                       DWORD, */
+/*                                       HANDLE); */
 
-typedef DWORD(WINAPI* t_OpenEncryptedFileRawA)(LPCSTR, ULONG, PVOID);
-typedef DWORD(WINAPI* t_OpenEncryptedFileRawW)(LPCWSTR, ULONG, PVOID);
-typedef DWORD(WINAPI* t_ReadEncryptedFileRaw)(PFE_EXPORT_FUNC, PVOID, PVOID);
-typedef DWORD(WINAPI* t_WriteEncryptedFileRaw)(PFE_IMPORT_FUNC, PVOID, PVOID);
-typedef void(WINAPI* t_CloseEncryptedFileRaw)(PVOID);
+/* typedef DWORD(WINAPI* t_OpenEncryptedFileRawA)(LPCSTR, ULONG, PVOID); */
+/* typedef DWORD(WINAPI* t_OpenEncryptedFileRawW)(LPCWSTR, ULONG, PVOID); */
+/* typedef DWORD(WINAPI* t_ReadEncryptedFileRaw)(PFE_EXPORT_FUNC, PVOID, PVOID);
+ */
+/* typedef DWORD(WINAPI* t_WriteEncryptedFileRaw)(PFE_IMPORT_FUNC, PVOID,
+ * PVOID); */
+/* typedef void(WINAPI* t_CloseEncryptedFileRaw)(PVOID); */
 
-typedef BOOL(WINAPI* t_CreateDirectoryA)(LPCSTR, LPSECURITY_ATTRIBUTES);
-typedef BOOL(WINAPI* t_CreateDirectoryW)(LPCWSTR, LPSECURITY_ATTRIBUTES);
+/* typedef BOOL(WINAPI* t_CreateDirectoryA)(LPCSTR, LPSECURITY_ATTRIBUTES); */
+/* typedef BOOL(WINAPI* t_CreateDirectoryW)(LPCWSTR, LPSECURITY_ATTRIBUTES); */
 
-typedef BOOL(WINAPI* t_CreateSymbolicLinkA)(LPTSTR, LPTSTR, DWORD);
-typedef BOOL(WINAPI* t_CreateSymbolicLinkW)(LPCWSTR, LPCWSTR, DWORD);
+/* typedef BOOL(WINAPI* t_CreateSymbolicLinkA)(LPTSTR, LPTSTR, DWORD); */
+/* typedef BOOL(WINAPI* t_CreateSymbolicLinkW)(LPCWSTR, LPCWSTR, DWORD); */
 
-typedef BOOL(WINAPI* t_SetProcessShutdownParameters)(DWORD, DWORD);
-typedef BOOL(
-    WINAPI* t_BackupRead)(HANDLE, LPBYTE, DWORD, LPDWORD, BOOL, BOOL, LPVOID*);
-typedef BOOL(
-    WINAPI* t_BackupWrite)(HANDLE, LPBYTE, DWORD, LPDWORD, BOOL, BOOL, LPVOID*);
+/* typedef BOOL(WINAPI* t_SetProcessShutdownParameters)(DWORD, DWORD); */
+/* typedef BOOL( */
+/*     WINAPI* t_BackupRead)(HANDLE, LPBYTE, DWORD, LPDWORD, BOOL, BOOL,
+ * LPVOID*); */
+/* typedef BOOL( */
+/*     WINAPI* t_BackupWrite)(HANDLE, LPBYTE, DWORD, LPDWORD, BOOL, BOOL,
+ * LPVOID*); */
 
-typedef int(WINAPI* t_WideCharToMultiByte)(UINT CodePage,
-                                           DWORD,
-                                           LPCWSTR,
-                                           int,
-                                           LPSTR,
-                                           int,
-                                           LPCSTR,
-                                           LPBOOL);
+/* typedef int(WINAPI* t_WideCharToMultiByte)(UINT CodePage, */
+/*                                            DWORD, */
+/*                                            LPCWSTR, */
+/*                                            int, */
+/*                                            LPSTR, */
+/*                                            int, */
+/*                                            LPCSTR, */
+/*                                            LPBOOL); */
 
-typedef int(
-    WINAPI* t_MultiByteToWideChar)(UINT, DWORD, LPCSTR, int, LPWSTR, int);
-typedef HANDLE(WINAPI* t_FindFirstFileA)(LPCSTR, LPWIN32_FIND_DATAA);
-typedef HANDLE(WINAPI* t_FindFirstFileW)(LPCWSTR, LPWIN32_FIND_DATAW);
+/* typedef int( */
+/*     WINAPI* t_MultiByteToWideChar)(UINT, DWORD, LPCSTR, int, LPWSTR, int); */
+/* typedef HANDLE(WINAPI* t_FindFirstFileA)(LPCSTR, LPWIN32_FIND_DATAA); */
+/* typedef HANDLE(WINAPI* t_FindFirstFileW)(LPCWSTR, LPWIN32_FIND_DATAW); */
 
-typedef BOOL(WINAPI* t_FindNextFileA)(HANDLE, LPWIN32_FIND_DATAA);
-typedef BOOL(WINAPI* t_FindNextFileW)(HANDLE, LPWIN32_FIND_DATAW);
+/* typedef BOOL(WINAPI* t_FindNextFileA)(HANDLE, LPWIN32_FIND_DATAA); */
+/* typedef BOOL(WINAPI* t_FindNextFileW)(HANDLE, LPWIN32_FIND_DATAW); */
 
-typedef BOOL(WINAPI* t_SetCurrentDirectoryA)(LPCSTR);
-typedef BOOL(WINAPI* t_SetCurrentDirectoryW)(LPCWSTR);
+/* typedef BOOL(WINAPI* t_SetCurrentDirectoryA)(LPCSTR); */
+/* typedef BOOL(WINAPI* t_SetCurrentDirectoryW)(LPCWSTR); */
 
-typedef DWORD(WINAPI* t_GetCurrentDirectoryA)(DWORD, LPSTR);
-typedef DWORD(WINAPI* t_GetCurrentDirectoryW)(DWORD, LPWSTR);
+/* typedef DWORD(WINAPI* t_GetCurrentDirectoryA)(DWORD, LPSTR); */
+/* typedef DWORD(WINAPI* t_GetCurrentDirectoryW)(DWORD, LPWSTR); */
 
-typedef BOOL(WINAPI* t_GetVolumePathNameW)(LPCWSTR, LPWSTR, DWORD);
-typedef BOOL(WINAPI* t_GetVolumeNameForVolumeMountPointW)(LPCWSTR,
-                                                          LPWSTR,
-                                                          DWORD);
+/* typedef BOOL(WINAPI* t_GetVolumePathNameW)(LPCWSTR, LPWSTR, DWORD); */
+/* typedef BOOL(WINAPI* t_GetVolumeNameForVolumeMountPointW)(LPCWSTR, */
+/*                                                           LPWSTR, */
+/*                                                           DWORD); */
 
-typedef DWORD(WINAPI* t_GetLogicalDriveStringsA)(DWORD, LPSTR);
-typedef DWORD(WINAPI* t_GetLogicalDriveStringsW)(DWORD, LPCWSTR);
+/* typedef DWORD(WINAPI* t_GetLogicalDriveStringsA)(DWORD, LPSTR); */
+/* typedef DWORD(WINAPI* t_GetLogicalDriveStringsW)(DWORD, LPCWSTR); */
 
-typedef BOOL(WINAPI* t_AttachConsole)(DWORD);
+/* typedef BOOL(WINAPI* t_AttachConsole)(DWORD); */
 
-typedef BOOL(WINAPI* t_CreateProcessA)(LPCSTR,
-                                       LPSTR,
-                                       LPSECURITY_ATTRIBUTES,
-                                       LPSECURITY_ATTRIBUTES,
-                                       BOOL,
-                                       DWORD,
-                                       PVOID,
-                                       LPCSTR,
-                                       LPSTARTUPINFOA,
-                                       LPPROCESS_INFORMATION);
-typedef BOOL(WINAPI* t_CreateProcessW)(LPCWSTR,
-                                       LPWSTR,
-                                       LPSECURITY_ATTRIBUTES,
-                                       LPSECURITY_ATTRIBUTES,
-                                       BOOL,
-                                       DWORD,
-                                       PVOID,
-                                       LPCWSTR,
-                                       LPSTARTUPINFOW,
-                                       LPPROCESS_INFORMATION);
+/* typedef BOOL(WINAPI* t_CreateProcessA)(LPCSTR, */
+/*                                        LPSTR, */
+/*                                        LPSECURITY_ATTRIBUTES, */
+/*                                        LPSECURITY_ATTRIBUTES, */
+/*                                        BOOL, */
+/*                                        DWORD, */
+/*                                        PVOID, */
+/*                                        LPCSTR, */
+/*                                        LPSTARTUPINFOA, */
+/*                                        LPPROCESS_INFORMATION); */
+/* typedef BOOL(WINAPI* t_CreateProcessW)(LPCWSTR, */
+/*                                        LPWSTR, */
+/*                                        LPSECURITY_ATTRIBUTES, */
+/*                                        LPSECURITY_ATTRIBUTES, */
+/*                                        BOOL, */
+/*                                        DWORD, */
+/*                                        PVOID, */
+/*                                        LPCWSTR, */
+/*                                        LPSTARTUPINFOW, */
+/*                                        LPPROCESS_INFORMATION); */
 
-extern t_CreateProcessA p_CreateProcessA;
-extern t_CreateProcessW p_CreateProcessW;
 
-extern t_GetFileInformationByHandleEx p_GetFileInformationByHandleEx;
+/* extern t_CreateProcessA p_CreateProcessA; */
+/* extern t_CreateProcessW p_CreateProcessW; */
 
-extern t_GetFileAttributesA p_GetFileAttributesA;
-extern t_GetFileAttributesW p_GetFileAttributesW;
+/* extern t_GetFileInformationByHandleEx p_GetFileInformationByHandleEx; */
 
-extern t_GetFileAttributesExA p_GetFileAttributesExA;
-extern t_GetFileAttributesExW p_GetFileAttributesExW;
+/* extern t_GetFileAttributesA p_GetFileAttributesA; */
+/* extern t_GetFileAttributesW p_GetFileAttributesW; */
 
-extern t_SetFileAttributesA p_SetFileAttributesA;
-extern t_SetFileAttributesW p_SetFileAttributesW;
+/* extern t_GetFileAttributesExA p_GetFileAttributesExA; */
+/* extern t_GetFileAttributesExW p_GetFileAttributesExW; */
 
-extern t_CreateFileA p_CreateFileA;
-extern t_CreateFileW p_CreateFileW;
+/* extern t_SetFileAttributesA p_SetFileAttributesA; */
+/* extern t_SetFileAttributesW p_SetFileAttributesW; */
 
-extern t_CreateDirectoryA p_CreateDirectoryA;
-extern t_CreateDirectoryW p_CreateDirectoryW;
+/* extern t_CreateFileA p_CreateFileA; */
+/* extern t_CreateFileW p_CreateFileW; */
 
-extern t_CreateSymbolicLinkA p_CreateSymbolicLinkA;
-extern t_CreateSymbolicLinkW p_CreateSymbolicLinkW;
+/* extern t_CreateDirectoryA p_CreateDirectoryA; */
+/* extern t_CreateDirectoryW p_CreateDirectoryW; */
 
-extern t_OpenEncryptedFileRawA p_OpenEncryptedFileRawA;
-extern t_OpenEncryptedFileRawW p_OpenEncryptedFileRawW;
-extern t_ReadEncryptedFileRaw p_ReadEncryptedFileRaw;
-extern t_WriteEncryptedFileRaw p_WriteEncryptedFileRaw;
-extern t_CloseEncryptedFileRaw p_CloseEncryptedFileRaw;
+/* extern t_CreateSymbolicLinkA p_CreateSymbolicLinkA; */
+/* extern t_CreateSymbolicLinkW p_CreateSymbolicLinkW; */
 
-extern t_BackupRead p_BackupRead;
-extern t_BackupWrite p_BackupWrite;
+/* extern t_OpenEncryptedFileRawA p_OpenEncryptedFileRawA; */
+/* extern t_OpenEncryptedFileRawW p_OpenEncryptedFileRawW; */
+/* extern t_ReadEncryptedFileRaw p_ReadEncryptedFileRaw; */
+/* extern t_WriteEncryptedFileRaw p_WriteEncryptedFileRaw; */
+/* extern t_CloseEncryptedFileRaw p_CloseEncryptedFileRaw; */
 
-extern t_SetProcessShutdownParameters p_SetProcessShutdownParameters;
+/* extern t_BackupRead p_BackupRead; */
+/* extern t_BackupWrite p_BackupWrite; */
 
-extern t_WideCharToMultiByte p_WideCharToMultiByte;
-extern t_MultiByteToWideChar p_MultiByteToWideChar;
+/* extern t_SetProcessShutdownParameters p_SetProcessShutdownParameters; */
 
-extern t_FindFirstFileA p_FindFirstFileA;
-extern t_FindFirstFileW p_FindFirstFileW;
+/* extern t_WideCharToMultiByte p_WideCharToMultiByte; */
+/* extern t_MultiByteToWideChar p_MultiByteToWideChar; */
 
-extern t_FindNextFileA p_FindNextFileA;
-extern t_FindNextFileW p_FindNextFileW;
+/* extern t_FindFirstFileA p_FindFirstFileA; */
+/* extern t_FindFirstFileW p_FindFirstFileW; */
 
-extern t_SetCurrentDirectoryA p_SetCurrentDirectoryA;
-extern t_SetCurrentDirectoryW p_SetCurrentDirectoryW;
+/* extern t_FindNextFileA p_FindNextFileA; */
+/* extern t_FindNextFileW p_FindNextFileW; */
 
-extern t_GetCurrentDirectoryA p_GetCurrentDirectoryA;
-extern t_GetCurrentDirectoryW p_GetCurrentDirectoryW;
+/* extern t_SetCurrentDirectoryA p_SetCurrentDirectoryA; */
+/* extern t_SetCurrentDirectoryW p_SetCurrentDirectoryW; */
 
-extern t_GetVolumePathNameW p_GetVolumePathNameW;
-extern t_GetVolumeNameForVolumeMountPointW p_GetVolumeNameForVolumeMountPointW;
+/* extern t_GetCurrentDirectoryA p_GetCurrentDirectoryA; */
+/* extern t_GetCurrentDirectoryW p_GetCurrentDirectoryW; */
 
-extern t_GetLogicalDriveStringsA p_GetLogicalDriveStringsA;
-extern t_GetLogicalDriveStringsW p_GetLogicalDriveStringsW;
+/* extern t_GetVolumePathNameW p_GetVolumePathNameW; */
+/* extern t_GetVolumeNameForVolumeMountPointW
+ * p_GetVolumeNameForVolumeMountPointW; */
 
-extern t_AttachConsole p_AttachConsole;
+/* extern t_GetLogicalDriveStringsA p_GetLogicalDriveStringsA; */
+/* extern t_GetLogicalDriveStringsW p_GetLogicalDriveStringsW; */
+
+/* extern t_AttachConsole p_AttachConsole; */
+#  define p_OpenProcessToken OpenProcessToken
+#  define p_AdjustTokenPrivileges AdjustTokenPrivileges
+#  define p_LookupPrivilegeValue LookupPrivilegeValue
+
+#  define p_CreateProcessA CreateProcessA
+#  define p_CreateProcessW CreateProcessW
+
+#  define p_GetFileInformationByHandleEx GetFileInformationByHandleEx
+
+#  define p_GetFileAttributesA GetFileAttributesA
+#  define p_GetFileAttributesW GetFileAttributesW
+
+#  define p_GetFileAttributesExA GetFileAttributesExA
+#  define p_GetFileAttributesExW GetFileAttributesExW
+
+#  define p_SetFileAttributesA SetFileAttributesA
+#  define p_SetFileAttributesW SetFileAttributesW
+
+#  define p_CreateFileA CreateFileA
+#  define p_CreateFileW CreateFileW
+
+#  define p_CreateDirectoryA CreateDirectoryA
+#  define p_CreateDirectoryW CreateDirectoryW
+
+#  define p_CreateSymbolicLinkA CreateSymbolicLinkA
+#  define p_CreateSymbolicLinkW CreateSymbolicLinkW
+
+#  define p_OpenEncryptedFileRawA OpenEncryptedFileRawA
+#  define p_OpenEncryptedFileRawW OpenEncryptedFileRawW
+#  define p_ReadEncryptedFileRaw ReadEncryptedFileRaw
+#  define p_WriteEncryptedFileRaw WriteEncryptedFileRaw
+#  define p_CloseEncryptedFileRaw CloseEncryptedFileRaw
+
+#  define p_BackupRead BackupRead
+#  define p_BackupWrite BackupWrite
+
+#  define p_SetProcessShutdownParameters SetProcessShutdownParameters
+
+#  define p_WideCharToMultiByte WideCharToMultiByte
+#  define p_MultiByteToWideChar MultiByteToWideChar
+
+#  define p_FindFirstFileA FindFirstFileA
+#  define p_FindFirstFileW FindFirstFileW
+
+#  define p_FindNextFileA FindNextFileA
+#  define p_FindNextFileW FindNextFileW
+
+#  define p_SetCurrentDirectoryA SetCurrentDirectoryA
+#  define p_SetCurrentDirectoryW SetCurrentDirectoryW
+
+#  define p_GetCurrentDirectoryA GetCurrentDirectoryA
+#  define p_GetCurrentDirectoryW GetCurrentDirectoryW
+
+#  define p_GetVolumePathNameW GetVolumePathNameW
+#  define p_GetVolumeNameForVolumeMountPointW GetVolumeNameForVolumeMountPointW
+
+#  define p_GetLogicalDriveStringsA GetLogicalDriveStringsA
+#  define p_GetLogicalDriveStringsW GetLogicalDriveStringsW
+
+#  define p_AttachConsole AttachConsole
+#  define p_wunlink _wunlink
+#  define p_wmkdir _wmkdir
+
 
 void InitWinAPIWrapper();
 

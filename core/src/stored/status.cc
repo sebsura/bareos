@@ -421,41 +421,6 @@ static void ListStatusHeader(StatusPacket* sp)
              dt, NumJobsRun(), JobCount(), kBareosVersionStrings.BinaryInfo);
   sp->send(msg, len);
 
-#if defined(HAVE_WIN32)
-  if (debug_level > 0) {
-    len = Mmsg(msg, "APIs=%sOPT,%sATP,%sLPV,%sCFA,%sCFW,\n",
-               p_OpenProcessToken ? "" : "!",
-               p_AdjustTokenPrivileges ? "" : "!",
-               p_LookupPrivilegeValue ? "" : "!", p_CreateFileA ? "" : "!",
-               p_CreateFileW ? "" : "!");
-    sp->send(msg, len);
-    len = Mmsg(msg,
-               " %sWUL,%sWMKD,%sGFAA,%sGFAW,%sGFAEA,%sGFAEW,%sSFAA,%sSFAW,%sBR,"
-               "%sBW,%sSPSP,\n",
-               p_wunlink ? "" : "!", p_wmkdir ? "" : "!",
-               p_GetFileAttributesA ? "" : "!", p_GetFileAttributesW ? "" : "!",
-               p_GetFileAttributesExA ? "" : "!",
-               p_GetFileAttributesExW ? "" : "!",
-               p_SetFileAttributesA ? "" : "!", p_SetFileAttributesW ? "" : "!",
-               p_BackupRead ? "" : "!", p_BackupWrite ? "" : "!",
-               p_SetProcessShutdownParameters ? "" : "!");
-    sp->send(msg, len);
-    len = Mmsg(
-        msg, " %sWC2MB,%sMB2WC,%sFFFA,%sFFFW,%sFNFA,%sFNFW,%sSCDA,%sSCDW,\n",
-        p_WideCharToMultiByte ? "" : "!", p_MultiByteToWideChar ? "" : "!",
-        p_FindFirstFileA ? "" : "!", p_FindFirstFileW ? "" : "!",
-        p_FindNextFileA ? "" : "!", p_FindNextFileW ? "" : "!",
-        p_SetCurrentDirectoryA ? "" : "!", p_SetCurrentDirectoryW ? "" : "!");
-    sp->send(msg, len);
-    len = Mmsg(msg, " %sGCDA,%sGCDW,%sGVPNW,%sGVNFVMPW\n",
-               p_GetCurrentDirectoryA ? "" : "!",
-               p_GetCurrentDirectoryW ? "" : "!",
-               p_GetVolumePathNameW ? "" : "!",
-               p_GetVolumeNameForVolumeMountPointW ? "" : "!");
-    sp->send(msg, len);
-  }
-#endif
-
   len = Mmsg(msg,
              " Sizes: boffset_t=%d size_t=%d int32_t=%d int64_t=%d "
              "bwlimit=%skB/s\n",

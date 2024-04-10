@@ -38,70 +38,71 @@
 
 #define SET_API_POINTER(symbol) BareosFillProcAddress(p_##symbol, hLib, #symbol)
 
-// API Pointers
-t_OpenProcessToken p_OpenProcessToken = NULL;
-t_AdjustTokenPrivileges p_AdjustTokenPrivileges = NULL;
-t_LookupPrivilegeValue p_LookupPrivilegeValue = NULL;
+// // API Pointers
+// t_OpenProcessToken p_OpenProcessToken = NULL;
+// t_AdjustTokenPrivileges p_AdjustTokenPrivileges = NULL;
+// t_LookupPrivilegeValue p_LookupPrivilegeValue = NULL;
 
-t_SetProcessShutdownParameters p_SetProcessShutdownParameters = NULL;
+// t_SetProcessShutdownParameters p_SetProcessShutdownParameters = NULL;
 
-t_CreateFileA p_CreateFileA = NULL;
-t_CreateFileW p_CreateFileW = NULL;
+// t_CreateFileA p_CreateFileA = NULL;
+// t_CreateFileW p_CreateFileW = NULL;
 
-t_CreateDirectoryA p_CreateDirectoryA = NULL;
-t_CreateDirectoryW p_CreateDirectoryW = NULL;
+// t_CreateDirectoryA p_CreateDirectoryA = NULL;
+// t_CreateDirectoryW p_CreateDirectoryW = NULL;
 
-t_CreateSymbolicLinkA p_CreateSymbolicLinkA = NULL;
-t_CreateSymbolicLinkW p_CreateSymbolicLinkW = NULL;
+// t_CreateSymbolicLinkA p_CreateSymbolicLinkA = NULL;
+// t_CreateSymbolicLinkW p_CreateSymbolicLinkW = NULL;
 
-t_OpenEncryptedFileRawA p_OpenEncryptedFileRawA = NULL;
-t_OpenEncryptedFileRawW p_OpenEncryptedFileRawW = NULL;
-t_ReadEncryptedFileRaw p_ReadEncryptedFileRaw = NULL;
-t_WriteEncryptedFileRaw p_WriteEncryptedFileRaw = NULL;
-t_CloseEncryptedFileRaw p_CloseEncryptedFileRaw = NULL;
+// t_OpenEncryptedFileRawA p_OpenEncryptedFileRawA = NULL;
+// t_OpenEncryptedFileRawW p_OpenEncryptedFileRawW = NULL;
+// t_ReadEncryptedFileRaw p_ReadEncryptedFileRaw = NULL;
+// t_WriteEncryptedFileRaw p_WriteEncryptedFileRaw = NULL;
+// t_CloseEncryptedFileRaw p_CloseEncryptedFileRaw = NULL;
 
-t_wunlink p_wunlink = NULL;
-t_wmkdir p_wmkdir = NULL;
+// t_wunlink p_wunlink = NULL;
+// t_wmkdir p_wmkdir = NULL;
 
-t_GetFileInformationByHandleEx p_GetFileInformationByHandleEx = NULL;
+// t_GetFileInformationByHandleEx p_GetFileInformationByHandleEx = NULL;
 
-t_GetFileAttributesA p_GetFileAttributesA = NULL;
-t_GetFileAttributesW p_GetFileAttributesW = NULL;
+// t_GetFileAttributesA p_GetFileAttributesA = NULL;
+// t_GetFileAttributesW p_GetFileAttributesW = NULL;
 
-t_GetFileAttributesExA p_GetFileAttributesExA = NULL;
-t_GetFileAttributesExW p_GetFileAttributesExW = NULL;
+// t_GetFileAttributesExA p_GetFileAttributesExA = NULL;
+// t_GetFileAttributesExW p_GetFileAttributesExW = NULL;
 
-t_SetFileAttributesA p_SetFileAttributesA = NULL;
-t_SetFileAttributesW p_SetFileAttributesW = NULL;
+// t_SetFileAttributesA p_SetFileAttributesA = NULL;
+// t_SetFileAttributesW p_SetFileAttributesW = NULL;
 
-t_BackupRead p_BackupRead = NULL;
-t_BackupWrite p_BackupWrite = NULL;
+// t_BackupRead p_BackupRead = NULL;
+// t_BackupWrite p_BackupWrite = NULL;
 
-t_WideCharToMultiByte p_WideCharToMultiByte = NULL;
-t_MultiByteToWideChar p_MultiByteToWideChar = NULL;
+// t_WideCharToMultiByte p_WideCharToMultiByte = NULL;
+// t_MultiByteToWideChar p_MultiByteToWideChar = NULL;
 
-t_AttachConsole p_AttachConsole = NULL;
+// t_AttachConsole p_AttachConsole = NULL;
 
-t_FindFirstFileA p_FindFirstFileA = NULL;
-t_FindFirstFileW p_FindFirstFileW = NULL;
+// t_FindFirstFileA p_FindFirstFileA = NULL;
+// t_FindFirstFileW p_FindFirstFileW = NULL;
 
-t_FindNextFileA p_FindNextFileA = NULL;
-t_FindNextFileW p_FindNextFileW = NULL;
+// t_FindNextFileA p_FindNextFileA = NULL;
+// t_FindNextFileW p_FindNextFileW = NULL;
 
-t_SetCurrentDirectoryA p_SetCurrentDirectoryA = NULL;
-t_SetCurrentDirectoryW p_SetCurrentDirectoryW = NULL;
+// t_SetCurrentDirectoryA p_SetCurrentDirectoryA = NULL;
+// t_SetCurrentDirectoryW p_SetCurrentDirectoryW = NULL;
 
-t_GetCurrentDirectoryA p_GetCurrentDirectoryA = NULL;
-t_GetCurrentDirectoryW p_GetCurrentDirectoryW = NULL;
+// t_GetCurrentDirectoryA p_GetCurrentDirectoryA = NULL;
+// t_GetCurrentDirectoryW p_GetCurrentDirectoryW = NULL;
 
-t_GetVolumePathNameW p_GetVolumePathNameW = NULL;
-t_GetVolumeNameForVolumeMountPointW p_GetVolumeNameForVolumeMountPointW = NULL;
+// t_GetVolumePathNameW p_GetVolumePathNameW = NULL;
+// t_GetVolumeNameForVolumeMountPointW p_GetVolumeNameForVolumeMountPointW =
+// NULL;
 
-t_CreateProcessA p_CreateProcessA = NULL;
-t_CreateProcessW p_CreateProcessW = NULL;
+// t_CreateProcessA p_CreateProcessA = NULL;
+// t_CreateProcessW p_CreateProcessW = NULL;
 
-t_GetLogicalDriveStringsA p_GetLogicalDriveStringsA = NULL;
-t_GetLogicalDriveStringsW p_GetLogicalDriveStringsW = NULL;
+// t_GetLogicalDriveStringsA p_GetLogicalDriveStringsA = NULL;
+// t_GetLogicalDriveStringsW p_GetLogicalDriveStringsW = NULL;
 
 
 void InitWinAPIWrapper()
@@ -118,87 +119,87 @@ void InitWinAPIWrapper()
     ASSERT(osversioninfo.dwMajorVersion >= 6);
   }
 
-  HMODULE hLib = LoadLibraryA("KERNEL32.DLL");
-  if (hLib) {
-    // Get logical drive calls
-    SET_API_POINTER(GetLogicalDriveStringsA);
-    SET_API_POINTER(GetLogicalDriveStringsW);
+  // HMODULE hLib = LoadLibraryA("KERNEL32.DLL");
+  // if (hLib) {
+  //   // Get logical drive calls
+  //   SET_API_POINTER(GetLogicalDriveStringsA);
+  //   SET_API_POINTER(GetLogicalDriveStringsW);
 
-    // Create process calls
-    SET_API_POINTER(CreateProcessA);
-    SET_API_POINTER(CreateProcessW);
+  //   // Create process calls
+  //   SET_API_POINTER(CreateProcessA);
+  //   SET_API_POINTER(CreateProcessW);
 
-    // Create file calls
-    SET_API_POINTER(CreateFileA);
-    SET_API_POINTER(CreateDirectoryA);
-    SET_API_POINTER(CreateSymbolicLinkA);
+  //   // Create file calls
+  //   SET_API_POINTER(CreateFileA);
+  //   SET_API_POINTER(CreateDirectoryA);
+  //   SET_API_POINTER(CreateSymbolicLinkA);
 
-    // File Information calls
-    SET_API_POINTER(GetFileInformationByHandleEx);
+  //   // File Information calls
+  //   SET_API_POINTER(GetFileInformationByHandleEx);
 
-    // Attribute calls
-    SET_API_POINTER(GetFileAttributesA);
-    SET_API_POINTER(GetFileAttributesExA);
-    SET_API_POINTER(SetFileAttributesA);
+  //   // Attribute calls
+  //   SET_API_POINTER(GetFileAttributesA);
+  //   SET_API_POINTER(GetFileAttributesExA);
+  //   SET_API_POINTER(SetFileAttributesA);
 
-    // Process calls
-    SET_API_POINTER(SetProcessShutdownParameters);
+  //   // Process calls
+  //   SET_API_POINTER(SetProcessShutdownParameters);
 
-    // Char conversion calls
-    SET_API_POINTER(WideCharToMultiByte);
-    SET_API_POINTER(MultiByteToWideChar);
+  //   // Char conversion calls
+  //   SET_API_POINTER(WideCharToMultiByte);
+  //   SET_API_POINTER(MultiByteToWideChar);
 
-    // Find files
-    SET_API_POINTER(FindFirstFileA);
-    SET_API_POINTER(FindNextFileA);
+  //   // Find files
+  //   SET_API_POINTER(FindFirstFileA);
+  //   SET_API_POINTER(FindNextFileA);
 
-    // Get and set directory
-    SET_API_POINTER(GetCurrentDirectoryA);
-    SET_API_POINTER(SetCurrentDirectoryA);
+  //   // Get and set directory
+  //   SET_API_POINTER(GetCurrentDirectoryA);
+  //   SET_API_POINTER(SetCurrentDirectoryA);
 
-    SET_API_POINTER(CreateFileW);
-    SET_API_POINTER(CreateDirectoryW);
-    SET_API_POINTER(CreateSymbolicLinkW);
+  //   SET_API_POINTER(CreateFileW);
+  //   SET_API_POINTER(CreateDirectoryW);
+  //   SET_API_POINTER(CreateSymbolicLinkW);
 
-    // Backup calls
-    SET_API_POINTER(BackupRead);
-    SET_API_POINTER(BackupWrite);
+  //   // Backup calls
+  //   SET_API_POINTER(BackupRead);
+  //   SET_API_POINTER(BackupWrite);
 
-    SET_API_POINTER(GetFileAttributesW);
-    SET_API_POINTER(GetFileAttributesExW);
-    SET_API_POINTER(SetFileAttributesW);
-    SET_API_POINTER(FindFirstFileW);
-    SET_API_POINTER(FindNextFileW);
-    SET_API_POINTER(GetCurrentDirectoryW);
-    SET_API_POINTER(SetCurrentDirectoryW);
+  //   SET_API_POINTER(GetFileAttributesW);
+  //   SET_API_POINTER(GetFileAttributesExW);
+  //   SET_API_POINTER(SetFileAttributesW);
+  //   SET_API_POINTER(FindFirstFileW);
+  //   SET_API_POINTER(FindNextFileW);
+  //   SET_API_POINTER(GetCurrentDirectoryW);
+  //   SET_API_POINTER(SetCurrentDirectoryW);
 
-    /* Some special stuff we need for VSS
-     * but static linkage doesn't work on Win 9x */
-    SET_API_POINTER(GetVolumePathNameW);
-    SET_API_POINTER(GetVolumeNameForVolumeMountPointW);
+  //   /* Some special stuff we need for VSS
+  //    * but static linkage doesn't work on Win 9x */
+  //   SET_API_POINTER(GetVolumePathNameW);
+  //   SET_API_POINTER(GetVolumeNameForVolumeMountPointW);
 
-    SET_API_POINTER(AttachConsole);
-  }
+  //   SET_API_POINTER(AttachConsole);
+  // }
 
-  hLib = LoadLibraryA("MSVCRT.DLL");
-  if (hLib) {
-    SET_API_POINTER_EX(wunlink, _wunlink);
-    SET_API_POINTER_EX(wmkdir, _wmkdir);
-  }
+  // hLib = LoadLibraryA("MSVCRT.DLL");
+  // if (hLib) {
+  //   SET_API_POINTER_EX(wunlink, _wunlink);
+  //   SET_API_POINTER_EX(wmkdir, _wmkdir);
+  // }
 
-  hLib = LoadLibraryA("ADVAPI32.DLL");
-  if (hLib) {
-    SET_API_POINTER(OpenProcessToken);
-    SET_API_POINTER(AdjustTokenPrivileges);
-    SET_API_POINTER_EX(LookupPrivilegeValue, LookupPrivilegeValueA);
+  // hLib = LoadLibraryA("ADVAPI32.DLL");
+  // if (hLib) {
+  //   SET_API_POINTER(OpenProcessToken);
+  //   SET_API_POINTER(AdjustTokenPrivileges);
+  //   SET_API_POINTER_EX(LookupPrivilegeValue, LookupPrivilegeValueA);
 
-    // EFS calls
-    SET_API_POINTER(OpenEncryptedFileRawA);
-    SET_API_POINTER(OpenEncryptedFileRawW);
-    SET_API_POINTER(ReadEncryptedFileRaw);
-    SET_API_POINTER(WriteEncryptedFileRaw);
-    SET_API_POINTER(CloseEncryptedFileRaw);
-  }
+  //   // EFS calls
+  //   SET_API_POINTER(OpenEncryptedFileRawA);
+  //   SET_API_POINTER(OpenEncryptedFileRawW);
+  //   SET_API_POINTER(ReadEncryptedFileRaw);
+  //   SET_API_POINTER(WriteEncryptedFileRaw);
+  //   SET_API_POINTER(CloseEncryptedFileRaw);
+  // }
 
   dyn::LoadDynamicFunctions();
 }

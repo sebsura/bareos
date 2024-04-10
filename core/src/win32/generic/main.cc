@@ -297,7 +297,7 @@ int BareosAppMain()
   OSDependentInit();
 
   /* If no arguments were given then just run */
-  if (p_AttachConsole == NULL || !p_AttachConsole(ATTACH_PARENT_PROCESS)) {
+  if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
     if (opt_debug) { AllocConsole(); }
   }
   WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE), "\r\n", 2, &dwCharsWritten,
@@ -307,9 +307,7 @@ int BareosAppMain()
   WSA_Init();
 
   /* Set this process to be the last application to be shut down. */
-  if (p_SetProcessShutdownParameters) {
-    p_SetProcessShutdownParameters(0x100, 0);
-  }
+  SetProcessShutdownParameters(0x100, 0);
 
   /* Create a thread to handle the Windows messages */
   pthread_create(&tid, NULL, Main_Msg_Loop, (void*)0);

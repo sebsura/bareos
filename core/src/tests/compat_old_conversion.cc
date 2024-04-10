@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2023-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2023-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -38,6 +38,7 @@ void Win32SetPathConvert(t_pVSSPathConvert convert, t_pVSSPathConvertW convertW)
   global_tvpc.pPathConvert = convert;
   global_tvpc.pPathConvertW = convertW;
 }
+
 static inline thread_vss_path_convert* Win32GetPathConvert()
 {
   if (global_tvpc.pPathConvert) {
@@ -46,24 +47,22 @@ static inline thread_vss_path_convert* Win32GetPathConvert()
     return nullptr;
   }
 }
+
 static int UTF8_2_wchar(POOLMEM*& ppszUCS, const char* pszUTF)
 {
   /* The return value is the number of wide characters written to the buffer.
    * convert null terminated string from utf-8 to ucs2, enlarge buffer if
    * necessary */
-  if (p_MultiByteToWideChar) {
-    // strlen of UTF8 +1 is enough
-    DWORD cchSize = (strlen(pszUTF) + 1);
-    ppszUCS = CheckPoolMemorySize(ppszUCS, cchSize * sizeof(wchar_t));
+  // strlen of UTF8 +1 is enough
+  DWORD cchSize = (strlen(pszUTF) + 1);
+  ppszUCS = CheckPoolMemorySize(ppszUCS, cchSize * sizeof(wchar_t));
 
-    int nRet = p_MultiByteToWideChar(CP_UTF8, 0, pszUTF, -1, (LPWSTR)ppszUCS,
-                                     cchSize);
-    ASSERT(nRet > 0);
-    return nRet;
-  } else {
-    return 0;
-  }
+  int nRet
+      = p_MultiByteToWideChar(CP_UTF8, 0, pszUTF, -1, (LPWSTR)ppszUCS, cchSize);
+  ASSERT(nRet > 0);
+  return nRet;
 }
+
 static inline void conv_unix_to_vss_win32_path(const char* name,
                                                char* win32_name,
                                                DWORD dwSize)
@@ -150,11 +149,6 @@ static inline POOLMEM* make_wchar_win32_path(POOLMEM* pszUCSPath,
 {
   Dmsg0(debuglevel, "Enter make_wchar_win32_path\n");
   if (pBIsRawPath) { *pBIsRawPath = FALSE; /* Initialize, set later */ }
-
-  if (!p_GetCurrentDirectoryW) {
-    Dmsg0(debuglevel, "Leave make_wchar_win32_path no change \n");
-    return pszUCSPath;
-  }
 
   wchar_t* name = (wchar_t*)pszUCSPath;
 
