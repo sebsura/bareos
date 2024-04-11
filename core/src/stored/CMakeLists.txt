@@ -132,7 +132,6 @@ if(HAVE_WIN32)
   list(APPEND BCOPYSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/bcopyres.rc)
 endif()
 
-
 set(STORED_RESTYPES autochanger device director ndmp messages storage)
 
 set(BACKEND_OBJECTS "") # backend shared objects
@@ -177,9 +176,12 @@ endif()
 
 add_library(stored_objects STATIC ${SDSRCS})
 if(HAVE_WIN32)
-  add_executable(bareos-sd WIN32 stored.cc ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/storedres.rc)
+  add_executable(
+    bareos-sd WIN32 stored.cc
+                    ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/storedres.rc
+  )
 else()
-  add_executable(bareos-sd stored.cc.rc)
+  add_executable(bareos-sd stored.cc)
 endif()
 
 target_link_libraries(stored_objects PRIVATE ${THREADS_THREADS})
