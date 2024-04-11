@@ -112,12 +112,6 @@ set(DIRD_OBJECTS_SRCS
     pthread_detach_if_not_detached.cc
 )
 
-if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/dird/dirdres.rc.in)
-  list(APPEND DIRD_OBJECTS_SRCS
-       ${CMAKE_CURRENT_BINARY_DIR}/../win32/dird/dirdres.rc
-  )
-endif()
 
 if(HAVE_PAM)
   include_directories(${PAM_INCLUDE_DIRS})
@@ -162,8 +156,15 @@ target_link_libraries(
   dird_objects PRIVATE bareos ${OPENSSL_LIBRARIES} ${THREADS_THREADS}
 )
 
-add_executable(bareos-dir WIN32)
-target_sources(bareos-dir PRIVATE dird.cc)
+
+if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/dird/dirdres.rc.in)
+  add_executable(bareos-dir WIN32)
+  target_sources(bareos-dir PRIVATE dird.cc ${CMAKE_CURRENT_BINARY_DIR}/../win32/dird/dirdres.rc)
+else()
+  add_executable(bareos-dir)
+  target_sources(bareos-dir PRIVATE dird.cc)
+endif()
 
 target_link_libraries(
   bareos-dir PRIVATE dird_objects bareossql bareosfind CLI11::CLI11

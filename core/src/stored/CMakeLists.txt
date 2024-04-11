@@ -97,9 +97,7 @@ set(SDSRCS
 
 if(HAVE_WIN32)
   bareos_configure_file(FILES ../win32/stored/storedres.rc.in)
-  list(APPEND SDSRCS ../win32/generic/main.cc ../win32/generic/service.cc
-       ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/storedres.rc
-  )
+  list(APPEND SDSRCS ../win32/generic/main.cc ../win32/generic/service.cc)
 endif()
 
 set(BTAPESRCS btape.cc)
@@ -129,6 +127,11 @@ if(HAVE_WIN32)
 endif()
 
 set(BCOPYSRCS bcopy.cc)
+if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/stored/bcopyres.rc.in)
+  list(APPEND BCOPYSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/bcopyres.rc)
+endif()
+
 
 set(STORED_RESTYPES autochanger device director ndmp messages storage)
 
@@ -173,7 +176,11 @@ else()
 endif()
 
 add_library(stored_objects STATIC ${SDSRCS})
-add_executable(bareos-sd WIN32 stored.cc)
+if(HAVE_WIN32)
+  add_executable(bareos-sd WIN32 stored.cc ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/storedres.rc)
+else()
+  add_executable(bareos-sd stored.cc.rc)
+endif()
 
 target_link_libraries(stored_objects PRIVATE ${THREADS_THREADS})
 target_link_libraries(
