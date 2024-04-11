@@ -81,47 +81,5 @@ std::wstring make_win32_path_UTF8_2_wchar(std::string_view utf8);
 
 void InitWinAPIWrapper();
 
-namespace dyn {
-class dynamic_function;
-using function_registry
-    = std::unordered_map<std::string, std::vector<dynamic_function*>>;
-class dynamic_function {
- protected:
-  dynamic_function(function_registry& reg, const char* lib);
-  virtual ~dynamic_function() {}
-
- public:
-  virtual bool load(HMODULE lib) = 0;
-};
-
-inline function_registry dynamic_functions{};
-
-#  define DEFINE_DYN_FUNC(Lib, Name)                                     \
-    inline struct dyn##Name : dynamic_function {                         \
-      static constexpr const char* name = #Name;                         \
-      using type = decltype(::Name);                                     \
-      type* ptr{nullptr};                                                \
-      dyn##Name(function_registry& reg) : dynamic_function(reg, Lib) {}  \
-      template <typename... Args> auto operator()(Args... args)          \
-      {                                                                  \
-        return ptr(std::forward<Args>(args)...);                         \
-      }                                                                  \
-      operator bool() const { return (ptr != nullptr); }                 \
-      bool load(HMODULE lib) override                                    \
-      {                                                                  \
-        ptr = reinterpret_cast<type*>((void*)GetProcAddress(lib, name)); \
-        return (ptr != nullptr);                                         \
-      }                                                                  \
-    } Name(dynamic_functions);
-
-DEFINE_DYN_FUNC("KERNEL32.DLL", FindFirstFileW);
-DEFINE_DYN_FUNC("KERNEL32.DLL", FindFirstFileA);
-DEFINE_DYN_FUNC("SHELL32.DLL", SHGetKnownFolderPath);
-
-void LoadDynamicFunctions();
-
-#  undef DEFINE_DYNAMIC_FUNC
-};  // namespace dyn
-
 #endif
 #endif  // BAREOS_WIN32_INCLUDE_WINAPI_H_

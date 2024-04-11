@@ -353,25 +353,23 @@ struct default_config_dir {
 
   default_config_dir()
   {
-    if (dyn::SHGetKnownFolderPath) {
-      PWSTR known_path{nullptr};
-      HRESULT hr = dyn::SHGetKnownFolderPath(FOLDERID_ProgramData, 0, nullptr,
-                                             &known_path);
+    PWSTR known_path{nullptr};
+    HRESULT hr
+        = SHGetKnownFolderPath(FOLDERID_ProgramData, 0, nullptr, &known_path);
 
-      if (SUCCEEDED(hr)) {
-        PoolMem utf8;
-        if (int len = wchar_2_UTF8(utf8.addr(), known_path); len > 0) {
-          if (utf8.c_str()[len - 1] == 0) {
-            // do not copy zero terminator
-            len -= 1;
-          }
-          path.assign(utf8.c_str(), len);
-          path += "\\Bareos";
+    if (SUCCEEDED(hr)) {
+      PoolMem utf8;
+      if (int len = wchar_2_UTF8(utf8.addr(), known_path); len > 0) {
+        if (utf8.c_str()[len - 1] == 0) {
+          // do not copy zero terminator
+          len -= 1;
         }
+        path.assign(utf8.c_str(), len);
+        path += "\\Bareos";
       }
-
-      CoTaskMemFree(known_path);
     }
+
+    CoTaskMemFree(known_path);
   }
 };
 #endif

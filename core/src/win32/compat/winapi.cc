@@ -46,23 +46,4 @@ void InitWinAPIWrapper()
     ASSERT(osversioninfo.dwMajorVersion >= 6);
   }
 
-  dyn::LoadDynamicFunctions();
 }
-
-namespace dyn {
-dynamic_function::dynamic_function(function_registry& registry, const char* lib)
-{
-  registry[lib].emplace_back(this);
-}
-
-void LoadDynamicFunctions()
-{
-  for (auto& [lib, funs] : dynamic_functions) {
-    auto library = LoadLibraryA(lib.c_str());
-
-    if (!library) continue;
-
-    for (auto* f : funs) { f->load(library); }
-  }
-}
-};  // namespace dyn
