@@ -34,16 +34,15 @@
 
 void InitWinAPIWrapper()
 {
-  OSVERSIONINFO osversioninfo = {sizeof(OSVERSIONINFO), 0, 0, 0, 0, 0};
+  // we currently want at least vista
+  OSVERSIONINFOEXW required = {};
+  required.dwOSVersionInfoSize = sizeof(required);
+  required.dwPlatformId = VER_PLATFORM_WIN32_NT;
+  required.dwMajorVersion = 6;
 
-  // Get the current OS version
-  if (!GetVersionEx(&osversioninfo)) {
-    ASSERT(0);
-  } else {
-    // Ensure NT kernel (i.e. Win2k+)
-    ASSERT(osversioninfo.dwPlatformId == VER_PLATFORM_WIN32_NT);
-    // Ensure Vista+
-    ASSERT(osversioninfo.dwMajorVersion >= 6);
-  }
-
+  ASSERT(VerifyVersionInfoW(
+      &required, VER_MAJORVERSION | VER_PLATFORMID,
+      VerSetConditionMask(
+          VerSetConditionMask(0, VER_MAJORVERSION, VER_GREATER_EQUAL),
+          VER_PLATFORMID, VER_EQUAL)));
 }
