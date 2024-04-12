@@ -96,37 +96,16 @@ set(SDSRCS
 )
 
 if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/stored/storedres.rc.in)
-  list(APPEND SDSRCS ../win32/generic/main.cc ../win32/generic/service.cc
-       ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/storedres.rc
-  )
+  list(APPEND SDSRCS ../win32/generic/main.cc ../win32/generic/service.cc)
 endif()
 
 set(BTAPESRCS btape.cc)
-if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/stored/btaperes.rc.in)
-  list(APPEND BTAPESRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/btaperes.rc)
-endif()
 
 set(BLSSRCS bls.cc)
-if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/stored/blsres.rc.in)
-  list(APPEND BLSSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/blsres.rc)
-endif()
 
 set(BEXTRACTSRS bextract.cc)
-if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/stored/bextractres.rc.in)
-  list(APPEND BEXTRACTSRS
-       ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/bextractres.rc
-  )
-endif()
 
 set(BSCANSRCS bscan.cc)
-if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/stored/bscanres.rc.in)
-  list(APPEND BSCANSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/bscanres.rc)
-endif()
 
 set(BCOPYSRCS bcopy.cc)
 
@@ -181,7 +160,11 @@ target_link_libraries(
 )
 
 if(HAVE_WIN32)
-  target_sources(bareos-sd PRIVATE ../win32/generic/main.cc)
+  bareos_configure_file(FILES ../win32/stored/storedres.rc.in)
+  target_sources(
+    bareos-sd PRIVATE ../win32/generic/main.cc
+                      ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/storedres.rc
+  )
   target_link_libraries(bareos-sd PRIVATE comctl32)
 endif()
 if(HAVE_NDMP)
@@ -190,17 +173,41 @@ if(HAVE_NDMP)
 endif()
 
 add_executable(bls ${BLSSRCS})
+if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/stored/blsres.rc.in)
+  target_sources(
+    bls PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/blsres.rc
+  )
+endif()
 target_link_libraries(bls PRIVATE bareos bareossd bareosfind CLI11::CLI11)
 
 add_executable(bextract ${BEXTRACTSRS})
+if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/stored/bextractres.rc.in)
+  target_sources(
+    bextract PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/bextractres.rc
+  )
+endif()
 target_link_libraries(bextract PRIVATE bareossd bareosfind bareos CLI11::CLI11)
 
 add_executable(bscan ${BSCANSRCS})
+if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/stored/bscanres.rc.in)
+  target_sources(
+    bscan PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/bscanres.rc
+  )
+endif()
 target_link_libraries(
   bscan PRIVATE bareos bareossd bareosfind bareossql CLI11::CLI11
 )
 
 add_executable(btape ${BTAPESRCS})
+if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/stored/btaperes.rc.in)
+  target_sources(
+    btape PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/btaperes.rc
+  )
+endif()
 target_link_libraries(btape PRIVATE bareossd bareos CLI11::CLI11)
 
 add_executable(bcopy ${BCOPYSRCS})

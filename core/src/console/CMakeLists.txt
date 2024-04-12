@@ -22,12 +22,6 @@ include(BareosConfigureFile)
 set(BCONSSRCS connect_to_director.cc console_conf.cc console_globals.cc
               console_output.cc
 )
-if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/console/consoleres.rc.in)
-  list(APPEND BCONSSRCS
-       ${CMAKE_CURRENT_BINARY_DIR}/../win32/console/consoleres.rc
-  )
-endif()
 
 include_directories(${Readline_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
 
@@ -37,6 +31,12 @@ if(HAVE_PAM)
 endif()
 
 add_executable(bconsole console.cc)
+if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/console/consoleres.rc.in)
+  target_sources(
+    bconsole PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/console/consoleres.rc
+  )
+endif()
 
 add_library(console_objects STATIC ${BCONSSRCS})
 

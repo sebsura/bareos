@@ -60,11 +60,6 @@ if(HAVE_WIN32)
   )
 endif()
 
-if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/filed/filedres.rc.in)
-  list(APPEND FDSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/filed/filedres.rc)
-endif()
-
 include_directories(${OPENSSL_INCLUDE_DIR})
 
 add_library(fd_objects STATIC ${FDSRCS})
@@ -78,6 +73,11 @@ add_executable(bareos-fd filed.cc)
 
 set(BAREOS_FD_LIBRARIES bareosfind bareos Threads::Threads)
 if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/filed/filedres.rc.in)
+  target_sources(
+    bareos-fd PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/filed/filedres.rc
+  )
+
   target_sources(bareos-fd PRIVATE ../win32/generic/main.cc)
   list(APPEND BAREOS_FD_LIBRARIES comctl32)
 

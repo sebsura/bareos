@@ -112,13 +112,6 @@ set(DIRD_OBJECTS_SRCS
     pthread_detach_if_not_detached.cc
 )
 
-if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/dird/dirdres.rc.in)
-  list(APPEND DIRD_OBJECTS_SRCS
-       ${CMAKE_CURRENT_BINARY_DIR}/../win32/dird/dirdres.rc
-  )
-endif()
-
 if(HAVE_PAM)
   include_directories(${PAM_INCLUDE_DIRS})
   list(APPEND DIRD_OBJECTS_SRCS auth_pam.cc)
@@ -134,11 +127,6 @@ endif()
 set(DBCHKSRCS dbcheck.cc dbcheck_utils.cc dird_conf.cc dird_globals.cc
               ua_acl.cc ua_audit.cc run_conf.cc inc_conf.cc
 )
-
-if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/dird/dbcheckres.rc.in)
-  list(APPEND DBCHKSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/dird/dbcheckres.rc)
-endif()
 
 set(DIRD_RESTYPES
     catalog
@@ -170,6 +158,11 @@ target_link_libraries(
 )
 
 if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/dird/dirdres.rc.in)
+  target_sources(
+    bareos-dir PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/dird/dirdres.rc
+  )
+
   target_sources(
     bareos-dir PRIVATE ../win32/generic/main.cc ../win32/generic/service.cc
   )
@@ -189,6 +182,14 @@ if(HAVE_PAM)
 endif()
 
 add_executable(bareos-dbcheck ${DBCHKSRCS})
+
+if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/dird/dbcheckres.rc.in)
+  target_sources(
+    bareos-dbcheck
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/dird/dbcheckres.rc
+  )
+endif()
 
 target_link_libraries(
   bareos-dbcheck PRIVATE bareossql bareos bareosfind ${OPENSSL_LIBRARIES}

@@ -21,12 +21,14 @@ message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
 include(BareosConfigureFile)
 
 set(BSMTPSRCS bsmtp.cc)
-if(HAVE_WIN32)
-  bareos_configure_file(FILES ../win32/tools/bsmtpres.rc.in)
-  list(APPEND BSMTPSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/tools/bsmtpres.rc)
-endif()
 add_executable(bsmtp ${BSMTPSRCS})
 target_link_libraries(bsmtp bareos CLI11::CLI11)
+if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/tools/bsmtpres.rc.in)
+  target_sources(
+    bsmtp PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/tools/bsmtpres.rc
+  )
+endif()
 
 add_executable(drivetype drivetype.cc)
 target_link_libraries(drivetype bareos bareosfind)
@@ -35,21 +37,23 @@ add_executable(fstype fstype.cc)
 target_link_libraries(fstype bareos bareosfind)
 
 set(BREGEXSRCS bregex.cc)
+add_executable(bregex ${BREGEXSRCS})
 if(HAVE_WIN32)
   bareos_configure_file(FILES ../win32/tools/bregexres.rc.in)
-  list(APPEND BREGEXSRCS
-       ${CMAKE_CURRENT_BINARY_DIR}/../win32/tools/bregexres.rc
+  target_sources(
+    bregex PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/tools/bregexres.rc
   )
 endif()
-add_executable(bregex ${BREGEXSRCS})
 target_link_libraries(bregex bareos bareosfind CLI11::CLI11)
 
 set(BWILDSRCS bwild.cc)
+add_executable(bwild ${BWILDSRCS})
 if(HAVE_WIN32)
   bareos_configure_file(FILES ../win32/tools/bwildres.rc.in)
-  list(APPEND BWILDSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/tools/bwildres.rc)
+  target_sources(
+    bwild PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/tools/bwildres.rc
+  )
 endif()
-add_executable(bwild ${BWILDSRCS})
 target_link_libraries(bwild bareos CLI11::CLI11)
 
 add_executable(bscrypto bscrypto.cc)
