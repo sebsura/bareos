@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2007-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -294,6 +294,43 @@ void* Main_Msg_Loop(LPVOID)
  */
 int BareosAppMain()
 {
+  /* The CoInitializeSecurity function initializes the security layer and sets
+   * the specified values as the security default. If a process does not call
+   * CoInitializeSecurity, COM calls it automatically the first time an
+   * interface is marshaled or unmarshaled, registering the system default
+   * security. No default security packages are registered until then.
+   *
+   * This function may be called exactly once per process. */
+  if (HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED); FAILED(hr)) {
+    std::string errormsg = "CoInitializeEx failed (";
+    errormsg += std::to_string(hr);
+    errormsg += ")";
+    MessageBox(NULL, errormsg.c_str(), NULL, MB_OK);
+    CoUninitialize();
+    return 1;
+  }
+
+  if (HRESULT hr = CoInitializeSecurity(
+          NULL, /*  Allow *all* VSS writers to communicate back! */
+          -1,   /*  Default COM authentication service */
+          NULL, /*  Default COM authorization service */
+          NULL, /*  reserved parameter */
+          RPC_C_AUTHN_LEVEL_PKT_PRIVACY, /*  Strongest COM authentication level
+                                          */
+          RPC_C_IMP_LEVEL_IDENTIFY,      /*  Minimal impersonation abilities */
+          NULL,      /*  Default COM authentication settings */
+          EOAC_NONE, /*  No special options */
+          NULL       /*  Reserved parameter */
+      );
+      FAILED(hr)) {
+    std::string errormsg = "CoInitializeSecurity failed (";
+    errormsg += std::to_string(hr);
+    errormsg += ")";
+    MessageBox(NULL, errormsg.c_str(), NULL, MB_OK);
+    CoUninitialize();
+    return 1;
+  }
+
   pthread_t tid;
   DWORD dwCharsWritten;
 
@@ -322,6 +359,7 @@ int BareosAppMain()
   PostQuitMessage(0); /* Terminate our main message loop */
 
   WSACleanup();
+  CoUninitialize();
   _exit(0);
 }
 

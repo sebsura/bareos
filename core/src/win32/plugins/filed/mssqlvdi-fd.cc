@@ -3,7 +3,7 @@
 
    Copyright (C) 2010 Zilvinas Krapavickas <zkrapavickas@gmail.com>
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -245,8 +245,6 @@ static bRC newPlugin(PluginContext* ctx)
   // Initialize COM for this thread.
   hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
   if (!SUCCEEDED(hr)) { return bRC_Error; }
-
-  if (!InitializeComSecurity()) { return bRC_Error; }
 
   p_ctx = (plugin_ctx*)malloc(sizeof(plugin_ctx));
   if (!p_ctx) { return bRC_Error; }
