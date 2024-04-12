@@ -55,5 +55,24 @@ do
   nssm remove $service confirm
   echo -n "."
 done
-echo
+
+echo "PRETEST: Setting Plugin Directory for CMAKE_CONFIG_TYPE:${CMAKE_CONFIG_TYPE}"
+for file in systemtests/tests/autoxflate/etc/bareos/bareos-sd.d/storage/bareos-sd.conf\
+        systemtests/tests/autoxflate/etc/bareos-sd1/bareos-sd.d/storage/bareos-sd.conf\
+        systemtests/tests/bareos-basic/etc/bareos/bareos-sd.d/storage/bareos-sd.conf\
+        systemtests/tests/heartbeat-interval/etc/bareos/bareos-fd.d/client/myself.conf\
+        systemtests/tests/py3plug-dir/etc/bareos/bareos-dir.d/director/bareos-dir.conf\
+        systemtests/tests/py3plug-fd-basic/etc/bareos/bareos-fd.d/client/myself.conf\
+        systemtests/tests/py3plug-fd-local-fileset-basic/etc/bareos/bareos-fd.d/client/myself.conf\
+        systemtests/tests/py3plug-fd-local-fileset-restoreobject/etc/bareos/bareos-fd.d/client/myself.conf\
+        systemtests/tests/py3plug-sd/etc/bareos/bareos-sd.d/storage/bareos-sd.conf\
+        systemtests/tests/python-bareos/etc/bareos/bareos-fd.d/client/myself.conf;
+do
+  case "$file" in
+    *sd.d* ) REQUIRED_PLUGIN_DIR=\"@CMAKE_BINARY_DIR@/core/src/plugins/stored/${CMAKE_CONFIG_TYPE}\";;
+    *fd.d* ) REQUIRED_PLUGIN_DIR=\"@CMAKE_BINARY_DIR@/core/src/plugins/filed/${CMAKE_CONFIG_TYPE}\";;
+    *dir.d* ) REQUIRED_PLUGIN_DIR=\"@CMAKE_BINARY_DIR@/core/src/plugins/dird/${CMAKE_CONFIG_TYPE}\";;
+  esac
+  sed -i'' "s~Plugin Directory.*~Plugin Directory = $REQUIRED_PLUGIN_DIR~g" "$file"
+done
 
