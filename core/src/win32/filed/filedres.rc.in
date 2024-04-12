@@ -1,6 +1,6 @@
 id ICON "../../../platforms/win32/bareosfd.ico"
 1 VERSIONINFO
-FILEVERSION     1,0,0,0
+FILEVERSION     @BAREOS_FILE_VERSION@
 PRODUCTVERSION  1,0,0,0
 BEGIN
   BLOCK "StringFileInfo"
@@ -9,7 +9,7 @@ BEGIN
     BEGIN
       VALUE "CompanyName", "Bareos GmbH & Co. KG"
       VALUE "FileDescription", "Bareos File Daemon"
-      VALUE "FileVersion", "@BAREOS_FULL_VERSION@"
+      VALUE "FileVersion", "@BAREOS_FILE_VERSION@"
       VALUE "InternalName", "bareos-fd.exe"
       VALUE "OriginalFilename", "bareos-fd.exe"
       VALUE "ProductName", "Bareos File Daemon"

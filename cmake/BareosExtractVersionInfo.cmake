@@ -1,6 +1,6 @@
 # BAREOS® - Backup Archiving REcovery Open Sourced
 #
-# Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+# Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 #
 # This program is Free Software; you can redistribute it and/or modify it under
 # the terms of version three of the GNU Affero General Public License as
@@ -47,11 +47,38 @@ if(BAREOS_FULL_VERSION STREQUAL "")
   message(FATAL_ERROR "BAREOS_FULL_VERSION is not set")
 endif()
 
+# BAREOS_FULL_VERSION looks like 24.0.0~pre469.<commit> we want 24,0,0,469
+string(REPLACE "." ";" VERSION_PARTS ${BAREOS_FULL_VERSION})
+list(GET VERSION_PARTS 0 VERSION_MAJOR)
+list(GET VERSION_PARTS 1 VERSION_MINOR)
+list(GET VERSION_PARTS 2 VERSION_PATCH_BUILD)
+# VERSION_PATCH_BUILD is either <patch>~pre<build> or just <patch>
+string(REPLACE "~pre" ";" PATCH_PARTS ${VERSION_PATCH_BUILD})
+list(LENGTH PATCH_PARTS PATCH_LEN)
+if(PATCH_LEN EQUAL 1)
+  list(GET PATCH_PARTS 0 VERSION_PATCH)
+  set(VERSION_BUILD 0)
+elseif(PATCH_LEN EQUAL 2)
+  list(GET PATCH_PARTS 0 VERSION_PATCH)
+  list(GET PATCH_PARTS 1 VERSION_BUILD)
+else()
+  error("Weird version number")
+endif()
+
+set(BAREOS_FILE_VERSION
+    "${VERSION_MAJOR},${VERSION_MINOR},${VERSION_PATCH},${VERSION_BUILD}"
+)
+message("Bareos File Version ${BAREOS_FILE_VERSION}")
+
 # set BAREOS_FULL_VERSION in parent scope if there is a parent scope
 get_directory_property(hasParent PARENT_DIRECTORY)
 if(hasParent)
   set(BAREOS_FULL_VERSION
       ${BAREOS_FULL_VERSION}
+      PARENT_SCOPE
+  )
+  set(BAREOS_FILE_VERSION
+      ${BAREOS_FILE_VERSION}
       PARENT_SCOPE
   )
 endif()
