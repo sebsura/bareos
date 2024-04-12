@@ -51,7 +51,10 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 add_subdirectory(python)
 
 add_library(bpipe-fd MODULE bpipe/bpipe-fd.cc)
-set_target_properties(bpipe-fd PROPERTIES PREFIX "")
+set_target_properties(bpipe-fd PROPERTIES
+  PREFIX ""
+  WINDOWS_EXPORT_ALL_SYMBOLS TRUE
+)
 install(
   TARGETS bpipe-fd
   DESTINATION ${plugindir}
@@ -72,7 +75,10 @@ if(HAVE_WIN32)
     target_link_libraries(mssqlvdi-fd bareos)
   endif()
   set_target_properties(
-    mssqlvdi-fd PROPERTIES PREFIX "" DEFINE_SYMBOL "BUILDING_DLL"
+    mssqlvdi-fd PROPERTIES
+      PREFIX ""
+      DEFINE_SYMBOL "BUILDING_DLL"
+      WINDOWS_EXPORT_ALL_SYMBOLS TRUE
   )
 
   install(
@@ -87,9 +93,11 @@ if(NOT HAVE_WIN32)
   set_target_properties(example-plugin-fd PROPERTIES PREFIX "")
 endif()
 
-if(NOT HAVE_WIN32)
+if(HAVE_WIN32 AND MSVC)
   add_library(spam-plugin-fd MODULE spam/spam.cc)
-  set_target_properties(spam-plugin-fd PROPERTIES PREFIX "")
+  set_target_properties(spam-plugin-fd
+    PROPERTIES PREFIX ""
+    WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 endif()
 
 option(ENABLE_GFAPI_FD "Build gfapi-fd plugin if possible" ON)

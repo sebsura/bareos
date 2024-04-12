@@ -23,7 +23,10 @@ include(BareosConfigureFile)
 if(Python3_FOUND)
   add_library(python3-fd MODULE python-fd.cc)
   set_target_properties(
-    python3-fd PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY ..
+    python3-fd PROPERTIES
+    PREFIX ""
+    LIBRARY_OUTPUT_DIRECTORY ..
+    WINDOWS_EXPORT_ALL_SYMBOLS TRUE
   )
   install(
     TARGETS python3-fd

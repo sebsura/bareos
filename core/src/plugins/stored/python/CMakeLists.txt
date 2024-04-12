@@ -20,7 +20,10 @@
 if(Python3_FOUND)
   add_library(python3-sd MODULE python-sd.cc)
   set_target_properties(
-    python3-sd PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY ..
+    python3-sd PROPERTIES
+    PREFIX ""
+    LIBRARY_OUTPUT_DIRECTORY ..
+    WINDOWS_EXPORT_ALL_SYMBOLS TRUE
   )
   install(TARGETS python3-sd DESTINATION ${plugindir})
   target_link_libraries(python3-sd ${Python3_LIBRARIES} bareos)
