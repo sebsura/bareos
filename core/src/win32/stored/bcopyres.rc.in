@@ -1,0 +1,44 @@
+id ICON "../../../platforms/win32/bareostools.ico"
+1 VERSIONINFO
+FILEVERSION     @BAREOS_FILE_VERSION@
+PRODUCTVERSION  1,0,0,0
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "080904E4"
+    BEGIN
+      VALUE "CompanyName", "Bareos GmbH & Co. KG"
+      VALUE "FileDescription", "bcopy utility"
+      VALUE "FileVersion", "@BAREOS_FILE_VERSION@"
+      VALUE "InternalName", "bcopy.exe"
+      VALUE "OriginalFilename", "bcopy.exe"
+      VALUE "ProductName", "Bareos Storage Daemon"
+      VALUE "ProductVersion", "@BAREOS_FULL_VERSION@"
+      VALUE "LegalCopyright", "Copyright 2000-2012 Free Software Foundation Europe e.V. "
+                              "Copyright 2013-@BAREOS_YEAR@ Bareos GmbH & Co. KG "
+      VALUE "LegalTrademarks", "Licensed under GNU AGPLv3."
+                               "This program is distributed in the hope that it will be useful, "
+                               "but WITHOUT ANY WARRANTY; without even the implied warranty of "
+                               "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the "
+                               "GNU Affero General Public License for more details.  "
+    END
+  END
+
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x809, 1252
+  END
+END
+
+#ifndef RT_MANIFEST
+#define RT_MANIFEST 24
+#endif
+#ifndef CREATEPROCESS_MANIFEST_RESOURCE_ID
+#define CREATEPROCESS_MANIFEST_RESOURCE_ID 1
+#endif
+#if 0
+For manifest ids:
+https://web.archive.org/web/20190209092052/https://blogs.msdn.microsoft.com/junfeng/2007/06/26/rt_manifest-resource-and-isolation_aware_enabled/
+#endif
+
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "../../../platforms/win32/bcopy.exe.manifest"

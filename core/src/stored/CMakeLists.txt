@@ -211,6 +211,12 @@ endif()
 target_link_libraries(btape PRIVATE bareossd bareos CLI11::CLI11)
 
 add_executable(bcopy ${BCOPYSRCS})
+if(HAVE_WIN32)
+  bareos_configure_file(FILES ../win32/stored/bcopyres.rc.in)
+  target_sources(
+    btape PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../win32/stored/bcopyres.rc
+  )
+endif()
 
 target_link_libraries(bcopy PRIVATE bareossd bareos CLI11::CLI11)
 
