@@ -18,20 +18,24 @@
 #   02110-1301, USA.
 
 get_filename_component(BASENAME ${CMAKE_CURRENT_BINARY_DIR} NAME)
-create_systemtest(${SYSTEMTEST_PREFIX} ${BASENAME})
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  message(WARNING "${BASENAME} needs to be adapted for windows")
+else()
+  create_systemtest(${SYSTEMTEST_PREFIX} ${BASENAME})
 
-set_tests_properties(
-  system:strippath:01-backup
-  PROPERTIES FIXTURES_SETUP "system:strippath:01-backup" FIXTURES_REQUIRED
-             "system:strippath-fixture"
-)
-set_tests_properties(
-  system:strippath:02-restore
-  PROPERTIES FIXTURES_SETUP "system:strippath:02-restore" FIXTURES_REQUIRED
-             "system:strippath:01-backup;system:strippath-fixture"
-)
-set_tests_properties(
-  system:strippath:03-verify
-  PROPERTIES FIXTURES_SETUP "system:strippath:03-verify" FIXTURES_REQUIRED
-             "system:strippath:01-backup;system:strippath-fixture"
-)
+  set_tests_properties(
+    system:strippath:01-backup
+    PROPERTIES FIXTURES_SETUP "system:strippath:01-backup" FIXTURES_REQUIRED
+               "system:strippath-fixture"
+  )
+  set_tests_properties(
+    system:strippath:02-restore
+    PROPERTIES FIXTURES_SETUP "system:strippath:02-restore" FIXTURES_REQUIRED
+               "system:strippath:01-backup;system:strippath-fixture"
+  )
+  set_tests_properties(
+    system:strippath:03-verify
+    PROPERTIES FIXTURES_SETUP "system:strippath:03-verify" FIXTURES_REQUIRED
+               "system:strippath:01-backup;system:strippath-fixture"
+  )
+endif()
