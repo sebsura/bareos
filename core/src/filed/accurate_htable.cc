@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -111,67 +111,6 @@ bool BareosAccurateFilelistHtable::UpdatePayload(char*, accurate_payload*)
   return true;
 }
 
-bool BareosAccurateFilelistHtable::SendBaseFileList()
-{
-  CurFile* elt;
-  FindFilesPacket* ff_pkt;
-  int32_t LinkFIc;
-  struct stat statp;
-  int stream = STREAM_UNIX_ATTRIBUTES;
-
-  if (!jcr_->accurate || jcr_->getJobLevel() != L_FULL) { return true; }
-
-  if (file_list_ == NULL) { return true; }
-
-  ff_pkt = init_find_files();
-  ff_pkt->type = FT_BASE;
-
-  foreach_htable (elt, file_list_) {
-    if (BitIsSet(elt->payload.filenr, seen_bitmap_)) {
-      Dmsg1(debuglevel, "base file fname=%s\n", elt->fname);
-      DecodeStat(elt->payload.lstat, &statp, sizeof(statp),
-                 &LinkFIc); /* decode catalog stat */
-      ff_pkt->fname = elt->fname;
-      ff_pkt->statp = statp;
-      EncodeAndSendAttributes(jcr_, ff_pkt, stream);
-    }
-  }
-
-  TermFindFiles(ff_pkt);
-  return true;
-}
-
-bool BareosAccurateFilelistHtable::SendDeletedList()
-{
-  CurFile* elt;
-  FindFilesPacket* ff_pkt;
-  int32_t LinkFIc;
-  struct stat statp;
-  int stream = STREAM_UNIX_ATTRIBUTES;
-
-  if (!jcr_->accurate) { return true; }
-
-  ff_pkt = init_find_files();
-  ff_pkt->type = FT_DELETED;
-
-  foreach_htable (elt, file_list_) {
-    if (BitIsSet(elt->payload.filenr, seen_bitmap_)
-        || PluginCheckFile(jcr_, elt->fname)) {
-      continue;
-    }
-    Dmsg1(debuglevel, "deleted fname=%s\n", elt->fname);
-    ff_pkt->fname = elt->fname;
-    DecodeStat(elt->payload.lstat, &statp, sizeof(statp),
-               &LinkFIc); /* decode catalog stat */
-    ff_pkt->statp.st_mtime = statp.st_mtime;
-    ff_pkt->statp.st_ctime = statp.st_ctime;
-    EncodeAndSendAttributes(jcr_, ff_pkt, stream);
-  }
-
-  TermFindFiles(ff_pkt);
-  return true;
-}
-
 void BareosAccurateFilelistHtable::destroy()
 {
   delete file_list_;
@@ -183,6 +122,19 @@ void BareosAccurateFilelistHtable::destroy()
   }
 
   filenr_ = 0;
+}
+
+bool BareosAccurateFilelistHtable::Iterate(filelist_callback* cb)
+{
+  CurFile* elt;
+  foreach_htable (elt, file_list_) {
+    if (!(*cb)(elt->fname, BitIsSet(elt->payload.filenr, seen_bitmap_),
+               &elt->payload)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 } /* namespace filedaemon */

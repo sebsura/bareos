@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -23,7 +23,9 @@
 
 #include "include/bareos.h"
 #include "include/filetypes.h"
+#include "include/streams.h"
 #include "filed/filed.h"
+#include "filed/fd_plugins.h"
 #include "filed/accurate.h"
 #include "filed/filed_globals.h"
 #include "filed/filed_jcr_impl.h"
@@ -109,23 +111,47 @@ void AccurateFree(JobControlRecord* jcr)
   }
 }
 
+bool SelectBaseFiles(JobControlRecord*, bool seen, const char*)
+{
+  // all seen files are basefiles
+  return seen;
+}
+
+bool SelectDeletedFiles(JobControlRecord* jcr, bool seen, const char* name)
+{
+  // seen files are obviously not deleted
+  if (seen) { return false; }
+  // if a plugin saw the file, its also not deleted
+  if (PluginCheckFile(jcr, (char*)name)) { return false; }
+  // otherwise its deleted
+  return true;
+}
+
 // Send the deleted or the base file list and cleanup.
 bool AccurateFinish(JobControlRecord* jcr)
 {
+  auto start = std::chrono::steady_clock::now();
   bool retval = true;
 
   if (jcr->IsJobCanceled() || jcr->IsIncomplete()) {
     AccurateFree(jcr);
+    auto end = std::chrono::steady_clock::now();
+    auto dur
+        = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+    Jmsg(jcr, M_INFO, 0, "Accurate Finish: %llums\n", dur.count());
     return retval;
   }
 
   if (jcr->accurate && jcr->fd_impl->file_list) {
     if (jcr->is_JobLevel(L_FULL)) {
       if (!jcr->rerunning) {
-        retval = jcr->fd_impl->file_list->SendBaseFileList();
+        auto f = SaveSelectedAs(jcr, &SelectBaseFiles, FT_BASE);
+        retval = jcr->fd_impl->file_list->Iterate(f.get());
       }
     } else {
-      retval = jcr->fd_impl->file_list->SendDeletedList();
+      auto f = SaveSelectedAs(jcr, &SelectDeletedFiles, FT_DELETED);
+      retval = jcr->fd_impl->file_list->Iterate(f.get());
     }
 
     AccurateFree(jcr);
@@ -134,6 +160,11 @@ bool AccurateFinish(JobControlRecord* jcr)
            jcr->fd_impl->base_size / (1024 * 1024));
     }
   }
+
+  auto end = std::chrono::steady_clock::now();
+  auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+  Jmsg(jcr, M_INFO, 0, "Accurate Finish: %llums\n", dur.count());
 
   return retval;
 }
@@ -325,6 +356,7 @@ bail_out:
 
 bool AccurateCmd(JobControlRecord* jcr)
 {
+  auto start = std::chrono::steady_clock::now();
   uint32_t number_of_previous_files;
   int fname_length, lstat_length, chksum_length;
   char *fname, *lstat, *chksum;
@@ -388,7 +420,54 @@ bool AccurateCmd(JobControlRecord* jcr)
 
   if (!jcr->fd_impl->file_list->EndLoad()) { return false; }
 
+  auto end = std::chrono::steady_clock::now();
+  auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  Jmsg(jcr, M_INFO, 0, "AccurateCmd: %llums\n", dur.count());
   return true;
+}
+
+struct send_filtered_attributes : public filelist_callback {
+  JobControlRecord* jcr;
+  FindFilesPacket* ff;
+  filelist_filtercb pred;
+
+  send_filtered_attributes(JobControlRecord* jcr_,
+                           filelist_filtercb f_,
+                           int filetype_)
+      : jcr{jcr_}, pred{f_}
+  {
+    ff = init_find_files();
+    ff->type = filetype_;
+  }
+
+  ~send_filtered_attributes() { TermFindFiles(ff); }
+
+  bool operator()(const char* name,
+                  bool seen,
+                  const accurate_payload* accurate) override
+  {
+    struct stat statp;
+    int32_t LinkFI;
+    int stream = STREAM_UNIX_ATTRIBUTES;
+    if (pred(jcr, seen, name)) {
+      Dmsg1(debuglevel, "file fname=%s\n", name);
+      ff->fname = (char*)name;
+      DecodeStat(accurate->lstat, &statp, sizeof(statp), &LinkFI);
+      ff->statp.st_mtime = statp.st_mtime;
+      ff->statp.st_ctime = statp.st_ctime;
+      if (!EncodeAndSendAttributes(jcr, ff, stream)) { return false; }
+    }
+
+    return true;
+  }
+};
+
+
+std::unique_ptr<filelist_callback> SaveSelectedAs(JobControlRecord* jcr,
+                                                  filelist_filtercb f,
+                                                  int as_type)
+{
+  return std::make_unique<send_filtered_attributes>(jcr, f, as_type);
 }
 
 } /* namespace filedaemon */

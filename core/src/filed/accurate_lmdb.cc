@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -382,133 +382,6 @@ retry:
   return retval;
 }
 
-bool BareosAccurateFilelistLmdb::SendBaseFileList()
-{
-  int result;
-  int32_t LinkFIc;
-  FindFilesPacket* ff_pkt;
-  MDB_cursor* cursor;
-  MDB_val key, data;
-  bool retval = false;
-  accurate_payload* payload;
-  int stream = STREAM_UNIX_ATTRIBUTES;
-
-  if (!jcr_->accurate || jcr_->getJobLevel() != L_FULL) { return true; }
-
-  // Commit any pending write transactions.
-  if (db_rw_txn_) {
-    result = mdb_txn_commit(db_rw_txn_);
-    if (result != 0) {
-      Jmsg1(jcr_, M_FATAL, 0, T_("Unable close write transaction: %s\n"),
-            mdb_strerror(result));
-      return false;
-    }
-    db_rw_txn_ = NULL;
-  }
-
-  ff_pkt = init_find_files();
-  ff_pkt->type = FT_BASE;
-
-  result = mdb_cursor_open(db_ro_txn_, db_dbi_, &cursor);
-  if (result == 0) {
-    while ((result = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
-      payload = (accurate_payload*)data.mv_data;
-      if (BitIsSet(payload->filenr, seen_bitmap_)) {
-        Dmsg1(debuglevel, "base file fname=%s\n", key.mv_data);
-        DecodeStat(payload->lstat, &ff_pkt->statp, sizeof(struct stat),
-                   &LinkFIc); /* decode catalog stat */
-        ff_pkt->fname = (char*)key.mv_data;
-        EncodeAndSendAttributes(jcr_, ff_pkt, stream);
-      }
-    }
-    mdb_cursor_close(cursor);
-  } else {
-    Jmsg1(jcr_, M_FATAL, 0, T_("Unable create cursor: %s\n"),
-          mdb_strerror(result));
-  }
-
-  mdb_txn_reset(db_ro_txn_);
-  result = mdb_txn_renew(db_ro_txn_);
-  if (result != 0) {
-    Jmsg1(jcr_, M_FATAL, 0, T_("Unable to renew read transaction: %s\n"),
-          mdb_strerror(result));
-    goto bail_out;
-  }
-
-  retval = true;
-
-bail_out:
-  TermFindFiles(ff_pkt);
-  return retval;
-}
-
-bool BareosAccurateFilelistLmdb::SendDeletedList()
-{
-  int result;
-  int32_t LinkFIc;
-  struct stat statp;
-  FindFilesPacket* ff_pkt;
-  MDB_cursor* cursor;
-  MDB_val key, data;
-  bool retval = false;
-  accurate_payload* payload;
-  int stream = STREAM_UNIX_ATTRIBUTES;
-
-  if (!jcr_->accurate) { return true; }
-
-  // Commit any pending write transactions.
-  if (db_rw_txn_) {
-    result = mdb_txn_commit(db_rw_txn_);
-    if (result != 0) {
-      Jmsg1(jcr_, M_FATAL, 0, T_("Unable close write transaction: %s\n"),
-            mdb_strerror(result));
-      return false;
-    }
-    db_rw_txn_ = NULL;
-  }
-
-  ff_pkt = init_find_files();
-  ff_pkt->type = FT_DELETED;
-
-  result = mdb_cursor_open(db_ro_txn_, db_dbi_, &cursor);
-  if (result == 0) {
-    while ((result = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
-      payload = (accurate_payload*)data.mv_data;
-
-      if (BitIsSet(payload->filenr, seen_bitmap_)
-          || PluginCheckFile(jcr_, (char*)key.mv_data)) {
-        continue;
-      }
-
-      Dmsg1(debuglevel, "deleted fname=%s\n", key.mv_data);
-      DecodeStat(payload->lstat, &statp, sizeof(struct stat),
-                 &LinkFIc); /* decode catalog stat */
-      ff_pkt->fname = (char*)key.mv_data;
-      ff_pkt->statp.st_mtime = statp.st_mtime;
-      ff_pkt->statp.st_ctime = statp.st_ctime;
-      EncodeAndSendAttributes(jcr_, ff_pkt, stream);
-    }
-    mdb_cursor_close(cursor);
-  } else {
-    Jmsg1(jcr_, M_FATAL, 0, T_("Unable create cursor: %s\n"),
-          mdb_strerror(result));
-  }
-
-  mdb_txn_reset(db_ro_txn_);
-  result = mdb_txn_renew(db_ro_txn_);
-  if (result != 0) {
-    Jmsg1(jcr_, M_FATAL, 0, T_("Unable to renew read transaction: %s\n"),
-          mdb_strerror(result));
-    goto bail_out;
-  }
-
-  retval = true;
-
-bail_out:
-  TermFindFiles(ff_pkt);
-  return retval;
-}
-
 void BareosAccurateFilelistLmdb::destroy()
 {
   // Abort any pending read transaction.
@@ -563,6 +436,54 @@ void BareosAccurateFilelistLmdb::destroy()
   }
 
   filenr_ = 0;
+}
+
+bool BareosAccurateFilelistLmdb::Iterate(filelist_callback* cb)
+{
+  int result;
+  MDB_cursor* cursor;
+  MDB_val key, data;
+  bool retval = false;
+  accurate_payload* payload;
+
+  // Commit any pending write transactions.
+  if (db_rw_txn_) {
+    result = mdb_txn_commit(db_rw_txn_);
+    if (result != 0) {
+      Jmsg1(jcr_, M_FATAL, 0, T_("Unable close write transaction: %s\n"),
+            mdb_strerror(result));
+      return false;
+    }
+    db_rw_txn_ = NULL;
+  }
+
+  result = mdb_cursor_open(db_ro_txn_, db_dbi_, &cursor);
+  if (result == 0) {
+    while ((result = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
+      payload = (accurate_payload*)data.mv_data;
+      if (!(*cb)((const char*)key.mv_data,
+                 BitIsSet(payload->filenr, seen_bitmap_), payload)) {
+        goto bail_out;
+      }
+    }
+    mdb_cursor_close(cursor);
+  } else {
+    Jmsg1(jcr_, M_FATAL, 0, T_("Unable create cursor: %s\n"),
+          mdb_strerror(result));
+  }
+
+  mdb_txn_reset(db_ro_txn_);
+  result = mdb_txn_renew(db_ro_txn_);
+  if (result != 0) {
+    Jmsg1(jcr_, M_FATAL, 0, T_("Unable to renew read transaction: %s\n"),
+          mdb_strerror(result));
+    goto bail_out;
+  }
+
+  retval = true;
+
+bail_out:
+  return retval;
 }
 #endif /* HAVE_LMDB */
 } /* namespace filedaemon */
