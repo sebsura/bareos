@@ -33,7 +33,7 @@ if(Python3_FOUND)
     DESTINATION ${plugindir}
     COMPONENT filedaemon
   )
-  target_link_libraries(python3-fd ${Python3_LIBRARIES} bareos)
+  target_link_libraries(python3-fd ${Python3_LIBRARIES})
   target_include_directories(python3-fd PUBLIC ${Python3_INCLUDE_DIRS})
   target_compile_definitions(
     python3-fd PUBLIC PY3MODDIR=\"${Python3_SITEARCH}\"

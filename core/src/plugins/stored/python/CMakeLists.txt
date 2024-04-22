@@ -26,7 +26,7 @@ if(Python3_FOUND)
                WINDOWS_EXPORT_ALL_SYMBOLS TRUE
   )
   install(TARGETS python3-sd DESTINATION ${plugindir})
-  target_link_libraries(python3-sd ${Python3_LIBRARIES} bareos)
+  target_link_libraries(python3-sd ${Python3_LIBRARIES})
   target_compile_definitions(
     python3-sd PUBLIC PY3MODDIR=\"${Python3_SITEARCH}\"
   )

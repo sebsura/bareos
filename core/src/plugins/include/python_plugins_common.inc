@@ -19,7 +19,6 @@
    02110-1301, USA.
 */
 
-
 // Strip any backslashes in the string.
 static inline void StripBackSlashes(char* value)
 {
@@ -50,7 +49,7 @@ static inline bool ParseBoolean(const char* argument_value)
 // Parse a integer value.
 static inline int64_t parse_integer(const char* argument_value)
 {
-  return str_to_int64(argument_value);
+  return atoll(argument_value);
 }
 
 // Always set destination to value and clean any previous one.

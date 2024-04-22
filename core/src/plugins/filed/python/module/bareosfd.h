@@ -586,7 +586,8 @@ static PyMethodDef Methods[] = {
 static bRC set_bareos_core_functions(CoreFunctions* new_bareos_core_functions);
 static bRC set_plugin_context(PluginContext* new_plugin_context);
 static void PyErrorHandler(PluginContext* plugin_ctx, int msgtype);
-static bRC PyParsePluginDefinition(PluginContext* plugin_ctx, void* value);
+static bRC PyParsePluginDefinition(PluginContext* plugin_ctx,
+                                   const void* value);
 static bRC PyGetPluginValue(PluginContext* plugin_ctx,
                             pVariable var,
                             void* value);

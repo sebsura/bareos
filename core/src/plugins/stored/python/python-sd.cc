@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2011-2014 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -26,13 +26,8 @@
 #define PY_SSIZE_T_CLEAN
 #define BUILD_PLUGIN
 
-#if defined(HAVE_WIN32)
-#  include "include/bareos.h"
-#  include <Python.h>
-#else
-#  include <Python.h>
-#  include "include/bareos.h"
-#endif
+#include <string>
+#include <Python.h>
 #include "include/version_hex.h"
 
 #define PLUGIN_DAEMON "sd"
@@ -42,7 +37,7 @@
 
 #define LOGPREFIX PLUGIN_NAME "-" PLUGIN_DAEMON ": "
 
-#include "stored/stored.h"
+#include "stored/sd_plugins.h"
 
 #include "python-sd.h"
 #include "module/bareossd.h"
@@ -84,8 +79,8 @@ static bRC handlePluginEvent(PluginContext* plugin_ctx,
                              bSdEvent* event,
                              void* value);
 static bRC parse_plugin_definition(PluginContext* plugin_ctx,
-                                   void* value,
-                                   PoolMem& plugin_options);
+                                   const void* value,
+                                   std::string& plugin_options);
 
 /* Pointers to Bareos functions */
 static CoreFunctions* bareos_core_functions = NULL;
@@ -295,7 +290,7 @@ static bRC handlePluginEvent(PluginContext* plugin_ctx,
 {
   bRC retval = bRC_Error;
   bool event_dispatched = false;
-  PoolMem plugin_options(PM_FNAME);
+  std::string plugin_options;
   plugin_private_context* plugin_priv_ctx
       = (plugin_private_context*)plugin_ctx->plugin_private_context;
 
@@ -363,12 +358,12 @@ bail_out:
  * python:module_path=<path>:module_name=<python_module_name>:...
  */
 static bRC parse_plugin_definition(PluginContext* plugin_ctx,
-                                   void* value,
-                                   PoolMem& plugin_options)
+                                   const void* value,
+                                   std::string& plugin_options)
 {
   bool found;
   int i, cnt;
-  PoolMem plugin_definition(PM_FNAME);
+  std::string plugin_definition;
   char *bp, *argument, *argument_value;
   plugin_private_context* plugin_priv_ctx
       = (plugin_private_context*)plugin_ctx->plugin_private_context;
@@ -377,9 +372,9 @@ static bRC parse_plugin_definition(PluginContext* plugin_ctx,
 
   /* Parse the plugin definition.
    * Make a private copy of the whole string. */
-  PmStrcpy(plugin_definition, (char*)value);
+  plugin_definition = (const char*)value;
 
-  bp = strchr(plugin_definition.c_str(), ':');
+  bp = strchr(plugin_definition.data(), ':');
   if (!bp) {
     Jmsg(plugin_ctx, M_FATAL, LOGPREFIX "Illegal plugin definition %s\n",
          plugin_definition.c_str());
@@ -428,7 +423,7 @@ static bRC parse_plugin_definition(PluginContext* plugin_ctx,
 
     found = false;
     for (i = 0; plugin_arguments[i].name; i++) {
-      if (Bstrcasecmp(argument, plugin_arguments[i].name)) {
+      if (strcasecmp(argument, plugin_arguments[i].name) == 0) {
         int64_t* int_destination = NULL;
         char** str_destination = NULL;
         bool* bool_destination = NULL;
@@ -465,20 +460,15 @@ static bRC parse_plugin_definition(PluginContext* plugin_ctx,
 
     // If we didn't consume this parameter we add it to the plugin_options list.
     if (!found) {
-      PoolMem option(PM_FNAME);
-
-      if (cnt) {
-        Mmsg(option, ":%s=%s", argument, argument_value);
-        PmStrcat(plugin_options, option.c_str());
-      } else {
-        Mmsg(option, "%s=%s", argument, argument_value);
-        PmStrcat(plugin_options, option.c_str());
-      }
+      if (cnt) { plugin_options += ":"; }
+      plugin_options += argument;
+      plugin_options += "=";
+      plugin_options += argument_value;
       cnt++;
     }
   }
 
-  if (cnt > 0) { PmStrcat(plugin_options, ":"); }
+  if (cnt > 0) { plugin_options += ":"; }
 
   return bRC_OK;
 

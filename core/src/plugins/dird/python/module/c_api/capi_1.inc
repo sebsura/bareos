@@ -6,7 +6,7 @@
 /* static bRC PyParsePluginDefinition(PluginContext* plugin_ctx, void* value); */
 #define Bareosdir_PyParsePluginDefinition_NUM 0
 #define Bareosdir_PyParsePluginDefinition_RETURN bRC
-#define Bareosdir_PyParsePluginDefinition_PROTO (PluginContext* plugin_ctx, void* value)
+#define Bareosdir_PyParsePluginDefinition_PROTO (PluginContext* plugin_ctx, const void* value)
 
 /* static bRC PyGetPluginValue(PluginContext* plugin_ctx, pVariable var, void* value); */
 #define Bareosdir_PyGetPluginValue_NUM 1

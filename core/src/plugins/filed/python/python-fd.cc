@@ -26,13 +26,7 @@
 #define PY_SSIZE_T_CLEAN
 #define BUILD_PLUGIN
 
-#if defined(HAVE_WIN32)
-#  include "include/bareos.h"
-#  include <Python.h>
-#else
-#  include <Python.h>
-#  include "include/bareos.h"
-#endif
+#include <Python.h>
 #include "include/version_hex.h"
 
 #define PLUGIN_DAEMON "fd"
@@ -585,12 +579,12 @@ void SetStringIfNull(char** destination, char* value)
  */
 bRC parse_plugin_definition(PluginContext* plugin_ctx,
                             void* value,
-                            PoolMem& plugin_options)
+                            std::string& plugin_options)
 {
   bool found;
   int i, cnt;
   bool keep_existing;
-  PoolMem plugin_definition(PM_FNAME);
+  std::string plugin_definition;
   char *bp, *argument, *argument_value;
   plugin_private_context* plugin_priv_ctx
       = (plugin_private_context*)plugin_ctx->plugin_private_context;
@@ -600,7 +594,7 @@ bRC parse_plugin_definition(PluginContext* plugin_ctx,
   /* Skip this plugin when getting plugin definition "*all*"
    * This allows to restore a Windows Backup on a Linux FD with
    * Python Plugins enabled. */
-  if (bstrcmp((char*)value, "*all*")) {
+  if (strcmp((const char*)value, "*all*") == 0) {
     Dmsg(plugin_ctx, debuglevel,
          LOGPREFIX "Got plugin definition %s, skipping to ignore\n",
          (char*)value);
@@ -620,7 +614,7 @@ bRC parse_plugin_definition(PluginContext* plugin_ctx,
      * with the first argument being the pluginname removed as that is already
      * part of the other plugin option string. */
     len = strlen(plugin_priv_ctx->plugin_options);
-    PmStrcpy(plugin_definition, plugin_priv_ctx->plugin_options);
+    plugin_definition += plugin_priv_ctx->plugin_options;
 
     bp = strchr((char*)value, ':');
     if (!bp) {
@@ -633,15 +627,15 @@ bRC parse_plugin_definition(PluginContext* plugin_ctx,
 
     // See if option string end with ':'
     if (plugin_priv_ctx->plugin_options[len - 1] != ':') {
-      PmStrcat(plugin_definition, (char*)bp);
+      plugin_definition += bp;
     } else {
-      PmStrcat(plugin_definition, (char*)bp + 1);
+      plugin_definition += bp + 1;
     }
   } else {
-    PmStrcpy(plugin_definition, (char*)value);
+    plugin_definition.assign((const char*)value);
   }
 
-  bp = strchr(plugin_definition.c_str(), ':');
+  bp = strchr(plugin_definition.data(), ':');
   if (!bp) {
     Jmsg(plugin_ctx, M_FATAL, LOGPREFIX "Illegal plugin definition %s\n",
          plugin_definition.c_str());
@@ -690,7 +684,7 @@ bRC parse_plugin_definition(PluginContext* plugin_ctx,
 
     found = false;
     for (i = 0; plugin_arguments[i].name; i++) {
-      if (Bstrcasecmp(argument, plugin_arguments[i].name)) {
+      if (strcasecmp(argument, plugin_arguments[i].name) == 0) {
         char** str_destination = NULL;
         bool* bool_destination = NULL;
 
@@ -727,20 +721,15 @@ bRC parse_plugin_definition(PluginContext* plugin_ctx,
 
     // If we didn't consume this parameter we add it to the plugin_options list.
     if (!found) {
-      PoolMem option(PM_FNAME);
-
-      if (cnt) {
-        Mmsg(option, ":%s=%s", argument, argument_value);
-        PmStrcat(plugin_options, option.c_str());
-      } else {
-        Mmsg(option, "%s=%s", argument, argument_value);
-        PmStrcat(plugin_options, option.c_str());
-      }
+      if (cnt) { plugin_options += ":"; }
+      plugin_options += argument;
+      plugin_options += "=";
+      plugin_options += argument_value;
       cnt++;
     }
   }
 
-  if (cnt > 0) { PmStrcat(plugin_options, ":"); }
+  if (cnt > 0) { plugin_options += ":"; }
 
   return bRC_OK;
 
@@ -752,7 +741,7 @@ bRC handlePluginEvent(PluginContext* plugin_ctx, bEvent* event, void* value)
 {
   bRC retval = bRC_Error;
   bool event_dispatched = false;
-  PoolMem plugin_options(PM_FNAME);
+  std::string plugin_options;
   plugin_private_context* plugin_priv_ctx
       = (plugin_private_context*)plugin_ctx->plugin_private_context;
 
