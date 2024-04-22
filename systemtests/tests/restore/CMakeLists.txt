@@ -23,63 +23,63 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 else()
   create_systemtest(${SYSTEMTEST_PREFIX} ${BASENAME})
 
-  set_tests_properties(
-    system:restore:create-backup PROPERTIES FIXTURES_SETUP
-                                            "system:restore:backup-job-fixture"
-  )
-  set_tests_properties(
-    system:restore:archive-restore-file
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-  set_tests_properties(
-    system:restore:archive-restore-dir
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-  set_tests_properties(
-    system:restore:archive-full-restore
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-  set_tests_properties(
-    system:restore:restore-file
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-  set_tests_properties(
-    system:restore:restore-fileregex
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-  set_tests_properties(
-    system:restore:restore-dir
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-  set_tests_properties(
-    system:restore:full-restore
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-  set_tests_properties(
-    system:restore:check-hints
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-  set_tests_properties(
-    system:restore:multi
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-  set_tests_properties(
-    system:restore:restore-old-archive
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-  set_tests_properties(
-    system:restore:error-full-restore
-    PROPERTIES FIXTURES_REQUIRED
-               "system:restore:backup-job-fixture;system:restore-fixture"
-  )
-endif()
+set_tests_properties(
+  system:restore:create-backup
+  PROPERTIES FIXTURES_SETUP "system:restore:backup-job-fixture"
+             FIXTURES_REQUIRED "system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:archive-restore-file
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:archive-restore-dir
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:archive-full-restore
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:restore-file
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:restore-fileregex
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:restore-dir
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:full-restore
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:check-hints
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:multi
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:restore-old-archive
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)
+set_tests_properties(
+  system:restore:error-full-restore
+  PROPERTIES FIXTURES_REQUIRED
+             "system:restore:backup-job-fixture;system:restore-fixture"
+)

@@ -51,6 +51,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Require python3 explicit [PR #1719]
 - cmake: put generated files into CMAKE_BINARY_DIR [PR #1707]
 - increase warning level on C/C++ compiler [PR #1689]
+- VMware Plugin: Backup and Restore NVRAM [PR #1727]
+- doc: add backtick around *.?* description  [PR #1752]
+- PR template: remove backport hints [PR #1762]
+- python-bareos: use TLS-PSK from core ssl module (available since Python >= 3.13) [PR #1756]
+- [percona-xtrabackup] prevent High memory usage for no reason (IO_CLOSE) [PR #1724]
+- docs: improve handling of ResourceItem descriptions [PR #1761]
+- pr-tool: give hint about commit headline length limits [PR #1763]
+- stored: fix some sd error messages; add additional check during restore; split up always-incremental-consolidate test [PR #1722]
+- Generate LICENSE.txt from LICENSE.template [PR #1753]
 
 ### Removed
 - plugins: remove old deprecated postgres plugin [PR #1606]
@@ -69,6 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - core: Fix compile errors on GCC 14 [PR #1687]
 - stored: fix authentication race condition / deadlock [PR #1732]
 - Fix warning about missing delcandidates table in director [PR #1721]
+- stored: fix not counting files correctly in mac jobs when autoxflate is enabled [PR #1745]
+- cats: fixes BigSqlQuery header fetching [PR #1746]
 
 [PR #1538]: https://github.com/bareos/bareos/pull/1538
 [PR #1581]: https://github.com/bareos/bareos/pull/1581
@@ -123,6 +134,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [PR #1718]: https://github.com/bareos/bareos/pull/1718
 [PR #1719]: https://github.com/bareos/bareos/pull/1719
 [PR #1721]: https://github.com/bareos/bareos/pull/1721
+[PR #1722]: https://github.com/bareos/bareos/pull/1722
+[PR #1724]: https://github.com/bareos/bareos/pull/1724
+[PR #1727]: https://github.com/bareos/bareos/pull/1727
 [PR #1728]: https://github.com/bareos/bareos/pull/1728
 [PR #1732]: https://github.com/bareos/bareos/pull/1732
+[PR #1745]: https://github.com/bareos/bareos/pull/1745
+[PR #1746]: https://github.com/bareos/bareos/pull/1746
+[PR #1752]: https://github.com/bareos/bareos/pull/1752
+[PR #1753]: https://github.com/bareos/bareos/pull/1753
+[PR #1756]: https://github.com/bareos/bareos/pull/1756
+[PR #1761]: https://github.com/bareos/bareos/pull/1761
+[PR #1762]: https://github.com/bareos/bareos/pull/1762
+[PR #1763]: https://github.com/bareos/bareos/pull/1763
 [unreleased]: https://github.com/bareos/bareos/tree/master
