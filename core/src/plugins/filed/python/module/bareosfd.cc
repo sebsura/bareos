@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -25,13 +25,7 @@
 #define PY_SSIZE_T_CLEAN
 #define BUILD_PLUGIN
 
-#if defined(HAVE_WIN32)
-#  include "include/bareos.h"
-#  include <Python.h>
-#else
-#  include <Python.h>
-#  include "include/bareos.h"
-#endif
+#include <Python.h>
 
 #include "include/version_hex.h"
 
@@ -1864,20 +1858,16 @@ static inline char* PyGetByteArrayValue(PyObject* object)
 // Representation.
 static PyObject* PyRestoreObject_repr(PyRestoreObject* self)
 {
-  PyObject* s;
-  PoolMem buf(PM_MESSAGE);
+  const char* objname = PyGetStringValue(self->object_name);
+  const char* obj = PyGetByteArrayValue(self->object);
 
-  Mmsg(buf,
-       "RestoreObject(object_name=\"%s\", object=\"%s\", plugin_name=\"%s\", "
-       "object_type=%d, object_len=%d, object_full_len=%d, "
-       "object_index=%d, object_compression=%d, stream=%d, jobid=%u)",
-       PyGetStringValue(self->object_name), PyGetByteArrayValue(self->object),
-       self->plugin_name, self->object_type, self->object_len,
-       self->object_full_len, self->object_index, self->object_compression,
-       self->stream, self->JobId);
-  s = PyUnicode_FromString(buf.c_str());
-
-  return s;
+  return PyUnicode_FromFormat(
+      "RestoreObject(object_name=\"%s\", object=\"%s\", plugin_name=\"%s\", "
+      "object_type=%d, object_len=%d, object_full_len=%d, "
+      "object_index=%d, object_compression=%d, stream=%d, jobid=%u)",
+      objname, obj, self->plugin_name, self->object_type, self->object_len,
+      self->object_full_len, self->object_index, self->object_compression,
+      self->stream, self->JobId);
 }
 
 // Initialization.
@@ -1932,20 +1922,13 @@ static void PyRestoreObject_dealloc(PyRestoreObject* self)
 // Representation.
 static PyObject* PyStatPacket_repr(PyStatPacket* self)
 {
-  PyObject* s;
-  PoolMem buf(PM_MESSAGE);
-
-  Mmsg(buf,
-       "StatPacket(dev=%ld, ino=%lld, mode=%04o, nlink=%d, "
-       "uid=%ld, gid=%ld, rdev=%ld, size=%lld, "
-       "atime=%ld, mtime=%ld, ctime=%ld, blksize=%ld, blocks=%lld)",
-       self->dev, self->ino, (self->mode & ~S_IFMT), self->nlink, self->uid,
-       self->gid, self->rdev, self->size, self->atime, self->mtime, self->ctime,
-       self->blksize, self->blocks);
-
-  s = PyUnicode_FromString(buf.c_str());
-
-  return s;
+  return PyUnicode_FromFormat(
+      "StatPacket(dev=%ld, ino=%lld, mode=%04o, nlink=%d, "
+      "uid=%ld, gid=%ld, rdev=%ld, size=%lld, "
+      "atime=%ld, mtime=%ld, ctime=%ld, blksize=%ld, blocks=%lld)",
+      self->dev, self->ino, (self->mode & ~S_IFMT), self->nlink, self->uid,
+      self->gid, self->rdev, self->size, self->atime, self->mtime, self->ctime,
+      self->blksize, self->blocks);
 }
 
 // Initialization.
@@ -2021,23 +2004,16 @@ static inline const char* print_flags_bitmap(PyObject* bitmap)
 
 static PyObject* PySavePacket_repr(PySavePacket* self)
 {
-  PyObject* s;
-  PoolMem buf(PM_MESSAGE);
-
-  Mmsg(buf,
-       "SavePacket(fname=\"%s\", link=\"%s\", type=%ld, flags=%s, "
-       "no_read=%d, portable=%d, accurate_found=%d, "
-       "cmd=\"%s\", save_time=%ld, delta_seq=%ld, object_name=\"%s\", "
-       "object=\"%s\", object_len=%ld, object_index=%ld)",
-       PyGetStringValue(self->fname), PyGetStringValue(self->link), self->type,
-       print_flags_bitmap(self->flags), self->no_read, self->portable,
-       self->accurate_found, self->cmd, self->save_time, self->delta_seq,
-       PyGetStringValue(self->object_name), PyGetByteArrayValue(self->object),
-       self->object_len, self->object_index);
-
-  s = PyUnicode_FromString(buf.c_str());
-
-  return s;
+  return PyUnicode_FromFormat(
+      "SavePacket(fname=\"%s\", link=\"%s\", type=%ld, flags=%s, "
+      "no_read=%d, portable=%d, accurate_found=%d, "
+      "cmd=\"%s\", save_time=%ld, delta_seq=%ld, object_name=\"%s\", "
+      "object=\"%s\", object_len=%ld, object_index=%ld)",
+      PyGetStringValue(self->fname), PyGetStringValue(self->link), self->type,
+      print_flags_bitmap(self->flags), self->no_read, self->portable,
+      self->accurate_found, self->cmd, self->save_time, self->delta_seq,
+      PyGetStringValue(self->object_name), PyGetByteArrayValue(self->object),
+      self->object_len, self->object_index);
 }
 
 // Initialization.
@@ -2092,24 +2068,20 @@ static void PySavePacket_dealloc(PySavePacket* self)
 // Representation.
 static PyObject* PyRestorePacket_repr(PyRestorePacket* self)
 {
-  PyObject *stat_repr, *s;
-  PoolMem buf(PM_MESSAGE);
+  PyObject* stat_repr = PyObject_Repr(self->statp);
+  PyObject* ret = PyUnicode_FromFormat(
+      "RestorePacket(stream=%d, data_stream=%ld, type=%ld, file_index=%ld, "
+      "linkFI=%ld, uid=%ld, statp=\"%s\", attrEx=\"%s\", ofname=\"%s\", "
+      "olname=\"%s\", where=\"%s\", RegexWhere=\"%s\", replace=%d, "
+      "create_status=%d)",
+      self->stream, self->data_stream, self->type, self->file_index,
+      self->LinkFI, self->uid, PyGetStringValue(stat_repr), self->attrEx,
+      self->ofname, self->olname, self->where, self->RegexWhere, self->replace,
+      self->create_status);
 
-  stat_repr = PyObject_Repr(self->statp);
-  Mmsg(buf,
-       "RestorePacket(stream=%d, data_stream=%ld, type=%ld, file_index=%ld, "
-       "linkFI=%ld, uid=%ld, statp=\"%s\", attrEx=\"%s\", ofname=\"%s\", "
-       "olname=\"%s\", where=\"%s\", RegexWhere=\"%s\", replace=%d, "
-       "create_status=%d)",
-       self->stream, self->data_stream, self->type, self->file_index,
-       self->LinkFI, self->uid, PyGetStringValue(stat_repr), self->attrEx,
-       self->ofname, self->olname, self->where, self->RegexWhere, self->replace,
-       self->create_status);
-
-  s = PyUnicode_FromString(buf.c_str());
   Py_DECREF(stat_repr);
 
-  return s;
+  return ret;
 }
 
 // Initialization.
@@ -2162,20 +2134,13 @@ static void PyRestorePacket_dealloc(PyRestorePacket* self)
 // Representation.
 static PyObject* PyIoPacket_repr(PyIoPacket* self)
 {
-  PyObject* s;
-  PoolMem buf(PM_MESSAGE);
-
-  Mmsg(buf,
-       "IoPacket(func=%d, count=%ld, flags=%ld, mode=%04o, "
-       "buf=\"%s\", fname=\"%s\", status=%ld, io_errno=%ld, lerror=%ld, "
-       "whence=%ld, offset=%lld, win32=%d, filedes=%d)",
-       self->func, self->count, self->flags, (self->mode & ~S_IFMT),
-       PyGetByteArrayValue(self->buf), self->fname, self->status,
-       self->io_errno, self->lerror, self->whence, self->offset, self->win32,
-       self->filedes);
-  s = PyUnicode_FromString(buf.c_str());
-
-  return s;
+  return PyUnicode_FromFormat(
+      "IoPacket(func=%d, count=%ld, flags=%ld, mode=%04o, "
+      "buf=\"%s\", fname=\"%s\", status=%ld, io_errno=%ld, lerror=%ld, "
+      "whence=%ld, offset=%lld, win32=%d, filedes=%d)",
+      self->func, self->count, self->flags, (self->mode & ~S_IFMT),
+      PyGetByteArrayValue(self->buf), self->fname, self->status, self->io_errno,
+      self->lerror, self->whence, self->offset, self->win32, self->filedes);
 }
 
 // Initialization.
@@ -2226,14 +2191,8 @@ static void PyIoPacket_dealloc(PyIoPacket* self)
 // Representation.
 static PyObject* PyAclPacket_repr(PyAclPacket* self)
 {
-  PyObject* s;
-  PoolMem buf(PM_MESSAGE);
-
-  Mmsg(buf, "AclPacket(fname=\"%s\", content=\"%s\")", self->fname,
-       PyGetByteArrayValue(self->content));
-  s = PyUnicode_FromString(buf.c_str());
-
-  return s;
+  return PyUnicode_FromFormat("AclPacket(fname=\"%s\", content=\"%s\")",
+                              self->fname, PyGetByteArrayValue(self->content));
 }
 
 // Initialization.
@@ -2264,14 +2223,9 @@ static void PyAclPacket_dealloc(PyAclPacket* self)
 // Representation.
 static PyObject* PyXattrPacket_repr(PyXattrPacket* self)
 {
-  PyObject* s;
-  PoolMem buf(PM_MESSAGE);
-
-  Mmsg(buf, "XattrPacket(fname=\"%s\", name=\"%s\", value=\"%s\")", self->fname,
-       PyGetByteArrayValue(self->name), PyGetByteArrayValue(self->value));
-  s = PyUnicode_FromString(buf.c_str());
-
-  return s;
+  return PyUnicode_FromFormat(
+      "XattrPacket(fname=\"%s\", name=\"%s\", value=\"%s\")", self->fname,
+      PyGetByteArrayValue(self->name), PyGetByteArrayValue(self->value));
 }
 
 // Initialization.

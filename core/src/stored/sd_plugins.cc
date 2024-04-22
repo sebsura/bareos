@@ -3,7 +3,7 @@
 
    Copyright (C) 2007-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -32,6 +32,7 @@
 #include "stored/device_control_record.h"
 #include "stored/stored_jcr_impl.h"
 #include "sd_plugins.h"
+#include "lib/generic_plugins.h"
 #include "lib/crypto_cache.h"
 #include "stored/sd_stats.h"
 #include "lib/edit.h"

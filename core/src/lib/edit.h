@@ -22,6 +22,7 @@
 #define BAREOS_LIB_EDIT_H_
 
 #include <vector>
+#include <string>
 #include "include/bc_types.h"
 
 namespace edit {

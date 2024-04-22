@@ -3,7 +3,7 @@
 
    Copyright (C) 2007-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -27,6 +27,9 @@
  */
 #ifndef BAREOS_LIB_PLUGINS_H_
 #define BAREOS_LIB_PLUGINS_H_
+
+#include <stdint.h>
+#include <stdio.h>
 
 /****************************************************************************
  *                                                                          *
@@ -93,18 +96,6 @@ typedef struct gen_pluginInfo {
 } PluginInformation;
 
 template <typename T> class alist;
-
-/* Functions */
-bool LoadPlugins(void* bareos_plugin_interface_version,
-                 void* bareos_core_functions,
-                 alist<Plugin*>* plugin_list,
-                 const char* plugin_dir,
-                 alist<const char*>* plugin_names,
-                 const char* type,
-                 bool IsPluginCompatible(Plugin* plugin));
-void UnloadPlugins(alist<Plugin*>* plugin_list);
-void UnloadPlugin(alist<Plugin*>* plugin_list, Plugin* plugin, int index);
-int ListPlugins(alist<Plugin*>* plugin_list, PoolMem& msg);
 
 /* Each daemon can register a debug hook that will be called
  * after a fatal signal

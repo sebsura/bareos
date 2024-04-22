@@ -20,10 +20,10 @@
 if(Python3_FOUND)
   add_library(python3-sd MODULE python-sd.cc)
   set_target_properties(
-    python3-sd PROPERTIES
-    PREFIX ""
-    LIBRARY_OUTPUT_DIRECTORY ..
-    WINDOWS_EXPORT_ALL_SYMBOLS TRUE
+    python3-sd
+    PROPERTIES PREFIX ""
+               LIBRARY_OUTPUT_DIRECTORY ..
+               WINDOWS_EXPORT_ALL_SYMBOLS TRUE
   )
   install(TARGETS python3-sd DESTINATION ${plugindir})
   target_link_libraries(python3-sd ${Python3_LIBRARIES} bareos)
@@ -60,7 +60,7 @@ if(Python3_FOUND)
                                               ${Python3_CCSHARED}
     )
   endif()
-  target_link_libraries(bareossd-python3-module bareos ${Python3_LIBRARIES})
+  target_link_libraries(bareossd-python3-module ${Python3_LIBRARIES})
 
   add_test(NAME bareossd-python3-module
            COMMAND ${Python3_EXECUTABLE}

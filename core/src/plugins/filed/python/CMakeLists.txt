@@ -23,10 +23,10 @@ include(BareosConfigureFile)
 if(Python3_FOUND)
   add_library(python3-fd MODULE python-fd.cc)
   set_target_properties(
-    python3-fd PROPERTIES
-    PREFIX ""
-    LIBRARY_OUTPUT_DIRECTORY ..
-    WINDOWS_EXPORT_ALL_SYMBOLS TRUE
+    python3-fd
+    PROPERTIES PREFIX ""
+               LIBRARY_OUTPUT_DIRECTORY ..
+               WINDOWS_EXPORT_ALL_SYMBOLS TRUE
   )
   install(
     TARGETS python3-fd
@@ -92,7 +92,7 @@ if(Python3_FOUND)
   bareos_disable_warnings(
     TARGET bareosfd-python3-module WARNINGS -Wc99-designator
   )
-  target_link_libraries(bareosfd-python3-module bareos ${Python3_LIBRARIES})
+  target_link_libraries(bareosfd-python3-module ${Python3_LIBRARIES})
 
   add_test(NAME bareosfd-python3-module
            COMMAND ${Python3_EXECUTABLE}

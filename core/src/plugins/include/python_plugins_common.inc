@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -23,19 +23,14 @@
 // Strip any backslashes in the string.
 static inline void StripBackSlashes(char* value)
 {
-  char* bp;
+  char* in = value;
+  char* out = value;
 
-  bp = value;
-  while (*bp) {
-    switch (*bp) {
-      case '\\':
-        bstrinlinecpy(bp, bp + 1);
-        break;
-      default:
-        break;
+  while (*in) {
+    if (*in != '\\') {
+      *out++ = *in;
     }
-
-    bp++;
+    in++;
   }
 }
 
@@ -45,12 +40,11 @@ static inline void StripBackSlashes(char* value)
  */
 static inline bool ParseBoolean(const char* argument_value)
 {
-  if (Bstrcasecmp(argument_value, "yes")
-      || Bstrcasecmp(argument_value, "true")) {
-    return true;
-  } else {
-    return false;
-  }
+  if (!argument_value) { return false; }
+  if (strcasecmp(argument_value, "yes") == 0) { return true; }
+  if (strcasecmp(argument_value, "true") == 0) { return true; }
+
+  return false;
 }
 
 // Parse a integer value.

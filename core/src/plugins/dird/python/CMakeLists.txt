@@ -21,10 +21,10 @@ if(Python3_FOUND)
   add_library(python3-dir MODULE python-dir.cc)
   # do not prefix with "lib"
   set_target_properties(
-    python3-dir PROPERTIES
-    PREFIX ""
-    LIBRARY_OUTPUT_DIRECTORY ..
-    WINDOWS_EXPORT_ALL_SYMBOLS TRUE
+    python3-dir
+    PROPERTIES PREFIX ""
+               LIBRARY_OUTPUT_DIRECTORY ..
+               WINDOWS_EXPORT_ALL_SYMBOLS TRUE
   )
   install(TARGETS python3-dir DESTINATION ${plugindir})
   target_link_libraries(python3-dir ${Python3_LIBRARIES} bareos)
@@ -61,7 +61,7 @@ if(Python3_FOUND)
                                                ${Python3_CCSHARED}
     )
   endif()
-  target_link_libraries(bareosdir-python3-module bareos ${Python3_LIBRARIES})
+  target_link_libraries(bareosdir-python3-module ${Python3_LIBRARIES})
 
   add_test(NAME bareosdir-python3-module
            COMMAND ${Python3_EXECUTABLE}
