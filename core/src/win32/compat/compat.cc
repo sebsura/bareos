@@ -856,7 +856,17 @@ void* dlopen(const char* filename, int mode)
   dwFlags |= LOAD_WITH_ALTERED_SEARCH_PATH;
   if (mode & RTLD_NOLOAD) { dwFlags |= LOAD_LIBRARY_AS_DATAFILE; }
 
-  handle = LoadLibraryEx(filename, NULL, dwFlags);
+
+  // LoadLibrary only understands back slashes, so we need to replace
+  // every forward slash:
+
+  std::string replaced{filename};
+
+  for (auto& c : replaced) {
+    if (c == '/') { c = '\\'; }
+  }
+
+  handle = LoadLibraryEx(replaced.c_str(), NULL, dwFlags);
 
   return handle;
 }
@@ -3033,11 +3043,11 @@ Bpipe* OpenBpipe(char* prog, int wait, const char* mode, bool)
   }
 
   // Spawn program with redirected handles as appropriate
-  bpipe->worker_pid
-      = reinterpret_cast<pid_t>(CreateChildProcess(prog,            /* Commandline */
-                                  hChildStdinRd,   /* stdin HANDLE */
-                                  hChildStdoutWr,  /* stdout HANDLE */
-                                  hChildStdoutWr)); /* stderr HANDLE */
+  bpipe->worker_pid = reinterpret_cast<pid_t>(
+      CreateChildProcess(prog,             /* Commandline */
+                         hChildStdinRd,    /* stdin HANDLE */
+                         hChildStdoutWr,   /* stdout HANDLE */
+                         hChildStdoutWr)); /* stderr HANDLE */
 
   if ((HANDLE)bpipe->worker_pid == INVALID_HANDLE_VALUE) goto cleanup;
 
