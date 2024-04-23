@@ -58,10 +58,16 @@ macro(create_systemtests_directory)
   configurefilestosystemtest("core/src" "console" "*.in" @ONLY "")
 
   # install special windows start scripts
-  if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    file(RENAME  ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-fd-win ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-fd)
-    file(RENAME  ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-sd-win ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-sd)
-    file(RENAME  ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-dir-win ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-dir)
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    file(RENAME ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-fd-win
+         ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-fd
+    )
+    file(RENAME ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-sd-win
+         ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-sd
+    )
+    file(RENAME ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-dir-win
+         ${CMAKE_BINARY_DIR}/systemtests/scripts/bareos-ctl-dir
+    )
   endif()
 
   file(MAKE_DIRECTORY ${subsysdir})
@@ -84,39 +90,41 @@ endmacro()
 
 # find the full path of the given binary when *compiling* the software and
 # create and set the BINARY_NAME_TO_TEST variable to the full path of it
-if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-macro(find_compiled_binary_and_set_binary_name_to_test_variable_for binary_name)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  macro(find_compiled_binary_and_set_binary_name_to_test_variable_for
+        binary_name
+  )
 
-  if (TARGET ${binary_name})
+    if(TARGET ${binary_name})
+      create_variable_binary_name_to_test_for_binary_name(${binary_name})
+      get_target_property(
+        "${binary_name_to_test_upcase}" "${binary_name}" BINARY_DIR
+      )
+      set("${binary_name_to_test_upcase}"
+          "${${binary_name_to_test_upcase}}/${binary_name}${CMAKE_EXECUTABLE_SUFFIX}"
+      )
+      message(
+        "   ${binary_name_to_test_upcase} is ${${binary_name_to_test_upcase}}"
+      )
+    else()
+      message("Target ${binary_name} does not exist, skipping")
+    endif()
+  endmacro()
+else()
+  macro(find_compiled_binary_and_set_binary_name_to_test_variable_for
+        binary_name
+  )
     create_variable_binary_name_to_test_for_binary_name(${binary_name})
     get_target_property(
       "${binary_name_to_test_upcase}" "${binary_name}" BINARY_DIR
     )
     set("${binary_name_to_test_upcase}"
-      "${${binary_name_to_test_upcase}}/${binary_name}${CMAKE_EXECUTABLE_SUFFIX}"
+        "${${binary_name_to_test_upcase}}/${binary_name}"
     )
     message(
       "   ${binary_name_to_test_upcase} is ${${binary_name_to_test_upcase}}"
     )
-  else()
-    message(
-      "Target ${binary_name} does not exist, skipping"
-    )
-  endif()
-endmacro()
-else()
-macro(find_compiled_binary_and_set_binary_name_to_test_variable_for binary_name)
-  create_variable_binary_name_to_test_for_binary_name(${binary_name})
-  get_target_property(
-    "${binary_name_to_test_upcase}" "${binary_name}" BINARY_DIR
-  )
-  set("${binary_name_to_test_upcase}"
-      "${${binary_name_to_test_upcase}}/${binary_name}"
-  )
-  message(
-    "   ${binary_name_to_test_upcase} is ${${binary_name_to_test_upcase}}"
-  )
-endmacro()
+  endmacro()
 endif()
 # find the full path of the given binary in the *installed* binaries and create
 # and set the BINARY_NAME_TO_TEST variable to the full path of it
@@ -207,85 +215,89 @@ macro(find_systemtests_binary_paths SYSTEMTESTS_BINARIES)
 endmacro()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-function(configurefilestosystemtest srcbasedir dirname globexpression
-         configure_option srcdirname
-)
-  if(srcdirname STREQUAL "")
-    set(srcdirname "${dirname}")
-  endif()
-  set(COUNT 1)
-  file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${dirname})
-  file(
-    GLOB_RECURSE ALL_FILES
-    RELATIVE "${CMAKE_SOURCE_DIR}"
-    "${CMAKE_SOURCE_DIR}/${srcbasedir}/${srcdirname}/${globexpression}"
+  function(configurefilestosystemtest srcbasedir dirname globexpression
+           configure_option srcdirname
   )
-  foreach(TARGET_FILE ${ALL_FILES})
-    math(EXPR COUNT "${COUNT}+1")
-    set(CURRENT_FILE "${CMAKE_SOURCE_DIR}/")
-    string(APPEND CURRENT_FILE ${TARGET_FILE})
-
-    # do not mess with .ini files
-    string(REGEX REPLACE ".in$" "" TARGET_FILE "${TARGET_FILE}")
-
-    string(REPLACE "${srcbasedir}/${srcdirname}" "" TARGET_FILE ${TARGET_FILE})
-    get_filename_component(DIR_NAME ${TARGET_FILE} DIRECTORY)
-
-    if(NOT EXISTS ${PROJECT_BINARY_DIR}/${dirname}/${DIR_NAME})
-      file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${dirname}/${DIR_NAME})
+    if(srcdirname STREQUAL "")
+      set(srcdirname "${dirname}")
     endif()
-    if(${CURRENT_FILE} MATCHES ".in$")
-      configure_file(
-        ${CURRENT_FILE} ${PROJECT_BINARY_DIR}/${dirname}/${TARGET_FILE}
-        ${configure_option}
+    set(COUNT 1)
+    file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${dirname})
+    file(
+      GLOB_RECURSE ALL_FILES
+      RELATIVE "${CMAKE_SOURCE_DIR}"
+      "${CMAKE_SOURCE_DIR}/${srcbasedir}/${srcdirname}/${globexpression}"
+    )
+    foreach(TARGET_FILE ${ALL_FILES})
+      math(EXPR COUNT "${COUNT}+1")
+      set(CURRENT_FILE "${CMAKE_SOURCE_DIR}/")
+      string(APPEND CURRENT_FILE ${TARGET_FILE})
+
+      # do not mess with .ini files
+      string(REGEX REPLACE ".in$" "" TARGET_FILE "${TARGET_FILE}")
+
+      string(REPLACE "${srcbasedir}/${srcdirname}" "" TARGET_FILE
+                     ${TARGET_FILE}
       )
-    else()
-      file(CREATE_LINK ${CURRENT_FILE}
-           ${PROJECT_BINARY_DIR}/${dirname}/${TARGET_FILE} SYMBOLIC
-      )
-    endif()
-  endforeach()
-endfunction()
+      get_filename_component(DIR_NAME ${TARGET_FILE} DIRECTORY)
+
+      if(NOT EXISTS ${PROJECT_BINARY_DIR}/${dirname}/${DIR_NAME})
+        file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${dirname}/${DIR_NAME})
+      endif()
+      if(${CURRENT_FILE} MATCHES ".in$")
+        configure_file(
+          ${CURRENT_FILE} ${PROJECT_BINARY_DIR}/${dirname}/${TARGET_FILE}
+          ${configure_option}
+        )
+      else()
+        file(CREATE_LINK ${CURRENT_FILE}
+             ${PROJECT_BINARY_DIR}/${dirname}/${TARGET_FILE} SYMBOLIC
+        )
+      endif()
+    endforeach()
+  endfunction()
 else()
-function(configurefilestosystemtest srcbasedir dirname globexpression
-         configure_option srcdirname
-)
-  if(srcdirname STREQUAL "")
-    set(srcdirname "${dirname}")
-  endif()
-  set(COUNT 1)
-  file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${dirname})
-  file(
-    GLOB_RECURSE ALL_FILES
-    RELATIVE "${CMAKE_SOURCE_DIR}"
-    "${CMAKE_SOURCE_DIR}/${srcbasedir}/${srcdirname}/${globexpression}"
+  function(configurefilestosystemtest srcbasedir dirname globexpression
+           configure_option srcdirname
   )
-  foreach(TARGET_FILE ${ALL_FILES})
-    math(EXPR COUNT "${COUNT}+1")
-    set(CURRENT_FILE "${CMAKE_SOURCE_DIR}/")
-    string(APPEND CURRENT_FILE ${TARGET_FILE})
-
-    # do not mess with .ini files
-    string(REGEX REPLACE ".in$" "" TARGET_FILE "${TARGET_FILE}")
-
-    string(REPLACE "${srcbasedir}/${srcdirname}" "" TARGET_FILE ${TARGET_FILE})
-    get_filename_component(DIR_NAME ${TARGET_FILE} DIRECTORY)
-
-    if(NOT EXISTS ${PROJECT_BINARY_DIR}/${dirname}/${DIR_NAME})
-      file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${dirname}/${DIR_NAME})
+    if(srcdirname STREQUAL "")
+      set(srcdirname "${dirname}")
     endif()
-    if(${CURRENT_FILE} MATCHES ".in$")
-      configure_file(
-        ${CURRENT_FILE} ${PROJECT_BINARY_DIR}/${dirname}/${TARGET_FILE}
-        ${configure_option}
+    set(COUNT 1)
+    file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${dirname})
+    file(
+      GLOB_RECURSE ALL_FILES
+      RELATIVE "${CMAKE_SOURCE_DIR}"
+      "${CMAKE_SOURCE_DIR}/${srcbasedir}/${srcdirname}/${globexpression}"
+    )
+    foreach(TARGET_FILE ${ALL_FILES})
+      math(EXPR COUNT "${COUNT}+1")
+      set(CURRENT_FILE "${CMAKE_SOURCE_DIR}/")
+      string(APPEND CURRENT_FILE ${TARGET_FILE})
+
+      # do not mess with .ini files
+      string(REGEX REPLACE ".in$" "" TARGET_FILE "${TARGET_FILE}")
+
+      string(REPLACE "${srcbasedir}/${srcdirname}" "" TARGET_FILE
+                     ${TARGET_FILE}
       )
-    else()
-      create_symlink(
-        ${CURRENT_FILE} ${PROJECT_BINARY_DIR}/${dirname}/${TARGET_FILE}
-      )
-    endif()
-  endforeach()
-endfunction()
+      get_filename_component(DIR_NAME ${TARGET_FILE} DIRECTORY)
+
+      if(NOT EXISTS ${PROJECT_BINARY_DIR}/${dirname}/${DIR_NAME})
+        file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/${dirname}/${DIR_NAME})
+      endif()
+      if(${CURRENT_FILE} MATCHES ".in$")
+        configure_file(
+          ${CURRENT_FILE} ${PROJECT_BINARY_DIR}/${dirname}/${TARGET_FILE}
+          ${configure_option}
+        )
+      else()
+        create_symlink(
+          ${CURRENT_FILE} ${PROJECT_BINARY_DIR}/${dirname}/${TARGET_FILE}
+        )
+      endif()
+    endforeach()
+  endfunction()
 endif()
 # generic function to probe for a python module for the given python version (2
 # or 3)
@@ -360,95 +372,104 @@ macro(check_for_pamtest)
 endmacro()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-macro(link_binaries_to_test_to_current_sbin_dir_with_individual_filename)
+  macro(link_binaries_to_test_to_current_sbin_dir_with_individual_filename)
 
-  foreach(binary_name ${ALL_BINARIES_BEING_USED_BY_SYSTEMTESTS})
-    create_variable_binary_name_to_test_for_binary_name(${binary_name})
-    string(REPLACE "-" "_" binary_name ${binary_name})
-    string(TOUPPER ${binary_name} binary_name_upcase)
-    string(CONCAT bareos_XXX_binary ${binary_name_upcase} "_BINARY")
+    foreach(binary_name ${ALL_BINARIES_BEING_USED_BY_SYSTEMTESTS})
+      create_variable_binary_name_to_test_for_binary_name(${binary_name})
+      string(REPLACE "-" "_" binary_name ${binary_name})
+      string(TOUPPER ${binary_name} binary_name_upcase)
+      string(CONCAT bareos_XXX_binary ${binary_name_upcase} "_BINARY")
 
-    if (NOT ${${binary_name_to_test_upcase}} STREQUAL "")
+      if(NOT ${${binary_name_to_test_upcase}} STREQUAL "")
 
         if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-         set (build_configs "Debug" "Release")
+          set(build_configs "Debug" "Release")
         else()
-         set (build_configs "")
+          set(build_configs "")
         endif()
         foreach(build_config ${build_configs})
-        set(${bareos_XXX_binary} ${CURRENT_SBIN_DIR}/${binary_name}-${TEST_NAME})
+          set(${bareos_XXX_binary}
+              ${CURRENT_SBIN_DIR}/${binary_name}-${TEST_NAME}
+          )
 
-        get_filename_component(src_binary_path "${${binary_name_to_test_upcase}}" PATH)
-        get_filename_component(src_file_name  "${${binary_name_to_test_upcase}}" NAME)
+          get_filename_component(
+            src_binary_path "${${binary_name_to_test_upcase}}" PATH
+          )
+          get_filename_component(
+            src_file_name "${${binary_name_to_test_upcase}}" NAME
+          )
 
-        get_filename_component(dst_binary_path "${${bareos_XXX_binary}}" PATH)
-        get_filename_component(dst_file_name  "${${bareos_XXX_binary}}" NAME)
+          get_filename_component(dst_binary_path "${${bareos_XXX_binary}}" PATH)
+          get_filename_component(dst_file_name "${${bareos_XXX_binary}}" NAME)
 
-        create_symlink(${src_binary_path}/${build_config}/${src_file_name} ${dst_binary_path}/${build_config}/${dst_file_name})
-      endforeach()
+          create_symlink(
+            ${src_binary_path}/${build_config}/${src_file_name}
+            ${dst_binary_path}/${build_config}/${dst_file_name}
+          )
+        endforeach()
 
-    endif()
-  endforeach()
+      endif()
+    endforeach()
 
-  create_symlink(${scriptdir}/btraceback ${CURRENT_SBIN_DIR}/btraceback)
+    create_symlink(${scriptdir}/btraceback ${CURRENT_SBIN_DIR}/btraceback)
 
-  if(TARGET bareos_vadp_dumper)
-    if(RUN_SYSTEMTESTS_ON_INSTALLED_FILES)
+    if(TARGET bareos_vadp_dumper)
+      if(RUN_SYSTEMTESTS_ON_INSTALLED_FILES)
+        create_symlink(
+          "/usr/sbin/bareos_vadp_dumper_wrapper.sh"
+          "${CURRENT_SBIN_DIR}/bareos_vadp_dumper_wrapper.sh"
+        )
+      else()
+        create_symlink(
+          "${CMAKE_SOURCE_DIR}/core/src/vmware/vadp_dumper/bareos_vadp_dumper_wrapper.sh"
+          "${CURRENT_SBIN_DIR}/bareos_vadp_dumper_wrapper.sh"
+        )
+
+      endif()
       create_symlink(
-        "/usr/sbin/bareos_vadp_dumper_wrapper.sh"
-        "${CURRENT_SBIN_DIR}/bareos_vadp_dumper_wrapper.sh"
+        "${CURRENT_SBIN_DIR}/bareos_vadp_dumper-${TEST_NAME}"
+        "${CURRENT_SBIN_DIR}/bareos_vadp_dumper"
       )
-    else()
-      create_symlink(
-        "${CMAKE_SOURCE_DIR}/core/src/vmware/vadp_dumper/bareos_vadp_dumper_wrapper.sh"
-        "${CURRENT_SBIN_DIR}/bareos_vadp_dumper_wrapper.sh"
-      )
-
     endif()
-    create_symlink(
-      "${CURRENT_SBIN_DIR}/bareos_vadp_dumper-${TEST_NAME}"
-      "${CURRENT_SBIN_DIR}/bareos_vadp_dumper"
-    )
-  endif()
-endmacro()
+  endmacro()
 else()
-macro(link_binaries_to_test_to_current_sbin_dir_with_individual_filename)
-  foreach(binary_name ${ALL_BINARIES_BEING_USED_BY_SYSTEMTESTS})
-    create_variable_binary_name_to_test_for_binary_name(${binary_name})
-    string(REPLACE "-" "_" binary_name ${binary_name})
-    string(TOUPPER ${binary_name} binary_name_upcase)
-    string(CONCAT bareos_XXX_binary ${binary_name_upcase} "_BINARY")
-    # message (STATUS "${bareos_XXX_binary}")
-    set(${bareos_XXX_binary} ${CURRENT_SBIN_DIR}/${binary_name}-${TEST_NAME})
-    # message( "creating symlink ${${bareos_XXX_binary}}  ->
-    # ${${binary_name_to_test_upcase}}" )
-    file(CREATE_LINK ${${binary_name_to_test_upcase}} ${${bareos_XXX_binary}}
+  macro(link_binaries_to_test_to_current_sbin_dir_with_individual_filename)
+    foreach(binary_name ${ALL_BINARIES_BEING_USED_BY_SYSTEMTESTS})
+      create_variable_binary_name_to_test_for_binary_name(${binary_name})
+      string(REPLACE "-" "_" binary_name ${binary_name})
+      string(TOUPPER ${binary_name} binary_name_upcase)
+      string(CONCAT bareos_XXX_binary ${binary_name_upcase} "_BINARY")
+      # message (STATUS "${bareos_XXX_binary}")
+      set(${bareos_XXX_binary} ${CURRENT_SBIN_DIR}/${binary_name}-${TEST_NAME})
+      # message( "creating symlink ${${bareos_XXX_binary}}  ->
+      # ${${binary_name_to_test_upcase}}" )
+      file(CREATE_LINK ${${binary_name_to_test_upcase}} ${${bareos_XXX_binary}}
+           SYMBOLIC
+      )
+    endforeach()
+    file(CREATE_LINK ${scriptdir}/btraceback ${CURRENT_SBIN_DIR}/btraceback
          SYMBOLIC
     )
-  endforeach()
-  file(CREATE_LINK ${scriptdir}/btraceback ${CURRENT_SBIN_DIR}/btraceback
-       SYMBOLIC
-  )
 
-  if(TARGET bareos_vadp_dumper)
-    if(RUN_SYSTEMTESTS_ON_INSTALLED_FILES)
-      file(CREATE_LINK "/usr/sbin/bareos_vadp_dumper_wrapper.sh"
-           "${CURRENT_SBIN_DIR}/bareos_vadp_dumper_wrapper.sh" SYMBOLIC
-      )
-    else()
-      file(
-        CREATE_LINK
-        "${CMAKE_SOURCE_DIR}/core/src/vmware/vadp_dumper/bareos_vadp_dumper_wrapper.sh"
-        "${CURRENT_SBIN_DIR}/bareos_vadp_dumper_wrapper.sh"
-        SYMBOLIC
-      )
+    if(TARGET bareos_vadp_dumper)
+      if(RUN_SYSTEMTESTS_ON_INSTALLED_FILES)
+        file(CREATE_LINK "/usr/sbin/bareos_vadp_dumper_wrapper.sh"
+             "${CURRENT_SBIN_DIR}/bareos_vadp_dumper_wrapper.sh" SYMBOLIC
+        )
+      else()
+        file(
+          CREATE_LINK
+          "${CMAKE_SOURCE_DIR}/core/src/vmware/vadp_dumper/bareos_vadp_dumper_wrapper.sh"
+          "${CURRENT_SBIN_DIR}/bareos_vadp_dumper_wrapper.sh"
+          SYMBOLIC
+        )
 
+      endif()
+      file(CREATE_LINK "${CURRENT_SBIN_DIR}/bareos_vadp_dumper-${TEST_NAME}"
+           "${CURRENT_SBIN_DIR}/bareos_vadp_dumper" SYMBOLIC
+      )
     endif()
-    file(CREATE_LINK "${CURRENT_SBIN_DIR}/bareos_vadp_dumper-${TEST_NAME}"
-         "${CURRENT_SBIN_DIR}/bareos_vadp_dumper" SYMBOLIC
-    )
-  endif()
-endmacro()
+  endmacro()
 endif()
 
 macro(prepare_testdir_for_daemon_run)
@@ -528,6 +549,13 @@ macro(prepare_testdir_for_daemon_run)
 endmacro()
 
 macro(prepare_test_python)
+
+  if(HAVE_WIN32)
+    set(PATHSEP ";")
+  else()
+    set(PATHSEP ":")
+  endif()
+
   string(REGEX MATCH "py2plug" py_v2 "${TEST_NAME}")
   string(REGEX MATCH "py3plug" py_v3 "${TEST_NAME}")
   # use python3 by default, exepts the name of test starts with py2plug.
@@ -536,27 +564,28 @@ macro(prepare_test_python)
     set(python_module_name python)
   endif()
   if(RUN_SYSTEMTESTS_ON_INSTALLED_FILES)
-    string(CONCAT pythonpath ${PYTHON_PLUGINS_DIR_TO_TEST})
+    string(JOIN ${PATHSEP} pythonpath ${PYTHON_PLUGINS_DIR_TO_TEST})
   else()
     string(
-      CONCAT
-        pythonpath
-        "${CMAKE_SOURCE_DIR}/python-bareos:"
-        "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/ldap:"
-        "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/libcloud:"
-        "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/percona-xtrabackup:"
-        "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/mariabackup:"
-        "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/postgres:"
-        "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/postgresql:"
-        "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/pyfiles:"
-        "${CMAKE_SOURCE_DIR}/contrib/fd-plugins:"
-        "${CMAKE_SOURCE_DIR}/core/src/plugins/stored/python/pyfiles:"
-        "${CMAKE_SOURCE_DIR}/core/src/plugins/dird/python/pyfiles:"
-        "${CMAKE_BINARY_DIR}/core/src/plugins/filed/python/${python_module_name}modules:"
-        "${CMAKE_BINARY_DIR}/core/src/plugins/stored/python/${python_module_name}modules:"
-        "${CMAKE_BINARY_DIR}/core/src/plugins/dird/python/${python_module_name}modules:"
-        "${CMAKE_SOURCE_DIR}/systemtests/python-modules:"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/${TEST_NAME}/python-modules"
+      JOIN
+      ${PATHSEP}
+      pythonpath
+      "${CMAKE_SOURCE_DIR}/python-bareos"
+      "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/ldap"
+      "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/libcloud"
+      "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/percona-xtrabackup"
+      "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/mariabackup"
+      "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/postgres"
+      "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/postgresql"
+      "${CMAKE_SOURCE_DIR}/core/src/plugins/filed/python/pyfiles"
+      "${CMAKE_SOURCE_DIR}/contrib/fd-plugins"
+      "${CMAKE_SOURCE_DIR}/core/src/plugins/stored/python/pyfiles"
+      "${CMAKE_SOURCE_DIR}/core/src/plugins/dird/python/pyfiles"
+      "${CMAKE_BINARY_DIR}/core/src/plugins/filed/python/${python_module_name}modules"
+      "${CMAKE_BINARY_DIR}/core/src/plugins/stored/python/${python_module_name}modules"
+      "${CMAKE_BINARY_DIR}/core/src/plugins/dird/python/${python_module_name}modules"
+      "${CMAKE_SOURCE_DIR}/systemtests/python-modules"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/${TEST_NAME}/python-modules"
     )
   endif()
 endmacro()
@@ -610,9 +639,9 @@ macro(create_symlink target link)
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.14")
     file(CREATE_LINK ${target} ${link} SYMBOLIC)
   else()
-   execute_process(
-    COMMAND ${CMAKE_COMMAND} -E create_symlink ${target} ${link}
-  )
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -E create_symlink ${target} ${link}
+    )
   endif()
 endmacro()
 
@@ -645,30 +674,30 @@ function(add_systemtest name file)
       WORKING_DIRECTORY ${directory}
     )
   else()
-    if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    add_test(
-      NAME ${name}
-      COMMAND ${BASH_EXE} ${file}
-      WORKING_DIRECTORY ${directory}
-    )
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+      add_test(
+        NAME ${name}
+        COMMAND ${BASH_EXE} ${file}
+        WORKING_DIRECTORY ${directory}
+      )
+      set_tests_properties(
+        ${name} PROPERTIES TIMEOUT "${SYSTEMTEST_TIMEOUT}" COST 1.0
+                           SKIP_RETURN_CODE 77
+      )
+    else()
+      add_test(
+        NAME ${name}
+        COMMAND ${file}
+        WORKING_DIRECTORY ${directory}
+      )
+    endif() # windows
+  endif()
+  if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set_tests_properties(
       ${name} PROPERTIES TIMEOUT "${SYSTEMTEST_TIMEOUT}" COST 1.0
                          SKIP_RETURN_CODE 77
     )
-    else()
-    add_test(
-      NAME ${name}
-      COMMAND ${file}
-      WORKING_DIRECTORY ${directory}
-    )
-    endif() # windows
-  endif()
-  if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-  set_tests_properties(
-    ${name} PROPERTIES TIMEOUT "${SYSTEMTEST_TIMEOUT}" COST 1.0
-                       SKIP_RETURN_CODE 77
-  )
-  endif() #windows
+  endif() # windows
 endfunction()
 
 function(add_systemtest_from_directory tests_basedir prefix test_subdir)
