@@ -82,6 +82,9 @@ if(Python3_FOUND)
                INCLUDE_DIRECTORIES "${pymod3_include_dirs}"
                CXX_STANDARD 20
   )
+  if(HAVE_WIN32)
+    set_target_properties(bareosfd-python3-module PROPERTIES DEBUG_POSTFIX "_d")
+  endif()
   target_compile_options(bareosfd-python3-module PUBLIC -fno-strict-aliasing)
   if(NOT "${Python3_CCSHARED}" STREQUAL "")
     set_property(

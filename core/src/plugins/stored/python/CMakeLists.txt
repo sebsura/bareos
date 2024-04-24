@@ -54,6 +54,9 @@ if(Python3_FOUND)
                LINKER_LANGUAGE CXX
                INCLUDE_DIRECTORIES "${pymod3_include_dirs}"
   )
+  if(HAVE_WIN32)
+    set_target_properties(bareossd-python3-module PROPERTIES DEBUG_POSTFIX "_d")
+  endif()
   if(NOT "${Python3_CCSHARED}" STREQUAL "")
     set_property(
       TARGET bareossd-python3-module PROPERTY COMPILE_OPTIONS
