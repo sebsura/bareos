@@ -138,7 +138,7 @@ else
   fi
   export PATH=/sbin:/usr/sbin:$PATH
 fi
-export PYTHONPATH=@pythonpath@
+export PYTHONPATH="@pythonpath@"
 
 gfapi_fd_host=@gfapi_fd_host@
 gfapi_fd_testvolume=@gfapi_fd_testvolume@
