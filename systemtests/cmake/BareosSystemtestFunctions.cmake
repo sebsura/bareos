@@ -550,8 +550,9 @@ endmacro()
 
 macro(prepare_test_python)
 
-  if(HAVE_WIN32)
-    set(PATHSEP ";")
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    # we need to escape ";" because its a special character for string(JOIN)
+    set(PATHSEP "\;")
   else()
     set(PATHSEP ":")
   endif()
