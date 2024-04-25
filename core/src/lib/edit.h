@@ -23,6 +23,7 @@
 
 #include <vector>
 #include <string>
+#include <pthread.h>
 #include "include/bc_types.h"
 
 namespace edit {
