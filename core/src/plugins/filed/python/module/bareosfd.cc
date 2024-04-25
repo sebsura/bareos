@@ -1839,19 +1839,26 @@ bail_out:
   return ConvertbRCRetvalToPythonRetval(retval);
 }
 
+static const char* HandleNull(const char* str,
+                              const char* default_value = "(null)")
+{
+  if (str) return str;
+  return default_value;
+}
+
 // Some helper functions.
 static inline const char* PyGetStringValue(PyObject* object)
 {
   if (!object || !PyUnicode_Check(object)) { return (char*)""; }
 
-  return PyUnicode_AsUTF8(object) ?: "(error)";
+  return HandleNull(PyUnicode_AsUTF8(object), "(error)");
 }
 
 static inline const char* PyGetByteArrayValue(PyObject* object)
 {
   if (!object || !PyByteArray_Check(object)) { return (char*)""; }
 
-  return PyByteArray_AsString(object) ?: "(error)";
+  return HandleNull(PyByteArray_AsString(object), "(error)");
 }
 
 // Python specific handlers for PyRestoreObject structure mapping.
@@ -1866,7 +1873,7 @@ static PyObject* PyRestoreObject_repr(PyRestoreObject* self)
       "RestoreObject(object_name=\"%s\", object=\"%s\", plugin_name=\"%s\", "
       "object_type=%d, object_len=%d, object_full_len=%d, "
       "object_index=%d, object_compression=%d, stream=%d, jobid=%u)",
-      objname ?: "(null)", obj ?: "(null)", self->plugin_name ?: "(null)",
+      HandleNull(objname), HandleNull(obj), HandleNull(self->plugin_name),
       self->object_type, self->object_len, self->object_full_len,
       self->object_index, self->object_compression, self->stream, self->JobId);
 }
@@ -2013,7 +2020,7 @@ static PyObject* PySavePacket_repr(PySavePacket* self)
       "object=\"%s\", object_len=%ld, object_index=%ld)",
       PyGetStringValue(self->fname), PyGetStringValue(self->link), self->type,
       print_flags_bitmap(self->flags, visual_bitmap), self->no_read,
-      self->portable, self->accurate_found, self->cmd ?: "(null)",
+      self->portable, self->accurate_found, HandleNull(self->cmd),
       self->save_time, self->delta_seq, PyGetStringValue(self->object_name),
       PyGetByteArrayValue(self->object), self->object_len, self->object_index);
 }
@@ -2078,9 +2085,9 @@ static PyObject* PyRestorePacket_repr(PyRestorePacket* self)
       "create_status=%d)",
       self->stream, self->data_stream, self->type, self->file_index,
       self->LinkFI, self->uid, PyGetStringValue(stat_repr),
-      self->attrEx ?: "(null)", self->ofname ?: "(null)",
-      self->olname ?: "(null)", self->where ?: "(null)",
-      self->RegexWhere ?: "(null)", self->replace, self->create_status);
+      HandleNull(self->attrEx), HandleNull(self->ofname),
+      HandleNull(self->olname), HandleNull(self->where),
+      HandleNull(self->RegexWhere), self->replace, self->create_status);
 
   Py_DECREF(stat_repr);
 
@@ -2142,7 +2149,7 @@ static PyObject* PyIoPacket_repr(PyIoPacket* self)
       "buf=\"%s\", fname=\"%s\", status=%ld, io_errno=%ld, lerror=%ld, "
       "whence=%ld, offset=%lld, win32=%d, filedes=%d)",
       self->func, self->count, self->flags, (self->mode & ~S_IFMT),
-      PyGetByteArrayValue(self->buf), self->fname ?: "(null)", self->status,
+      PyGetByteArrayValue(self->buf), HandleNull(self->fname), self->status,
       self->io_errno, self->lerror, self->whence, self->offset, self->win32,
       self->filedes);
 }
@@ -2196,7 +2203,7 @@ static void PyIoPacket_dealloc(PyIoPacket* self)
 static PyObject* PyAclPacket_repr(PyAclPacket* self)
 {
   return PyUnicode_FromFormat("AclPacket(fname=\"%s\", content=\"%s\")",
-                              self->fname ?: "(null)",
+                              HandleNull(self->fname),
                               PyGetByteArrayValue(self->content));
 }
 
@@ -2230,7 +2237,7 @@ static PyObject* PyXattrPacket_repr(PyXattrPacket* self)
 {
   return PyUnicode_FromFormat(
       "XattrPacket(fname=\"%s\", name=\"%s\", value=\"%s\")",
-      self->fname ?: "(null)", PyGetByteArrayValue(self->name),
+      HandleNull(self->fname), PyGetByteArrayValue(self->name),
       PyGetByteArrayValue(self->value));
 }
 
