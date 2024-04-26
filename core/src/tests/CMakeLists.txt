@@ -518,4 +518,10 @@ if(NOT HAVE_WIN32)
   bareos_add_test(fvec LINK_LIBRARIES GTest::gtest_main)
 endif()
 
+bareos_add_test(
+  search_tree
+  ADDITIONAL_SOURCES "../lib/directory_search_tree.cc"
+  LINK_LIBRARIES GTest::gtest_main bareoslmdb
+)
+
 include(DebugEdit)
