@@ -41,6 +41,7 @@
 #include "include/streams.h"
 #include "lib/berrno.h"
 #include "lib/crypto.h"
+#include <algorithm>
 
 #include <algorithm>
 #include <thread>
