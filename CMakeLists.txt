@@ -39,6 +39,28 @@ include(BareosExtractVersionInfo)
 include(BareosGetDistInfo)
 include(RemoveNDebugFlag)
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+include(CPM)
+
+cpmaddpackage(
+  GITHUB_REPOSITORY pstorz/libjson-rpc-cpp
+  NAME libjson-rpc-cpp
+  #URL https://github.com/pstorz/libjson-rpc-cpp/archive/84546e28091d59fa3a7dfd16491021673e5acdf0.zip
+  GIT_TAG HEAD
+  OPTIONS "COMPILE_STUBGEN OFF" "COMPILE_EXAMPLES OFF" "COMPILE_TESTS OFF"
+  "HTTP_SERVER OFF" "HTTP_CLIENT OFF" "REDIS_SERVER OFF" "REDIS_CLIENT OFF"
+  "UNIX_DOMAIN_SOCKET_SERVER OFF" "UNIX_DOMAIN_SOCKET_CLIENT OFF"
+  "FILE_DESCRIPTOR_SERVER OFF" "FILE_DESCRIPTOR_CLIENT OFF"
+  "TCP_SOCKET_SERVER OFF" "TCP_SOCKET_CLIENT OFF"
+)
+cpmaddpackage(
+  NAME websocketpp
+  URL https://github.com/zaphoyd/websocketpp/archive/1b11fd301531e6df35a6107c1e8665b1e77a2d8e.zip
+  # OPTIONS "BENCHMARK_ENABLE_TESTING Off"
+)
+
+CPMAddPackage("gh:fmtlib/fmt#7.1.3")
+
 set(BUILDNAME
     "${BAREOS_FULL_VERSION}"
     CACHE STRING "site name variable for CDash"

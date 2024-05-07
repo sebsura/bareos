@@ -39,7 +39,6 @@
 #include "dird/ua_purge.h"
 #include "lib/edit.h"
 #include "lib/parse_conf.h"
-
 #include <algorithm>
 
 namespace directordaemon {
