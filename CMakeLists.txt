@@ -1,162 +1,162 @@
-cmake_minimum_required(VERSION 3.0)
+#   BAREOS® - Backup Archiving REcovery Open Sourced
+#
+#   Copyright (C) 2019-2024 Bareos GmbH & Co. KG
+#
+#   This program is Free Software; you can redistribute it and/or
+#   modify it under the terms of version three of the GNU Affero General Public
+#   License as published by the Free Software Foundation and included
+#   in the file LICENSE.
+#
+#   This program is distributed in the hope that it will be useful, but
+#   WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+#   Affero General Public License for more details.
+#
+#   You should have received a copy of the GNU Affero General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+#   02110-1301, USA.
+message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
 
-# setup directory where we should look for cmake files
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+cmake_minimum_required(VERSION 3.17)
+cmake_policy(VERSION 3.17...3.19)
 
-option(HUNTER_ENABLED "Enable Hunter package manager" NO)
-include(HunterGate)
-HunterGate(
-	URL "https://github.com/ruslo/hunter/archive/v0.18.47.tar.gz"
-	SHA1 "f0c476a3a0f9edd6182936d8c4460811f112189c"
-)
-
-project(libjson-rpc-cpp)
-
-# list command no longer ignores empty elements
-cmake_policy(SET CMP0007 NEW)
-cmake_policy(SET CMP0012 NEW)
-
-if (${CMAKE_MAJOR_VERSION} GREATER 2)
-    # old policy do not use MACOSX_RPATH
-    cmake_policy(SET CMP0042 OLD)
-endif()
-
-set(MAJOR_VERSION 1)
-set(MINOR_VERSION 4)
-set(PATCH_VERSION 1)
-set(SO_VERSION    1)
-
-if(NOT MSVC)
-	set(BUILD_SHARED_LIBS YES CACHE BOOL "Build shared libraries")
-	set(BUILD_STATIC_LIBS NO CACHE BOOL "Build static libraries")
-else()
-	set(BUILD_SHARED_LIBS NO CACHE BOOL "Build shared libraries")
-	set(BUILD_STATIC_LIBS YES CACHE BOOL "Build static libraries")
-endif()
-set(LIB_SUFFIX "" CACHE STRING "Suffix for library directory (32/64)")
-
-if (NOT BUILD_SHARED_LIBS AND NOT BUILD_STATIC_LIBS)
-    message(FATAL_ERROR "Both BUILD_SHARED_LIBS and BUILD_STATIC_LIBS are disabled")
-endif()
-
-# defaults for modules that can be enabled/disabled
-if(UNIX)
-    set(UNIX_DOMAIN_SOCKET_SERVER NO CACHE BOOL "Include Unix Domain Socket server")
-    set(UNIX_DOMAIN_SOCKET_CLIENT NO CACHE BOOL "Include Unix Domain Socket client")
-    set(FILE_DESCRIPTOR_SERVER NO CACHE BOOL "Include File Descriptor server")
-    set(FILE_DESCRIPTOR_CLIENT NO CACHE BOOL "Include File Descriptor client")
-endif(UNIX)
-
-set(TCP_SOCKET_SERVER NO CACHE BOOL "Include Tcp Socket server")
-set(TCP_SOCKET_CLIENT NO CACHE BOOL "Include Tcp Socket client")
-set(SERIAL_PORT_SERVER NO CACHE BOOL "Include Serial port server")
-set(SERIAL_PORT_CLIENT NO CACHE BOOL "Include Serial port client")
-set(REDIS_SERVER YES CACHE BOOL "Include Redis server using hiredis")
-set(REDIS_CLIENT YES CACHE BOOL "Include Redis client using hiredis")
-set(HTTP_SERVER YES CACHE BOOL "Include HTTP server using libmicrohttpd")
-set(HTTP_CLIENT YES CACHE BOOL "Include HTTP client support using curl")
-set(COMPILE_TESTS YES CACHE BOOL "Compile test framework")
-set(COMPILE_STUBGEN YES CACHE BOOL "Compile the stubgenerator")
-set(COMPILE_EXAMPLES YES CACHE BOOL "Compile example programs")
-
-option(WITH_COVERAGE "Build with code coverage flags" ON)
-
-# print actual settings
-if(UNIX)
-    message(STATUS "UNIX_DOMAIN_SOCKET_SERVER: ${UNIX_DOMAIN_SOCKET_SERVER}")
-    message(STATUS "UNIX_DOMAIN_SOCKET_CLIENT: ${UNIX_DOMAIN_SOCKET_CLIENT}")
-endif(UNIX)
-message(STATUS "TCP_SOCKET_SERVER: ${TCP_SOCKET_SERVER}")
-message(STATUS "TCP_SOCKET_CLIENT: ${TCP_SOCKET_CLIENT}")
-message(STATUS "HTTP_SERVER: ${HTTP_SERVER}")
-message(STATUS "HTTP_CLIENT: ${HTTP_CLIENT}")
-message(STATUS "REDIS_SERVER: ${REDIS_SERVER}")
-message(STATUS "REDIS_CLIENT: ${REDIS_CLIENT}")
-if(UNIX)
-    message(STATUS "UNIXDOMAINSOCKET_SERVER: ${UNIX_DOMAIN_SOCKET_SERVER}")
-    message(STATUS "UNIXDOMAINSOCKET_CLIENT: ${UNIX_DOMAIN_SOCKET_CLIENT}")
-endif(UNIX)
-message(STATUS "COMPILE_TESTS: ${COMPILE_TESTS}")
-message(STATUS "COMPILE_STUBGEN: ${COMPILE_STUBGEN}")
-message(STATUS "COMPILE_EXAMPLES: ${COMPILE_EXAMPLES}")
-
-# setup compiler settings && dependencies
-include(CMakeCompilerSettings)
-include(CMakeDependencies)
-include(GNUInstallDirs)
-
-# setup output directories
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
-
-# setup global include_directories (for backwards compatibility)
-include_directories("${CMAKE_BINARY_DIR}/gen/")
-include_directories("${CMAKE_BINARY_DIR}/gen/jsonrpccpp/common")
-
-# the core framework
-add_subdirectory(src/jsonrpccpp)
-
-#the stubgenerator
-if (COMPILE_STUBGEN)
-    add_subdirectory(src/stubgenerator)
-endif()
-
-# setup examples
-if (COMPILE_EXAMPLES)
-    add_subdirectory(src/examples)
-endif()
-
-# setup test suite
-if (COMPILE_TESTS)
-	enable_testing()
-	add_subdirectory(src/test)
-endif()
-
-# create documentation
-if (DOXYGEN_FOUND)
-    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/doc)
-    message(STATUS "Found doxygen: ${DOXYGEN_EXECUTABLE}")
-    configure_file("${PROJECT_SOURCE_DIR}/doc/doxyfile.in" "${CMAKE_BINARY_DIR}/Doxyfile" @ONLY)
-    add_custom_target(doc ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/doc COMMENT "Generating API documentation")
-endif(DOXYGEN_FOUND)
-
-# setup uninstall target
-configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
-    IMMEDIATE @ONLY
-)
+project(bareos NONE)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/core/cmake")
 
 add_custom_target(
-    uninstall
-    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
+  uninstall "${CMAKE_COMMAND}" -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/uninstall.cmake"
 )
 
-# CMake package
-set(package_name "libjson-rpc-cpp")
-include(CMakePackageConfigHelpers)
-set(config_install_destination ${CMAKE_INSTALL_LIBDIR}/${package_name}/cmake)
-configure_package_config_file(
-	cmake/${package_name}Config.cmake.in ${package_name}Config.cmake
-	INSTALL_DESTINATION ${config_install_destination}
+set(default_build_type "Debug")
+
+include(CMakePrintHelpers)
+find_package(Git)
+include(BareosVersionFromGit)
+include(BareosExtractVersionInfo)
+include(BareosGetDistInfo)
+
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+include(CPM)
+
+cpmaddpackage(
+  GITHUB_REPOSITORY pstorz/libjson-rpc-cpp
+  NAME libjson-rpc-cpp
+  #URL https://github.com/pstorz/libjson-rpc-cpp/archive/84546e28091d59fa3a7dfd16491021673e5acdf0.zip
+  GIT_TAG HEAD
+  OPTIONS "COMPILE_STUBGEN OFF" "COMPILE_EXAMPLES OFF" "COMPILE_TESTS OFF"
+  "HTTP_SERVER OFF" "HTTP_CLIENT OFF" "REDIS_SERVER OFF" "REDIS_CLIENT OFF"
+  "UNIX_DOMAIN_SOCKET_SERVER OFF" "UNIX_DOMAIN_SOCKET_CLIENT OFF"
+  "FILE_DESCRIPTOR_SERVER OFF" "FILE_DESCRIPTOR_CLIENT OFF"
+  "TCP_SOCKET_SERVER OFF" "TCP_SOCKET_CLIENT OFF"
 )
-write_basic_package_version_file(
-	${package_name}ConfigVersion.cmake
-	VERSION ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}
-	COMPATIBILITY ExactVersion
-)
-install(
-	EXPORT ${package_name}Targets
-	DESTINATION ${config_install_destination}
-	NAMESPACE ${package_name}::
-)
-install(
-	FILES
-	${CMAKE_CURRENT_BINARY_DIR}/${package_name}Config.cmake
-	${CMAKE_CURRENT_BINARY_DIR}/${package_name}ConfigVersion.cmake
-	DESTINATION ${config_install_destination}
+cpmaddpackage(
+  NAME websocketpp
+  URL https://github.com/zaphoyd/websocketpp/archive/1b11fd301531e6df35a6107c1e8665b1e77a2d8e.zip
+  # OPTIONS "BENCHMARK_ENABLE_TESTING Off"
 )
 
-# packaging stuff
-include(CMakePackaging)
+CPMAddPackage("gh:fmtlib/fmt#7.1.3")
+
+set(BUILDNAME
+    "${BAREOS_FULL_VERSION}"
+    CACHE STRING "site name variable for CDash"
+)
+set(SITE
+    "${CMAKE_SYSTEM_NAME}-${DISTVER}-${CMAKE_HOST_SYSTEM_PROCESSOR}"
+    CACHE STRING "build name variable for CDash"
+)
+# enable "make test"
+enable_testing()
+set(CMAKE_CTEST_COMMAND ctest -V)
+include(CTest)
+
+option(BUILD_UNIVERSAL_CLIENT
+       "Override build-options to produce a limited, but universal client" OFF
+)
+if(BUILD_UNIVERSAL_CLIENT)
+  if(CMAKE_VERSION VERSION_LESS 3.18.0)
+    message(
+      FATAL_ERROR "Building the universal client requires at least CMake 3.18"
+    )
+  endif()
+  set(ENABLE_PYTHON
+      OFF
+      CACHE BOOL "" FORCE
+  )
+  set(ENABLE_GFAPI_FD
+      OFF
+      CACHE BOOL "" FORCE
+  )
+  set(ENABLE_JANSSON
+      OFF
+      CACHE BOOL "" FORCE
+  )
+  set(ENABLE_LZO
+      OFF
+      CACHE BOOL "" FORCE
+  )
+  set(ENABLE_CAPABILITY
+      OFF
+      CACHE BOOL "" FORCE
+  )
+  set(ENABLE_BCONSOLE
+      OFF
+      CACHE BOOL "" FORCE
+  )
+  set(ENABLE_STATIC_RUNTIME_LIBS
+      ON
+      CACHE BOOL "" FORCE
+  )
+  set(client-only ON)
+endif()
+
+option(ENABLE_WEBUI "Build with WEBUI" ON)
+
+if(docs-build-json)
+  # check for wrong combinations of build flags
+  if(docs-only)
+    message(
+      FATAL_ERROR
+        "\n\"docs-build-json\" needs bareos-executables and cannot be combined with \"docs-only\""
+    )
+  endif()
+  if(NOT traymonitor)
+    message(
+      FATAL_ERROR
+        "\n\"docs-build-json\" needs the traymonitor executable: add \"-Dtraymonitor=yes\""
+    )
+  endif()
+endif()
+
+if(docs-only)
+  set(BUILD_BAREOS_BINARIES no)
+else()
+  set(BUILD_BAREOS_BINARIES yes)
+endif()
+
+if(NOT hostname)
+  site_name(hostname)
+endif()
+
+if(BUILD_BAREOS_BINARIES)
+  add_subdirectory(third-party EXCLUDE_FROM_ALL)
+  add_subdirectory(core)
+  if(ENABLE_WEBUI)
+    add_subdirectory(webui)
+  endif()
+  if(NOT client-only AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    add_subdirectory(systemtests)
+  endif()
+  add_subdirectory(contrib)
+endif()
+
+if(docs
+   OR docs-only
+   OR docs-build-json
+)
+  add_subdirectory(docs/manuals)
+endif()
+set(SITE ${BAREOS_PLATFORM}-${DISTVER})
