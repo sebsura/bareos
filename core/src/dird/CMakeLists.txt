@@ -117,6 +117,9 @@ set(DIRD_OBJECTS_SRCS
     pthread_detach_if_not_detached.cc
 )
 
+set_source_files_properties(websocketjsonrpcserver.cc bjsonrpcserver.cc jsonrpccommands.cc jsonrpcrestore.cc
+  PROPERTIES COMPILE_FLAGS "-Wno-error=suggest-override")
+
 if(HAVE_WIN32)
   bareos_configure_file(FILES ../win32/dird/dirdres.rc.in)
   list(APPEND DIRD_OBJECTS_SRCS
@@ -145,6 +148,8 @@ if(HAVE_WIN32)
   list(APPEND DBCHKSRCS ${CMAKE_CURRENT_BINARY_DIR}/../win32/dird/dbcheckres.rc)
 endif()
 
+include_directories(SYSTEM ${WEBSOCKETPP_INCLUDE_DIR})
+
 set(DIRD_RESTYPES
     catalog
     client
@@ -166,11 +171,11 @@ add_library(dird_objects STATIC ${DIRD_OBJECTS_SRCS})
 
 target_link_libraries(
   #dird_objects PUBLIC fmt::fmt-header-only libjson-rpc-cpp::jsonrpcserver
-  dird_objects PUBLIC fmt::fmt-header-only jsonrpcserver
+  dird_objects PUBLIC fmt::fmt-header-only jsonrpcserver websocketpp:websocketpp
 )
 
 target_link_libraries(
-  dird_objects PRIVATE bareos ${OPENSSL_LIBRARIES} Threads::Threads websocketpp:websocketpp
+  dird_objects PRIVATE bareos ${OPENSSL_LIBRARIES} Threads::Threads
 )
 
 add_executable(bareos-dir)
@@ -178,7 +183,7 @@ target_sources(bareos-dir PRIVATE dird.cc)
 
 
 target_link_libraries(
-  bareos-dir PRIVATE dird_objects websocketpp::websocketpp bareossql bareosfind CLI11::CLI11
+  bareos-dir PRIVATE dird_objects bareossql bareosfind CLI11::CLI11 PUBLIC websocketpp::websocketpp
   #bareos-dir PRIVATE dird_objects bareossql bareosfind CLI11::CLI11
 )
 
