@@ -41,8 +41,9 @@ std::string BuildRestoreCommandString(const RestoreContext& rx,
                                       const char* restore_bootstrap,
                                       bool yes_keyword);
 
-std::vector<directordaemon::JobResource *> GetRestoreJobs();
-void BuildDirectoryTree(UaContext* ua, RestoreContext* rx, TreeContext& tree);
+std::vector<directordaemon::JobResource*> GetRestoreJobs();
+std::optional<TreeContext> BuildDirectoryTree(UaContext* ua,
+                                              RestoreContext* rx);
 void FinishSelection(RestoreContext* rx, TreeContext& tree);
 
 int RestoreCountHandler(void* ctx, int, char** row);
