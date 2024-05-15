@@ -6,6 +6,7 @@ print kBareosVersionStrings.FullWithDate
 print kBareosVersionStrings.BinaryInfo
 print host_name
 show env TestName
+info shared
 bt
 thread apply all bt
 f 0
