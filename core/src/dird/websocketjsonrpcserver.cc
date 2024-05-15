@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-Copyright (C) 2023-2023 Bareos GmbH & Co. KG
+Copyright (C) 2023-2024 Bareos GmbH & Co. KG
 
 This program is Free Software; you can redistribute it and/or
 modify it under the terms of version three of the GNU Affero General Public
@@ -56,9 +56,10 @@ void WebsocketJsonRpcServer::on_open(wsasioserver* wsserver,
                                      websocketpp::connection_hdl hdl)
 {
   try {
-    wsserver->send(hdl,
-                   "{ \"jsonrpc\": \"2.0\", \"notification\": \"jsonrpc server ready\"}",
-                   websocketpp::frame::opcode::text);
+    wsserver->send(
+        hdl,
+        "{ \"jsonrpc\": \"2.0\", \"notification\": \"jsonrpc server ready\"}",
+        websocketpp::frame::opcode::text);
   } catch (websocketpp::exception const& e) {
     std::cout << "Operation failed because: "
               << "(" << e.what() << ")" << std::endl;
@@ -77,7 +78,7 @@ void WebsocketJsonRpcServer::on_close(wsasioserver* wsserver,
 }
 
 bool WebsocketJsonRpcServer::on_validate(wsasioserver* wsserver,
-                                      websocketpp::connection_hdl hdl)
+                                         websocketpp::connection_hdl hdl)
 {
   try {
     server::connection_ptr cp = wsserver->get_con_from_hdl(hdl);
@@ -85,24 +86,21 @@ bool WebsocketJsonRpcServer::on_validate(wsasioserver* wsserver,
     std::string q = request_uri->get_query();
 
     std::stringstream sstr(q);
-    std::string username,password;
+    std::string username, password;
 
-    if(getline(sstr, username, '_') && getline(sstr, password, '_'))
-    {
-      ConsoleResource *cons = dynamic_cast<ConsoleResource*>(
-		my_config->GetResWithName(R_CONSOLE, username.c_str()));
+    if (getline(sstr, username, '_') && getline(sstr, password, '_')) {
+      ConsoleResource* cons = dynamic_cast<ConsoleResource*>(
+          my_config->GetResWithName(R_CONSOLE, username.c_str()));
 
-      if(cons->password_.value == password)
-        return true;
+      if (cons->password_.value == password) return true;
 
-      if((directordaemon::me->password_.encoding == p_encoding_md5)
+      if ((directordaemon::me->password_.encoding == p_encoding_md5)
           && (password == directordaemon::me->password_.value)) {
-          return true;
-      }
-    }
-    else {
-        std::cout << "Authentication failed" << std::endl;
         return true;
+      }
+    } else {
+      std::cout << "Authentication failed" << std::endl;
+      return true;
     }
   } catch (websocketpp::exception const& e) {
     std::cout << "Operation failed because: "
@@ -150,8 +148,8 @@ void WebsocketJsonRpcServer::StartWebsocket()
     // Start the server accept loop
     wsserver_.start_accept();
   } catch (const std::exception& error) {
-    Jmsg((JobControlRecord*)nullptr, M_WARNING, 0,
-         _("Could not start RPC_server; what(): %s\n"), error.what());
+    Jmsg(nullptr, M_WARNING, 0, T_("Could not start RPC_server; what(): %s\n"),
+         error.what());
 
     return;
   }

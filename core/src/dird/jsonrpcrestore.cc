@@ -101,13 +101,18 @@ Json::Value InititiateRestore(const std::string& clientname,
     restore_resources.rx.restore_job = restorejobs.front();
   }
 
-  restore_resources.tree = BuildDirectoryTree(restore_resources.manager.ua_,
+  std::optional opt_tree = BuildDirectoryTree(restore_resources.manager.ua_,
                                               &restore_resources.rx);
-
-  if (restore_resources.tree.FileCount == 0) {
+  if (!opt_tree) {
+    result["error"] = "Could not build tree.";
+    return result;
+  }
+  if (opt_tree->FileCount == 0) {
     result["error"] = "For the jobid selected, no files were found";
     return result;
   }
+
+  restore_resources.tree = opt_tree.value();
 
   restore_resources.tree.node = (TREE_NODE*)restore_resources.tree.root;
   std::string cwd{tree_getpath(restore_resources.tree.node)};
@@ -211,22 +216,22 @@ Json::Value LsCmd(int limit,
 
       std::string filetype;
       switch (node->type) {
-        case TreeNodeType::FILE:
+        case TreeNodeType::File:
           filetype = "File";
           break;
-        case TreeNodeType::DIR:
+        case TreeNodeType::Dir:
           filetype = "Directory";
           break;
-        case TreeNodeType::DIR_NLS:
+        case TreeNodeType::DirNLS:
           filetype = "Directory(windows)";
           break;
-        case TreeNodeType::ROOT:
+        case TreeNodeType::Root:
           filetype = "Root node";
           break;
-        case TreeNodeType::NEWDIR:
+        case TreeNodeType::NewDir:
           filetype = "New Directory";
           break;
-        case TreeNodeType::UNKNOWN:
+        case TreeNodeType::Unknown:
           filetype = "Unkown file type";
           break;
       }

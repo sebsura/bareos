@@ -632,7 +632,6 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
         return 0;
       case 0: /* list last 20 Jobs run */
       {
-        PoolMem query;
         ua->db->FillQuery(query, BareosDb::SQL_QUERY::uar_list_jobs,
                           filter_name);
         if (!ua->AclAccessOk(Command_ACL, NT_("sqlquery"), true)) {
@@ -735,10 +734,12 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
 
       case 10: /* Enter directories */
         if (!rx->JobIds.empty()) {
-          ua->SendMsg(T_("You have already selected the following JobIds: %s\n"),
-                      rx->JobIds.c_str());
-        } else if (GetCmd(ua,
-                          T_("Enter JobId(s), comma separated, to restore: "))) {
+          ua->SendMsg(
+              T_("You have already selected the following JobIds: %s\n"),
+              rx->JobIds.c_str());
+        } else if (GetCmd(
+                       ua,
+                       T_("Enter JobId(s), comma separated, to restore: "))) {
           bstrncpy(rx->last_jobid, ua->cmd, sizeof(rx->last_jobid));
           rx->JobIds = ua->cmd;
         }
@@ -1143,7 +1144,8 @@ static bool AddAllFindex(RestoreContext* rx)
 {
   bool has_jobid = false;
   JobId_t JobId, last_JobId = 0;
-  for (const char* p = rx->JobIds.c_str(); GetNextJobidFromList(&p, &JobId) > 0;) {
+  for (const char* p = rx->JobIds.c_str();
+       GetNextJobidFromList(&p, &JobId) > 0;) {
     if (JobId == last_JobId) { continue; /* eliminate duplicate JobIds */ }
     AddFindexAll(rx->bsr.get(), JobId);
     has_jobid = true;
