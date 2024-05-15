@@ -90,9 +90,8 @@ include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag(-Wsuggest-override compiler_will_suggest_override)
 
-if(${compiler_will_suggest_override})
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wsuggest-override")
-endif()
+# if(${compiler_will_suggest_override}) set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}
+# -Wsuggest-override") endif()
 
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
   # make format-security issues a compiler-error
