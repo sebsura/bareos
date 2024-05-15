@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -142,9 +142,10 @@ bool UserSelectFilesFromTree(TreeContext* tree)
   user->signal(BNET_START_RTREE);
 
   // Enter interactive command handler allowing selection of individual files.
-  tree->node = (TREE_NODE*)tree->root;
-  std::string cwd = tree_getpath(tree->node);
-  if (!cwd.empty()) { ua->SendMsg(T_("cwd is: %s\n"), cwd.c_str()); }
+  tree->node = static_cast<TREE_NODE*>(tree->root);
+  if (tree->node) {
+    ua->SendMsg(T_("cwd is: %s\n"), tree_getpath(tree->node).c_str());
+  }
 
   while (1) {
     int found, len, i;
@@ -394,8 +395,8 @@ static int SetExtract(UaContext* ua,
         // if this is our first time marking it, then add to the count
         if (!n->extract) { count += 1; }
         n->extract = true;
-        n->extract_dir = (n->type == TreeNodeType::Dir ||
-                          n->type == TreeNodeType::DirNLS);
+        n->extract_dir
+            = (n->type == TreeNodeType::Dir || n->type == TreeNodeType::DirNLS);
       }
     }
   }
@@ -420,33 +421,32 @@ int MarkElement(const char* element,
     StripTrailingSlash(given_file_pattern.data());
 
     if (!tree_cwd(given_path_pattern.data(), tree->root, tree->node)) {
-      ua->WarningMsg(T_("Invalid path %s given.\n"), given_path_pattern.c_str());
+      ua->WarningMsg(T_("Invalid path %s given.\n"),
+                     given_path_pattern.c_str());
       return count;
     }
 
     std::string fullpath_pattern{};
     if (element[0] != '/') {
-      std::string path{tree_getpath(tree->node)};
-      fullpath_pattern.append(path);
+      fullpath_pattern.append(tree_getpath(tree->node));
     }
 
     fullpath_pattern.append(given_path_pattern);
 
     TREE_NODE* node{nullptr};
-    {
-      std::string path{tree_getpath(tree->node)};
-      if (path == "/") {
-        node = FirstTreeNode(tree->root);
-      } else {
-        node = tree->node;
-      }
+
+    if (tree_getpath(tree->node) == "/") {
+      node = FirstTreeNode(tree->root);
+    } else {
+      node = tree->node;
     }
 
+
     for (; node; node = NextTreeNode(node)) {
-      std::string path{tree_getpath(node)};
       std::string node_filename{};
       std::string node_path{};
-      SplitPathAndFilename(path.c_str(), node_path, node_filename);
+      SplitPathAndFilename(tree_getpath(node).c_str(), node_path,
+                           node_filename);
 
       if (fnmatch(fullpath_pattern.c_str(), node_path.c_str(), 0) == 0) {
         if (fnmatch(given_file_pattern.c_str(), node->fname, 0) == 0) {
@@ -788,7 +788,7 @@ static int DoDircmd(UaContext* ua, TreeContext* tree, bool dot_cmd)
         if (pcwd.size() > 1) { pcwd.pop_back(); /* strip trailing / */ }
       }
 
-      if (ua->db->GetFileAttributesRecord(ua->jcr, pcwd.data(), NULL, &fdbr)) {
+      if (ua->db->GetFileAttributesRecord(ua->jcr, pcwd.c_str(), NULL, &fdbr)) {
         int32_t LinkFI;
         DecodeStat(fdbr.LStat, &statp, sizeof(statp),
                    &LinkFI); /* decode stat pkt */
@@ -837,7 +837,8 @@ static int Estimatecmd(UaContext* ua, TreeContext* tree)
         fdbr.FileId = 0;
         fdbr.JobId = node->JobId;
 
-        if (ua->db->GetFileAttributesRecord(ua->jcr, cwd.data(), NULL, &fdbr)) {
+        if (ua->db->GetFileAttributesRecord(ua->jcr, cwd.c_str(), NULL,
+                                            &fdbr)) {
           int32_t LinkFI;
           DecodeStat(fdbr.LStat, &statp, sizeof(statp),
                      &LinkFI); /* decode stat pkt */
@@ -913,12 +914,11 @@ static int cdcmd(UaContext* ua, TreeContext* tree)
 
 static int pwdcmd(UaContext* ua, TreeContext* tree)
 {
-  std::string cwd = tree_getpath(tree->node);
-  if (!cwd.empty()) {
+  if (tree->node) {
     if (ua->api) {
-      ua->SendMsg("%s", cwd.c_str());
+      ua->SendMsg("%s", tree_getpath(tree->node).c_str());
     } else {
-      ua->SendMsg(T_("cwd is: %s\n"), cwd.c_str());
+      ua->SendMsg(T_("cwd is: %s\n"), tree_getpath(tree->node).c_str());
     }
   }
 
@@ -927,8 +927,7 @@ static int pwdcmd(UaContext* ua, TreeContext* tree)
 
 static int DotPwdcmd(UaContext* ua, TreeContext* tree)
 {
-  std::string cwd = tree_getpath(tree->node);
-  if (!cwd.empty()) { ua->SendMsg("%s", cwd.c_str()); }
+  if (tree->node) { ua->SendMsg("%s", tree_getpath(tree->node).c_str()); }
 
   return 1;
 }
