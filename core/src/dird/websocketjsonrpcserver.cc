@@ -56,10 +56,26 @@ void WebsocketJsonRpcServer::on_open(wsasioserver* wsserver,
                                      websocketpp::connection_hdl hdl)
 {
   try {
-    wsserver->send(
-        hdl,
-        "{ \"jsonrpc\": \"2.0\", \"notification\": \"jsonrpc server ready\"}",
-        websocketpp::frame::opcode::text);
+    auto con = wsserver->get_con_from_hdl(hdl);
+
+    const std::vector<std::string>& subp_requests
+        = con->get_requested_subprotocols();
+
+    std::string response
+        = "{ \"jsonrpc\": \"2.0\", \"notification\": \"jsonrpc server ready\", "
+          "\"available-protocols\": [";
+
+    bool first = true;
+    for (auto& proto : subp_requests) {
+      if (!first) response += ", ";
+      response += "\"" + proto + "\"";
+      first = false;
+    }
+
+    response
+        += "], \"selected-protocol\": \"" + con->get_subprotocol() + "\" }";
+
+    wsserver->send(hdl, response.c_str(), websocketpp::frame::opcode::text);
   } catch (websocketpp::exception const& e) {
     std::cout << "Operation failed because: "
               << "(" << e.what() << ")" << std::endl;
@@ -87,6 +103,10 @@ bool WebsocketJsonRpcServer::on_validate(wsasioserver* wsserver,
 
     std::stringstream sstr(q);
     std::string username, password;
+
+    const std::vector<std::string>& subp_requests
+        = cp->get_requested_subprotocols();
+    if (subp_requests.size() > 0) { cp->select_subprotocol(subp_requests[0]); }
 
     if (getline(sstr, username, '_') && getline(sstr, password, '_')) {
       ConsoleResource* cons = dynamic_cast<ConsoleResource*>(
