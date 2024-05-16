@@ -1,7 +1,7 @@
 #
 #   BAREOS - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2019-2021 Bareos GmbH & Co. KG
+#   Copyright (C) 2019-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -135,8 +135,8 @@ class PythonBareosPlainTest(bareos_unittest.Base):
         """
         logger = logging.getLogger()
 
-        username = u"noautodisplaycommand"
-        password = u"secret"
+        username = "noautodisplaycommand"
+        password = "secret"
 
         bareos_password = bareos.bsock.Password(password)
         director = bareos.bsock.DirectorConsole(
@@ -152,9 +152,9 @@ class PythonBareosPlainTest(bareos_unittest.Base):
         # logger.debug(str(result))
 
         # verify, the result contains command. We test for the list command.
-        self.assertIn(u"list", str(result))
+        self.assertIn("list", str(result))
         # verify, the result does not contain the autodisplay command.
-        self.assertNotIn(u"autodisplay", str(result))
+        self.assertNotIn("autodisplay", str(result))
 
         # check if the result of 'whoami' only contains the expected result.
         result = director.call("whoami").decode("utf-8")

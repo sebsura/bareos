@@ -163,7 +163,7 @@ if(XXHASH_ENABLE_DISPATCH)
   )
 endif()
 
-if (NOT (HAVE_FREEBSD_OS OR HAVE_DARWIN_OS))
+if(NOT (HAVE_FREEBSD_OS OR HAVE_DARWIN_OS))
   target_link_libraries(bareos PRIVATE "stdc++fs")
 endif()
 

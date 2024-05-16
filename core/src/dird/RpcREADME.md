@@ -48,4 +48,3 @@ To generate the stub, you have to create/update a spec file (currently named `rp
 The parameter given to `--cpp-server=` is the name of the class, which is for now `StubServer`
 
 Run `~/bareosprojects/build-bareos/third-party/libjson-rpc-cpp/build/bin/jsonrpcstub --help` for more options.
-

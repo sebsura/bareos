@@ -16,7 +16,8 @@ Json::Value LsCmd(int limit,
 Json::Value LsCount(const std::string& path, TreeContext* tree);
 Json::Value DoneCmd(RestoreResources& restore_resources);
 Json::Value CommitRestore(RestoreResources& restore_resources);
-Json::Value UnmarkCmd(UaContext *ua, TreeContext &tree,
+Json::Value UnmarkCmd(UaContext* ua,
+                      TreeContext& tree,
                       const Json::Value& files);
 Json::Value MarkCmd(UaContext* ua, TreeContext& tree, const Json::Value& files);
 

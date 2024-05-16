@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2021-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2021-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -21,12 +21,11 @@ get_filename_component(BASENAME ${CMAKE_CURRENT_BINARY_DIR} NAME)
 create_systemtest(${SYSTEMTEST_PREFIX} ${BASENAME})
 
 set_tests_properties(
-  system:json-rpc:backup
-  PROPERTIES FIXTURES_SETUP "system:json-rpc:backup-job-fixture"
+  system:json-rpc:backup PROPERTIES FIXTURES_SETUP
+                                    "system:json-rpc:backup-job-fixture"
 )
 set_tests_properties(
   system:json-rpc:rpc-commands
-  PROPERTIES
-    FIXTURES_REQUIRED
-    "system:json-rpc:backup-job-fixture;system:json-rpc-fixture"
+  PROPERTIES FIXTURES_REQUIRED
+             "system:json-rpc:backup-job-fixture;system:json-rpc-fixture"
 )

@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2006-2006 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -100,8 +100,8 @@ int BregexpGetBuildWhereSize(char* strip_prefix,
                              char* add_suffix);
 
 std::string BuildRegexWhere(char* strip_prefix,
-                     char* add_prefix,
-                     char* add_suffix);
+                            char* add_prefix,
+                            char* add_suffix);
 
 /* get a bregexp string from user arguments
  * you must allocate it with BregexpGetBuildWhereSize();
