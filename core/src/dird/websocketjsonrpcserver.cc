@@ -31,8 +31,9 @@
 #include "websocketpp/uri.hpp"
 
 #include <sstream>
+#include <thread>
 
-typedef websocketpp::server<websocketpp::config::asio> server;
+using server = websocketpp::server<websocketpp::config::asio>;
 
 using namespace jsonrpc;
 using namespace directordaemon;
@@ -44,8 +45,16 @@ void WebsocketJsonRpcServer::on_message(wsasioserver* wsserver,
 {
   try {
     std::string response;
-    ProcessRequest(msg->get_payload(), response);
-    wsserver->send(hdl, response, msg->get_opcode());
+
+    if (shared_resource.fetch_add(1) != 0) {
+      wsserver->send(hdl, "Resource contention detected.", msg->get_opcode());
+    } else {
+      ProcessRequest(msg->get_payload(), response);
+      wsserver->send(hdl, response, msg->get_opcode());
+    }
+
+    shared_resource.fetch_sub(1);
+
   } catch (websocketpp::exception const& e) {
     std::cout << "Operation failed because: "
               << "(" << e.what() << ")" << std::endl;

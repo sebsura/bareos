@@ -60,6 +60,7 @@ class WebsocketJsonRpcServer : public AbstractServerConnector {
   wsasioserver wsserver_;
   int port_{9002};
   std::thread listenning_thread;
+  std::atomic<int> shared_resource{0};
 };
 
 #endif  // BAREOS_LIB_WEBSOCKETJSONRPCSERVER_H
