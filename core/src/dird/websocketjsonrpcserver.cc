@@ -70,19 +70,22 @@ void WebsocketJsonRpcServer::on_open(wsasioserver* wsserver,
     const std::vector<std::string>& subp_requests
         = con->get_requested_subprotocols();
 
-    std::string response
-        = "{ \"jsonrpc\": \"2.0\", \"notification\": \"jsonrpc server ready\", "
-          "\"available-protocols\": [";
-
-    bool first = true;
-    for (auto& proto : subp_requests) {
-      if (!first) response += ", ";
-      response += "\"" + proto + "\"";
-      first = false;
+    std::string response = "{\"jsonrpc\":\"2.0\"";
+    {
+      response += ",\"notification\":\"jsonrpc server ready\"";
+      response += ",\"available-protocols\":[";
+      bool first = true;
+      for (auto& proto : subp_requests) {
+        if (!first) response += ",";
+        response += "\"" + proto + "\"";
+        first = false;
+      }
+      response += "]";
+      response += ",\"selected-protocol\":\"" + con->get_subprotocol() + "\"";
+      response += ",\"resource\"=\"" + con->get_resource() + "\"";
     }
 
-    response
-        += "], \"selected-protocol\": \"" + con->get_subprotocol() + "\" }";
+    response += "}";
 
     wsserver->send(hdl, response.c_str(), websocketpp::frame::opcode::text);
   } catch (websocketpp::exception const& e) {
