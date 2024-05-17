@@ -40,6 +40,7 @@ set(DIRD_OBJECTS_SRCS
     check_catalog.cc
     consolidate.cc
     console_connection_lease.cc
+    create.cc
     dbcheck_utils.cc
     dird_globals.cc
     dir_plugins.cc

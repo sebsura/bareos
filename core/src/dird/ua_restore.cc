@@ -50,6 +50,9 @@
 #include "lib/parse_conf.h"
 #include "lib/tree.h"
 #include "include/protocol_types.h"
+#include "dird/restore.h"
+#include "dird/create.h"
+#include "dird/job.h"
 
 #include <vector>
 
@@ -342,8 +345,59 @@ bool RestoreCmd(UaContext* ua, const char*)
   jcr->JobIds = rx.JobIds;
   rx.JobIds = NULL;
 
-  ParseUaArgs(ua);
-  RunCmd(ua, ua->cmd);
+  {
+    RestoreOptions opt;
+
+    opt.job = job;
+    // TODO: think about acl
+    opt.restore_client = static_cast<ClientResource*>(
+        my_config->GetResWithName(R_CLIENT, rx.RestoreClientName));
+    opt.catalog = ua->catalog;
+
+    if (job->Protocol != PT_NATIVE) {
+      opt.data = RestoreOptions::ndmp_data{
+          .JobIds = jcr->JobIds,
+          .restore_tree = jcr->dir_impl->restore_tree_root,
+      };
+
+      jcr->dir_impl->restore_tree_root = nullptr;
+    } else {
+      opt.data = RestoreOptions::native_data{
+          .BootStrapPath
+          = escaped_bsr_name ? escaped_bsr_name : jcr->RestoreBootstrap,
+          .expected_file_count = rx.selected_files,
+          .unlink_bsr = jcr->dir_impl->unlink_bsr,
+      };
+    }
+
+    if (rx.RegexWhere) {
+      opt.location = RestoreOptions::regex_where{rx.RegexWhere};
+    } else if (rx.where) {
+      opt.location = RestoreOptions::where{rx.where};
+    }
+
+    if (rx.backup_format) { opt.backup_format = rx.backup_format; }
+    // if (rx.replace) { opt.replace = rx.replace; }
+    if (rx.plugin_options) { opt.plugin_options = rx.plugin_options; }
+    if (rx.comment) { opt.comment = rx.comment; }
+
+    JobControlRecord* new_jcr = CreateJob(std::move(opt));
+    if (!new_jcr) {
+      ParseUaArgs(ua);
+      RunCmd(ua, ua->cmd);
+    } else {
+      new_jcr->dir_impl->job_trigger = JobTrigger::kUser;
+      auto jobid = RunJob(new_jcr);
+      FreeJcr(new_jcr);
+
+      if (jobid == 0) {
+        free_rx(&rx);
+        return false;
+      }
+    }
+  }
+
+
   free_rx(&rx);
   return true;
 

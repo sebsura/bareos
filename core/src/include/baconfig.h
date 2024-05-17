@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -186,7 +186,7 @@ typedef void(HANDLER)();
 typedef int(INTHANDLER)();
 
 #ifndef S_ISLNK
-#  define S_ISLNK(m) (((m)&S_IFM) == S_IFLNK)
+#  define S_ISLNK(m) (((m) & S_IFM) == S_IFLNK)
 #endif
 
 /** Added by KES to deal with Win32 systems */
@@ -466,6 +466,28 @@ int msg_(const char* file, int line, POOLMEM*& pool_buf, const char* fmt, ...);
  * Replace codes needed in both file routines and non-file routines
  * Job replace codes -- in "replace"
  */
+enum class replace_option : int
+{
+  Always = 'a',
+  IfNewer = 'w',
+  Never = 'n',
+  IfOlder = 'o',
+};
+
+inline constexpr const char* enum_name(replace_option opt)
+{
+  switch (opt) {
+    case replace_option::Always:
+      return "Always";
+    case replace_option::IfNewer:
+      return "IfNewer";
+    case replace_option::IfOlder:
+      return "IfOlder";
+    case replace_option::Never:
+      return "Never";
+  }
+}
+
 #define REPLACE_ALWAYS 'a'
 #define REPLACE_IFNEWER 'w'
 #define REPLACE_NEVER 'n'
