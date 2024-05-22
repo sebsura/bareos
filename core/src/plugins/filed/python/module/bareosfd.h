@@ -823,6 +823,9 @@ MOD_INIT(bareosfd)
 {
   static PyModuleDef_Slot slots[]
       = { {Py_mod_exec, (void*)&load_module},
+#  if PY_VERSION_HEX >= VERSION_HEX(3, 12, 0)
+          {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+#  endif
           {},  // null terminator
         };
 

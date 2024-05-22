@@ -227,7 +227,28 @@ bRC newPlugin(PluginContext* plugin_ctx)
 
   /* For each plugin instance we instantiate a new Python interpreter. */
   PyEval_AcquireThread(mainThreadState);
+#if PY_VERSION_HEX >= VERSION_HEX(3, 12, 0)
+  PyInterpreterConfig config = {
+      .use_main_obmalloc = 0,
+      .allow_fork = 0,
+      .allow_exec = 0,
+      .allow_threads = 1,
+      .allow_daemon_threads = 0,
+      .check_multi_interp_extensions = 1,
+      .gil = PyInterpreterConfig_OWN_GIL,
+  };
+  PyThreadState* ts = nullptr;
+  auto status = Py_NewInterpreterFromConfig(&ts, &config);
+
+  if (PyStatus_Exception(status)) {
+    Jmsg(plugin_ctx, M_FATAL,
+         LOGPREFIX "Error while creating interpterer (code: %d) at %s: %s\n",
+         status.exitcode, status.func, status.err_msg);
+    return bRC_Error;
+  }
+#else
   auto* ts = Py_NewInterpreter();
+#endif
   plugin_priv_ctx->interp = ts->interp;
   // register ts
   tl_threadstates.push_back(ts);
