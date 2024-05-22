@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can modify it under the terms of
    version three of the GNU Affero General Public License as published by the
@@ -102,24 +102,6 @@ static PyMemberDef PyRestoreObject_members[]
         (char*)"Jobid"},
        {} /* Sentinel */};
 
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-/* clang-format off */
-static PyTypeObject PyRestoreObjectType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "restore_object",
-    .tp_basicsize = sizeof(PyRestoreObject),
-    .tp_dealloc   = (destructor)PyRestoreObject_dealloc,
-    .tp_repr      = (reprfunc)PyRestoreObject_repr,
-    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_doc       = "io_pkt object",
-    .tp_methods   = PyRestoreObject_methods,
-    .tp_members   = PyRestoreObject_members,
-    .tp_init      = (initproc)PyRestoreObject_init,
-};
-/* clang-format on */
-#  pragma GCC diagnostic pop
-
 // The PyStatPacket type
 typedef struct {
   PyObject_HEAD uint32_t dev;
@@ -173,24 +155,6 @@ static PyMemberDef PyStatPacket_members[] = {
     {(char*)"st_blocks", T_ULONGLONG, offsetof(PyStatPacket, blocks), 0,
      (char*)"Blocks"},
     {} /* Sentinel */};
-
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-/* clang-format off */
-static PyTypeObject PyStatPacketType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "stat_pkt",
-    .tp_basicsize = sizeof(PyStatPacket),
-    .tp_dealloc   = (destructor)PyStatPacket_dealloc,
-    .tp_repr      = (reprfunc)PyStatPacket_repr,
-    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_doc       = "io_pkt object",
-    .tp_methods   = PyStatPacket_methods,
-    .tp_members   = PyStatPacket_members,
-    .tp_init      = (initproc)PyStatPacket_init,
-};
-/* clang-format on */
-#  pragma GCC diagnostic pop
 
 // The PySavePacket type
 typedef struct {
@@ -252,24 +216,6 @@ static PyMemberDef PySavePacket_members[] = {
     {(char*)"object_index", T_INT, offsetof(PySavePacket, object_index), 0,
      (char*)"Restore ObjectIndex"},
     {} /* Sentinel */};
-
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-/* clang-format off */
-static PyTypeObject PySavePacketType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "save_pkt",
-    .tp_basicsize = sizeof(PySavePacket),
-    .tp_dealloc   = (destructor)PySavePacket_dealloc,
-    .tp_repr      = (reprfunc)PySavePacket_repr,
-    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_doc       = "save_pkt object",
-    .tp_methods   = PySavePacket_methods,
-    .tp_members   = PySavePacket_members,
-    .tp_init      = (initproc)PySavePacket_init,
-};
-/* clang-format on */
-#  pragma GCC diagnostic pop
 
 // The PyRestorePacket type
 typedef struct {
@@ -333,24 +279,6 @@ static PyMemberDef PyRestorePacket_members[] = {
      (char*)"file descriptor of current file"},
     {NULL, 0, 0, 0, NULL}};
 
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-/* clang-format off */
-static PyTypeObject PyRestorePacketType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "restore_pkt",
-    .tp_basicsize = sizeof(PyRestorePacket),
-    .tp_dealloc   = (destructor)PyRestorePacket_dealloc,
-    .tp_repr      = (reprfunc)PyRestorePacket_repr,
-    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_doc       = "restore_pkt object",
-    .tp_methods   = PyRestorePacket_methods,
-    .tp_members   = PyRestorePacket_members,
-    .tp_init      = (initproc)PyRestorePacket_init,
-};
-/* clang-format on */
-#  pragma GCC diagnostic pop
-
 // The PyIOPacket type
 typedef struct {
   PyObject_HEAD uint16_t func; /* Function code */
@@ -406,24 +334,6 @@ static PyMemberDef PyIoPacket_members[]
         (char*)"file descriptor of current file"},
        {NULL, 0, 0, 0, NULL}};
 
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-/* clang-format off */
-static PyTypeObject PyIoPacketType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "io_pkt",
-    .tp_basicsize = sizeof(PyIoPacket),
-    .tp_dealloc   = (destructor)PyIoPacket_dealloc,
-    .tp_repr      = (reprfunc)PyIoPacket_repr,
-    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_doc       = "io_pkt object",
-    .tp_methods   = PyIoPacket_methods,
-    .tp_members   = PyIoPacket_members,
-    .tp_init      = (initproc)PyIoPacket_init,
-};
-/* clang-format on */
-#  pragma GCC diagnostic pop
-
 // The PyAclPacket type
 typedef struct {
   PyObject_HEAD const char* fname; /* Filename */
@@ -445,24 +355,6 @@ static PyMemberDef PyAclPacket_members[]
        {(char*)"content", T_OBJECT, offsetof(PyAclPacket, content), 0,
         (char*)"ACL content buffer"},
        {} /* Sentinel */};
-
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-/* clang-format off */
-static PyTypeObject PyAclPacketType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "acl_pkt",
-    .tp_basicsize = sizeof(PyAclPacket),
-    .tp_dealloc   = (destructor)PyAclPacket_dealloc,
-    .tp_repr      = (reprfunc)PyAclPacket_repr,
-    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_doc       = "acl_pkt object",
-    .tp_methods   = PyAclPacket_methods,
-    .tp_members   = PyAclPacket_members,
-    .tp_init      = (initproc)PyAclPacket_init,
-};
-/* clang-format on */
-#  pragma GCC diagnostic pop
 
 // The PyXattrPacket type
 typedef struct {
@@ -490,24 +382,6 @@ static PyMemberDef PyXattrPacket_members[]
        {(char*)"value", T_OBJECT, offsetof(PyXattrPacket, value), 0,
         (char*)"XATTR value buffer"},
        {} /* Sentinel */};
-
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-/* clang-format off */
-static PyTypeObject PyXattrPacketType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "xattr_pkt",
-    .tp_basicsize = sizeof(PyXattrPacket),
-    .tp_dealloc   = (destructor)PyXattrPacket_dealloc,
-    .tp_repr      = (reprfunc)PyXattrPacket_repr,
-    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_doc       = "xattr_pkt object",
-    .tp_methods   = PyXattrPacket_methods,
-    .tp_members   = PyXattrPacket_members,
-    .tp_init      = (initproc)PyXattrPacket_init,
-};
-/* clang-format off */
-#  pragma GCC diagnostic pop
 
 // Callback methods from Python.
 static PyObject* PyBareosGetValue(PyObject* self, PyObject* args);
@@ -561,7 +435,6 @@ static PyMethodDef Methods[] = {
      "Clear bit in the Accurate Seen bitmap"},
     {NULL, NULL, 0, NULL}};
 
-
 static bRC set_bareos_core_functions(CoreFunctions* new_bareos_core_functions);
 static bRC set_plugin_context(PluginContext* new_plugin_context);
 static void PyErrorHandler(PluginContext* plugin_ctx, int msgtype);
@@ -581,8 +454,7 @@ static bRC PyPluginIO(PluginContext* plugin_ctx, io_pkt* io);
 static bRC PyStartRestoreFile(PluginContext* plugin_ctx, const char* cmd);
 static bRC PyEndRestoreFile(PluginContext* plugin_ctx);
 static bRC PyCreateFile(PluginContext* plugin_ctx, restore_pkt* rp);
-static bRC PySetFileAttributes(PluginContext* plugin_ctx,
-                               restore_pkt* rp);
+static bRC PySetFileAttributes(PluginContext* plugin_ctx, restore_pkt* rp);
 static bRC PyCheckFile(PluginContext* plugin_ctx, char* fname);
 static bRC PyGetAcl(PluginContext* plugin_ctx, acl_pkt* ap);
 static bRC PySetAcl(PluginContext* plugin_ctx, acl_pkt* ap);
@@ -598,10 +470,161 @@ using namespace filedaemon;
 /* variables storing bareos pointers */
 thread_local PluginContext* plugin_context = NULL;
 
-MOD_INIT(bareosfd)
+// per interpreter state of the bareosfd module
+struct fd_module_state {
+  PyTypeObject stat_pkt;
+  PyTypeObject io_pkt;
+  PyTypeObject save_pkt;
+  PyTypeObject restore_pkt;
+  PyTypeObject acl_pkt;
+  PyTypeObject xattr_pkt;
+  PyTypeObject restore_obj;
+
+  static fd_module_state* get(PyObject* module)
+  {
+    return static_cast<fd_module_state*>(PyModule_GetState(module));
+  }
+
+  template <typename T> PyTypeObject* typeobj() = delete;
+  template <typename T> T* make() { return PyObject_New(T, typeobj<T>()); }
+};
+
+template <> PyTypeObject* fd_module_state::typeobj<PyStatPacket>()
 {
-  PyObject* m = NULL;
-  MOD_DEF(m, PYTHON_MODULE_NAME_QUOTED, NULL, Methods)
+  return &stat_pkt;
+}
+template <> PyTypeObject* fd_module_state::typeobj<PyIoPacket>()
+{
+  return &io_pkt;
+}
+template <> PyTypeObject* fd_module_state::typeobj<PySavePacket>()
+{
+  return &save_pkt;
+}
+template <> PyTypeObject* fd_module_state::typeobj<PyRestorePacket>()
+{
+  return &restore_pkt;
+}
+template <> PyTypeObject* fd_module_state::typeobj<PyAclPacket>()
+{
+  return &acl_pkt;
+}
+template <> PyTypeObject* fd_module_state::typeobj<PyXattrPacket>()
+{
+  return &xattr_pkt;
+}
+template <> PyTypeObject* fd_module_state::typeobj<PyRestoreObject>()
+{
+  return &restore_obj;
+}
+
+static bool module_add_types(PyObject* m, fd_module_state* s)
+{
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+  s->stat_pkt = PyTypeObject{
+      PyVarObject_HEAD_INIT(NULL, 0).tp_name = "bareosfd.StatPacket",
+      .tp_basicsize = sizeof(PyStatPacket),
+      .tp_dealloc = (destructor)PyStatPacket_dealloc,
+      .tp_repr = (reprfunc)PyStatPacket_repr,
+      .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+      .tp_doc = "stat_pkt object",
+      .tp_methods = PyStatPacket_methods,
+      .tp_members = PyStatPacket_members,
+      .tp_init = (initproc)PyStatPacket_init,
+      .tp_new = PyType_GenericNew,
+  };
+  s->io_pkt = PyTypeObject{
+      PyVarObject_HEAD_INIT(NULL, 0).tp_name = "bareosfd.IoPacket",
+      .tp_basicsize = sizeof(PyIoPacket),
+      .tp_dealloc = (destructor)PyIoPacket_dealloc,
+      .tp_repr = (reprfunc)PyIoPacket_repr,
+      .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+      .tp_doc = "io_pkt object",
+      .tp_methods = PyIoPacket_methods,
+      .tp_members = PyIoPacket_members,
+      .tp_init = (initproc)PyIoPacket_init,
+      .tp_new = PyType_GenericNew,
+  };
+  s->save_pkt = PyTypeObject{
+      PyVarObject_HEAD_INIT(NULL, 0).tp_name = "bareosfd.SavePacket",
+      .tp_basicsize = sizeof(PySavePacket),
+      .tp_dealloc = (destructor)PySavePacket_dealloc,
+      .tp_repr = (reprfunc)PySavePacket_repr,
+      .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+      .tp_doc = "save_pkt object",
+      .tp_methods = PySavePacket_methods,
+      .tp_members = PySavePacket_members,
+      .tp_init = (initproc)PySavePacket_init,
+      .tp_new = PyType_GenericNew,
+  };
+  s->restore_pkt = PyTypeObject{
+      PyVarObject_HEAD_INIT(NULL, 0).tp_name = "bareosfd.RestorePacket",
+      .tp_basicsize = sizeof(PyRestorePacket),
+      .tp_dealloc = (destructor)PyRestorePacket_dealloc,
+      .tp_repr = (reprfunc)PyRestorePacket_repr,
+      .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+      .tp_doc = "restore_pkt object",
+      .tp_methods = PyRestorePacket_methods,
+      .tp_members = PyRestorePacket_members,
+      .tp_init = (initproc)PyRestorePacket_init,
+      .tp_new = PyType_GenericNew,
+  };
+  s->acl_pkt = PyTypeObject{
+      PyVarObject_HEAD_INIT(NULL, 0).tp_name = "bareosfd.AclPacket",
+      .tp_basicsize = sizeof(PyAclPacket),
+      .tp_dealloc = (destructor)PyAclPacket_dealloc,
+      .tp_repr = (reprfunc)PyAclPacket_repr,
+      .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+      .tp_doc = "acl_pkt object",
+      .tp_methods = PyAclPacket_methods,
+      .tp_members = PyAclPacket_members,
+      .tp_init = (initproc)PyAclPacket_init,
+      .tp_new = PyType_GenericNew,
+  };
+  s->xattr_pkt = PyTypeObject{
+      PyVarObject_HEAD_INIT(NULL, 0).tp_name = "bareosfd.XattrPacket",
+      .tp_basicsize = sizeof(PyXattrPacket),
+      .tp_dealloc = (destructor)PyXattrPacket_dealloc,
+      .tp_repr = (reprfunc)PyXattrPacket_repr,
+      .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+      .tp_doc = "xattr_pkt object",
+      .tp_methods = PyXattrPacket_methods,
+      .tp_members = PyXattrPacket_members,
+      .tp_init = (initproc)PyXattrPacket_init,
+      .tp_new = PyType_GenericNew,
+  };
+  s->restore_obj = PyTypeObject{
+      PyVarObject_HEAD_INIT(NULL, 0).tp_name = "bareosfd.RestoreObject",
+      .tp_basicsize = sizeof(PyRestoreObject),
+      .tp_dealloc = (destructor)PyRestoreObject_dealloc,
+      .tp_repr = (reprfunc)PyRestoreObject_repr,
+      .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+      .tp_doc = "restore_object object",
+      .tp_methods = PyRestoreObject_methods,
+      .tp_members = PyRestoreObject_members,
+      .tp_init = (initproc)PyRestoreObject_init,
+      .tp_new = PyType_GenericNew,
+  };
+#  pragma GCC diagnostic pop
+#  define ADDTYPE(Type)                                        \
+    do {                                                       \
+      if (PyModule_AddType(m, &s->Type) < 0) { return false; } \
+    } while (0)
+  ADDTYPE(stat_pkt);
+  ADDTYPE(io_pkt);
+  ADDTYPE(save_pkt);
+  ADDTYPE(restore_pkt);
+  ADDTYPE(acl_pkt);
+  ADDTYPE(xattr_pkt);
+  ADDTYPE(restore_obj);
+#  undef ADDTYPE
+
+  return true;
+}
+
+static void* load_module_impl(PyObject* m, fd_module_state* s)
+{
   static void* Bareosfd_API[Bareosfd_API_pointers];
   PyObject* c_api_object;
 
@@ -618,54 +641,13 @@ MOD_INIT(bareosfd)
     return MOD_ERROR_VAL;
   }
 
-  PyRestoreObjectType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&PyRestoreObjectType) < 0) { return MOD_ERROR_VAL; }
-
-  PyStatPacketType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&PyStatPacketType) < 0) { return MOD_ERROR_VAL; }
-
-  PySavePacketType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&PySavePacketType) < 0) { return MOD_ERROR_VAL; }
-
-  PyRestorePacketType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&PyRestorePacketType) < 0) { return MOD_ERROR_VAL; }
-
-  PyIoPacketType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&PyIoPacketType) < 0) { return MOD_ERROR_VAL; }
-
-  PyAclPacketType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&PyAclPacketType) < 0) { return MOD_ERROR_VAL; }
-
-  PyXattrPacketType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&PyXattrPacketType) < 0) { return MOD_ERROR_VAL; }
-
-  Py_INCREF(&PyRestoreObjectType);
-  PyModule_AddObject(m, "RestoreObject", (PyObject*)&PyRestoreObjectType);
-
-  Py_INCREF(&PyStatPacketType);
-  PyModule_AddObject(m, "StatPacket", (PyObject*)&PyStatPacketType);
-
-  Py_INCREF(&PySavePacketType);
-  PyModule_AddObject(m, "SavePacket", (PyObject*)&PySavePacketType);
-
-  Py_INCREF(&PyRestorePacketType);
-  PyModule_AddObject(m, "RestorePacket", (PyObject*)&PyRestorePacketType);
-
-  Py_INCREF(&PyIoPacketType);
-  PyModule_AddObject(m, "IoPacket", (PyObject*)&PyIoPacketType);
-
-  Py_INCREF(&PyAclPacketType);
-  PyModule_AddObject(m, "AclPacket", (PyObject*)&PyAclPacketType);
-
-  Py_INCREF(&PyXattrPacketType);
-  PyModule_AddObject(m, "XattrPacket", (PyObject*)&PyXattrPacketType);
-
+  if (!module_add_types(m, s)) { return MOD_ERROR_VAL; }
 
   /* module dictionaries */
   DEFINE_bRCs_DICT();
   DEFINE_bJobMessageTypes_DICT();
 
-#define EXPORT_ENUM_VALUE(dict, symbol) ConstSet_StrLong(dict, symbol, symbol)
+#  define EXPORT_ENUM_VALUE(dict, symbol) ConstSet_StrLong(dict, symbol, symbol)
 
   const char* bVariable = "bVariable";
   PyObject* pDictbVariable = NULL;
@@ -803,8 +785,9 @@ MOD_INIT(bareosfd)
   ConstSet_StrLong(pDictbIOPstatus, iostat_error, IoStatus::error);
   ConstSet_StrLong(pDictbIOPstatus, iostat_do_in_plugin, IoStatus::success);
   ConstSet_StrLong(pDictbIOPstatus, iostat_do_in_core, IoStatus::do_io_in_core);
-  if (PyModule_AddObject(m, bIOPstatus, pDictbIOPstatus)) { return MOD_ERROR_VAL; }
-
+  if (PyModule_AddObject(m, bIOPstatus, pDictbIOPstatus)) {
+    return MOD_ERROR_VAL;
+  }
 
 
   const char* bLevels = "bLevels";
@@ -825,8 +808,37 @@ MOD_INIT(bareosfd)
   ConstSet_StrStr(pDictbLevels, L_VIRTUAL_FULL, "f");
   if (PyModule_AddObject(m, bLevels, pDictbLevels)) { return MOD_ERROR_VAL; }
 
+  return m;
+}
 
-  return MOD_SUCCESS_VAL(m);
+static int load_module(PyObject* module)
+{
+  return load_module_impl(
+             module, static_cast<fd_module_state*>(PyModule_GetState(module)))
+             ? 0
+             : -1;
+}
+
+MOD_INIT(bareosfd)
+{
+  static PyModuleDef_Slot slots[]
+      = { {Py_mod_exec, (void*)&load_module},
+          {},  // null terminator
+        };
+
+  static PyModuleDef moduledef
+      = {PyModuleDef_HEAD_INIT,
+         PYTHON_MODULE_NAME_QUOTED,
+         "python plugin api of the bareos file daemon."
+         " See https://docs.bareos.org/DeveloperGuide/PythonPluginAPI.html",
+         sizeof(fd_module_state),
+         Methods,
+         slots,
+         NULL,
+         NULL,
+         NULL};
+
+  return PyModuleDef_Init(&moduledef);
 }
 
 

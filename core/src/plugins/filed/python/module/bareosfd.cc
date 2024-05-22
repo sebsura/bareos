@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -192,9 +192,10 @@ bail_out:
   return retval;
 }
 
-static inline PyStatPacket* NativeToPyStatPacket(struct stat* statp)
+static inline PyStatPacket* NativeToPyStatPacket(fd_module_state* state,
+                                                 struct stat* statp)
 {
-  PyStatPacket* pStatp = PyObject_New(PyStatPacket, &PyStatPacketType);
+  auto* pStatp = state->make<PyStatPacket>();
 
   if (pStatp) {
     pStatp->dev = statp->st_dev;
@@ -233,15 +234,15 @@ static inline void PyStatPacketToNative(PyStatPacket* pStatp,
   statp->st_blocks = pStatp->blocks;
 }
 
-static inline PySavePacket* NativeToPySavePacket(save_pkt* sp)
+static inline PySavePacket* NativeToPySavePacket(fd_module_state* state,
+                                                 save_pkt* sp)
 {
-  PySavePacket* pSavePkt = PyObject_New(PySavePacket, &PySavePacketType);
-
+  auto* pSavePkt = state->make<PySavePacket>();
   if (pSavePkt) {
     pSavePkt->fname = PyUnicode_FromString(sp->fname ? sp->fname : "");
     pSavePkt->link = PyUnicode_FromString(sp->link ? sp->link : "");
     if (sp->statp.st_mode) {
-      pSavePkt->statp = (PyObject*)NativeToPyStatPacket(&sp->statp);
+      pSavePkt->statp = (PyObject*)NativeToPyStatPacket(state, &sp->statp);
     } else {
       pSavePkt->statp = NULL;
     }
@@ -442,7 +443,8 @@ static bRC PyStartBackupFile(PluginContext* plugin_ctx, save_pkt* sp)
     PySavePacket* pSavePkt;
     PyObject* pRetVal;
 
-    pSavePkt = NativeToPySavePacket(sp);
+    auto* state = fd_module_state::get(plugin_priv_ctx->bareos_fd_module);
+    pSavePkt = NativeToPySavePacket(state, sp);
     if (!pSavePkt) {
       Dmsg(plugin_ctx, debuglevel,
            LOGPREFIX "Failed to convert save packet to python.\n");
@@ -517,9 +519,9 @@ bail_out:
   return retval;
 }
 
-static inline PyIoPacket* NativeToPyIoPacket(io_pkt* io)
+static inline PyIoPacket* NativeToPyIoPacket(fd_module_state* state, io_pkt* io)
 {
-  PyIoPacket* pIoPkt = PyObject_New(PyIoPacket, &PyIoPacketType);
+  auto* pIoPkt = state->make<PyIoPacket>();
 
   if (pIoPkt) {
     // Initialize the Python IoPkt with the data we got passed in.
@@ -608,7 +610,8 @@ static bRC PyPluginIO(PluginContext* plugin_ctx, io_pkt* io)
     PyIoPacket* pIoPkt;
     PyObject* pRetVal;
 
-    pIoPkt = NativeToPyIoPacket(io);
+    auto* state = fd_module_state::get(plugin_priv_ctx->bareos_fd_module);
+    pIoPkt = NativeToPyIoPacket(state, io);
     if (!pIoPkt) { goto bail_out; }
 
     pRetVal = PyObject_CallFunctionObjArgs(pFunc, (PyObject*)pIoPkt, NULL);
@@ -715,10 +718,10 @@ bail_out:
   return retval;
 }
 
-static inline PyRestorePacket* NativeToPyRestorePacket(restore_pkt* rp)
+static inline PyRestorePacket* NativeToPyRestorePacket(fd_module_state* state,
+                                                       restore_pkt* rp)
 {
-  PyRestorePacket* pRestorePacket
-      = PyObject_New(PyRestorePacket, &PyRestorePacketType);
+  auto* pRestorePacket = state->make<PyRestorePacket>();
 
   if (pRestorePacket) {
     pRestorePacket->stream = rp->stream;
@@ -727,7 +730,7 @@ static inline PyRestorePacket* NativeToPyRestorePacket(restore_pkt* rp)
     pRestorePacket->file_index = rp->file_index;
     pRestorePacket->LinkFI = rp->LinkFI;
     pRestorePacket->uid = rp->uid;
-    pRestorePacket->statp = (PyObject*)NativeToPyStatPacket(&rp->statp);
+    pRestorePacket->statp = (PyObject*)NativeToPyStatPacket(state, &rp->statp);
     pRestorePacket->attrEx = rp->attrEx;
     pRestorePacket->ofname = rp->ofname;
     pRestorePacket->olname = rp->olname;
@@ -778,7 +781,8 @@ static bRC PyCreateFile(PluginContext* plugin_ctx, restore_pkt* rp)
     PyRestorePacket* pRestorePacket;
     PyObject* pRetVal;
 
-    pRestorePacket = NativeToPyRestorePacket(rp);
+    auto* state = fd_module_state::get(plugin_priv_ctx->bareos_fd_module);
+    pRestorePacket = NativeToPyRestorePacket(state, rp);
     if (!pRestorePacket) { goto bail_out; }
 
     pRetVal = PyObject_CallFunctionObjArgs(pFunc, pRestorePacket, NULL);
@@ -821,7 +825,8 @@ static bRC PySetFileAttributes(PluginContext* plugin_ctx, restore_pkt* rp)
     PyRestorePacket* pRestorePacket;
     PyObject* pRetVal;
 
-    pRestorePacket = NativeToPyRestorePacket(rp);
+    auto* state = fd_module_state::get(plugin_priv_ctx->bareos_fd_module);
+    pRestorePacket = NativeToPyRestorePacket(state, rp);
     if (!pRestorePacket) { goto bail_out; }
 
     pRetVal = PyObject_CallFunctionObjArgs(pFunc, pRestorePacket, NULL);
@@ -884,9 +889,10 @@ bail_out:
   return retval;
 }
 
-static inline PyAclPacket* NativeToPyAclPacket(acl_pkt* ap)
+static inline PyAclPacket* NativeToPyAclPacket(fd_module_state* state,
+                                               acl_pkt* ap)
 {
-  PyAclPacket* pAclPacket = PyObject_New(PyAclPacket, &PyAclPacketType);
+  auto* pAclPacket = state->make<PyAclPacket>();
 
   if (pAclPacket) {
     pAclPacket->fname = ap->fname;
@@ -943,7 +949,8 @@ static bRC PyGetAcl(PluginContext* plugin_ctx, acl_pkt* ap)
     PyAclPacket* pAclPkt;
     PyObject* pRetVal;
 
-    pAclPkt = NativeToPyAclPacket(ap);
+    auto* state = fd_module_state::get(plugin_priv_ctx->bareos_fd_module);
+    pAclPkt = NativeToPyAclPacket(state, ap);
     if (!pAclPkt) { goto bail_out; }
 
     pRetVal = PyObject_CallFunctionObjArgs(pFunc, pAclPkt, NULL);
@@ -989,7 +996,8 @@ static bRC PySetAcl(PluginContext* plugin_ctx, acl_pkt* ap)
     PyAclPacket* pAclPkt;
     PyObject* pRetVal;
 
-    pAclPkt = NativeToPyAclPacket(ap);
+    auto* state = fd_module_state::get(plugin_priv_ctx->bareos_fd_module);
+    pAclPkt = NativeToPyAclPacket(state, ap);
     if (!pAclPkt) { goto bail_out; }
 
     pRetVal = PyObject_CallFunctionObjArgs(pFunc, pAclPkt, NULL);
@@ -1014,9 +1022,10 @@ bail_out:
   return retval;
 }
 
-static inline PyXattrPacket* NativeToPyXattrPacket(xattr_pkt* xp)
+static inline PyXattrPacket* NativeToPyXattrPacket(fd_module_state* state,
+                                                   xattr_pkt* xp)
 {
-  PyXattrPacket* pXattrPacket = PyObject_New(PyXattrPacket, &PyXattrPacketType);
+  auto* pXattrPacket = state->make<PyXattrPacket>();
 
   if (pXattrPacket) {
     pXattrPacket->fname = xp->fname;
@@ -1093,7 +1102,8 @@ static bRC PyGetXattr(PluginContext* plugin_ctx, xattr_pkt* xp)
     PyXattrPacket* pXattrPkt;
     PyObject* pRetVal;
 
-    pXattrPkt = NativeToPyXattrPacket(xp);
+    auto* state = fd_module_state::get(plugin_priv_ctx->bareos_fd_module);
+    pXattrPkt = NativeToPyXattrPacket(state, xp);
     if (!pXattrPkt) { goto bail_out; }
 
     pRetVal = PyObject_CallFunctionObjArgs(pFunc, pXattrPkt, NULL);
@@ -1139,7 +1149,8 @@ static bRC PySetXattr(PluginContext* plugin_ctx, xattr_pkt* xp)
     PyXattrPacket* pXattrPkt;
     PyObject* pRetVal;
 
-    pXattrPkt = NativeToPyXattrPacket(xp);
+    auto* state = fd_module_state::get(plugin_priv_ctx->bareos_fd_module);
+    pXattrPkt = NativeToPyXattrPacket(state, xp);
     if (!pXattrPkt) { goto bail_out; }
 
     pRetVal = PyObject_CallFunctionObjArgs(pFunc, pXattrPkt, NULL);
@@ -1163,10 +1174,10 @@ bail_out:
   return retval;
 }
 
-static inline PyRestoreObject* NativeToPyRestoreObject(restore_object_pkt* rop)
+static inline PyRestoreObject* NativeToPyRestoreObject(fd_module_state* state,
+                                                       restore_object_pkt* rop)
 {
-  PyRestoreObject* pRestoreObject
-      = PyObject_New(PyRestoreObject, &PyRestoreObjectType);
+  auto* pRestoreObject = state->make<PyRestoreObject>();
 
   if (pRestoreObject) {
     pRestoreObject->object_name = PyUnicode_FromString(rop->object_name);
@@ -1202,7 +1213,8 @@ static bRC PyRestoreObjectData(PluginContext* plugin_ctx,
     PyRestoreObject* pRestoreObject;
     PyObject* pRetVal;
 
-    pRestoreObject = NativeToPyRestoreObject(rop);
+    auto* state = fd_module_state::get(plugin_priv_ctx->bareos_fd_module);
+    pRestoreObject = NativeToPyRestoreObject(state, rop);
     if (!pRestoreObject) { goto bail_out; }
 
     pRetVal = PyObject_CallFunctionObjArgs(pFunc, pRestoreObject, NULL);
@@ -1243,7 +1255,8 @@ static bRC PyHandleBackupFile(PluginContext* plugin_ctx, save_pkt* sp)
     PySavePacket* pSavePkt;
     PyObject* pRetVal;
 
-    pSavePkt = NativeToPySavePacket(sp);
+    auto* state = fd_module_state::get(plugin_priv_ctx->bareos_fd_module);
+    pSavePkt = NativeToPySavePacket(state, sp);
     if (!pSavePkt) { goto bail_out; }
 
     pRetVal = PyObject_CallFunctionObjArgs(pFunc, pSavePkt, NULL);
