@@ -267,6 +267,16 @@ bRC newPlugin(PluginContext* plugin_ctx)
 
   // register ts
   tl_threadstates.push_back(ts);
+
+  // get a reference to the interpreter local bareosfd module.
+  PyObject* bareosfdModule = PyImport_ImportModule("bareosfd");
+  if (!bareosfdModule) {
+    printf("loading of bareosfd extension module failed\n");
+    if (PyErr_Occurred()) { PyErrorHandler(); }
+  }
+
+  plugin_priv_ctx->bareos_fd_module = bareosfdModule;
+
   PyEval_ReleaseThread(ts);
 
   /* Always register some events the python plugin itself can register

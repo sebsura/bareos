@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -39,6 +39,7 @@ struct plugin_private_context {
       interp;         // Python interpreter for this instance of the plugin
   PyObject* pModule;  // Python Module entry point
   PyObject* pyModuleFunctionsDict;  // Python Dictionary
+  PyObject* bareos_fd_module;       // interpreter local "bareosfd" module
 };
 
 
