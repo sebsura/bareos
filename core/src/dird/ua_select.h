@@ -36,6 +36,8 @@ namespace directordaemon {
 StorageResource* select_storage_resource(UaContext* ua,
                                          bool autochanger_only = false);
 JobResource* select_job_resource(UaContext* ua);
+JobResource* select_job_resource_with_type(UaContext* ua,
+                                           std::uint32_t JobType);
 JobResource* select_enable_disable_job_resource(UaContext* ua, bool enable);
 JobResource* select_restore_job_resource(UaContext* ua);
 ClientResource* select_client_resource(UaContext* ua);

@@ -318,6 +318,48 @@ JobResource* select_enable_disable_job_resource(UaContext* ua, bool enable)
   return job;
 }
 
+JobResource* select_job_resource_with_type(UaContext* ua, std::uint32_t JobType)
+{
+  JobResource* job;
+  std::vector<JobResource*> job_resources;
+
+  foreach_res (job, R_JOB) {
+    if (ua->AclAccessOk(Job_ACL, job->resource_name_)
+        && job->JobType == JobType) {
+      job_resources.emplace_back(job);
+    }
+  }
+
+  if (job_resources.size() == 0) {
+    ua->SendMsg("No suitable Job found.\n");
+    return NULL;
+  }
+
+  if (job_resources.size() == 1) {
+    ua->SendMsg("Automatically selected Job: %s\n",
+                job_resources.front()->resource_name_);
+    return job_resources.front();
+  }
+
+  std::sort(job_resources.begin(), job_resources.end(),
+            [](const JobResource* l, const JobResource* r) {
+              std::string x{l->resource_name_}, y{r->resource_name_};
+              StringToLowerCase(x);
+              StringToLowerCase(y);
+              return x < y;
+            });
+
+  StartPrompt(ua, T_("The defined Job resources are:\n"));
+  for (auto* res : job_resources) { AddPrompt(ua, res->resource_name_); }
+  auto res = DoPrompt(ua, T_("Job"), T_("Select Job resource"), NULL, 0);
+  if (res < 0 || res >= (int)job_resources.size()) {
+    ua->SendMsg("No Job selected.\n");
+    return NULL;
+  }
+
+  return job_resources[res];
+}
+
 // Select a Job resource from prompt list
 JobResource* select_job_resource(UaContext* ua)
 {
