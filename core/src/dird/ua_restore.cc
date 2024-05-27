@@ -55,6 +55,7 @@
 #include "dird/job.h"
 
 #include <vector>
+#include <iomanip>
 
 namespace directordaemon {
 
@@ -102,6 +103,248 @@ static bool CheckAndSetFileregex(UaContext* ua,
                                  RestoreContext* rx,
                                  const char* regex);
 static bool AddAllFindex(RestoreContext* rx);
+
+static void PrintRestoreOptions(UaContext* ua, const RestoreOptions& res)
+{
+  std::stringstream s;
+
+  s << std::left;
+
+  s << "Run Restore Job\n";
+  s << std::setw(17) << "JobName:" << std::setw(0) << res.job->resource_name_
+    << "\n";
+
+  std::visit(
+      [&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+
+        if constexpr (std::is_same_v<T, RestoreOptions::native_data>) {
+          s << std::setw(17) << "Type:" << std::setw(0) << "Native"
+            << "\n";
+          s << std::setw(17) << "  BootStrap:" << std::setw(0)
+            << arg.BootStrapPath << "\n";
+        } else if constexpr (std::is_same_v<T, RestoreOptions::ndmp_data>) {
+          s << std::setw(17) << "Type:" << std::setw(0) << "NDMP"
+            << "\n";
+          s << std::setw(17) << "  JobIds:" << std::setw(0) << arg.JobIds
+            << "\n";
+        } else {
+          static_assert(false, "non-exhaustive visitor");
+        }
+      },
+      res.data);
+
+  s << std::setw(17) << "Catalog:" << std::setw(0)
+    << res.catalog->resource_name_ << "\n";
+  s << std::setw(17) << "Restore Client:" << std::setw(0)
+    << res.restore_client->resource_name_ << "\n";
+
+  if (res.location) {
+    s << std::setw(17) << "Location:"
+      << "\n";
+    std::visit(
+        [&](auto&& arg) {
+          using T = std::decay_t<decltype(arg)>;
+
+          if constexpr (std::is_same_v<T, RestoreOptions::regex_where>) {
+            s << std::setw(17) << "  RegexWhere:" << std::setw(0) << arg
+              << "\n";
+          } else if constexpr (std::is_same_v<T, RestoreOptions::where>) {
+            s << std::setw(17) << "Where:" << std::setw(0) << arg << "\n";
+          } else {
+            static_assert(false, "non-exhaustive visitor");
+          }
+        },
+        res.location.value());
+  }
+
+  if (res.replace) {
+    s << std::setw(17) << "Replace:" << std::setw(0)
+      << enum_name(res.replace.value()) << "\n";
+  }
+
+  if (res.backup_format) {
+    s << std::setw(17) << "Format:" << std::setw(0) << res.backup_format.value()
+      << "\n";
+  }
+
+  if (res.add_prefix) {
+    s << std::setw(17) << "AddPrefix:" << std::setw(0) << res.add_prefix.value()
+      << "\n";
+  }
+
+  if (res.add_suffix) {
+    s << std::setw(17) << "AddSuffix:" << std::setw(0) << res.add_suffix.value()
+      << "\n";
+  }
+
+  if (res.strip_prefix) {
+    s << std::setw(17) << "StripPrefix:" << std::setw(0)
+      << res.strip_prefix.value() << "\n";
+  }
+
+  if (res.file_regex) {
+    s << std::setw(17) << "FileRegex:" << std::setw(0) << res.file_regex.value()
+      << "\n";
+  }
+
+  if (res.plugin_options) {
+    s << std::setw(17) << "PluginOptions:" << std::setw(0)
+      << res.plugin_options.value() << "\n";
+  }
+
+  if (res.comment) {
+    s << std::setw(17) << "Comment:" << std::setw(0) << res.comment.value()
+      << "\n";
+  }
+
+  ua->SendMsg(s.str().c_str());
+}
+
+static bool ModifyRestoreOptions(UaContext* ua, RestoreOptions& res)
+{
+  StartPrompt(ua, "Parameters to modify:\n");
+
+#define Prompts()  \
+  X(Job)           \
+  X(Type)          \
+  X(Client)        \
+  X(Catalog)       \
+  X(Location)      \
+  X(Replace)       \
+  X(BackupFormat)  \
+  X(PluginOptions) \
+  X(Comment)       \
+  X(AddPrefix)     \
+  X(AddSuffix)     \
+  X(StripPrefix)   \
+  X(FileRegex)
+
+  enum prompt_type
+  {
+#define X(Name) Name,
+    Prompts()
+#undef X
+  };
+
+#define X(Name) AddPrompt(ua, #Name);
+  Prompts()
+#undef X
+
+#undef Prompts
+
+      switch (DoPrompt(ua, "", "Select a parameter to modify", NULL, 0))
+  {
+    case Job: {
+      auto* selected_job = select_job_resource_with_type(ua, JT_RESTORE);
+      if (selected_job) {
+        res.job = selected_job;
+      } else {
+        ua->SendMsg("No job selected. Changing nothing.");
+      }
+    } break;
+    case Type: {
+      // TODO: implementthis
+    } break;
+    case Client: {
+      auto* selected_client = select_client_resource(ua);
+      if (selected_client) {
+        res.restore_client = selected_client;
+      } else {
+        ua->SendMsg("No job selected. Changing nothing.");
+      }
+    } break;
+    case Catalog: {
+      // TODO: implement select_catalog_resource
+    } break;
+    case Location: {
+    } break;
+    case BackupFormat: {
+      if (GetCmd(ua, T_("Please enter Backup Format: "))) {
+        if (ua->cmd[0] == 0) {
+          res.backup_format.reset();
+        } else {
+          res.backup_format = ua->cmd;
+        }
+      }
+    } break;
+    case PluginOptions: {
+    } break;
+    case Comment: {
+      if (GetCmd(ua, T_("Please enter Comment: "))) {
+        if (ua->cmd[0] == 0) {
+          res.comment.reset();
+        } else {
+          res.comment = ua->cmd;
+        }
+      }
+    } break;
+    case AddPrefix: {
+      if (GetCmd(ua, T_("Please enter AddPrefix: "))) {
+        if (ua->cmd[0] == 0) {
+          res.add_prefix.reset();
+        } else {
+          res.add_prefix = ua->cmd;
+        }
+      }
+    } break;
+    case AddSuffix: {
+      if (GetCmd(ua, T_("Please enter AddSuffix: "))) {
+        if (ua->cmd[0] == 0) {
+          res.add_suffix.reset();
+        } else {
+          res.add_suffix = ua->cmd;
+        }
+      }
+    } break;
+    case StripPrefix: {
+      if (GetCmd(ua, T_("Please enter StripPrefix: "))) {
+        if (ua->cmd[0] == 0) {
+          res.strip_prefix.reset();
+        } else {
+          res.strip_prefix = ua->cmd;
+        }
+      }
+    } break;
+    case FileRegex: {
+      if (GetCmd(ua, T_("Please enter FileRegex: "))) {
+        if (ua->cmd[0] == 0) {
+          res.file_regex.reset();
+        } else {
+          res.file_regex = ua->cmd;
+        }
+      }
+    } break;
+    default: {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool CheckAndModifyParameters(UaContext* ua, RestoreOptions& res)
+{
+  for (;;) {
+    PrintRestoreOptions(ua, res);
+
+    if (!GetCmd(ua, "OK to run? (yes/mod/no): ")) { return false; }
+
+    auto length = strlen(ua->cmd);
+    if (bstrncasecmp(ua->cmd, NT_("no"), length)
+        || bstrncasecmp(ua->cmd, T_("no"), length)) {
+      return false;
+    } else if (bstrncasecmp(ua->cmd, ".mod ", MIN(length, 5))
+               || bstrncasecmp(ua->cmd, "mod ", MIN(length, 4))) {
+      if (!ModifyRestoreOptions(ua, res)) { return false; }
+    } else if (ua->cmd[0] == 0 || bstrncasecmp(ua->cmd, NT_("yes"), length)
+               || bstrncasecmp(ua->cmd, T_("yes"), length)) {
+      return true;
+    } else {
+      ua->WarningMsg(T_("Illegal response %s\n"), ua->cmd);
+    }
+  }
+}
 
 // Restore files
 bool RestoreCmd(UaContext* ua, const char*)
@@ -397,6 +640,8 @@ bool RestoreCmd(UaContext* ua, const char*)
     if (rx.replace) { opt.replace = rx.replace; }
     if (rx.plugin_options) { opt.plugin_options = rx.plugin_options; }
     if (rx.comment) { opt.comment = rx.comment; }
+
+    if (!CheckAndModifyParameters(ua, opt)) { goto bail_out; }
 
     JobControlRecord* new_jcr = CreateJob(std::move(opt));
     if (!new_jcr) {
