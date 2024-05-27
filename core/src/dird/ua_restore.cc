@@ -275,6 +275,26 @@ static bool ModifyRestoreOptions(UaContext* ua, RestoreOptions& res)
         } break;
       }
     } break;
+    case Replace: {
+      StartPrompt(ua, "Set replace to\n");
+      std::array<replace_option, 4> options = {
+          replace_option::Always,
+          replace_option::IfNewer,
+          replace_option::IfOlder,
+          replace_option::Never,
+      };
+      for (auto option : options) { AddPrompt(ua, enum_name(option)); }
+      AddPrompt(ua, "Default");
+
+      auto idx = DoPrompt(ua, "", "Choose a type", NULL, 0);
+
+      if (idx >= 0 && idx < static_cast<int>(options.size())) {
+        res.replace = options[idx];
+      } else if (idx == static_cast<int>(options.size())) {
+        res.replace.reset();
+      }
+
+    } break;
     case BackupFormat: {
       if (GetCmd(ua, T_("Please enter Backup Format: "))) {
         if (ua->cmd[0] == 0) {
@@ -576,7 +596,7 @@ bool RestoreCmd(UaContext* ua, const char*)
   PmStrcat(ua->cmd, buf);
 
   if (rx.replace) {
-    Mmsg(buf, " replace=%s", rx.replace);
+    Mmsg(buf, " replace=%s", enum_name(rx.replace.value()));
     PmStrcat(ua->cmd, buf);
   }
 
