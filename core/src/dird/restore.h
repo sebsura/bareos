@@ -70,9 +70,6 @@ struct RestoreOptions {
   std::optional<std::string> plugin_options;
   std::optional<std::string> comment;
 
-  std::optional<std::string> add_prefix;
-  std::optional<std::string> add_suffix;
-  std::optional<std::string> strip_prefix;
   std::optional<std::string> file_regex;
 };
 

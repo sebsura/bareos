@@ -168,21 +168,6 @@ static void PrintRestoreOptions(UaContext* ua, const RestoreOptions& res)
       << "\n";
   }
 
-  if (res.add_prefix) {
-    s << std::setw(17) << "AddPrefix:" << std::setw(0) << res.add_prefix.value()
-      << "\n";
-  }
-
-  if (res.add_suffix) {
-    s << std::setw(17) << "AddSuffix:" << std::setw(0) << res.add_suffix.value()
-      << "\n";
-  }
-
-  if (res.strip_prefix) {
-    s << std::setw(17) << "StripPrefix:" << std::setw(0)
-      << res.strip_prefix.value() << "\n";
-  }
-
   if (res.file_regex) {
     s << std::setw(17) << "FileRegex:" << std::setw(0) << res.file_regex.value()
       << "\n";
@@ -215,9 +200,6 @@ static bool ModifyRestoreOptions(UaContext* ua, RestoreOptions& res)
   X(BackupFormat)  \
   X(PluginOptions) \
   X(Comment)       \
-  X(AddPrefix)     \
-  X(AddSuffix)     \
-  X(StripPrefix)   \
   X(FileRegex)
 
   enum prompt_type
@@ -276,33 +258,6 @@ static bool ModifyRestoreOptions(UaContext* ua, RestoreOptions& res)
           res.comment.reset();
         } else {
           res.comment = ua->cmd;
-        }
-      }
-    } break;
-    case AddPrefix: {
-      if (GetCmd(ua, T_("Please enter AddPrefix: "))) {
-        if (ua->cmd[0] == 0) {
-          res.add_prefix.reset();
-        } else {
-          res.add_prefix = ua->cmd;
-        }
-      }
-    } break;
-    case AddSuffix: {
-      if (GetCmd(ua, T_("Please enter AddSuffix: "))) {
-        if (ua->cmd[0] == 0) {
-          res.add_suffix.reset();
-        } else {
-          res.add_suffix = ua->cmd;
-        }
-      }
-    } break;
-    case StripPrefix: {
-      if (GetCmd(ua, T_("Please enter StripPrefix: "))) {
-        if (ua->cmd[0] == 0) {
-          res.strip_prefix.reset();
-        } else {
-          res.strip_prefix = ua->cmd;
         }
       }
     } break;
