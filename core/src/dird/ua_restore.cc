@@ -218,10 +218,12 @@ static bool ModifyRestoreOptions(UaContext* ua, RestoreOptions& res)
   switch (DoPrompt(ua, "", "Select a parameter to modify", NULL, 0)) {
     case Job: {
       auto* selected_job = select_job_resource_with_type(ua, JT_RESTORE);
-      if (selected_job) {
-        res.job = selected_job;
+      if (!selected_job) {
+        ua->SendMsg("No job selected. Changing nothing.\n");
+      } else if (selected_job->Protocol != res.job->Protocol) {
+        ua->SendMsg("Cannot switch to different protocol.\n");
       } else {
-        ua->SendMsg("No job selected. Changing nothing.");
+        res.job = selected_job;
       }
     } break;
     case Type: {
