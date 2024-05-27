@@ -150,7 +150,7 @@ static void PrintRestoreOptions(UaContext* ua, const RestoreOptions& res)
             s << std::setw(17) << "  RegexWhere:" << std::setw(0) << arg
               << "\n";
           } else if constexpr (std::is_same_v<T, RestoreOptions::where>) {
-            s << std::setw(17) << "Where:" << std::setw(0) << arg << "\n";
+            s << std::setw(17) << "  Where:" << std::setw(0) << arg << "\n";
           } else {
             static_assert(false, "non-exhaustive visitor");
           }
@@ -210,13 +210,12 @@ static bool ModifyRestoreOptions(UaContext* ua, RestoreOptions& res)
   };
 
 #define X(Name) AddPrompt(ua, #Name);
-  Prompts()
+  Prompts();
 #undef X
 
 #undef Prompts
 
-      switch (DoPrompt(ua, "", "Select a parameter to modify", NULL, 0))
-  {
+  switch (DoPrompt(ua, "", "Select a parameter to modify", NULL, 0)) {
     case Job: {
       auto* selected_job = select_job_resource_with_type(ua, JT_RESTORE);
       if (selected_job) {
