@@ -285,6 +285,18 @@ static bool ModifyRestoreOptions(UaContext* ua, RestoreOptions& res)
       }
     } break;
     case PluginOptions: {
+      if (GetCmd(ua, T_("Please enter Comment: "))) {
+        if (ua->cmd[0] == 0) {
+          res.plugin_options.reset();
+        } else {
+          if (!ua->AclAccessOk(PluginOptions_ACL, ua->cmd, true)) {
+            ua->SendMsg(
+                "No authorization for \"PluginOptions\" specification.\n");
+          } else {
+            res.plugin_options = ua->cmd;
+          }
+        }
+      }
     } break;
     case Comment: {
       if (GetCmd(ua, T_("Please enter Comment: "))) {
