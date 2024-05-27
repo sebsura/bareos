@@ -137,7 +137,24 @@ bool RestoreCmd(UaContext* ua, const char*)
   if (i >= 0) { rx.where = ua->argv[i]; }
 
   i = FindArgWithValue(ua, "replace");
-  if (i >= 0) { rx.replace = ua->argv[i]; }
+  if (i >= 0) {
+    if (strlen(ua->argv[i]) == 1) {
+      switch (*ua->argv[i]) {
+        case 'a':
+          rx.replace = replace_option::Always;
+          break;
+        case 'w':
+          rx.replace = replace_option::IfNewer;
+          break;
+        case 'n':
+          rx.replace = replace_option::Never;
+          break;
+        case 'o':
+          rx.replace = replace_option::IfOlder;
+          break;
+      }
+    }
+  }
 
   i = FindArgWithValue(ua, "pluginoptions");
   if (i >= 0) { rx.plugin_options = ua->argv[i]; }
@@ -377,7 +394,7 @@ bool RestoreCmd(UaContext* ua, const char*)
     }
 
     if (rx.backup_format) { opt.backup_format = rx.backup_format; }
-    // if (rx.replace) { opt.replace = rx.replace; }
+    if (rx.replace) { opt.replace = rx.replace; }
     if (rx.plugin_options) { opt.plugin_options = rx.plugin_options; }
     if (rx.comment) { opt.comment = rx.comment; }
 
