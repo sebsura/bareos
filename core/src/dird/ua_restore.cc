@@ -252,14 +252,24 @@ static bool ModifyRestoreOptions(UaContext* ua, RestoreOptions& res)
         case 1: {
           if (GetCmd(ua, T_("Please enter RegexWhere: "))) {
             if (ua->cmd[0] != 0) {
-              res.location = RestoreOptions::regex_where{ua->cmd};
+              if (!ua->AclAccessOk(Where_ACL, ua->cmd, true)) {
+                ua->SendMsg(
+                    T_("No authoriztion for \"RegexWhere\" specification.\n"));
+              } else {
+                res.location = RestoreOptions::regex_where{ua->cmd};
+              }
             }
           }
         } break;
         case 2: {
           if (GetCmd(ua, T_("Please enter Where: "))) {
             if (ua->cmd[0] != 0) {
-              res.location = RestoreOptions::where{ua->cmd};
+              if (!ua->AclAccessOk(Where_ACL, ua->cmd, true)) {
+                ua->SendMsg(
+                    T_("No authoriztion for \"Where\" specification.\n"));
+              } else {
+                res.location = RestoreOptions::where{ua->cmd};
+              }
             }
           }
         } break;
