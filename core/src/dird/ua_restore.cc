@@ -241,6 +241,29 @@ static bool ModifyRestoreOptions(UaContext* ua, RestoreOptions& res)
       // TODO: implement select_catalog_resource
     } break;
     case Location: {
+      StartPrompt(ua, "Set Location to\n");
+      AddPrompt(ua, "Default");
+      AddPrompt(ua, "Regex");
+      AddPrompt(ua, "Path");
+      switch (DoPrompt(ua, "", "Choose a type", NULL, 0)) {
+        case 0: {
+          res.location.reset();
+        } break;
+        case 1: {
+          if (GetCmd(ua, T_("Please enter RegexWhere: "))) {
+            if (ua->cmd[0] != 0) {
+              res.location = RestoreOptions::regex_where{ua->cmd};
+            }
+          }
+        } break;
+        case 2: {
+          if (GetCmd(ua, T_("Please enter Where: "))) {
+            if (ua->cmd[0] != 0) {
+              res.location = RestoreOptions::where{ua->cmd};
+            }
+          }
+        } break;
+      }
     } break;
     case BackupFormat: {
       if (GetCmd(ua, T_("Please enter Backup Format: "))) {
