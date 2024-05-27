@@ -485,6 +485,8 @@ inline constexpr const char* enum_name(replace_option opt)
       return "IfOlder";
     case replace_option::Never:
       return "Never";
+    default:
+      return "Internal Error";
   }
 }
 
