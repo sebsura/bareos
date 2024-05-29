@@ -317,7 +317,7 @@ bool ReadNextRecordFromBlock(DeviceControlRecord* dcr,
       if (jcr->sd_impl->read_session.bsr) {
         // We just check block FI and FT not FileIndex
         rec->match_stat
-            = MatchBsrBlock(jcr->sd_impl->read_session.bsr, dcr->block);
+            = MatchBsrBlock(jcr, jcr->sd_impl->read_session.bsr, dcr->block);
       } else {
         rec->match_stat = 0;
       }

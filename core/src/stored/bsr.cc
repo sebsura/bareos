@@ -123,17 +123,30 @@ static BootStrapRecord* find_smallest_volfile(BootStrapRecord* fbsr,
  *                  that can match the bsr).
  *
  */
-int MatchBsrBlock(BootStrapRecord* bsr, DeviceBlock* block)
+int MatchBsrBlock(JobControlRecord* jcr,
+                  BootStrapRecord* bsr,
+                  DeviceBlock* block)
 {
   if (!bsr || !bsr->use_fast_rejection || (block->BlockVer < 2)) {
     return 1; /* cannot fast reject */
   }
+  auto* current = bsr;
+  for (int i = 1; current && i < jcr->sd_impl->CurReadVolume; ++i) {
+    auto* vol_name = current->volume->VolumeName;
+    while (current && bstrcmp(current->volume->VolumeName, vol_name)) {
+      current = current->next;
+    }
+  }
+  if (!current) { return 0; }
 
-  for (; bsr; bsr = bsr->next) {
-    if (!MatchBlockSesstime(bsr, bsr->sesstime, block)) { continue; }
-    if (!MatchBlockSessid(bsr, bsr->sessid, block)) { continue; }
+  for (auto* cur = current;
+       cur && bstrcmp(cur->volume->VolumeName, current->volume->VolumeName);
+       cur = cur->next) {
+    if (!MatchBlockSesstime(cur, cur->sesstime, block)) { continue; }
+    if (!MatchBlockSessid(cur, cur->sessid, block)) { continue; }
     return 1;
   }
+
   return 0;
 }
 
@@ -209,7 +222,15 @@ int MatchBsr(BootStrapRecord* bsr,
    *   tape to the next available bsr position. */
   if (bsr) {
     bsr->Reposition = false;
-    status = MatchAll(bsr, rec, volrec, sessrec, true, jcr);
+    auto* current = bsr;
+    for (int i = 1; current && i < jcr->sd_impl->CurReadVolume; ++i) {
+      auto* vol_name = current->volume->VolumeName;
+      while (current && bstrcmp(current->volume->VolumeName, vol_name)) {
+        current = current->next;
+      }
+    }
+    if (!current) { return 0; }
+    status = MatchAll(current, rec, volrec, sessrec, true, jcr);
     /* Note, bsr->Reposition is set by MatchAll when
      *  a bsr is done. We turn it off if a match was
      *  found or if we cannot use positioning */
@@ -504,10 +525,15 @@ static int MatchAll(BootStrapRecord* bsr,
   return 1;
 
 no_match:
-  if (bsr->next) {
+  if (bsr->next
+      && bstrcmp(bsr->volume->VolumeName, bsr->next->volume->VolumeName)) {
+    // TODO: this should only happen if we go forward on the volume here!
+    // With consolidate jobs its possible that a "full" is written to the same
+    // volume as an incremental, but after it!!  It still needs to be restored
+    // first!
     return MatchAll(bsr->next, rec, volrec, sessrec, bsr->done && done, jcr);
   }
-  if (bsr->done && done) {
+  if (bsr->done && done && bsr->next == nullptr) {
     Dmsg0(dbglevel, "Leave match all -1\n");
     return -1;
   }
@@ -773,31 +799,25 @@ static VolumeList* new_restore_volume()
  */
 static bool AddRestoreVolume(JobControlRecord* jcr, VolumeList* vol)
 {
-  VolumeList* next = jcr->sd_impl->VolList;
-
+  Dmsg2(800, "Add %s: %d\n", vol->VolumeName, vol->start_file);
   /* Add volume to volume manager's read list */
   AddReadVolume(jcr, vol->VolumeName);
 
+  VolumeList* next = jcr->sd_impl->VolList;
   if (!next) {                   /* list empty ? */
     jcr->sd_impl->VolList = vol; /* yes, add volume */
   } else {
-    /* Loop through all but last */
-    for (; next->next; next = next->next) {
-      if (bstrcmp(vol->VolumeName, next->VolumeName)) {
-        /* Save smallest start file */
-        if (vol->start_file < next->start_file) {
-          next->start_file = vol->start_file;
-        }
-        return false; /* already in list */
-      }
-    }
+    while (next->next) { next = next->next; }
     /* Check last volume in list */
+    Dmsg2(800, "Last Volume: %s at %d\n", next->VolumeName, next->start_file);
     if (bstrcmp(vol->VolumeName, next->VolumeName)) {
       if (vol->start_file < next->start_file) {
+        Dmsg0(800, "Action: Embiggen\n");
         next->start_file = vol->start_file;
       }
       return false; /* already in list */
     }
+    Dmsg0(800, "Action: Append\n");
     next->next = vol; /* add volume */
   }
   return true;

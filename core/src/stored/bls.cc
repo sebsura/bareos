@@ -337,7 +337,7 @@ static void DoBlocks(char*)
           return;
         }
     }
-    if (!MatchBsrBlock(bsr, block)) {
+    if (!MatchBsrBlock(jcr, bsr, block)) {
       Dmsg5(100, "reject Blk=%u blen=%u bVer=%d SessId=%u SessTim=%u\n",
             block->BlockNumber, block->block_len, block->BlockVer,
             block->VolSessionId, block->VolSessionTime);
