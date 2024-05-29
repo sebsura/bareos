@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -54,6 +54,8 @@
 #include "lib/edit.h"
 #include "lib/util.h"
 #include "lib/version.h"
+#include "lib/tree.h"
+#include "lib/attribs.h"
 
 namespace directordaemon {
 
@@ -592,4 +594,178 @@ void GenerateRestoreSummary(JobControlRecord* jcr,
       break;
   }
 }
+
+struct TreeArgs {
+  enum class selection
+  {
+    None,
+    All,
+  };
+
+  std::unordered_set<JobId_t> jobids;
+  std::size_t estimated_size;
+  selection initial_selection;
+};
+
+struct InsertTreeContext {
+  std::size_t TotalCount;
+  TREE_ROOT* root;
+
+  std::optional<std::string> error;
+  bool mark_on_create;
+};
+
+static inline bool ShouldOverwriteNode(TREE_NODE* node,
+                                       JobId_t jobid,
+                                       int32_t FileIndex,
+                                       bool hard_link)
+{
+  // if the node is new, we "overwrite" it
+  if (node->inserted) { return true; }
+  // if the node is from a different job, we overwrite it
+  if (node->JobId != jobid) { return true; }
+
+  // normally the same path should not be included in the same job multiple
+  // times, but they are technically possible so we still have to handle them!
+
+  if (hard_link) {
+    // for hardlink we use the first/oldest node
+    // since the other copies should just be links to this one
+    return FileIndex <= node->FileIndex;
+  }
+
+  // ... otherwise we use the last/newest node
+  return FileIndex >= node->FileIndex;
+}
+
+static int InsertTreeHandler(void* arg, int num_rows, char** row)
+{
+  auto* ctx = static_cast<InsertTreeContext*>(arg);
+
+  if (ctx->error) {
+    ctx->error = std::string{"Handler called while in error with \""}
+                 + ctx->error.value() + "\"";
+  }
+
+  if (num_rows != 8) {
+    ctx->error = "Handler called with bad row (count = "
+                 + std::to_string(num_rows) + ")";
+    return 1;
+  }
+
+  const char* str_path = row[0];
+  const char* str_file = row[1];
+  const char* str_findex = row[2];
+  const char* str_jobid = row[3];
+  const char* str_lstat = row[4];
+  const char* str_dseq = row[5];
+  const char* str_fhinfo = row[6];
+  const char* str_fhnode = row[7];
+
+  int type;
+
+  if (str_file[0] == 0) {                /* no filename => directory */
+    if (!IsPathSeparator(str_path[0])) { /* Must be Win32 directory */
+      type = TN_DIR_NLS;
+    } else {
+      type = TN_DIR;
+    }
+  } else {
+    type = TN_FILE;
+  }
+
+  auto* node
+      = insert_tree_node(const_cast<char*>(str_path),
+                         const_cast<char*>(str_file), type, ctx->root, NULL);
+
+  JobId_t JobId = str_to_int64(str_jobid);
+  int32_t FileIndex = str_to_int64(str_findex);
+  int32_t delta_seq = str_to_int64(str_dseq);
+
+  int32_t LinkFI;
+  struct stat statp;
+  DecodeStat(const_cast<char*>(str_lstat), &statp, sizeof(statp), &LinkFI);
+
+  bool hard_link = (LinkFI != 0);
+
+  // TODO handle delta_seq
+
+  if (ShouldOverwriteNode(node, JobId, FileIndex, hard_link)) {
+    node->soft_link = S_ISLNK(statp.st_mode) != 0;
+    node->hard_link = hard_link;
+
+    node->FileIndex = FileIndex;
+    node->type = type;
+    node->delta_seq = delta_seq;
+    node->fhinfo = str_to_uint64(str_fhinfo);
+    node->fhnode = str_to_uint64(str_fhnode);
+    node->JobId = JobId;
+
+    if (ctx->mark_on_create) {
+      node->extract = true;
+      if (type == TN_DIR || type == TN_DIR_NLS) { node->extract_dir = true; }
+    }
+
+    if (statp.st_nlink > 1 && type != TN_DIR && type != TN_DIR_NLS) {
+      if (!LinkFI) {
+        // First occurence - file hardlinked to
+        auto* entry
+            = (HL_ENTRY*)ctx->root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
+        entry->key = (((uint64_t)JobId) << 32) + FileIndex;
+        entry->node = node;
+        ctx->root->hardlinks.insert(entry->key, entry);
+      } else {
+        // Hardlink to known file index: lookup original file
+        uint64_t file_key = (((uint64_t)JobId) << 32) + LinkFI;
+        HL_ENTRY* first_hl = (HL_ENTRY*)ctx->root->hardlinks.lookup(file_key);
+
+        if (first_hl && first_hl->node) {
+          // Then add hardlink entry to linked node.
+          auto* entry
+              = (HL_ENTRY*)ctx->root->hardlinks.hash_malloc(sizeof(HL_ENTRY));
+          entry->key = (((uint64_t)JobId) << 32) + FileIndex;
+          entry->node = first_hl->node;
+          ctx->root->hardlinks.insert(entry->key, entry);
+        }
+      }
+    }
+
+    if (node->inserted) { ctx->TotalCount += 1; }
+  }
+
+  return 0;
+}
+
+InsertTreeContext BuildDirectoryTree(BareosDb* db, TreeArgs args)
+{
+  auto* root = new_tree(args.estimated_size);
+
+
+  InsertTreeContext ctx;
+  ctx.root = root;
+  ctx.mark_on_create = args.initial_selection == TreeArgs::selection::All;
+  ctx.TotalCount = 0;
+
+  std::string jobids;
+  for (auto& jobid : args.jobids) {
+    if (jobids.size()) { jobids += ","; }
+    jobids += jobid;
+  }
+  bool get_md5 = false;
+  bool get_delta = true;
+
+  if (!db->GetFileList(nullptr, jobids.c_str(), get_md5, get_delta,
+                       InsertTreeHandler, &ctx)) {
+    if (ctx.error) {
+      ctx.error.value() += std::string{"\n"} + db->strerror();
+    } else {
+      ctx.error = db->strerror();
+    }
+    return ctx;
+  }
+
+  return ctx;
+}
+
+
 } /* namespace directordaemon */

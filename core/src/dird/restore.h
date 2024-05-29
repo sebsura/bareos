@@ -41,6 +41,31 @@ void GenerateRestoreSummary(JobControlRecord* jcr,
                             int msg_type,
                             const char* TermMsg);
 
+// struct enumeration {
+//   std::vector<std::string> names;
+// };
+
+// using job_base_value = std::variant<std::string,
+//                                     enumeration,
+//                                     JobResource*,
+//                                     ClientResource*,
+//                                     CatalogResource*>;
+
+// using job_value = std::variant<job_base_value,
+//   std::optional<job_base_value>>;
+
+// struct job_option {
+//   const char* Name;
+//   std::optional<job_value> Value;
+
+//   enum class flag {
+//     Required = (1 << 0),
+//   };
+
+//   std::uint32_t Flags;
+// };
+
+
 struct RestoreOptions {
   template <typename T> using required = T;
 
