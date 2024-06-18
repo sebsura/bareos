@@ -30,8 +30,11 @@ add_custom_target(
             "${CMAKE_CURRENT_SOURCE_DIR}/cmake/uninstall.cmake"
 )
 
-set(FETCHCONTENT_FULLY_DISCONNECTED CACHE STRING "OFF" FORCE)
-mark_as_advanced(FETCHCONTENT_FULLY_DISCONNECTED)
+if(FETCHCONTENT_FULLY_DISCONNECTED)
+  message(WARNING "Detected FETCHCONTENT_FULLY_DISCONNECTED.")
+  message(WARNING "As this will break fetching, only local packages will be considered!")
+  set(CPM_LOCAL_PACKAGES_ONLY ON)
+endif()
 set(default_build_type "Debug")
 
 include(CMakePrintHelpers)
