@@ -236,11 +236,10 @@ void test_config_directive_type(
 }
 
 
-void test_CFG_TYPE_AUDIT(DirectorResource* me)
+void test_CFG_TYPE_AUDIT(DirectorResource* res)
 {
-  const char* val = nullptr;
-  foreach_alist (val, me->audit_events) { printf("AuditEvents = %s\n", val); }
-  EXPECT_EQ(me->audit_events->size(), 8);
+  foreach_alist (val, res->audit_events) { printf("AuditEvents = %s\n", val); }
+  EXPECT_EQ(res->audit_events->size(), 8);
 }
 
 TEST_F(ConfigParser_Dir, CFG_TYPE_AUDIT)
@@ -249,11 +248,10 @@ TEST_F(ConfigParser_Dir, CFG_TYPE_AUDIT)
 }
 
 
-void test_CFG_TYPE_PLUGIN_NAMES(DirectorResource* me)
+void test_CFG_TYPE_PLUGIN_NAMES(DirectorResource* res)
 {
-  const char* val = nullptr;
-  foreach_alist (val, me->plugin_names) { printf("PluginNames = %s\n", val); }
-  EXPECT_EQ(me->plugin_names->size(), 16);
+  foreach_alist (val, res->plugin_names) { printf("PluginNames = %s\n", val); }
+  EXPECT_EQ(res->plugin_names->size(), 16);
 }
 
 TEST_F(ConfigParser_Dir, CFG_TYPE_PLUGIN_NAMES)
@@ -331,7 +329,6 @@ void test_CFG_TYPE_FNAME(DirectorResource*)
 
   alist<const char*>* files
       = std::addressof(fileset1->include_items.at(0)->name_list);
-  const char* val = nullptr;
   foreach_alist (val, files) { printf("Files = %s\n", val); }
 }
 

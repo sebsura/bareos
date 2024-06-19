@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2015-2017 Planets Communications B.V.
-   Copyright (C) 2017-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -172,7 +172,6 @@ bool ChunkedDevice::StartIoThreads()
 void ChunkedDevice::StopThreads()
 {
   char ed1[50];
-  thread_handle* handle = nullptr;
 
   /* Tell all IO threads that we flush the circular buffer.
    * As such they will get a NULL chunk_io_request back and exit. */
