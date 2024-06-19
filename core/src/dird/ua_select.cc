@@ -132,6 +132,22 @@ int FindArgWithValue(UaContext* ua, const char* keyword)
 }
 
 /**
+ * Given a single keyword, find it in the argument list, check if it has a
+ * value and return the pointer to the value.
+ *
+ * Returns: pointer to value
+ *          nullptr if no such key or key has no value
+ */
+const char* GetArgValue(UaContext* ua, const char* keyword)
+{
+  if (int i = FindArgWithValue(ua, keyword); i >= 0) {
+    return ua->argv[i];
+  } else {
+    return nullptr;
+  }
+}
+
+/**
  * Given a list of keywords, prompt the user to choose one.
  *
  * Returns: -1 on failure
@@ -1491,7 +1507,9 @@ bool GetLevelFromName(JobControlRecord* jcr, const char* level_name)
 static inline bool InsertSelectedJobid(alist<JobId_t*>* selected_jobids,
                                        JobId_t JobId)
 {
-  foreach_alist (jobid, selected_jobids) {
+  if (!selected_jobids) { return false; }
+
+  for (auto* jobid : *selected_jobids) {
     if (*jobid == JobId) { return false; }
   }
 
