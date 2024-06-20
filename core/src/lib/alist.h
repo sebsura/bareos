@@ -27,19 +27,12 @@
 #define BAREOS_LIB_ALIST_H_
 
 
-/* There is a lot of extra casting here to work around the fact
- * that some compilers (Sun and Visual C++) do not accept
- * (void *) as an lvalue on the left side of an equal.
- *
- * Loop var through each member of list
- * Loop var through each member of list using an increasing index.
+/* Loop var through each member of list using an increasing index.
  * Loop var through each member of list using an decreasing index.
- */
-#define foreach_alist(var, list) for (auto var : *list)
-
-#define foreach_alist_null(var, list) \
-  for ((var) = list ? (list)->first() : nullptr; (var); (var) = (list)->next())
-
+ *
+ * These should also get removed.  Currently there are some situations where
+ * items are removed from the list during traversal (see UnloadPlugin).
+ * Since this is thread safe it can stay for now. */
 #define foreach_alist_index(inx, var, list) \
   for ((inx) = 0; (list != nullptr) ? ((var) = (list)->get((inx))) : 0; (inx)++)
 
@@ -50,7 +43,6 @@
 
 #include <string>
 #include <list>
-
 
 // Second arg of init
 enum
@@ -66,36 +58,6 @@ enum
 
 template <typename T> class alist {
  public:
-  template <typename Mem> struct enumerated_span {
-    size_t count;
-    Mem* items;
-
-    struct iter {
-      size_t current;
-      Mem* ptr;
-
-      iter(size_t start, Mem* base) : current{start}, ptr{base} {}
-
-      std::pair<size_t, Mem*> operator*() { return {current, ptr}; }
-
-      iter& operator++()
-      {
-        current += 1;
-        ptr += 1;
-        return *this;
-      }
-
-      friend bool operator!=(const iter& l, const iter& r)
-      {
-        return l.current != r.current || l.ptr != r.ptr;
-      }
-    };
-
-    iter begin() { return iter{0, items}; }
-
-    iter end() { return iter{count, items + count}; }
-  };
-
   T* begin() { return &items[0]; }
 
   T* end() { return &items[num_items]; }
@@ -103,16 +65,6 @@ template <typename T> class alist {
   const T* begin() const { return &items[0]; }
 
   const T* end() const { return &items[num_items]; }
-
-  enumerated_span<T> enumerate()
-  {
-    return enumerated_span<T>{num_items, items};
-  }
-
-  enumerated_span<const T> enumerate() const
-  {
-    return enumerated_span<const T>{num_items, items};
-  }
 
   // Ueb disable non pointer initialization
   alist(int num = 1, bool own = true) { init(num, own); }
@@ -127,9 +79,8 @@ template <typename T> class alist {
     items = nullptr;
     num_items = 0;
     max_items = 0;
-    num_grow = num;
+    num_grow = num; /* todo: do not grow linearly */
     own_items = own;
-    cur_item = 0;
   }
   void append(T item)
   {
@@ -162,25 +113,8 @@ template <typename T> class alist {
     return items[index];
   }
   bool empty() const { return num_items == 0; }
-  T prev()
-  {
-    if (cur_item <= 1) {
-      return NULL;
-    } else {
-      return items[--cur_item];
-    }
-  }
-  T next()
-  {
-    if (cur_item >= num_items) {
-      return NULL;
-    } else {
-      return items[cur_item++];
-    }
-  }
   T first()
   {
-    cur_item = 1;
     if (num_items == 0) {
       return NULL;
     } else {
@@ -192,7 +126,6 @@ template <typename T> class alist {
     if (num_items == 0) {
       return NULL;
     } else {
-      cur_item = num_items;
       return items[num_items - 1];
     }
   }
@@ -201,7 +134,6 @@ template <typename T> class alist {
     if (index < 0 || index >= num_items) { return nullptr; }
     return items[index];
   }
-  int current() const { return cur_item; }
   int size() const { return num_items; }
   void destroy()
   {
@@ -216,7 +148,6 @@ template <typename T> class alist {
       items = NULL;
     }
   }
-  void grow(int num) { num_grow = num; }
 
   // Use it as a stack, pushing and popping from the end
   void push(T item) { append(item); }
@@ -242,7 +173,6 @@ template <typename T> class alist {
   int num_items = 0;
   int max_items = 0;
   int num_grow = 0;
-  int cur_item = 0;
   bool own_items = false;
 };
 
