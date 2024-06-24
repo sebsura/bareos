@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -25,6 +25,7 @@
  * Kern Sibbald, June MMII
  */
 
+#include "cats/cats.h"
 #include "include/bareos.h"
 #include "lib/tree.h"
 #include "lib/util.h"
@@ -405,6 +406,15 @@ TREE_NODE* tree_cwd(char* path, TREE_ROOT* root, TREE_NODE* node)
   return tree_relcwd(path, root, node);
 }
 
+void LoadNode(BareosDb* db, TREE_NODE* node)
+{
+  //   const char* query_template = R"(
+  // SELECT *
+  // )";
+  (void)db;
+  node->loaded = true;
+}
+
 // Do a relative cwd -- i.e. relative to current node rather than root node
 TREE_NODE* tree_relcwd(char* path, TREE_ROOT* root, TREE_NODE* node)
 {
@@ -421,6 +431,11 @@ TREE_NODE* tree_relcwd(char* path, TREE_ROOT* root, TREE_NODE* node)
     len = p - path;
   } else {
     len = strlen(path);
+  }
+
+  if (!node->loaded) {
+    BareosDb* db = nullptr;
+    LoadNode(db, node);
   }
 
   Dmsg2(100, "tree_relcwd: len=%d path=%s\n", len, path);

@@ -1160,7 +1160,7 @@ static bool CheckAndSetFileregex(UaContext* ua,
   return true;
 }
 
-static bool AskForFileregex(UaContext* ua, RestoreContext* rx)
+[[maybe_unused]] static bool AskForFileregex(UaContext* ua, RestoreContext* rx)
 {
   /* if user enters all on command line select everything */
   if (FindArg(ua, NT_("all")) >= 0
@@ -1212,6 +1212,116 @@ static bool AddAllFindex(RestoreContext* rx)
   return has_jobid;
 }
 
+[[maybe_unused]] static bool AddFilesBeneath(unsigned view_id,
+                                             BareosDb* db,
+                                             RestoreContext* rx,
+                                             const char* path)
+{
+  // FileView_X is a view of the query that normally inserts the stuff into
+  // the tree
+
+  const char* query_template = R"(
+WITH children AS ( SELECT pathid FROM Path WHERE path = '%s' )
+SELECT jobid, fileindex FROM FileView_%u JOIN children USING (pathid);
+)";
+
+  Mmsg(rx->query, query_template, path, view_id);
+
+  if (!db->SqlQuery(
+          rx->query,
+          +[](void* user, int colcount, char** row) -> int {
+            if (colcount != 2) { return 1; }
+
+            auto* bsr = static_cast<RestoreBootstrapRecord*>(user);
+
+            auto jobid = std::atoi(row[0]);
+            auto fileindex = std::atoi(row[1]);
+            AddFindex(bsr, jobid, fileindex);
+
+            return 0;
+          },
+          rx->bsr.get())) {
+    return false;
+  }
+
+  return true;
+}
+
+[[maybe_unused]] static unsigned CreateFileListView(BareosDb* db,
+                                                    const char* jobids)
+{
+  static std::atomic<unsigned> next_id = 0;
+
+  unsigned id = next_id.fetch_add(1) + 1;
+
+  PoolMem query(PM_MESSAGE);
+  PoolMem query2(PM_MESSAGE);
+
+  db->FillQuery(
+      query2, BareosDb::SQL_QUERY::select_recent_version_with_basejob_and_delta,
+      jobids, jobids, jobids, jobids);
+
+  /* BootStrapRecord code is optimized for JobId sorted, with Delta, we need to
+   * get them ordered by date. JobTDate and JobId can be mixed if using Copy or
+   * Migration */
+  Mmsg(query,
+       "CREATE OR REPLACE VIEW FileView_%u AS SELECT Path.PathId, Path.Path, "
+       "T1.Name, T1.FileIndex, T1.JobId, LStat, DeltaSeq, "
+       "Fhinfo, Fhnode "
+       "FROM ( %s ) AS T1 "
+       "JOIN Path ON (Path.PathId = T1.PathId) "
+       "WHERE FileIndex > 0 "
+       "ORDER BY T1.JobTDate, FileIndex ASC", /* Return sorted by JobTDate */
+                                              /* FileIndex for restore code */
+       id, query2.c_str());
+
+  Dmsg1(100, "q=%s\n", query.c_str());
+
+  if (!db->SqlQuery(query.c_str())) { return 0; }
+
+  return id;
+}
+
+static int InsertDirectories(void* user, int, char** row)
+{
+  auto* ctx = static_cast<TreeContext*>(user);
+
+  int64_t pathid = str_to_int64(row[0]);
+  const char* path = row[1];
+
+  auto* node
+      = insert_tree_node((char*)path, (char*)"", TN_DIR, ctx->root, NULL);
+  if (!node) { return -1; }
+
+  if (node->inserted) {
+    node->type = TN_DIR;
+    node->loaded = false;
+    node->pathid = pathid;
+  }
+
+  return 0;
+}
+
+static bool GetDirectoryList(BareosDb* db,
+                             const char* jobids,
+                             TreeContext& ctx,
+                             unsigned viewid)
+{
+  const char* query_template = R"(
+SELECT DISTINCT ON (PathId) P.PathId, P.Path FROM Path P JOIN File F USING (PathId) WHERE F.jobid IN ( %s );
+)";
+
+  PoolMem query;
+  (void)viewid;
+  Mmsg(query, query_template, jobids);
+
+  if (!db->BigSqlQuery(query.c_str(), InsertDirectories, &ctx)) {
+    return false;
+  }
+
+  return true;
+}
+
 static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
 {
   TreeContext tree;
@@ -1250,11 +1360,31 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
   ua->LogAuditEventInfoMsg(T_("Building directory tree for JobId(s) %s"),
                            rx->JobIds);
 
+#define USE_JUSTIN_TIME
+
+#ifndef USE_JUSTIN_TIME
   if (!ua->db->GetFileList(ua->jcr, rx->JobIds, false /* do not use md5 */,
                            true /* get delta */, InsertTreeHandler,
                            (void*)&tree)) {
     ua->ErrorMsg("%s", ua->db->strerror());
   }
+#else
+  unsigned view_id = CreateFileListView(ua->db, rx->JobIds);
+
+  if (view_id == 0) { return false; }
+
+  if (!GetDirectoryList(ua->db, rx->JobIds, tree, view_id)) {
+    ua->ErrorMsg("db error: %s\n", ua->db->strerror());
+    return false;
+  }
+
+  // {
+  //   char home_path[] = "/fKyILv";
+  //   char home_file[] = "";
+  //   auto* node = insert_tree_node(home_path, home_file, TN_NEWDIR, tree.root,
+  //   NULL); node->loaded = 0; node->type = TN_NEWDIR;
+  // }
+#endif
 
   if (*rx->BaseJobIds) {
     PmStrcat(rx->JobIds, ",");
@@ -1277,10 +1407,14 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
     }
   }
 
+#if 0
   if (tree.FileCount == 0) {
     OK = AskForFileregex(ua, rx);
     if (OK) { AddAllFindex(rx); }
   } else {
+#else
+  {
+#endif
     char ec1[50];
     if (tree.all) {
       ua->InfoMsg(
@@ -1306,6 +1440,14 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
           Dmsg3(400, "JobId=%lld type=%d FI=%d\n", (uint64_t)node->JobId,
                 node->type, node->FileIndex);
           /* TODO: optimize bsr insertion when jobid are non sorted */
+#ifdef USE_JUSTIN_TIME
+          if (!node->loaded) {
+            // only dirs have loaded set to false!
+            POOLMEM* mem = tree_getpath(node);
+            AddFilesBeneath(view_id, ua->db, rx, mem);
+            FreePoolMemory(mem);
+          }
+#endif
           AddDeltaListFindex(rx, node->delta_list);
           AddFindex(rx->bsr.get(), node->JobId, node->FileIndex);
           if (node->extract && node->type != TN_NEWDIR) {

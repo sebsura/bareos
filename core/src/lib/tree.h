@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2009 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -76,9 +76,10 @@ struct s_tree_node {
    *  do initialization of child */
   rblink sibling;
   rblist child;
-  char* fname{};                /* file name */
-  int32_t FileIndex{};          /* file index */
-  uint32_t JobId{};             /* JobId */
+  char* fname{};       /* file name */
+  int32_t FileIndex{}; /* file index */
+  uint32_t JobId{};    /* JobId */
+  int32_t pathid;
   int32_t delta_seq{};          /* current delta sequence */
   uint16_t fname_len{};         /* filename length */
   unsigned int type : 8;        /* node type */
@@ -120,9 +121,10 @@ struct s_tree_root {
    *  do initialization of child */
   rblink sibling{};
   rblist child;
-  const char* fname{};          /* file name */
-  int32_t FileIndex{};          /* file index */
-  uint32_t JobId{};             /* JobId */
+  const char* fname{}; /* file name */
+  int32_t FileIndex{}; /* file index */
+  uint32_t JobId{};    /* JobId */
+  int32_t pathid;
   int32_t delta_seq{};          /* current delta sequence */
   uint16_t fname_len{};         /* filename length */
   unsigned int type : 8;        /* node type */
