@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2021 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -25,25 +25,31 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
 endif()
 
 find_program(PIDOF pidof)
-find_program(PS ps)
+if(NOT PIDOF)
+  set(PIDOF "")
+endif()
 
-set(PSCMD ${PS})
-if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+find_program(PS ps)
+if(PS)
+  set(PSCMD ${PS})
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(PSCMD "${PS} -e")
+  endif()
+  if(${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
+    set(PSCMD "${PS} -e -o pid,comm")
+  endif()
+  if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+    set(PSCMD "${PS} -ax -o pid,command")
+  endif()
+  if(${CMAKE_SYSTEM_NAME} MATCHES "HP-UX")
+    set(PSCMD "UNIX95=1; ${PS} -e -o pid,comm")
+  endif()
+
+  set(PSCMD
+      "${PSCMD}"
+      PARENT_SCOPE
+  )
 endif()
-if(${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
-  set(PSCMD "${PS} -e -o pid,comm")
-endif()
-if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-  set(PSCMD "${PS} -ax -o pid,command")
-endif()
-if(${CMAKE_SYSTEM_NAME} MATCHES "HP-UX")
-  set(PSCMD "UNIX95=1; ${PS} -e -o pid,comm")
-endif()
-set(PSCMD
-    "${PSCMD}"
-    PARENT_SCOPE
-)
 
 find_program(PGREP pgrep)
 find_program(RPCGEN rpcgen)

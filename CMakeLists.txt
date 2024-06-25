@@ -39,7 +39,6 @@ include(BareosExtractVersionInfo)
 include(BareosGetDistInfo)
 include(RemoveNDebugFlag)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(CPM_USE_LOCAL_PACKAGES ON)
 set(BUILDNAME
     "${BAREOS_FULL_VERSION}"
     CACHE STRING "site name variable for CDash"

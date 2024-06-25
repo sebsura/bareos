@@ -18,7 +18,7 @@
 #   02110-1301, USA.
 
 include(CPM)
-
+set(CPM_USE_LOCAL_PACKAGES ON)
 if(FETCHCONTENT_FULLY_DISCONNECTED)
   message(WARNING "Detected FETCHCONTENT_FULLY_DISCONNECTED.")
   message(WARNING "As this will break fetching, only local packages will be considered!")
