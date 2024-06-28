@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2010-2011 Bacula Systems(R) SA
-   Copyright (C) 2016-2020 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can modify it under the terms of
    version three of the GNU Affero General Public License as published by the
@@ -46,14 +46,14 @@
             bareos_core_functions, context);                                  \
   }
 
-#define Jmsg(context, type, ...)                                              \
-  if (bareos_core_functions && context) {                                     \
-    bareos_core_functions->JobMessage(context, __FILE__, __LINE__, type, 0,   \
-                                      __VA_ARGS__);                           \
-  } else {                                                                    \
-    fprintf(stderr,                                                           \
-            "Jmsg: bareos_core_functions(%p) and context(%p) need to be set " \
-            "before Jmsg call\n",                                             \
-            bareos_core_functions, context);                                  \
+#define Jmsg(context, type, ...)                                            \
+  if (bareos_core_functions) {                                              \
+    bareos_core_functions->JobMessage(context, __FILE__, __LINE__, type, 0, \
+                                      __VA_ARGS__);                         \
+  } else {                                                                  \
+    fprintf(stderr,                                                         \
+            "Jmsg: bareos_core_functions(%p) need to be set "               \
+            "before Jmsg call\n",                                           \
+            bareos_core_functions);                                         \
   }
 #endif  // BAREOS_PLUGINS_INCLUDE_COMMON_H_
