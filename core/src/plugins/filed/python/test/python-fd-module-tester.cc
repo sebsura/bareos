@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -191,9 +191,10 @@ int main()
   }
   if (PyErr_Occurred()) { PyErrorHandler(); }
 
-  import_bareosfd();
-  Bareosfd_set_bareos_core_functions(&bareos_core_functions);
-  Bareosfd_set_plugin_context(&bareos_PluginContext);
+  auto* bareosfd = import_bareosfd();
+  if (!bareosfd) { return 1; }
+  bareosfd->set_bareos_core_functions(&bareos_core_functions);
+  bareosfd->set_plugin_context(&bareos_PluginContext);
 
   PyObject* pModule = PyImport_ImportModule("bareosfd-module-test");
 

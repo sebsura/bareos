@@ -33,19 +33,15 @@
 
 #include "structmember.h"
 
-/* include automatically generated C API */
-#include "c_api/capi_1.inc"
-/* This section is used in modules that use bareosfd's API */
+#include "bareosfd_api.h"
 
-static void** Bareosfd_API;
-
-/* include automatically generated C API */
-#include "c_api/capi_2.inc"
-
-static int import_bareosfd()
+namespace filedaemon {
+static bareosfd_capi* import_bareosfd()
 {
-  Bareosfd_API = (void**)PyCapsule_Import("bareosfd._C_API", 0);
-  return (Bareosfd_API != NULL) ? 0 : -1;
+  return reinterpret_cast<bareosfd_capi*>(
+      PyCapsule_Import("bareosfd._C_API", 0));
 }
+}  // namespace filedaemon
+
 
 #endif  // BAREOS_PLUGINS_FILED_PYTHON_MODULE_BAREOSFD_H_

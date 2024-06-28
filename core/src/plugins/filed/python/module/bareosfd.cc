@@ -49,7 +49,7 @@
 
 #include "structmember.h"
 
-#include "c_api/capi_1.inc"
+#include "bareosfd_api.h"
 
 #include "include/filetypes.h"
 /* This section is used when compiling bareosfd.cc */
@@ -675,16 +675,36 @@ static bool module_add_types(PyObject* m, fd_module_state* s)
   return true;
 }
 
-struct bareosfd_c_api {
-  void* Bareosfd_API[Bareosfd_API_pointers];
+struct bareosfd_capi_initializer {
+  bareosfd_capi api{};
 
-  void* data() { return Bareosfd_API; }
-
-  bareosfd_c_api()
+  bareosfd_capi_initializer()
   {
-    /* Initialize the C API pointer array */
-#include "c_api/capi_3.inc"
+    api = {
+        &PyParsePluginDefinition,
+        &PyGetPluginValue,
+        &PySetPluginValue,
+        &PyHandlePluginEvent,
+        &PyStartBackupFile,
+        &PyEndBackupFile,
+        &PyPluginIO,
+        &PyStartRestoreFile,
+        &PyEndRestoreFile,
+        &PyCreateFile,
+        &PySetFileAttributes,
+        &PyCheckFile,
+        &PyGetAcl,
+        &PySetAcl,
+        &PyGetXattr,
+        &PySetXattr,
+        &PyRestoreObjectData,
+        &PyHandleBackupFile,
+        &set_bareos_core_functions,
+        &set_plugin_context,
+    };
   }
+
+  bareosfd_capi* data() { return &api; }
 };
 
 #define SET_ENUM_VALUE(dict, val) AddDictValue(dict, #val, val)
@@ -857,7 +877,7 @@ PyObject* bLevel_dict()
 
 static bool load_module_impl(PyObject* m, fd_module_state* s)
 {
-  static bareosfd_c_api c_api;
+  static bareosfd_capi_initializer c_api;
 
   /* Create a Capsule containing the API pointer array's address */
   PyObject* c_api_object

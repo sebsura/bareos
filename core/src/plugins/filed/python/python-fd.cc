@@ -113,6 +113,7 @@ namespace {
 /* Pointers to Bareos functions */
 CoreFunctions* bareos_core_functions = NULL;
 PluginApiDefinition* bareos_plugin_interface_version = NULL;
+bareosfd_capi* capi = NULL;
 }  // namespace
 
 #include "plugin_private_context.h"
@@ -261,7 +262,7 @@ bRC newPlugin(PluginContext* plugin_ctx)
 
 
   /* set bareos_plugin_context inside of bareosfd module */
-  Bareosfd_set_plugin_context(plugin_ctx);
+  capi->set_plugin_context(plugin_ctx);
 
   /* For each plugin instance we instantiate a new Python interpreter. */
   PyEval_AcquireThread(mainThreadState);
@@ -361,7 +362,7 @@ bRC startBackupFile(PluginContext* plugin_ctx, save_pkt* sp)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PyStartBackupFile(plugin_ctx, sp);
+    retval = capi->PyStartBackupFile(plugin_ctx, sp);
   }
 
   Dmsg(plugin_ctx, debuglevel, LOGPREFIX "StartBackupFile returned: %d\n",
@@ -411,7 +412,7 @@ bRC endBackupFile(PluginContext* plugin_ctx)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PyEndBackupFile(plugin_ctx);
+    retval = capi->PyEndBackupFile(plugin_ctx);
   }
 
 bail_out:
@@ -435,7 +436,7 @@ bRC pluginIO(PluginContext* plugin_ctx, io_pkt* io)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PyPluginIO(plugin_ctx, io);
+    retval = capi->PyPluginIO(plugin_ctx, io);
   }
 
 bail_out:
@@ -453,7 +454,7 @@ bRC startRestoreFile(PluginContext* plugin_ctx, const char* cmd)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PyStartRestoreFile(plugin_ctx, cmd);
+    retval = capi->PyStartRestoreFile(plugin_ctx, cmd);
   }
 
 bail_out:
@@ -471,7 +472,7 @@ bRC endRestoreFile(PluginContext* plugin_ctx)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PyEndRestoreFile(plugin_ctx);
+    retval = capi->PyEndRestoreFile(plugin_ctx);
   }
 
 bail_out:
@@ -495,7 +496,7 @@ bRC createFile(PluginContext* plugin_ctx, restore_pkt* rp)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PyCreateFile(plugin_ctx, rp);
+    retval = capi->PyCreateFile(plugin_ctx, rp);
   }
 
 bail_out:
@@ -516,7 +517,7 @@ bRC setFileAttributes(PluginContext* plugin_ctx, restore_pkt* rp)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PySetFileAttributes(plugin_ctx, rp);
+    retval = capi->PySetFileAttributes(plugin_ctx, rp);
   }
 
 bail_out:
@@ -536,7 +537,7 @@ bRC checkFile(PluginContext* plugin_ctx, char* fname)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PyCheckFile(plugin_ctx, fname);
+    retval = capi->PyCheckFile(plugin_ctx, fname);
   }
 
 bail_out:
@@ -555,7 +556,7 @@ bRC getAcl(PluginContext* plugin_ctx, acl_pkt* ap)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PyGetAcl(plugin_ctx, ap);
+    retval = capi->PyGetAcl(plugin_ctx, ap);
   }
 
 bail_out:
@@ -574,7 +575,7 @@ bRC setAcl(PluginContext* plugin_ctx, acl_pkt* ap)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PySetAcl(plugin_ctx, ap);
+    retval = capi->PySetAcl(plugin_ctx, ap);
   }
 
 bail_out:
@@ -593,7 +594,7 @@ bRC getXattr(PluginContext* plugin_ctx, xattr_pkt* xp)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PyGetXattr(plugin_ctx, xp);
+    retval = capi->PyGetXattr(plugin_ctx, xp);
   }
 
 bail_out:
@@ -612,7 +613,7 @@ bRC setXattr(PluginContext* plugin_ctx, xattr_pkt* xp)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PySetXattr(plugin_ctx, xp);
+    retval = capi->PySetXattr(plugin_ctx, xp);
   }
 
 bail_out:
@@ -810,7 +811,7 @@ bRC handlePluginEvent(PluginContext* plugin_ctx, bEvent* event, void* value)
 
   if (!plugin_priv_ctx) { goto bail_out; }
 
-  Bareosfd_set_plugin_context(plugin_ctx);
+  capi->set_plugin_context(plugin_ctx);
 
   /* First handle some events internally before calling python if it
    * want to do some special handling on the event triggered. */
@@ -890,8 +891,8 @@ bRC handlePluginEvent(PluginContext* plugin_ctx, bEvent* event, void* value)
 
         /* Only try to call when the loading succeeded. */
         if (retval == bRC_OK) {
-          retval = Bareosfd_PyParsePluginDefinition(plugin_ctx,
-                                                    plugin_options.c_str());
+          retval = capi->PyParsePluginDefinition(plugin_ctx,
+                                                 plugin_options.c_str());
         }
         break;
       case bEventRestoreObject: {
@@ -909,27 +910,27 @@ bRC handlePluginEvent(PluginContext* plugin_ctx, bEvent* event, void* value)
 
             /* Only try to call when the loading succeeded. */
             if (retval == bRC_OK) {
-              retval = Bareosfd_PyParsePluginDefinition(plugin_ctx,
-                                                        plugin_options.c_str());
+              retval = capi->PyParsePluginDefinition(plugin_ctx,
+                                                     plugin_options.c_str());
               if (retval == bRC_OK) {
-                retval = Bareosfd_PyRestoreObjectData(plugin_ctx, rop);
+                retval = capi->PyRestoreObjectData(plugin_ctx, rop);
               }
             }
           } else {
-            retval = Bareosfd_PyRestoreObjectData(plugin_ctx, rop);
+            retval = capi->PyRestoreObjectData(plugin_ctx, rop);
           }
         }
         break;
       }
       case bEventHandleBackupFile:
-        retval = Bareosfd_PyHandleBackupFile(plugin_ctx, (save_pkt*)value);
+        retval = capi->PyHandleBackupFile(plugin_ctx, (save_pkt*)value);
         break;
       default:
         /* Handle the generic events e.g. the ones which are just passed on.
          * We only try to call Python when we loaded the right module until
          * that time we pretend the call succeeded. */
         if (plugin_priv_ctx->python_loaded) {
-          retval = Bareosfd_PyHandlePluginEvent(plugin_ctx, event, value);
+          retval = capi->PyHandlePluginEvent(plugin_ctx, event, value);
         } else {
           retval = bRC_OK;
         }
@@ -953,7 +954,7 @@ bRC getPluginValue(PluginContext* bareos_plugin_ctx, pVariable var, void* value)
 
   {
     auto l = AcquireLock(plugin_priv_ctx->interp);
-    retval = Bareosfd_PyGetPluginValue(bareos_plugin_ctx, var, value);
+    retval = capi->PyGetPluginValue(bareos_plugin_ctx, var, value);
   }
 
 bail_out:
@@ -970,7 +971,7 @@ bRC setPluginValue(PluginContext* bareos_plugin_ctx, pVariable var, void* value)
   if (!plugin_priv_ctx) { return bRC_Error; }
 
   auto l = AcquireLock(plugin_priv_ctx->interp);
-  retval = Bareosfd_PySetPluginValue(bareos_plugin_ctx, var, value);
+  retval = capi->PySetPluginValue(bareos_plugin_ctx, var, value);
 
   return retval;
 }
@@ -1120,17 +1121,16 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
   }
 
   /* import the CAPI from the bareosfd python module
-   * afterwards, Bareosfd_* macros are initialized to
-   * point to the corresponding functions in the bareosfd python
-   * module */
-  if (import_bareosfd() < 0) {
+   * afterwards */
+  capi = import_bareosfd();
+  if (!capi) {
     printf("loading of bareosfd extension module failed\n");
     if (PyErr_Occurred()) { PyErrorHandler(); }
     return bRC_Error;
   }
 
   /* set bareos_core_functions inside of barosfd module */
-  Bareosfd_set_bareos_core_functions(lbareos_core_functions);
+  capi->set_bareos_core_functions(lbareos_core_functions);
 
   *plugin_information = &pluginInfo; /* Return pointer to our info */
   *plugin_functions = &pluginFuncs;  /* Return pointer to our functions */
