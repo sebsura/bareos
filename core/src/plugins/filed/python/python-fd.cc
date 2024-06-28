@@ -51,6 +51,38 @@
 #include <vector>
 #include <algorithm>
 
+namespace {
+void SetupPathsFromEnv()
+{
+  PyObject* sysPath = PySys_GetObject((char*)"path");
+  constexpr const char* plugin_dir = PLUGIN_DIR;
+  PyObject* pluginPath = PyUnicode_FromString(plugin_dir);
+  PyList_Append(sysPath, pluginPath);
+
+  std::string_view paths_from_env = getenv("PYTHONPATH");
+
+  while (paths_from_env.size() > 0) {
+    // paths are seperated by colon
+    auto pos = paths_from_env.find_first_of(":");
+    std::string_view include = paths_from_env.substr(0, pos);
+
+    PyObject* obj = PyUnicode_FromStringAndSize(include.data(), include.size());
+
+    if (!obj) { continue; }
+
+    PyList_Append(sysPath, obj);
+    Py_DECREF(obj);
+
+    if (pos == paths_from_env.npos) { break; }
+
+    paths_from_env = paths_from_env.substr(pos + 1);
+  }
+
+  Py_DECREF(pluginPath);
+}
+
+}  // namespace
+
 namespace filedaemon {
 
 static const int debuglevel = 150;
@@ -227,8 +259,12 @@ bRC newPlugin(PluginContext* plugin_ctx)
 
   /* For each plugin instance we instantiate a new Python interpreter. */
   PyEval_AcquireThread(mainThreadState);
+
   auto* ts = Py_NewInterpreter();
   plugin_priv_ctx->interp = ts->interp;
+
+  SetupPathsFromEnv();
+
   // register ts
   tl_threadstates.push_back(ts);
   PyEval_ReleaseThread(ts);
@@ -949,34 +985,75 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
                PluginInformation** plugin_information,
                PluginFunctions** plugin_functions)
 {
+  bareos_core_functions
+      = lbareos_core_functions; /* Set Bareos funct pointers */
+  bareos_plugin_interface_version = lbareos_plugin_interface_version;
+
   if (Py_IsInitialized()) { return bRC_Error; }
 
-  Py_InitializeEx(0);
+  PyConfig pyConf = {};
+  PyConfig_InitIsolatedConfig(&pyConf);
+  try {
+    pyConf.dev_mode = true;
+    pyConf.pathconfig_warnings = 1;
+
+    PyStatus s = PyStatus_Ok();
+
+    s = PyConfig_Read(&pyConf);
+    if (PyStatus_Exception(s)) { throw s; }
+
+    /* We have two options when it comes to setting up the correct paths:
+     *  1. Set them here in the config
+     *  2. Set them for every new interpreter
+     * I would prefer (1), but sadly we would have to somehow get to know
+     * where the stdlib lives, since we would need to set the
+     * module_search_paths.
+     * Option (2) works but is cumbersome.  One would have to parse PYTHONHOME
+     * for every interpreter.   On the bright side this could mean that we could
+     * specify the correct path in the fileset instead of using a environment
+     * variable. */
+    s = Py_InitializeFromConfig(&pyConf);
+
+    if (PyStatus_Exception(s)) { throw s; }
+  } catch (const PyStatus& s) {
+    if (s.func) {
+      Jmsg(nullptr, M_FATAL, "Could not initialize python. ERR=(%s)  %s\n",
+           s.func, s.err_msg);
+    } else {
+      Jmsg(nullptr, M_FATAL, "Could not initialize python. ERR=%s\n",
+           s.err_msg);
+    }
+    PyConfig_Clear(&pyConf);
+    Py_ExitStatusException(s);
+    return bRC_Error;
+  }
+
+  PyConfig_Clear(&pyConf);
+
+
   // add bareos plugin path to python module search path
-  PyObject* sysPath = PySys_GetObject((char*)"path");
-  PyObject* pluginPath = PyUnicode_FromString(PLUGIN_DIR);
-  PyList_Append(sysPath, pluginPath);
-  Py_DECREF(pluginPath);
+  SetupPathsFromEnv();
 
   /* import the bareosfd module */
   PyObject* bareosfdModule = PyImport_ImportModule("bareosfd");
   if (!bareosfdModule) {
     printf("loading of bareosfd extension module failed\n");
     if (PyErr_Occurred()) { PyErrorHandler(); }
+    return bRC_Error;
   }
 
   /* import the CAPI from the bareosfd python module
    * afterwards, Bareosfd_* macros are initialized to
    * point to the corresponding functions in the bareosfd python
    * module */
-  import_bareosfd();
+  if (import_bareosfd() < 0) {
+    printf("loading of bareosfd extension module failed\n");
+    if (PyErr_Occurred()) { PyErrorHandler(); }
+    return bRC_Error;
+  }
 
   /* set bareos_core_functions inside of barosfd module */
   Bareosfd_set_bareos_core_functions(lbareos_core_functions);
-
-  bareos_core_functions
-      = lbareos_core_functions; /* Set Bareos funct pointers */
-  bareos_plugin_interface_version = lbareos_plugin_interface_version;
 
   *plugin_information = &pluginInfo; /* Return pointer to our info */
   *plugin_functions = &pluginFuncs;  /* Return pointer to our functions */
