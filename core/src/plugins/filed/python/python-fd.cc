@@ -48,6 +48,8 @@
 #include "module/bareosfd.h"
 #include "lib/edit.h"
 
+#include "plugins/python/common.h"
+
 #include <vector>
 #include <algorithm>
 
@@ -59,23 +61,27 @@ void SetupPathsFromEnv()
   PyObject* pluginPath = PyUnicode_FromString(plugin_dir);
   PyList_Append(sysPath, pluginPath);
 
-  std::string_view paths_from_env = getenv("PYTHONPATH");
+  const char* pp = getenv("PYTHONPATH");
+  if (pp) {
+    std::string_view paths_from_env = pp;
 
-  while (paths_from_env.size() > 0) {
-    // paths are seperated by colon
-    auto pos = paths_from_env.find_first_of(":");
-    std::string_view include = paths_from_env.substr(0, pos);
+    while (paths_from_env.size() > 0) {
+      // paths are seperated by colon
+      auto pos = paths_from_env.find_first_of(":");
+      std::string_view include = paths_from_env.substr(0, pos);
 
-    PyObject* obj = PyUnicode_FromStringAndSize(include.data(), include.size());
+      PyObject* obj
+          = PyUnicode_FromStringAndSize(include.data(), include.size());
 
-    if (!obj) { continue; }
+      if (!obj) { continue; }
 
-    PyList_Append(sysPath, obj);
-    Py_DECREF(obj);
+      PyList_Append(sysPath, obj);
+      Py_DECREF(obj);
 
-    if (pos == paths_from_env.npos) { break; }
+      if (pos == paths_from_env.npos) { break; }
 
-    paths_from_env = paths_from_env.substr(pos + 1);
+      paths_from_env = paths_from_env.substr(pos + 1);
+    }
   }
 
   Py_DECREF(pluginPath);
@@ -1002,15 +1008,42 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
   if (Py_IsInitialized()) { return bRC_Error; }
 
   PyConfig pyConf = {};
+  // PyConfig_InitPythonConfig(&pyConf);
   PyConfig_InitIsolatedConfig(&pyConf);
   try {
+    // pyConf.use_environment = 0;
+    // pyConf.user_site_directory = 0;
+    // pyConf.safe_path = 1;
+
     pyConf.dev_mode = true;
     pyConf.pathconfig_warnings = 1;
 
     PyStatus s = PyStatus_Ok();
 
+    // s = PyConfig_SetString(&pyConf, &pyConf.home,
+    //                    L"/usr");
+    // if (PyStatus_Exception(s)) {
+    //   throw s;
+    // }
+
+    // std::string_view path = getenv("PYTHONPATH");
+    // std::wstring wstr(path, path + strlen(path));
+    // wstr.insert(0,
+    // L"/usr/lib64/python312.zip:/usr/lib64/python3.12:/usr/lib64/python3.12/lib-dynload:");
+    // s = PyConfig_SetString(&pyConf, &pyConf.pythonpath_env, wstr.c_str());
+    // if (PyStatus_Exception(s)) { throw s; }
+
+    s = PyConfig_SetString(&pyConf, &pyConf.executable,
+                           L"/home/ssura/Projekte/bareos/bpython/bin/python");
+
+    if (PyStatus_Exception(s)) { throw s; }
+
     s = PyConfig_Read(&pyConf);
     if (PyStatus_Exception(s)) { throw s; }
+
+    for (Py_ssize_t i = 0; i < pyConf.module_search_paths.length; ++i) {
+      printf("%ld: %ls\n", i, pyConf.module_search_paths.items[i]);
+    }
 
     /* We have two options when it comes to setting up the correct paths:
      *  1. Set them here in the config
@@ -1022,6 +1055,29 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
      * for every interpreter.   On the bright side this could mean that we could
      * specify the correct path in the fileset instead of using a environment
      * variable. */
+
+    // std::string_view path = getenv("PYTHONPATH");
+    // printf("paths set: %d\n", pyConf.module_search_paths_set);
+    // pyConf.module_search_paths_set = 0;
+    // while (path.size() > 0) {
+    //   auto pos = path.find_first_of(":");
+    //   std::string_view include = path.substr(0, pos);
+
+    //   std::wstring wstr(include.begin(), include.end());
+
+    //   s = PyWideStringList_Append(&pyConf.module_search_paths, wstr.c_str());
+
+    //   if (PyStatus_Exception(s)) {
+    //     throw s;
+    //   }
+
+    //   if (pos == path.npos) { break; }
+
+    //   path = path.substr(pos+1);
+    // }
+
+    ASSERT(pyConf.dev_mode);
+
     s = Py_InitializeFromConfig(&pyConf);
 
     if (PyStatus_Exception(s)) { throw s; }
@@ -1043,6 +1099,17 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
 
   // add bareos plugin path to python module search path
   SetupPathsFromEnv();
+
+  {
+    auto* conf = _Py_GetConfig();
+    printf("home: %ls\n", conf->home);
+    printf("pythonpath_env: %ls\n", conf->pythonpath_env);
+    printf("run_module: %ls\n", conf->run_module);
+
+    for (Py_ssize_t i = 0; i < conf->module_search_paths.length; ++i) {
+      printf("%ld: %ls\n", i, conf->module_search_paths.items[i]);
+    }
+  }
 
   /* import the bareosfd module */
   PyObject* bareosfdModule = PyImport_ImportModule("bareosfd");

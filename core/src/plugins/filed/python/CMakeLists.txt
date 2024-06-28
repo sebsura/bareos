@@ -21,7 +21,7 @@ include(BareosDisableWarnings)
 include(BareosConfigureFile)
 
 if(Python3_FOUND)
-  add_library(python3-fd MODULE python-fd.cc)
+  add_library(python3-fd MODULE python-fd.cc ../../python/common.cc)
   set_target_properties(
     python3-fd PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY ..
   )
