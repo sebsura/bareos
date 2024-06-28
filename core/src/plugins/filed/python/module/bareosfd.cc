@@ -34,6 +34,7 @@
 #endif
 
 #include "include/version_hex.h"
+#include "plugins/include/python_plugins_common.h"
 
 #define LOGPREFIX "python3-fd-mod: "
 

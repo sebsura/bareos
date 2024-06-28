@@ -31,8 +31,8 @@
 #define PYTHON_MODULE_NAME_QUOTED "bareosfd"
 
 /* common code for all python plugins */
-#include "plugins/include/python_plugins_common.h"
 #include "plugins/include/common.h"
+#include "plugins/python/common.h"
 
 #include "structmember.h"
 
@@ -46,7 +46,6 @@
 /* This section is used when compiling bareosfd.cc */
 
 namespace filedaemon {
-
 // Python structures mapping C++ ones.
 
 /**
@@ -667,190 +666,212 @@ static bool module_add_types(PyObject* m, fd_module_state* s)
   return true;
 }
 
-static void* load_module_impl(PyObject* m, fd_module_state* s)
-{
-  static void* Bareosfd_API[Bareosfd_API_pointers];
-  PyObject* c_api_object;
+struct bareosfd_c_api {
+  void* Bareosfd_API[Bareosfd_API_pointers];
 
-  /* Initialize the C API pointer array */
+  void* data() { return Bareosfd_API; }
+
+  bareosfd_c_api()
+  {
+    /* Initialize the C API pointer array */
 #  include "c_api/capi_3.inc"
+  }
+};
+
+#  define SET_ENUM_VALUE(dict, val) AddDictValue(dict, #val, val)
+
+PyObject* bVar_dict()
+{
+  PyObject* dict = PyDict_New();
+  if (!dict) { return nullptr; }
+
+  if (!SET_ENUM_VALUE(dict, bVarJobId) || !SET_ENUM_VALUE(dict, bVarFDName)
+      || !SET_ENUM_VALUE(dict, bVarLevel) || !SET_ENUM_VALUE(dict, bVarType)
+      || !SET_ENUM_VALUE(dict, bVarClient) || !SET_ENUM_VALUE(dict, bVarJobName)
+      || !SET_ENUM_VALUE(dict, bVarJobStatus)
+      || !SET_ENUM_VALUE(dict, bVarSinceTime)
+      || !SET_ENUM_VALUE(dict, bVarAccurate)
+      || !SET_ENUM_VALUE(dict, bVarFileSeen)
+      || !SET_ENUM_VALUE(dict, bVarVssClient)
+      || !SET_ENUM_VALUE(dict, bVarWorkingDir)
+      || !SET_ENUM_VALUE(dict, bVarWhere)
+      || !SET_ENUM_VALUE(dict, bVarRegexWhere)
+      || !SET_ENUM_VALUE(dict, bVarExePath)
+      || !SET_ENUM_VALUE(dict, bVarVersion)
+      || !SET_ENUM_VALUE(dict, bVarDistName)
+      || !SET_ENUM_VALUE(dict, bVarPrevJobName)
+      || !SET_ENUM_VALUE(dict, bVarPrefixLinks)
+      || !SET_ENUM_VALUE(dict, bVarCheckChanges)
+      || !SET_ENUM_VALUE(dict, bVarUsedConfig)) {
+    Py_DECREF(dict);
+    return nullptr;
+  }
+
+  return dict;
+}
+
+
+PyObject* bFileType_dict()
+{
+  PyObject* dict = PyDict_New();
+  if (!dict) { return nullptr; }
+  if (!SET_ENUM_VALUE(dict, FT_LNKSAVED) || !SET_ENUM_VALUE(dict, FT_REGE)
+      || !SET_ENUM_VALUE(dict, FT_REG) || !SET_ENUM_VALUE(dict, FT_LNK)
+      || !SET_ENUM_VALUE(dict, FT_DIREND) || !SET_ENUM_VALUE(dict, FT_SPEC)
+      || !SET_ENUM_VALUE(dict, FT_NOACCESS)
+      || !SET_ENUM_VALUE(dict, FT_NOFOLLOW) || !SET_ENUM_VALUE(dict, FT_NOSTAT)
+      || !SET_ENUM_VALUE(dict, FT_NOCHG) || !SET_ENUM_VALUE(dict, FT_DIRNOCHG)
+      || !SET_ENUM_VALUE(dict, FT_ISARCH) || !SET_ENUM_VALUE(dict, FT_NORECURSE)
+      || !SET_ENUM_VALUE(dict, FT_NOFSCHG) || !SET_ENUM_VALUE(dict, FT_NOOPEN)
+      || !SET_ENUM_VALUE(dict, FT_RAW) || !SET_ENUM_VALUE(dict, FT_FIFO)
+      || !SET_ENUM_VALUE(dict, FT_DIRBEGIN)
+      || !SET_ENUM_VALUE(dict, FT_INVALIDFS)
+      || !SET_ENUM_VALUE(dict, FT_INVALIDDT)
+      || !SET_ENUM_VALUE(dict, FT_REPARSE) || !SET_ENUM_VALUE(dict, FT_PLUGIN)
+      || !SET_ENUM_VALUE(dict, FT_DELETED) || !SET_ENUM_VALUE(dict, FT_BASE)
+      || !SET_ENUM_VALUE(dict, FT_RESTORE_FIRST)
+      || !SET_ENUM_VALUE(dict, FT_JUNCTION)
+      || !SET_ENUM_VALUE(dict, FT_PLUGIN_CONFIG)
+      || !SET_ENUM_VALUE(dict, FT_PLUGIN_CONFIG_FILLED)) {
+    Py_DECREF(dict);
+    return nullptr;
+  }
+
+  return dict;
+}
+
+PyObject* bCF_dict()
+{
+  PyObject* dict = PyDict_New();
+  if (!dict) { return nullptr; }
+  if (!SET_ENUM_VALUE(dict, CF_SKIP) || !SET_ENUM_VALUE(dict, CF_ERROR)
+      || !SET_ENUM_VALUE(dict, CF_EXTRACT) || !SET_ENUM_VALUE(dict, CF_CREATED)
+      || !SET_ENUM_VALUE(dict, CF_CORE)) {
+    Py_DECREF(dict);
+    return nullptr;
+  }
+  return dict;
+}
+
+PyObject* bEventType_dict()
+{
+  PyObject* dict = PyDict_New();
+  if (!dict) { return nullptr; }
+  if (!SET_ENUM_VALUE(dict, bEventJobStart)
+      || !SET_ENUM_VALUE(dict, bEventJobEnd)
+      || !SET_ENUM_VALUE(dict, bEventStartBackupJob)
+      || !SET_ENUM_VALUE(dict, bEventEndBackupJob)
+      || !SET_ENUM_VALUE(dict, bEventStartRestoreJob)
+      || !SET_ENUM_VALUE(dict, bEventEndRestoreJob)
+      || !SET_ENUM_VALUE(dict, bEventStartVerifyJob)
+      || !SET_ENUM_VALUE(dict, bEventEndVerifyJob)
+      || !SET_ENUM_VALUE(dict, bEventBackupCommand)
+      || !SET_ENUM_VALUE(dict, bEventRestoreCommand)
+      || !SET_ENUM_VALUE(dict, bEventEstimateCommand)
+      || !SET_ENUM_VALUE(dict, bEventLevel)
+      || !SET_ENUM_VALUE(dict, bEventSince)
+      || !SET_ENUM_VALUE(dict, bEventCancelCommand)
+      || !SET_ENUM_VALUE(dict, bEventRestoreObject)
+      || !SET_ENUM_VALUE(dict, bEventEndFileSet)
+      || !SET_ENUM_VALUE(dict, bEventPluginCommand)
+      || !SET_ENUM_VALUE(dict, bEventOptionPlugin)
+      || !SET_ENUM_VALUE(dict, bEventHandleBackupFile)
+      || !SET_ENUM_VALUE(dict, bEventNewPluginOptions)
+      || !SET_ENUM_VALUE(dict, bEventVssInitializeForBackup)
+      || !SET_ENUM_VALUE(dict, bEventVssInitializeForRestore)
+      || !SET_ENUM_VALUE(dict, bEventVssSetBackupState)
+      || !SET_ENUM_VALUE(dict, bEventVssPrepareForBackup)
+      || !SET_ENUM_VALUE(dict, bEventVssBackupAddComponents)
+      || !SET_ENUM_VALUE(dict, bEventVssPrepareSnapshot)
+      || !SET_ENUM_VALUE(dict, bEventVssCreateSnapshots)
+      || !SET_ENUM_VALUE(dict, bEventVssRestoreLoadComponentMetadata)
+      || !SET_ENUM_VALUE(dict, bEventVssRestoreSetComponentsSelected)
+      || !SET_ENUM_VALUE(dict, bEventVssCloseRestore)
+      || !SET_ENUM_VALUE(dict, bEventVssBackupComplete)) {
+    Py_DECREF(dict);
+    return nullptr;
+  }
+
+  return dict;
+}
+
+PyObject* bIOPS_dict()
+{
+  PyObject* dict = PyDict_New();
+  if (!dict) { return nullptr; }
+  if (!SET_ENUM_VALUE(dict, IO_OPEN) || !SET_ENUM_VALUE(dict, IO_READ)
+      || !SET_ENUM_VALUE(dict, IO_WRITE) || !SET_ENUM_VALUE(dict, IO_CLOSE)
+      || !SET_ENUM_VALUE(dict, IO_SEEK)) {
+    Py_DECREF(dict);
+    return nullptr;
+  }
+
+  return dict;
+}
+
+PyObject* bIOPstatus_dict()
+{
+  PyObject* dict = PyDict_New();
+  if (!dict) { return nullptr; }
+  if (!AddDictValue(dict, "iostat_error", IoStatus::error)
+      || !AddDictValue(dict, "ostat_do_in_plugin", IoStatus::success)
+      || !AddDictValue(dict, "iostat_do_in_core", IoStatus::do_io_in_core)) {
+    Py_DECREF(dict);
+    return nullptr;
+  }
+
+  return dict;
+}
+
+
+PyObject* bLevel_dict()
+{
+  PyObject* dict = PyDict_New();
+  if (!dict) { return nullptr; }
+  if (!AddDictValue(dict, "L_FULL", "F")
+      || !AddDictValue(dict, "L_INCREMENTAL", "I")
+      || !AddDictValue(dict, "L_DIFFERENTIAL", "D")
+      || !AddDictValue(dict, "L_SINCE", "S")
+      || !AddDictValue(dict, "L_VERIFY_CATALOG", "C")
+      || !AddDictValue(dict, "L_VERIFY_INIT", "V")
+      || !AddDictValue(dict, "L_VERIFY_VOLUME_TO_CATALOG", "O")
+      || !AddDictValue(dict, "L_VERIFY_DISK_TO_CATALOG", "d")
+      || !AddDictValue(dict, "L_VERIFY_DATA", "A")
+      || !AddDictValue(dict, "L_BASE", "B")
+      || !AddDictValue(dict, "L_NONE", " ")
+      || !AddDictValue(dict, "L_VIRTUAL_FULL", "f")) {
+    Py_DECREF(dict);
+    return nullptr;
+  }
+  return dict;
+}
+
+static bool load_module_impl(PyObject* m, fd_module_state* s)
+{
+  static bareosfd_c_api c_api;
 
   /* Create a Capsule containing the API pointer array's address */
-  c_api_object = PyCapsule_New((void*)Bareosfd_API,
-                               PYTHON_MODULE_NAME_QUOTED "._C_API", NULL);
+  PyObject* c_api_object
+      = PyCapsule_New(c_api.data(), PYTHON_MODULE_NAME_QUOTED "._C_API", NULL);
 
-  if (c_api_object != NULL) {
-    PyModule_AddObject(m, "_C_API", c_api_object);
-  } else {
-    return MOD_ERROR_VAL;
+  if (c_api_object == NULL
+      || PyModule_AddObject(m, "_C_API", c_api_object) != 0) {
+    return false;
   }
 
-  if (!module_add_types(m, s)) { return MOD_ERROR_VAL; }
+  if (!module_add_types(m, s)) { return false; }
 
-  /* module dictionaries */
-  DEFINE_bRCs_DICT();
-  DEFINE_bJobMessageTypes_DICT();
-
-#  define EXPORT_ENUM_VALUE(dict, symbol) ConstSet_StrLong(dict, symbol, symbol)
-
-  const char* bVariable = "bVariable";
-  PyObject* pDictbVariable = NULL;
-  pDictbVariable = PyDict_New();
-  if (!pDictbVariable) { return MOD_ERROR_VAL; }
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarJobId);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarFDName);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarLevel);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarType);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarClient);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarJobName);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarJobStatus);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarSinceTime);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarAccurate);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarFileSeen);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarVssClient);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarWorkingDir);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarWhere);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarRegexWhere);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarExePath);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarVersion);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarDistName);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarPrevJobName);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarPrefixLinks);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarCheckChanges);
-  EXPORT_ENUM_VALUE(pDictbVariable, bVarUsedConfig);
-  if (PyModule_AddObject(m, bVariable, pDictbVariable)) {
-    return MOD_ERROR_VAL;
+  if (!Plugin_AddDict(m, "bRCs", ::bRC_dict())
+      || !Plugin_AddDict(m, "bJobMessageType", ::JobMessageType_dict())
+      || !Plugin_AddDict(m, "bVariable", bVar_dict())
+      || !Plugin_AddDict(m, "bFileType", bFileType_dict())
+      || !Plugin_AddDict(m, "bCFs", bCF_dict())
+      || !Plugin_AddDict(m, "bEventType", bEventType_dict())
+      || !Plugin_AddDict(m, "bIOPS", bIOPS_dict())
+      || !Plugin_AddDict(m, "bIOPstatus", bIOPstatus_dict())
+      || !Plugin_AddDict(m, "bLevels", bLevel_dict())) {
+    return false;
   }
-
-
-  const char* bFileType = "bFileType";
-  PyObject* pDictbFileType = NULL;
-  pDictbFileType = PyDict_New();
-  if (!pDictbFileType) { return MOD_ERROR_VAL; }
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_LNKSAVED);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_REGE);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_REG);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_LNK);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_DIREND);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_SPEC);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_NOACCESS);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_NOFOLLOW);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_NOSTAT);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_NOCHG);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_DIRNOCHG);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_ISARCH);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_NORECURSE);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_NOFSCHG);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_NOOPEN);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_RAW);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_FIFO);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_DIRBEGIN);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_INVALIDFS);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_INVALIDDT);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_REPARSE);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_PLUGIN);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_DELETED);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_BASE);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_RESTORE_FIRST);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_JUNCTION);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_PLUGIN_CONFIG);
-  EXPORT_ENUM_VALUE(pDictbFileType, FT_PLUGIN_CONFIG_FILLED);
-  if (PyModule_AddObject(m, bFileType, pDictbFileType)) {
-    return MOD_ERROR_VAL;
-  }
-
-
-  const char* bCFs = "bCFs";
-  PyObject* pDictbCFs = NULL;
-  pDictbCFs = PyDict_New();
-  if (!pDictbCFs) { return MOD_ERROR_VAL; }
-  EXPORT_ENUM_VALUE(pDictbCFs, CF_SKIP);
-  EXPORT_ENUM_VALUE(pDictbCFs, CF_ERROR);
-  EXPORT_ENUM_VALUE(pDictbCFs, CF_EXTRACT);
-  EXPORT_ENUM_VALUE(pDictbCFs, CF_CREATED);
-  EXPORT_ENUM_VALUE(pDictbCFs, CF_CORE);
-  if (PyModule_AddObject(m, bCFs, pDictbCFs)) { return MOD_ERROR_VAL; }
-
-  const char* bEventType = "bEventType";
-  PyObject* pDictbEventType = NULL;
-  pDictbEventType = PyDict_New();
-  if (!pDictbEventType) { return MOD_ERROR_VAL; }
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventJobStart);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventJobEnd);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventStartBackupJob);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventEndBackupJob);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventStartRestoreJob);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventEndRestoreJob);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventStartVerifyJob);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventEndVerifyJob);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventBackupCommand);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventRestoreCommand);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventEstimateCommand);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventLevel);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventSince);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventCancelCommand);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventRestoreObject);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventEndFileSet);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventPluginCommand);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventOptionPlugin);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventHandleBackupFile);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventNewPluginOptions);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssInitializeForBackup);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssInitializeForRestore);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssSetBackupState);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssPrepareForBackup);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssBackupAddComponents);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssPrepareSnapshot);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssCreateSnapshots);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssRestoreLoadComponentMetadata);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssRestoreSetComponentsSelected);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssCloseRestore);
-  EXPORT_ENUM_VALUE(pDictbEventType, bEventVssBackupComplete);
-  if (PyModule_AddObject(m, bEventType, pDictbEventType)) {
-    return MOD_ERROR_VAL;
-  }
-
-
-  const char* bIOPS = "bIOPS";
-  PyObject* pDictbIOPS = NULL;
-  pDictbIOPS = PyDict_New();
-  if (!pDictbIOPS) { return MOD_ERROR_VAL; }
-  EXPORT_ENUM_VALUE(pDictbIOPS, IO_OPEN);
-  EXPORT_ENUM_VALUE(pDictbIOPS, IO_READ);
-  EXPORT_ENUM_VALUE(pDictbIOPS, IO_WRITE);
-  EXPORT_ENUM_VALUE(pDictbIOPS, IO_CLOSE);
-  EXPORT_ENUM_VALUE(pDictbIOPS, IO_SEEK);
-  if (PyModule_AddObject(m, bIOPS, pDictbIOPS)) { return MOD_ERROR_VAL; }
-
-  const char* bIOPstatus = "bIOPstatus";
-  PyObject* pDictbIOPstatus = NULL;
-  pDictbIOPstatus = PyDict_New();
-  if (!pDictbIOPstatus) { return MOD_ERROR_VAL; }
-  ConstSet_StrLong(pDictbIOPstatus, iostat_error, IoStatus::error);
-  ConstSet_StrLong(pDictbIOPstatus, iostat_do_in_plugin, IoStatus::success);
-  ConstSet_StrLong(pDictbIOPstatus, iostat_do_in_core, IoStatus::do_io_in_core);
-  if (PyModule_AddObject(m, bIOPstatus, pDictbIOPstatus)) {
-    return MOD_ERROR_VAL;
-  }
-
-
-  const char* bLevels = "bLevels";
-  PyObject* pDictbLevels = NULL;
-  pDictbLevels = PyDict_New();
-  if (!pDictbLevels) { return MOD_ERROR_VAL; }
-  ConstSet_StrStr(pDictbLevels, L_FULL, "F");
-  ConstSet_StrStr(pDictbLevels, L_INCREMENTAL, "I");
-  ConstSet_StrStr(pDictbLevels, L_DIFFERENTIAL, "D");
-  ConstSet_StrStr(pDictbLevels, L_SINCE, "S");
-  ConstSet_StrStr(pDictbLevels, L_VERIFY_CATALOG, "C");
-  ConstSet_StrStr(pDictbLevels, L_VERIFY_INIT, "V");
-  ConstSet_StrStr(pDictbLevels, L_VERIFY_VOLUME_TO_CATALOG, "O");
-  ConstSet_StrStr(pDictbLevels, L_VERIFY_DISK_TO_CATALOG, "d");
-  ConstSet_StrStr(pDictbLevels, L_VERIFY_DATA, "A");
-  ConstSet_StrStr(pDictbLevels, L_BASE, "B");
-  ConstSet_StrStr(pDictbLevels, L_NONE, " ");
-  ConstSet_StrStr(pDictbLevels, L_VIRTUAL_FULL, "f");
-  if (PyModule_AddObject(m, bLevels, pDictbLevels)) { return MOD_ERROR_VAL; }
 
   return m;
 }
@@ -892,12 +913,11 @@ static int bareosfd_clear(PyObject* module)
 
 static void bareosfd_free(void* module) { bareosfd_clear((PyObject*)module); }
 
-MOD_INIT(bareosfd)
+PYTHON_INIT(bareosfd)
 {
-  static PyModuleDef_Slot slots[]
-      = { {Py_mod_exec, (void*)&load_module},
-          {},  // null terminator
-        };
+  static PyModuleDef_Slot slots[] = {
+      {Py_mod_exec, (void*)&load_module}, {},  // null terminator
+  };
 
   static PyModuleDef moduledef
       = {PyModuleDef_HEAD_INIT,

@@ -21,17 +21,45 @@
 #ifndef BAREOS_PLUGINS_PYTHON_COMMON_H_
 #define BAREOS_PLUGINS_PYTHON_COMMON_H_
 
-#if defined(HAVE_WIN32)
-#  include "include/bareos.h"
-#  include <Python.h>
-#else
-#  include <Python.h>
-#  include "include/bareos.h"
-#endif
+#include <Python.h>
 
-PyObject* bRC_Dict();
-PyObject* JobMessageType_Dict();
-bool MergeIntoModuleDict(PyObject* module, PyObject* dict);
+template <typename T> PyObject* PyValue(const T& val)
+{
+  if constexpr (std::is_convertible_v<T, long>) {
+    return PyLong_FromLong(static_cast<long>(val));
+  } else if constexpr (std::is_convertible_v<T, const char*>) {
+    return PyBytes_FromString(static_cast<const char*>(val));
+  } else {
+    static_assert(false, "Not implemented yet.");
+  }
+}
 
+template <typename T>
+bool AddDictValue(PyObject* dict, const char* str, const T& val)
+{
+  auto* obj = PyValue(val);
+
+  if (!obj) { return false; }
+
+  auto res = PyDict_SetItemString(dict, str, obj);
+  Py_DECREF(obj);
+
+  return res == 0;
+}
+
+PyObject* bRC_dict();
+PyObject* JobMessageType_dict();
+
+struct module_dict {
+  const char* name;
+  PyObject* obj;
+
+  ~module_dict() { Py_XDECREF(obj); }
+};
+
+
+bool Plugin_AddDict(PyObject* module, const char* name, PyObject* dict);
+
+#define PYTHON_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
 
 #endif  // BAREOS_PLUGINS_PYTHON_COMMON_H_

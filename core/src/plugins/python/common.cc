@@ -19,33 +19,12 @@
 */
 
 #include "common.h"
+#include "include/baconfig.h"
 #include "lib/plugins.h"
 
-template <typename T> PyObject* PyValue(const T& val)
-{
-  if constexpr (std::is_convertible_v<T, long>) {
-    return PyLong_FromLong(static_cast<long>(val));
-  } else {
-    static_assert(false, "Not implemented yet.");
-  }
-}
+#define SET_ENUM_VALUE(dict, val) AddDictValue(dict, #val, val)
 
-template <typename T>
-bool AddDefinition(PyObject* dict, const char* str, const T& val)
-{
-  auto* obj = PyValue(val);
-
-  if (!obj) { return false; }
-
-  auto res = PyDict_SetItemString(dict, str, obj);
-  Py_DECREF(obj);
-
-  return res == 0;
-}
-
-#define SET_ENUM_VALUE(dict, val) AddDefinition(dict, #val, val)
-
-PyObject* bRC_Dict()
+PyObject* bRC_dict()
 {
   PyObject* dict = PyDict_New();
 
@@ -63,7 +42,7 @@ PyObject* bRC_Dict()
   return dict;
 }
 
-PyObject* JobMessageType_Dict()
+PyObject* JobMessageType_dict()
 {
   PyObject* dict = PyDict_New();
 
@@ -84,25 +63,18 @@ PyObject* JobMessageType_Dict()
   return dict;
 }
 
-bool MergeIntoModuleDict(PyObject* module, PyObject* dict)
+bool Plugin_AddDict(PyObject* module, const char* name, PyObject* dict)
 {
+  if (!dict) { return false; }
   if (!PyDict_Check(dict)) { return false; }
-
-  Py_ssize_t current = 0;
-
-  PyObject* key = nullptr;
-  PyObject* value = nullptr;
 
   PyObject* module_dict = PyModule_GetDict(module);
 
   if (!module_dict) { return false; }
 
-  // why would you do this ?
-  if (module_dict == dict) { return false; }
-
-  while (PyDict_Next(dict, &current, &key, &value)) {
-    if (PyDict_SetItem(module, key, value) < 0) { return false; }
-  }
+  if (PyDict_Merge(module_dict, dict, false) != 0) { return false; }
+  if (PyDict_SetItemString(module_dict, name, dict) != 0) { return false; }
+  Py_DECREF(dict);
 
   return true;
 }
