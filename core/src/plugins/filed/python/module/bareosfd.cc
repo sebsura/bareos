@@ -72,6 +72,8 @@ struct PyRestoreObject {
   int32_t object_compression;          /* set to compression type */
   int32_t stream;                      /* attribute stream id */
   uint32_t JobId;                      /* JobId object came from */
+
+  static PyType_Spec spec; /* spec describing this type */
 };
 
 // Forward declarations of type specific functions.
@@ -125,6 +127,8 @@ struct PyStatPacket {
   time_t ctime;
   uint32_t blksize;
   uint64_t blocks;
+
+  static PyType_Spec spec; /* spec describing this type */
 };
 
 // Forward declarations of type specific functions.
@@ -181,6 +185,8 @@ struct PySavePacket {
   PyObject* object;      /* Restore object data to save */
   int32_t object_len;    /* Restore object length */
   int32_t object_index;  /* Restore object index */
+
+  static PyType_Spec spec; /* spec describing this type */
 };
 
 // Forward declarations of type specific functions.
@@ -242,6 +248,8 @@ struct PyRestorePacket {
   int replace;                  /* Replace flag */
   int create_status;            /* Status from createFile() */
   int filedes;                  /* filedescriptor for read/write in core */
+
+  static PyType_Spec spec; /* spec describing this type */
 };
 
 // Forward declarations of type specific functions.
@@ -302,6 +310,8 @@ struct PyIoPacket {
   int64_t offset;              /* Lseek argument */
   bool win32;                  /* Win32 GetLastError returned */
   int filedes;                 /* filedescriptor for read/write in core */
+
+  static PyType_Spec spec; /* spec describing this type */
 };
 
 // Forward declarations of type specific functions.
@@ -346,6 +356,8 @@ static PyMemberDef PyIoPacket_members[]
 struct PyAclPacket {
   PyObject_HEAD const char* fname; /* Filename */
   PyObject* content;               /* ACL content */
+
+  static PyType_Spec spec; /* spec describing this type */
 };
 
 // Forward declarations of type specific functions.
@@ -369,6 +381,8 @@ struct PyXattrPacket {
   PyObject_HEAD const char* fname; /* Filename */
   PyObject* name;                  /* XATTR name */
   PyObject* value;                 /* XATTR value */
+
+  static PyType_Spec spec; /* spec describing this type */
 };
 
 // Forward declarations of type specific functions.
@@ -599,43 +613,43 @@ static PyType_Slot PyRestoreObject_slots[] = {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-static PyType_Spec PyStatPacket_spec = {
+PyType_Spec PyStatPacket::spec = {
     .name = "bareosfd.StatPacket",
     .basicsize = sizeof(PyStatPacket),
     .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
     .slots = PyStatPacket_slots,
 };
-static PyType_Spec PyIoPacket_spec = {
+PyType_Spec PyIoPacket::spec = {
     .name = "bareosfd.IoPacket",
     .basicsize = sizeof(PyIoPacket),
     .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
     .slots = PyIoPacket_slots,
 };
-static PyType_Spec PySavePacket_spec = {
+PyType_Spec PySavePacket::spec = {
     .name = "bareosfd.SavePacket",
     .basicsize = sizeof(PySavePacket),
     .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
     .slots = PySavePacket_slots,
 };
-static PyType_Spec PyRestorePacket_spec = {
+PyType_Spec PyRestorePacket::spec = {
     .name = "bareosfd.RestorePacket",
     .basicsize = sizeof(PyRestorePacket),
     .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
     .slots = PyRestorePacket_slots,
 };
-static PyType_Spec PyAclPacket_spec = {
+PyType_Spec PyAclPacket::spec = {
     .name = "bareosfd.AclPacket",
     .basicsize = sizeof(PyAclPacket),
     .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
     .slots = PyAclPacket_slots,
 };
-static PyType_Spec PyXattrPacket_spec = {
+PyType_Spec PyXattrPacket::spec = {
     .name = "bareosfd.XattrPacket",
     .basicsize = sizeof(PyXattrPacket),
     .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
     .slots = PyXattrPacket_slots,
 };
-static PyType_Spec PyRestoreObject_spec = {
+PyType_Spec PyRestoreObject::spec = {
     .name = "bareosfd.RestoreObject",
     .basicsize = sizeof(PyRestoreObject),
     .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
@@ -646,19 +660,19 @@ static PyType_Spec PyRestoreObject_spec = {
 static bool module_add_types(PyObject* m, fd_module_state* s)
 {
   s->stat_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyStatPacket_spec, NULL);
+      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyStatPacket::spec, NULL);
   s->io_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyIoPacket_spec, NULL);
+      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyIoPacket::spec, NULL);
   s->save_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PySavePacket_spec, NULL);
-  s->restore_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyRestorePacket_spec, NULL);
+      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PySavePacket::spec, NULL);
+  s->restore_pkt = (PyTypeObject*)PyType_FromModuleAndSpec(
+      m, &PyRestorePacket::spec, NULL);
   s->acl_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyAclPacket_spec, NULL);
+      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyAclPacket::spec, NULL);
   s->xattr_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyXattrPacket_spec, NULL);
-  s->restore_obj
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyRestoreObject_spec, NULL);
+      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyXattrPacket::spec, NULL);
+  s->restore_obj = (PyTypeObject*)PyType_FromModuleAndSpec(
+      m, &PyRestoreObject::spec, NULL);
 #define ADDTYPE(Type)                                       \
   do {                                                      \
     if (PyModule_AddType(m, s->Type) < 0) { return false; } \
