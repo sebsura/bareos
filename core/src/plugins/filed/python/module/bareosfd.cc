@@ -835,7 +835,7 @@ PyObject* bIOPstatus_dict()
   PyObject* dict = PyDict_New();
   if (!dict) { return nullptr; }
   if (!AddDictValue(dict, "iostat_error", IoStatus::error)
-      || !AddDictValue(dict, "ostat_do_in_plugin", IoStatus::success)
+      || !AddDictValue(dict, "iostat_do_in_plugin", IoStatus::success)
       || !AddDictValue(dict, "iostat_do_in_core", IoStatus::do_io_in_core)) {
     Py_DECREF(dict);
     return nullptr;
