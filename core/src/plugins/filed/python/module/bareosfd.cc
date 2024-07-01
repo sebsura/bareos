@@ -592,7 +592,7 @@ PyTypeObject*& type_def(type_tuple<Types...>& types)
 }
 
 template <typename F, typename... Types>
-auto map_types(F&& f, type_tuple<Types...> types)
+auto map_types(F&& f, type_tuple<Types...>& types)
 {
   return (f(type_def<Types>(types)) && ...);
 }
@@ -878,7 +878,7 @@ static int bareosfd_clear(PyObject* module)
 {
   auto* state = fd_module_state::get(module);
 
-  auto clear_once = [](PyTypeObject* obj) -> bool {
+  auto clear_once = [](PyTypeObject*& obj) -> bool {
     if ([&]() {
           Py_CLEAR(obj);
           return 0;
