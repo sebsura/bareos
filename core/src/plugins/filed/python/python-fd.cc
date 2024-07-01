@@ -87,6 +87,7 @@ void SetupPathsFromEnv()
   Py_DECREF(pluginPath);
 }
 
+std::wstring python_executable;
 }  // namespace
 
 namespace filedaemon {
@@ -278,7 +279,7 @@ bRC newPlugin(PluginContext* plugin_ctx)
   // get a reference to the interpreter local bareosfd module.
   PyObject* bareosfdModule = PyImport_ImportModule("bareosfd");
   if (!bareosfdModule) {
-    printf("loading of bareosfd extension module failed\n");
+    Jmsg(plugin_ctx, M_ERROR, "loading of bareosfd extension module failed\n");
     if (PyErr_Occurred()) { PyErrorHandler(); }
   }
 
@@ -293,6 +294,10 @@ bRC newPlugin(PluginContext* plugin_ctx)
       bEventPluginCommand, bEventJobStart, bEventRestoreCommand,
       bEventEstimateCommand, bEventBackupCommand, bEventRestoreObject);
 
+  if (!python_executable.empty()) {
+    Jmsg(plugin_ctx, M_INFO, "Using custom python executable: %ls\n",
+         python_executable.c_str());
+  }
   return bRC_OK;
 }
 
@@ -991,6 +996,14 @@ PluginFunctions pluginFuncs
 
 }  // namespace
 
+std::wstring GetPythonExecutable()
+{
+  if (auto* path = getenv("BAREOS_PYTHONFD_EXE")) {
+    return std::wstring{path, path + strlen(path)};
+  }
+  return {};
+}
+
 extern "C" {
 
 // Plugin called here when it is first loaded
@@ -1013,10 +1026,14 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
 
     PyStatus s = PyStatus_Ok();
 
-    s = PyConfig_SetString(&pyConf, &pyConf.executable,
-                           L"/home/ssura/Projekte/bareos/bpython/bin/python");
+    python_executable = GetPythonExecutable();
 
-    if (PyStatus_Exception(s)) { throw s; }
+    if (!python_executable.empty()) {
+      s = PyConfig_SetString(&pyConf, &pyConf.executable,
+                             python_executable.c_str());
+
+      if (PyStatus_Exception(s)) { throw s; }
+    }
 
     s = PyConfig_Read(&pyConf);
     if (PyStatus_Exception(s)) { throw s; }
