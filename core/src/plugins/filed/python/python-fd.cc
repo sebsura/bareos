@@ -1038,10 +1038,6 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
     s = PyConfig_Read(&pyConf);
     if (PyStatus_Exception(s)) { throw s; }
 
-    for (Py_ssize_t i = 0; i < pyConf.module_search_paths.length; ++i) {
-      printf("%ld: %ls\n", i, pyConf.module_search_paths.items[i]);
-    }
-
     /* We have two options when it comes to setting up the correct paths:
      *  1. Set them here in the config
      *  2. Set them for every new interpreter
@@ -1076,17 +1072,6 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
 
   // add bareos plugin path to python module search path
   SetupPathsFromEnv();
-
-  {
-    auto* conf = _Py_GetConfig();
-    printf("home: %ls\n", conf->home);
-    printf("pythonpath_env: %ls\n", conf->pythonpath_env);
-    printf("run_module: %ls\n", conf->run_module);
-
-    for (Py_ssize_t i = 0; i < conf->module_search_paths.length; ++i) {
-      printf("%ld: %ls\n", i, conf->module_search_paths.items[i]);
-    }
-  }
 
   /* import the bareosfd module */
   PyObject* bareosfdModule = PyImport_ImportModule("bareosfd");
