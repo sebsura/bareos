@@ -817,6 +817,8 @@ PyObject* bLevel_dict()
   return dict;
 }
 
+#undef SET_ENUM_VALUE
+
 static bool load_module_impl(PyObject* m, fd_module_state* s)
 {
   static bareosfd_capi_initializer c_api;
