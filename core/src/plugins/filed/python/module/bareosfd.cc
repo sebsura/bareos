@@ -52,9 +52,10 @@
 #include "bareosfd_api.h"
 
 #include "include/filetypes.h"
-/* This section is used when compiling bareosfd.cc */
+#include "lib/edit.h"
 
 namespace filedaemon {
+static const int debuglevel = 150;
 // Python structures mapping C++ ones.
 
 /**
@@ -485,9 +486,6 @@ static bRC PySetXattr(PluginContext* plugin_ctx, xattr_pkt* xp);
 static bRC PyRestoreObjectData(PluginContext* plugin_ctx,
                                restore_object_pkt* rop);
 static bRC PyHandleBackupFile(PluginContext* plugin_ctx, save_pkt* sp);
-
-} /* namespace filedaemon */
-using namespace filedaemon;
 
 /* variables storing bareos pointers */
 thread_local PluginContext* plugin_context = NULL;
@@ -931,64 +929,6 @@ static int bareosfd_clear(PyObject* module)
 
 static void bareosfd_free(void* module) { bareosfd_clear((PyObject*)module); }
 
-PYTHON_INIT(bareosfd)
-{
-  static PyModuleDef_Slot slots[] = {
-      {Py_mod_exec, (void*)&load_module}, {},  // null terminator
-  };
-
-  static PyModuleDef moduledef
-      = {PyModuleDef_HEAD_INIT,
-         PYTHON_MODULE_NAME_QUOTED,
-         "python plugin api of the bareos file daemon."
-         " See https://docs.bareos.org/DeveloperGuide/PythonPluginAPI.html",
-         sizeof(fd_module_state),
-         Methods,
-         slots,
-         bareosfd_traverse,
-         bareosfd_clear,
-         bareosfd_free};
-
-  return PyModuleDef_Init(&moduledef);
-}
-
-
-#include "include/filetypes.h"
-#include "lib/edit.h"
-
-namespace filedaemon {
-
-static const int debuglevel = 150;
-
-static bRC set_bareos_core_functions(CoreFunctions* new_bareos_core_functions);
-static bRC set_plugin_context(PluginContext* new_plugin_context);
-static bRC PyParsePluginDefinition(PluginContext* plugin_ctx, void* value);
-
-static bRC PyGetPluginValue(PluginContext* plugin_ctx,
-                            pVariable var,
-                            void* value);
-static bRC PySetPluginValue(PluginContext* plugin_ctx,
-                            pVariable var,
-                            void* value);
-static bRC PyHandlePluginEvent(PluginContext* plugin_ctx,
-                               bEvent* event,
-                               void* value);
-static bRC PyStartBackupFile(PluginContext* plugin_ctx, save_pkt* sp);
-static bRC PyEndBackupFile(PluginContext* plugin_ctx);
-static bRC PyPluginIO(PluginContext* plugin_ctx, io_pkt* io);
-static bRC PyStartRestoreFile(PluginContext* plugin_ctx, const char* cmd);
-static bRC PyEndRestoreFile(PluginContext* plugin_ctx);
-static bRC PyCreateFile(PluginContext* plugin_ctx, restore_pkt* rp);
-static bRC PySetFileAttributes(PluginContext* plugin_ctx, restore_pkt* rp);
-static bRC PyCheckFile(PluginContext* plugin_ctx, char* fname);
-static bRC PyGetAcl(PluginContext* plugin_ctx, acl_pkt* ap);
-static bRC PySetAcl(PluginContext* plugin_ctx, acl_pkt* ap);
-static bRC PyGetXattr(PluginContext* plugin_ctx, xattr_pkt* xp);
-static bRC PySetXattr(PluginContext* plugin_ctx, xattr_pkt* xp);
-static bRC PyRestoreObjectData(PluginContext* plugin_ctx,
-                               restore_object_pkt* rop);
-static bRC PyHandleBackupFile(PluginContext* plugin_ctx, save_pkt* sp);
-
 /* Pointers to Bareos functions */
 static CoreFunctions* bareos_core_functions = NULL;
 
@@ -997,7 +937,6 @@ static CoreFunctions* bareos_core_functions = NULL;
 #define NOPLUGINSETGETVALUE 1
 /* functions common to all plugins */
 #include "plugins/include/python_plugins_common.inc"
-
 
 /* set the bareos_core_functions pointer to the given value */
 static bRC set_bareos_core_functions(CoreFunctions* new_bareos_core_functions)
@@ -3227,3 +3166,26 @@ static void PyXattrPacket_dealloc(PyXattrPacket* self)
 }
 
 } /* namespace filedaemon */
+
+PYTHON_INIT(bareosfd)
+{
+  using namespace filedaemon;
+
+  static PyModuleDef_Slot slots[] = {
+      {Py_mod_exec, (void*)&load_module}, {},  // null terminator
+  };
+
+  static PyModuleDef moduledef
+      = {PyModuleDef_HEAD_INIT,
+         PYTHON_MODULE_NAME_QUOTED,
+         "python plugin api of the bareos file daemon."
+         " See https://docs.bareos.org/DeveloperGuide/PythonPluginAPI.html",
+         sizeof(fd_module_state),
+         Methods,
+         slots,
+         bareosfd_traverse,
+         bareosfd_clear,
+         bareosfd_free};
+
+  return PyModuleDef_Init(&moduledef);
+}
