@@ -67,6 +67,9 @@
 #include "lib/version.h"
 
 #include <cassert>
+#include <memory>
+#include <string>
+#include <unordered_map>
 
 namespace directordaemon {
 
