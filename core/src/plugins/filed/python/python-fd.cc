@@ -1006,30 +1006,12 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
   if (Py_IsInitialized()) { return bRC_Error; }
 
   PyConfig pyConf = {};
-  // PyConfig_InitPythonConfig(&pyConf);
   PyConfig_InitIsolatedConfig(&pyConf);
   try {
-    // pyConf.use_environment = 0;
-    // pyConf.user_site_directory = 0;
-    // pyConf.safe_path = 1;
-
     pyConf.dev_mode = true;
     pyConf.pathconfig_warnings = 1;
 
     PyStatus s = PyStatus_Ok();
-
-    // s = PyConfig_SetString(&pyConf, &pyConf.home,
-    //                    L"/usr");
-    // if (PyStatus_Exception(s)) {
-    //   throw s;
-    // }
-
-    // std::string_view path = getenv("PYTHONPATH");
-    // std::wstring wstr(path, path + strlen(path));
-    // wstr.insert(0,
-    // L"/usr/lib64/python312.zip:/usr/lib64/python3.12:/usr/lib64/python3.12/lib-dynload:");
-    // s = PyConfig_SetString(&pyConf, &pyConf.pythonpath_env, wstr.c_str());
-    // if (PyStatus_Exception(s)) { throw s; }
 
     s = PyConfig_SetString(&pyConf, &pyConf.executable,
                            L"/home/ssura/Projekte/bareos/bpython/bin/python");
@@ -1053,26 +1035,6 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
      * for every interpreter.   On the bright side this could mean that we could
      * specify the correct path in the fileset instead of using a environment
      * variable. */
-
-    // std::string_view path = getenv("PYTHONPATH");
-    // printf("paths set: %d\n", pyConf.module_search_paths_set);
-    // pyConf.module_search_paths_set = 0;
-    // while (path.size() > 0) {
-    //   auto pos = path.find_first_of(":");
-    //   std::string_view include = path.substr(0, pos);
-
-    //   std::wstring wstr(include.begin(), include.end());
-
-    //   s = PyWideStringList_Append(&pyConf.module_search_paths, wstr.c_str());
-
-    //   if (PyStatus_Exception(s)) {
-    //     throw s;
-    //   }
-
-    //   if (pos == path.npos) { break; }
-
-    //   path = path.substr(pos+1);
-    // }
 
     ASSERT(pyConf.dev_mode);
 
