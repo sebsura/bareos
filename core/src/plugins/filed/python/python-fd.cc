@@ -48,8 +48,6 @@
 #include "module/bareosfd.h"
 #include "lib/edit.h"
 
-#include "plugins/python/common.h"
-
 #include <vector>
 #include <algorithm>
 

@@ -21,7 +21,7 @@ include(BareosDisableWarnings)
 include(BareosConfigureFile)
 
 if(Python3_FOUND)
-  add_library(python3-fd MODULE python-fd.cc ../../python/common.cc)
+  add_library(python3-fd MODULE python-fd.cc)
   set_target_properties(
     python3-fd PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY ..
   )
@@ -61,7 +61,9 @@ if(Python3_FOUND AND NOT HAVE_WIN32)
 endif()
 
 if(Python3_FOUND)
-  add_library(bareosfd-python3-module MODULE module/bareosfd.cc)
+  add_library(
+    bareosfd-python3-module MODULE module/bareosfd.cc ../../python/common.cc
+  )
   install(
     TARGETS bareosfd-python3-module
     DESTINATION ${Python3_SITEARCH}
