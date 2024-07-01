@@ -407,57 +407,6 @@ static PyMemberDef PyXattrPacket_members[]
        {} /* Sentinel */};
 
 // Callback methods from Python.
-static PyObject* PyBareosGetValue(PyObject* self, PyObject* args);
-static PyObject* PyBareosSetValue(PyObject* self, PyObject* args);
-static PyObject* PyBareosDebugMessage(PyObject* self, PyObject* args);
-static PyObject* PyBareosJobMessage(PyObject* self, PyObject* args);
-static PyObject* PyBareosRegisterEvents(PyObject* self, PyObject* args);
-static PyObject* PyBareosUnRegisterEvents(PyObject* self, PyObject* args);
-static PyObject* PyBareosGetInstanceCount(PyObject* self, PyObject* args);
-static PyObject* PyBareosAddExclude(PyObject* self, PyObject* args);
-static PyObject* PyBareosAddInclude(PyObject* self, PyObject* args);
-static PyObject* PyBareosAddOptions(PyObject* self, PyObject* args);
-static PyObject* PyBareosAddRegex(PyObject* self, PyObject* args);
-static PyObject* PyBareosAddWild(PyObject* self, PyObject* args);
-static PyObject* PyBareosNewOptions(PyObject* self, PyObject* args);
-static PyObject* PyBareosNewInclude(PyObject* self, PyObject* args);
-static PyObject* PyBareosNewPreInclude(PyObject* self, PyObject* args);
-static PyObject* PyBareosCheckChanges(PyObject* self, PyObject* args);
-static PyObject* PyBareosAcceptFile(PyObject* self, PyObject* args);
-static PyObject* PyBareosSetSeenBitmap(PyObject* self, PyObject* args);
-static PyObject* PyBareosClearSeenBitmap(PyObject* self, PyObject* args);
-
-static PyMethodDef Methods[] = {
-    {"GetValue", PyBareosGetValue, METH_VARARGS, "Get a Plugin value"},
-    {"SetValue", PyBareosSetValue, METH_VARARGS, "Set a Plugin value"},
-    {"DebugMessage", PyBareosDebugMessage, METH_VARARGS,
-     "Print a Debug message"},
-    {"JobMessage", PyBareosJobMessage, METH_VARARGS, "Print a Job message"},
-    {"RegisterEvents", PyBareosRegisterEvents, METH_VARARGS,
-     "Register Plugin Events"},
-    {"UnRegisterEvents", PyBareosUnRegisterEvents, METH_VARARGS,
-     "Unregister Plugin Events"},
-    {"GetInstanceCount", PyBareosGetInstanceCount, METH_VARARGS,
-     "Get number of instances of current plugin"},
-    {"AddExclude", PyBareosAddExclude, METH_VARARGS, "Add Exclude pattern"},
-    {"AddInclude", PyBareosAddInclude, METH_VARARGS, "Add Include pattern"},
-    {"AddOptions", PyBareosAddOptions, METH_VARARGS, "Add Include options"},
-    {"AddRegex", PyBareosAddRegex, METH_VARARGS, "Add regex"},
-    {"AddWild", PyBareosAddWild, METH_VARARGS, "Add wildcard"},
-    {"NewOptions", PyBareosNewOptions, METH_VARARGS, "Add new option block"},
-    {"NewInclude", PyBareosNewInclude, METH_VARARGS, "Add new include block"},
-    {"NewPreInclude", PyBareosNewPreInclude, METH_VARARGS,
-     "Add new pre include block"},
-    {"CheckChanges", PyBareosCheckChanges, METH_VARARGS,
-     "Check if a file have to be backed up using Accurate code"},
-    {"AcceptFile", PyBareosAcceptFile, METH_VARARGS,
-     "Check if a file would be saved using current Include/Exclude code"},
-    {"SetSeenBitmap", PyBareosSetSeenBitmap, METH_VARARGS,
-     "Set bit in the Accurate Seen bitmap"},
-    {"ClearSeenBitmap", PyBareosClearSeenBitmap, METH_VARARGS,
-     "Clear bit in the Accurate Seen bitmap"},
-    {NULL, NULL, 0, NULL}};
-
 static bRC set_bareos_core_functions(CoreFunctions* new_bareos_core_functions);
 static bRC set_plugin_context(PluginContext* new_plugin_context);
 static void PyErrorHandler(PluginContext* plugin_ctx, int msgtype);
@@ -3181,12 +3130,43 @@ static void PyXattrPacket_dealloc(PyXattrPacket* self)
   if (self->name) { Py_XDECREF(self->name); }
   PyObject_Del(self);
 }
-
 } /* namespace filedaemon */
 
 PYTHON_INIT(bareosfd)
 {
   using namespace filedaemon;
+
+  static PyMethodDef methods[] = {
+      {"GetValue", PyBareosGetValue, METH_VARARGS, "Get a Plugin value"},
+      {"SetValue", PyBareosSetValue, METH_VARARGS, "Set a Plugin value"},
+      {"DebugMessage", PyBareosDebugMessage, METH_VARARGS,
+       "Print a Debug message"},
+      {"JobMessage", PyBareosJobMessage, METH_VARARGS, "Print a Job message"},
+      {"RegisterEvents", PyBareosRegisterEvents, METH_VARARGS,
+       "Register Plugin Events"},
+      {"UnRegisterEvents", PyBareosUnRegisterEvents, METH_VARARGS,
+       "Unregister Plugin Events"},
+      {"GetInstanceCount", PyBareosGetInstanceCount, METH_VARARGS,
+       "Get number of instances of current plugin"},
+      {"AddExclude", PyBareosAddExclude, METH_VARARGS, "Add Exclude pattern"},
+      {"AddInclude", PyBareosAddInclude, METH_VARARGS, "Add Include pattern"},
+      {"AddOptions", PyBareosAddOptions, METH_VARARGS, "Add Include options"},
+      {"AddRegex", PyBareosAddRegex, METH_VARARGS, "Add regex"},
+      {"AddWild", PyBareosAddWild, METH_VARARGS, "Add wildcard"},
+      {"NewOptions", PyBareosNewOptions, METH_VARARGS, "Add new option block"},
+      {"NewInclude", PyBareosNewInclude, METH_VARARGS, "Add new include block"},
+      {"NewPreInclude", PyBareosNewPreInclude, METH_VARARGS,
+       "Add new pre include block"},
+      {"CheckChanges", PyBareosCheckChanges, METH_VARARGS,
+       "Check if a file have to be backed up using Accurate code"},
+      {"AcceptFile", PyBareosAcceptFile, METH_VARARGS,
+       "Check if a file would be saved using current Include/Exclude code"},
+      {"SetSeenBitmap", PyBareosSetSeenBitmap, METH_VARARGS,
+       "Set bit in the Accurate Seen bitmap"},
+      {"ClearSeenBitmap", PyBareosClearSeenBitmap, METH_VARARGS,
+       "Clear bit in the Accurate Seen bitmap"},
+      {}};
+
 
   static PyModuleDef_Slot slots[] = {
       {Py_mod_exec, (void*)&load_module}, {},  // null terminator
@@ -3198,7 +3178,7 @@ PYTHON_INIT(bareosfd)
          "python plugin api of the bareos file daemon."
          " See https://docs.bareos.org/DeveloperGuide/PythonPluginAPI.html",
          sizeof(fd_module_state),
-         Methods,
+         methods,
          slots,
          bareosfd_traverse,
          bareosfd_clear,
