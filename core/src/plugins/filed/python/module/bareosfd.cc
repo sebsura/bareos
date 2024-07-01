@@ -3085,7 +3085,7 @@ static int PyAclPacket_init(PyAclPacket* self, PyObject* args, PyObject* kwds)
 // Destructor.
 static void PyAclPacket_dealloc(PyAclPacket* self)
 {
-  if (self->content) { Py_XDECREF(self->content); }
+  Py_XDECREF(self->content);
   PyObject_Del(self);
 }
 
@@ -3126,8 +3126,8 @@ static int PyXattrPacket_init(PyXattrPacket* self,
 // Destructor.
 static void PyXattrPacket_dealloc(PyXattrPacket* self)
 {
-  if (self->value) { Py_XDECREF(self->value); }
-  if (self->name) { Py_XDECREF(self->name); }
+  Py_XDECREF(self->value);
+  Py_XDECREF(self->name);
   PyObject_Del(self);
 }
 } /* namespace filedaemon */
