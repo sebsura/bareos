@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -23,20 +23,19 @@
 // Strip any backslashes in the string.
 static inline void StripBackSlashes(char* value)
 {
-  char* bp;
-
-  bp = value;
-  while (*bp) {
-    switch (*bp) {
-      case '\\':
-        bstrinlinecpy(bp, bp + 1);
-        break;
-      default:
-        break;
-    }
-
-    bp++;
+  for (;; value += 1) {
+    if (*value == '\0') { return; } // we are done
+    if (*value == '\\') { break; } // we need to do some work
   }
+
+  char* write = value; // we write to here
+
+  for (const char* read = value; *read; read += 1) {
+    if (*read != '\\') { *write++ = *read; }
+  }
+
+  // also copy the null terminator
+  *write = '\0';
 }
 
 /**

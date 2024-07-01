@@ -623,10 +623,7 @@ bail_out:
 // Only set destination to value when it has no previous setting.
 void SetStringIfNull(char** destination, char* value)
 {
-  if (!*destination) {
-    *destination = strdup(value);
-    StripBackSlashes(*destination);
-  }
+  if (!*destination) { SetString(destination, value); }
 }
 
 /**
