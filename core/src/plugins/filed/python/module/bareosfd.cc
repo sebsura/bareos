@@ -645,14 +645,16 @@ PyTypeObject*& type_def(type_tuple<Types...>& types)
 template <typename F, typename... Types>
 auto map_types(F&& f, type_tuple<Types...> types)
 {
-  return (f(type_def<Types>(types)) || ...);
+  return (f(type_def<Types>(types)) && ...);
 }
 
 template <typename... Types>
 static bool add_types(type_tuple<Types...>& types, PyObject* module)
 {
-  auto add_one
-      = [module](PyTypeObject* obj) { return PyModule_AddType(module, obj); };
+  auto add_one = [module](PyTypeObject* obj) -> bool {
+    if (PyModule_AddType(module, obj) < 0) { return false; }
+    return true;
+  };
 
   ((type_def<Types>(types)
     = (PyTypeObject*)PyType_FromModuleAndSpec(module, &Types::spec, NULL)),
@@ -663,8 +665,7 @@ static bool add_types(type_tuple<Types...>& types, PyObject* module)
 
 static bool module_add_types(PyObject* m, fd_module_state* s)
 {
-  add_types(s->types, m);
-  return true;
+  return add_types(s->types, m);
 }
 
 struct bareosfd_capi_initializer {
@@ -907,24 +908,40 @@ static int load_module(PyObject* module)
 
 static int bareosfd_traverse(PyObject* module, visitproc visit, void* arg)
 {
-  auto visit_once = [visit, arg](PyTypeObject* obj) -> int {
-    Py_VISIT(obj);
-    return 0;
+  auto visit_once = [visit, arg](PyTypeObject* obj) -> bool {
+    if ([&]() {
+          Py_VISIT(obj);
+          return 0;
+        }()
+        < 0) {
+      return false;
+    }
+    return true;
   };
+
   auto* state = fd_module_state::get(module);
-  return map_types(visit_once, state->types);
+  if (!map_types(visit_once, state->types)) { return -1; }
+
+  return 0;
 }
 
 static int bareosfd_clear(PyObject* module)
 {
   auto* state = fd_module_state::get(module);
 
-  auto clear_once = [](PyTypeObject* obj) -> int {
-    Py_CLEAR(obj);
-    return 0;
+  auto clear_once = [](PyTypeObject* obj) -> bool {
+    if ([&]() {
+          Py_CLEAR(obj);
+          return 0;
+        }()
+        < 0) {
+      return false;
+    }
+    return true;
   };
 
-  return map_types(clear_once, state->types);
+  if (!map_types(clear_once, state->types)) { return -1; }
+  return 0;
 }
 
 static void bareosfd_free(void* module) { bareosfd_clear((PyObject*)module); }
