@@ -61,7 +61,7 @@ namespace filedaemon {
  * This packet is used for the restore objects.
  * It is passed to the plugin when restoring the object.
  */
-typedef struct {
+struct PyRestoreObject {
   PyObject_HEAD PyObject* object_name; /* Object name */
   PyObject* object;                    /* Restore object data to restore */
   char* plugin_name;                   /* Plugin name */
@@ -72,7 +72,7 @@ typedef struct {
   int32_t object_compression;          /* set to compression type */
   int32_t stream;                      /* attribute stream id */
   uint32_t JobId;                      /* JobId object came from */
-} PyRestoreObject;
+};
 
 // Forward declarations of type specific functions.
 static void PyRestoreObject_dealloc(PyRestoreObject* self);
@@ -111,7 +111,7 @@ static PyMemberDef PyRestoreObject_members[]
        {} /* Sentinel */};
 
 // The PyStatPacket type
-typedef struct {
+struct PyStatPacket {
   PyObject_HEAD uint32_t dev;
   uint64_t ino;
   uint16_t mode;
@@ -125,7 +125,7 @@ typedef struct {
   time_t ctime;
   uint32_t blksize;
   uint64_t blocks;
-} PyStatPacket;
+};
 
 // Forward declarations of type specific functions.
 static void PyStatPacket_dealloc(PyStatPacket* self);
@@ -165,7 +165,7 @@ static PyMemberDef PyStatPacket_members[] = {
     {} /* Sentinel */};
 
 // The PySavePacket type
-typedef struct {
+struct PySavePacket {
   PyObject_HEAD PyObject* fname; /* Full path and filename */
   PyObject* link;                /* Link name if any */
   PyObject* statp;               /* System stat() packet for file */
@@ -181,7 +181,7 @@ typedef struct {
   PyObject* object;      /* Restore object data to save */
   int32_t object_len;    /* Restore object length */
   int32_t object_index;  /* Restore object index */
-} PySavePacket;
+};
 
 // Forward declarations of type specific functions.
 static void PySavePacket_dealloc(PySavePacket* self);
@@ -226,7 +226,7 @@ static PyMemberDef PySavePacket_members[] = {
     {} /* Sentinel */};
 
 // The PyRestorePacket type
-typedef struct {
+struct PyRestorePacket {
   PyObject_HEAD int32_t stream; /* Attribute stream id */
   int32_t data_stream;          /* Id of data stream to follow */
   int32_t type;                 /* File type FT */
@@ -242,7 +242,7 @@ typedef struct {
   int replace;                  /* Replace flag */
   int create_status;            /* Status from createFile() */
   int filedes;                  /* filedescriptor for read/write in core */
-} PyRestorePacket;
+};
 
 // Forward declarations of type specific functions.
 static void PyRestorePacket_dealloc(PyRestorePacket* self);
@@ -288,7 +288,7 @@ static PyMemberDef PyRestorePacket_members[] = {
     {NULL, 0, 0, 0, NULL}};
 
 // The PyIOPacket type
-typedef struct {
+struct PyIoPacket {
   PyObject_HEAD uint16_t func; /* Function code */
   int32_t count;               /* Read/Write count */
   int32_t flags;               /* Open flags */
@@ -302,7 +302,7 @@ typedef struct {
   int64_t offset;              /* Lseek argument */
   bool win32;                  /* Win32 GetLastError returned */
   int filedes;                 /* filedescriptor for read/write in core */
-} PyIoPacket;
+};
 
 // Forward declarations of type specific functions.
 static void PyIoPacket_dealloc(PyIoPacket* self);
@@ -343,10 +343,10 @@ static PyMemberDef PyIoPacket_members[]
        {NULL, 0, 0, 0, NULL}};
 
 // The PyAclPacket type
-typedef struct {
+struct PyAclPacket {
   PyObject_HEAD const char* fname; /* Filename */
   PyObject* content;               /* ACL content */
-} PyAclPacket;
+};
 
 // Forward declarations of type specific functions.
 static void PyAclPacket_dealloc(PyAclPacket* self);
@@ -365,11 +365,11 @@ static PyMemberDef PyAclPacket_members[]
        {} /* Sentinel */};
 
 // The PyXattrPacket type
-typedef struct {
+struct PyXattrPacket {
   PyObject_HEAD const char* fname; /* Filename */
   PyObject* name;                  /* XATTR name */
   PyObject* value;                 /* XATTR value */
-} PyXattrPacket;
+};
 
 // Forward declarations of type specific functions.
 static void PyXattrPacket_dealloc(PyXattrPacket* self);
