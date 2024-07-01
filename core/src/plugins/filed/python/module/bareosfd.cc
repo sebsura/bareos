@@ -832,8 +832,8 @@ static bool load_module_impl(PyObject* m, fd_module_state* s)
 
   if (!module_add_types(m, s)) { return false; }
 
-  if (!Plugin_AddDict(m, "bRCs", ::bRC_dict())
-      || !Plugin_AddDict(m, "bJobMessageType", ::JobMessageType_dict())
+  if (!Plugin_AddDict(m, "bRCs", bRC_dict())
+      || !Plugin_AddDict(m, "bJobMessageType", JobMessageType_dict())
       || !Plugin_AddDict(m, "bVariable", bVar_dict())
       || !Plugin_AddDict(m, "bFileType", bFileType_dict())
       || !Plugin_AddDict(m, "bCFs", bCF_dict())
