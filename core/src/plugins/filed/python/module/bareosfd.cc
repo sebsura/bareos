@@ -492,53 +492,34 @@ using namespace filedaemon;
 /* variables storing bareos pointers */
 thread_local PluginContext* plugin_context = NULL;
 
+template <typename T> struct type_object {
+  PyTypeObject* def{nullptr};
+};
+
+template <typename... Args> using type_tuple = std::tuple<type_object<Args>...>;
 // per interpreter state of the bareosfd module
 struct fd_module_state {
-  PyTypeObject* stat_pkt;
-  PyTypeObject* io_pkt;
-  PyTypeObject* save_pkt;
-  PyTypeObject* restore_pkt;
-  PyTypeObject* acl_pkt;
-  PyTypeObject* xattr_pkt;
-  PyTypeObject* restore_obj;
+  type_tuple<PyStatPacket,
+             PyIoPacket,
+             PySavePacket,
+             PyRestorePacket,
+             PyAclPacket,
+             PyXattrPacket,
+             PyRestoreObject>
+      types;
 
   static fd_module_state* get(PyObject* module)
   {
     return static_cast<fd_module_state*>(PyModule_GetState(module));
   }
 
-  template <typename T> PyTypeObject* typeobj() = delete;
+  template <typename T> PyTypeObject* typeobj()
+  {
+    return std::get<type_object<T>>(types).def;
+  }
+
   template <typename T> T* make() { return PyObject_New(T, typeobj<T>()); }
 };
-
-template <> PyTypeObject* fd_module_state::typeobj<PyStatPacket>()
-{
-  return stat_pkt;
-}
-template <> PyTypeObject* fd_module_state::typeobj<PyIoPacket>()
-{
-  return io_pkt;
-}
-template <> PyTypeObject* fd_module_state::typeobj<PySavePacket>()
-{
-  return save_pkt;
-}
-template <> PyTypeObject* fd_module_state::typeobj<PyRestorePacket>()
-{
-  return restore_pkt;
-}
-template <> PyTypeObject* fd_module_state::typeobj<PyAclPacket>()
-{
-  return acl_pkt;
-}
-template <> PyTypeObject* fd_module_state::typeobj<PyXattrPacket>()
-{
-  return xattr_pkt;
-}
-template <> PyTypeObject* fd_module_state::typeobj<PyRestoreObject>()
-{
-  return restore_obj;
-}
 
 static PyType_Slot PyStatPacket_slots[] = {
     {Py_tp_dealloc, (void*)PyStatPacket_dealloc},
@@ -657,35 +638,34 @@ PyType_Spec PyRestoreObject::spec = {
 };
 #pragma GCC diagnostic pop
 
+template <typename Type, typename... Types>
+PyTypeObject*& type_def(type_tuple<Types...>& types)
+{
+  return std::get<type_object<Type>>(types).def;
+}
+
+template <typename F, typename... Types>
+auto map_types(F&& f, type_tuple<Types...> types)
+{
+  return (f(type_def<Types>(types)) || ...);
+}
+
+template <typename... Types>
+static bool add_types(type_tuple<Types...>& types, PyObject* module)
+{
+  auto add_one
+      = [module](PyTypeObject* obj) { return PyModule_AddType(module, obj); };
+
+  ((type_def<Types>(types)
+    = (PyTypeObject*)PyType_FromModuleAndSpec(module, &Types::spec, NULL)),
+   ...);
+
+  return map_types(add_one, types);
+}
+
 static bool module_add_types(PyObject* m, fd_module_state* s)
 {
-  s->stat_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyStatPacket::spec, NULL);
-  s->io_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyIoPacket::spec, NULL);
-  s->save_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PySavePacket::spec, NULL);
-  s->restore_pkt = (PyTypeObject*)PyType_FromModuleAndSpec(
-      m, &PyRestorePacket::spec, NULL);
-  s->acl_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyAclPacket::spec, NULL);
-  s->xattr_pkt
-      = (PyTypeObject*)PyType_FromModuleAndSpec(m, &PyXattrPacket::spec, NULL);
-  s->restore_obj = (PyTypeObject*)PyType_FromModuleAndSpec(
-      m, &PyRestoreObject::spec, NULL);
-#define ADDTYPE(Type)                                       \
-  do {                                                      \
-    if (PyModule_AddType(m, s->Type) < 0) { return false; } \
-  } while (0)
-  ADDTYPE(stat_pkt);
-  ADDTYPE(io_pkt);
-  ADDTYPE(save_pkt);
-  ADDTYPE(restore_pkt);
-  ADDTYPE(acl_pkt);
-  ADDTYPE(xattr_pkt);
-  ADDTYPE(restore_obj);
-#undef ADDTYPE
-
+  add_types(s->types, m);
   return true;
 }
 
@@ -929,29 +909,24 @@ static int load_module(PyObject* module)
 
 static int bareosfd_traverse(PyObject* module, visitproc visit, void* arg)
 {
+  auto visit_once = [visit, arg](PyTypeObject* obj) -> int {
+    Py_VISIT(obj);
+    return 0;
+  };
   auto* state = fd_module_state::get(module);
-  Py_VISIT(state->stat_pkt);
-  Py_VISIT(state->stat_pkt);
-  Py_VISIT(state->io_pkt);
-  Py_VISIT(state->save_pkt);
-  Py_VISIT(state->restore_pkt);
-  Py_VISIT(state->acl_pkt);
-  Py_VISIT(state->xattr_pkt);
-  Py_VISIT(state->restore_obj);
-  return 0;
+  return map_types(visit_once, state->types);
 }
 
 static int bareosfd_clear(PyObject* module)
 {
   auto* state = fd_module_state::get(module);
-  Py_CLEAR(state->stat_pkt);
-  Py_CLEAR(state->io_pkt);
-  Py_CLEAR(state->save_pkt);
-  Py_CLEAR(state->restore_pkt);
-  Py_CLEAR(state->acl_pkt);
-  Py_CLEAR(state->xattr_pkt);
-  Py_CLEAR(state->restore_obj);
-  return 0;
+
+  auto clear_once = [](PyTypeObject* obj) -> int {
+    Py_CLEAR(obj);
+    return 0;
+  };
+
+  return map_types(clear_once, state->types);
 }
 
 static void bareosfd_free(void* module) { bareosfd_clear((PyObject*)module); }
