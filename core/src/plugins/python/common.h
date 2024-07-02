@@ -23,6 +23,7 @@
 
 #include <Python.h>
 
+template <typename> constexpr bool is_always_false = false;
 template <typename T> PyObject* PyValue(const T& val)
 {
   if constexpr (std::is_convertible_v<T, long>) {
@@ -30,7 +31,11 @@ template <typename T> PyObject* PyValue(const T& val)
   } else if constexpr (std::is_convertible_v<T, const char*>) {
     return PyBytes_FromString(static_cast<const char*>(val));
   } else {
-    static_assert(false, "Not implemented yet.");
+    /* if the static assert is not dependant on T, then old compilers will
+     * always evaluate it, even if the else case is discarded anyways.
+     * A workaround for this issue is to make the 'false' dependent on T,
+     * so it will be discarded before it is evaluated. */
+    static_assert(is_always_false<T>, "Not implemented yet.");
   }
 }
 
