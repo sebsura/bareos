@@ -468,6 +468,115 @@ struct fd_module_state {
   template <typename T> T* make() { return PyObject_New(T, typeobj<T>()); }
 };
 
+static int PyStatPacket_traverse(PyStatPacket* self, visitproc visit, void* arg)
+{
+  Py_VISIT(Py_TYPE(self));
+  return 0;
+}
+
+static int PyStatPacket_clear(PyStatPacket* self)
+{
+  (void)self;
+  return 0;
+}
+
+static int PyRestoreObject_clear(PyRestoreObject* self)
+{
+  Py_CLEAR(self->object);
+  Py_CLEAR(self->object_name);
+  return 0;
+}
+
+static int PyRestoreObject_traverse(PyRestoreObject* self,
+                                    visitproc visit,
+                                    void* arg)
+{
+  Py_VISIT(Py_TYPE(self));
+  Py_VISIT(self->object);
+  Py_VISIT(self->object_name);
+  return 0;
+}
+
+static int PyIoPacket_clear(PyIoPacket* self)
+{
+  Py_CLEAR(self->buf);
+  return 0;
+}
+
+static int PyIoPacket_traverse(PyIoPacket* self, visitproc visit, void* arg)
+{
+  Py_VISIT(Py_TYPE(self));
+  Py_VISIT(self->buf);
+  return 0;
+}
+
+static int PySavePacket_clear(PySavePacket* self)
+{
+  Py_CLEAR(self->statp);
+  Py_CLEAR(self->link);
+  Py_CLEAR(self->flags);
+  Py_CLEAR(self->object_name);
+  Py_CLEAR(self->object);
+  Py_CLEAR(self->fname);
+  return 0;
+}
+
+static int PySavePacket_traverse(PySavePacket* self, visitproc visit, void* arg)
+{
+  Py_VISIT(Py_TYPE(self));
+  Py_VISIT(self->statp);
+  Py_VISIT(self->link);
+  Py_VISIT(self->flags);
+  Py_VISIT(self->object_name);
+  Py_VISIT(self->object);
+  Py_VISIT(self->fname);
+  return 0;
+}
+
+static int PyRestorePacket_clear(PyRestorePacket* self)
+{
+  Py_CLEAR(self->statp);
+  return 0;
+}
+
+static int PyRestorePacket_traverse(PyRestorePacket* self,
+                                    visitproc visit,
+                                    void* arg)
+{
+  Py_VISIT(Py_TYPE(self));
+  Py_VISIT(self->statp);
+  return 0;
+}
+
+static int PyAclPacket_clear(PyAclPacket* self)
+{
+  (void)self;
+  return 0;
+}
+
+static int PyAclPacket_traverse(PyAclPacket* self, visitproc visit, void* arg)
+{
+  Py_VISIT(Py_TYPE(self));
+  return 0;
+}
+
+static int PyXattrPacket_clear(PyXattrPacket* self)
+{
+  Py_CLEAR(self->name);
+  Py_CLEAR(self->value);
+  return 0;
+}
+
+static int PyXattrPacket_traverse(PyXattrPacket* self,
+                                  visitproc visit,
+                                  void* arg)
+{
+  Py_VISIT(Py_TYPE(self));
+  Py_VISIT(self->name);
+  Py_VISIT(self->value);
+  return 0;
+}
+
 static PyType_Slot PyStatPacket_slots[] = {
     {Py_tp_dealloc, (void*)PyStatPacket_dealloc},
     {Py_tp_doc, (void*)"test doc"},
@@ -476,6 +585,8 @@ static PyType_Slot PyStatPacket_slots[] = {
     {Py_tp_repr, (void*)PyStatPacket_repr},
     {Py_tp_init, (void*)PyStatPacket_init},
     {Py_tp_new, (void*)PyType_GenericNew},
+    {Py_tp_traverse, (void*)PyStatPacket_traverse},
+    {Py_tp_clear, (void*)PyStatPacket_clear},
     {0, NULL},
 };
 static PyType_Slot PyIoPacket_slots[] = {
@@ -486,6 +597,8 @@ static PyType_Slot PyIoPacket_slots[] = {
     {Py_tp_repr, (void*)PyIoPacket_repr},
     {Py_tp_init, (void*)PyIoPacket_init},
     {Py_tp_new, (void*)PyType_GenericNew},
+    {Py_tp_traverse, (void*)PyIoPacket_traverse},
+    {Py_tp_clear, (void*)PyIoPacket_clear},
     {0, NULL},
 };
 static PyType_Slot PySavePacket_slots[] = {
@@ -496,6 +609,8 @@ static PyType_Slot PySavePacket_slots[] = {
     {Py_tp_repr, (void*)PySavePacket_repr},
     {Py_tp_init, (void*)PySavePacket_init},
     {Py_tp_new, (void*)PyType_GenericNew},
+    {Py_tp_traverse, (void*)PySavePacket_traverse},
+    {Py_tp_clear, (void*)PySavePacket_clear},
     {0, NULL},
 };
 static PyType_Slot PyRestorePacket_slots[] = {
@@ -506,6 +621,8 @@ static PyType_Slot PyRestorePacket_slots[] = {
     {Py_tp_repr, (void*)PyRestorePacket_repr},
     {Py_tp_init, (void*)PyRestorePacket_init},
     {Py_tp_new, (void*)PyType_GenericNew},
+    {Py_tp_traverse, (void*)PyRestorePacket_traverse},
+    {Py_tp_clear, (void*)PyRestorePacket_clear},
     {0, NULL},
 };
 static PyType_Slot PyAclPacket_slots[] = {
@@ -516,6 +633,8 @@ static PyType_Slot PyAclPacket_slots[] = {
     {Py_tp_repr, (void*)PyAclPacket_repr},
     {Py_tp_init, (void*)PyAclPacket_init},
     {Py_tp_new, (void*)PyType_GenericNew},
+    {Py_tp_traverse, (void*)PyAclPacket_traverse},
+    {Py_tp_clear, (void*)PyAclPacket_clear},
     {0, NULL},
 };
 static PyType_Slot PyXattrPacket_slots[] = {
@@ -526,6 +645,8 @@ static PyType_Slot PyXattrPacket_slots[] = {
     {Py_tp_repr, (void*)PyXattrPacket_repr},
     {Py_tp_init, (void*)PyXattrPacket_init},
     {Py_tp_new, (void*)PyType_GenericNew},
+    {Py_tp_traverse, (void*)PyXattrPacket_traverse},
+    {Py_tp_clear, (void*)PyXattrPacket_clear},
     {0, NULL},
 };
 static PyType_Slot PyRestoreObject_slots[] = {
@@ -536,6 +657,8 @@ static PyType_Slot PyRestoreObject_slots[] = {
     {Py_tp_repr, (void*)PyRestoreObject_repr},
     {Py_tp_init, (void*)PyRestoreObject_init},
     {Py_tp_new, (void*)PyType_GenericNew},
+    {Py_tp_traverse, (void*)PyRestoreObject_traverse},
+    {Py_tp_clear, (void*)PyRestoreObject_clear},
     {0, NULL},
 };
 
@@ -544,43 +667,43 @@ static PyType_Slot PyRestoreObject_slots[] = {
 PyType_Spec PyStatPacket::spec = {
     .name = "bareosfd.StatPacket",
     .basicsize = sizeof(PyStatPacket),
-    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
+    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC),
     .slots = PyStatPacket_slots,
 };
 PyType_Spec PyIoPacket::spec = {
     .name = "bareosfd.IoPacket",
     .basicsize = sizeof(PyIoPacket),
-    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
+    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC),
     .slots = PyIoPacket_slots,
 };
 PyType_Spec PySavePacket::spec = {
     .name = "bareosfd.SavePacket",
     .basicsize = sizeof(PySavePacket),
-    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
+    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC),
     .slots = PySavePacket_slots,
 };
 PyType_Spec PyRestorePacket::spec = {
     .name = "bareosfd.RestorePacket",
     .basicsize = sizeof(PyRestorePacket),
-    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
+    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC),
     .slots = PyRestorePacket_slots,
 };
 PyType_Spec PyAclPacket::spec = {
     .name = "bareosfd.AclPacket",
     .basicsize = sizeof(PyAclPacket),
-    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
+    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC),
     .slots = PyAclPacket_slots,
 };
 PyType_Spec PyXattrPacket::spec = {
     .name = "bareosfd.XattrPacket",
     .basicsize = sizeof(PyXattrPacket),
-    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
+    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC),
     .slots = PyXattrPacket_slots,
 };
 PyType_Spec PyRestoreObject::spec = {
     .name = "bareosfd.RestoreObject",
     .basicsize = sizeof(PyRestoreObject),
-    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
+    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC),
     .slots = PyRestoreObject_slots,
 };
 #pragma GCC diagnostic pop
