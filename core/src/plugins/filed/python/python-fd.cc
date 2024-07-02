@@ -1098,6 +1098,8 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
   PyEval_InitThreads();
 #endif
 
+  Py_DECREF(bareosfdModule);
+
   mainThreadState = PyEval_SaveThread();
   return bRC_OK;
 }
