@@ -859,7 +859,7 @@ static int load_module(PyObject* module)
 
 static int bareosfd_traverse(PyObject* module, visitproc visit, void* arg)
 {
-  auto visit_once = [visit, arg](PyTypeObject* obj) -> bool {
+  auto visit_once = [visit, arg](PyTypeObject*& obj) -> bool {
     if ([&]() {
           Py_VISIT(obj);
           return 0;
@@ -870,6 +870,7 @@ static int bareosfd_traverse(PyObject* module, visitproc visit, void* arg)
     return true;
   };
 
+  Py_VISIT(Py_TYPE(module));
   auto* state = fd_module_state::get(module);
   if (!map_types(visit_once, state->types)) { return -1; }
 
