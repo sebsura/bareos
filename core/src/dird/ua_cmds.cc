@@ -552,10 +552,10 @@ static struct ua_cmdstruct commands[] = {
 
 #define comsize ((int)(sizeof(commands) / sizeof(struct ua_cmdstruct)))
 
-bool UaContext::execute(ua_cmdstruct* cmd)
+bool UaContext::execute(ua_cmdstruct* cmdstruct)
 {
-  SetCommandDefinition(cmd);
-  return (cmd->func)(this, this->cmd);
+  SetCommandDefinition(cmdstruct);
+  return (cmdstruct->func)(this, cmd);
 }
 
 // Execute a command from the UA
@@ -809,7 +809,7 @@ static inline bool CancelJobs(UaContext* ua, const char*)
   if (!selection) { return true; }
 
   // Loop over the different JobIds selected.
-  foreach_alist (JobId, selection) {
+  for (auto* JobId : selection) {
     if (!(jcr = get_jcr_by_id(*JobId))) { continue; }
 
     CancelJob(ua, jcr);
@@ -976,7 +976,7 @@ static bool SetbwlimitCmd(UaContext* ua, const char*)
     if (!selection) { return true; }
 
     // Loop over the different JobIds selected.
-    foreach_alist (JobId, selection) {
+    for (auto* JobId : selection) {
       if (!(jcr = get_jcr_by_id(*JobId))) { continue; }
 
       jcr->max_bandwidth = limit;
@@ -1992,7 +1992,6 @@ StorageResource* UaContext::GetStoreResWithId(DBId_t id,
 static bool TruncateCmd(UaContext* ua, const char*)
 {
   bool result = false;
-  int i = -1;
   int parsed_args = 1; /* start at 1, as command itself is also counted */
   char esc[MAX_NAME_LENGTH * 2 + 1];
   PoolMem tmp(PM_MESSAGE);
@@ -2015,12 +2014,10 @@ static bool TruncateCmd(UaContext* ua, const char*)
   }
 
   /* arg: volstatus=Purged */
-  i = FindArgWithValue(ua, "volstatus");
-  if (i < 0) {
+  if (int i = FindArgWithValue(ua, "volstatus"); i < 0) {
     ua->SendCmdUsage(T_("required parameter 'volstatus' missing"));
     return false;
-  }
-  if (!(Bstrcasecmp(ua->argv[i], "Purged"))) {
+  } else if (!(Bstrcasecmp(ua->argv[i], "Purged"))) {
     ua->SendCmdUsage(T_("Invalid parameter. 'volstatus' must be 'Purged'."));
     return false;
   }
@@ -2040,8 +2037,8 @@ static bool TruncateCmd(UaContext* ua, const char*)
   /* storage parameter is only required
    * if ACL forbids access to all storages.
    * Otherwise the user should not be asked for this parameter. */
-  i = FindArgWithValue(ua, "storage");
-  if ((i >= 0) || ua->AclHasRestrictions(Storage_ACL)) {
+  if (int i = FindArgWithValue(ua, "storage");
+      (i >= 0) || ua->AclHasRestrictions(Storage_ACL)) {
     if (!SelectStorageDbr(ua, &storage_dbr, "storage")) { goto bail_out; }
     mr.StorageId = storage_dbr.StorageId;
     parsed_args++;
@@ -2050,8 +2047,8 @@ static bool TruncateCmd(UaContext* ua, const char*)
   /* pool parameter is only required
    * if ACL forbids access to all pools.
    * Otherwise the user should not be asked for this parameter. */
-  i = FindArgWithValue(ua, "pool");
-  if ((i >= 0) || ua->AclHasRestrictions(Pool_ACL)) {
+  if (int i = FindArgWithValue(ua, "pool");
+      (i >= 0) || ua->AclHasRestrictions(Pool_ACL)) {
     if (!SelectPoolDbr(ua, &pool_dbr, "pool")) { goto bail_out; }
     mr.PoolId = pool_dbr.PoolId;
     if (i >= 0) { parsed_args++; }
@@ -2061,8 +2058,7 @@ static bool TruncateCmd(UaContext* ua, const char*)
    * Currently only support one volume parameter
    * (multiple volume parameter have been intended before,
    * but this causes problems with parsing and ACL handling). */
-  i = FindArgWithValue(ua, "volume");
-  if (i >= 0) {
+  if (int i = FindArgWithValue(ua, "volume"); i >= 0) {
     if (IsNameValid(ua->argv[i])) {
       ua->db->EscapeString(ua->jcr, esc, ua->argv[i], strlen(ua->argv[i]));
       if (!*volumes.c_str()) {
@@ -2075,8 +2071,7 @@ static bool TruncateCmd(UaContext* ua, const char*)
     }
   }
 
-  i = FindArgWithValue(ua, "drive");
-  if (i >= 0) {
+  if (int i = FindArgWithValue(ua, "drive"); i >= 0) {
     if (!IsAnInteger(ua->argv[i])) {
       ua->SendCmdUsage(T_("Drive number must be integer but was : %s\n"),
                        ua->argv[i]);
@@ -2634,7 +2629,6 @@ static int StatusHandler(void* ctx, int, char** row)
 // Wait until no job is running
 static bool wait_cmd(UaContext* ua, const char*)
 {
-  int i;
   JobControlRecord* jcr;
   int status;
   char ed1[50];
@@ -2662,8 +2656,7 @@ static bool wait_cmd(UaContext* ua, const char*)
     return true;
   }
 
-  i = FindArgWithValue(ua, NT_("timeout"));
-  if (i > 0 && ua->argv[i]) {
+  if (int i = FindArgWithValue(ua, NT_("timeout")); i > 0 && ua->argv[i]) {
     stop_time = time(NULL) + str_to_int64(ua->argv[i]);
   }
 

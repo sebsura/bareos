@@ -242,22 +242,22 @@ static void ParseConfigCb(LEX* lc,
   }
 }
 
-static void ConfigBeforeCallback(ConfigurationParser& my_config)
+static void ConfigBeforeCallback(ConfigurationParser& t_config)
 {
   std::map<int, std::string> map{{R_DIRECTOR, "R_DIRECTOR"},
                                  {R_CLIENT, "R_CLIENT"},
                                  {R_STORAGE, "R_STORAGE"},
                                  {R_MSGS, "R_MSGS"},
                                  {R_JOB, "R_JOB"}};
-  my_config.InitializeQualifiedResourceNameTypeConverter(map);
+  t_config.InitializeQualifiedResourceNameTypeConverter(map);
 }
 
 static void ConfigReadyCallback(ConfigurationParser&) {}
 
-ConfigurationParser* InitFdConfig(const char* configfile, int exit_code)
+ConfigurationParser* InitFdConfig(const char* t_configfile, int exit_code)
 {
   ConfigurationParser* config = new ConfigurationParser(
-      configfile, nullptr, nullptr, InitResourceCb, ParseConfigCb, nullptr,
+      t_configfile, nullptr, nullptr, InitResourceCb, ParseConfigCb, nullptr,
       exit_code, R_NUM, resources, default_config_filename.c_str(),
       "bareos-fd.d", ConfigBeforeCallback, ConfigReadyCallback, SaveResource,
       DumpResource, FreeResource);
@@ -269,8 +269,6 @@ ConfigurationParser* InitFdConfig(const char* configfile, int exit_code)
 #ifdef HAVE_JANSSON
 bool PrintConfigSchemaJson(PoolMem& buffer)
 {
-  ResourceTable* resources = my_config->resource_definitions_;
-
   json_t* json = json_object();
   json_object_set_new(json, "format-version", json_integer(2));
   json_object_set_new(json, "component", json_string("bareos-fd"));
@@ -282,9 +280,10 @@ bool PrintConfigSchemaJson(PoolMem& buffer)
   json_t* bareos_fd = json_object();
   json_object_set_new(resource, "bareos-fd", bareos_fd);
 
-  for (int r = 0; resources[r].name; r++) {
-    ResourceTable resource = my_config->resource_definitions_[r];
-    json_object_set_new(bareos_fd, resource.name, json_items(resource.items));
+  for (int r = 0; my_config->resource_definitions_[r].name; r++) {
+    ResourceTable resource_table = my_config->resource_definitions_[r];
+    json_object_set_new(bareos_fd, resource_table.name,
+                        json_items(resource_table.items));
   }
 
   char* const json_str = json_dumps(json, JSON_INDENT(2));
@@ -383,14 +382,12 @@ static void FreeResource(BareosResource* res, int type)
       if (p->pki_keypair) { CryptoKeypairFree(p->pki_keypair); }
       if (p->pki_signing_key_files) { delete p->pki_signing_key_files; }
       if (p->pki_signers) {
-        foreach_alist (keypair, p->pki_signers) { CryptoKeypairFree(keypair); }
+        for (auto* keypair : p->pki_signers) { CryptoKeypairFree(keypair); }
         delete p->pki_signers;
       }
       if (p->pki_master_key_files) { delete p->pki_master_key_files; }
       if (p->pki_recipients) {
-        foreach_alist (keypair, p->pki_recipients) {
-          CryptoKeypairFree(keypair);
-        }
+        for (auto* keypair : p->pki_recipients) { CryptoKeypairFree(keypair); }
         delete p->pki_recipients;
       }
       if (p->verid) { free(p->verid); }

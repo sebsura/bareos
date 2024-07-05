@@ -26,7 +26,9 @@
  * Kern Sibbald, October 2007
  */
 
-#include <unistd.h>
+#if !defined(HAVE_MSVC)
+#  include <unistd.h>
+#endif
 #include "include/bareos.h"
 #include "lib/alist.h"
 #include "lib/berrno.h"
@@ -216,7 +218,7 @@ bool LoadPlugins(void* bareos_plugin_interface_version,
   if (plugin_names && plugin_names->size()) {
     PoolMem plugin_name(PM_FNAME);
 
-    for (const char* name : *plugin_names) {
+    for (const char* name : plugin_names) {
       // Generate the plugin name e.g. <name>-<daemon>.so
       Mmsg(plugin_name, "%s%s", name, type);
 
@@ -414,11 +416,11 @@ void DumpPlugins(alist<Plugin*>* plugin_list, FILE* fp)
   fprintf(fp, "Attempt to dump plugins. Hook count=%d\n",
           dbg_plugin_hook_count);
 
-  if (!plugin_list) { return; }
-  for (auto* plugin : *plugin_list) {
-    fprintf(fp, "Plugin %p name=\"%s\"\n", plugin, plugin->file);
+  for (auto* plugin : plugin_list) {
+    for (int i = 0; i < dbg_plugin_hook_count; i++) {
+      fprintf(fp, "Plugin %p name=\"%s\"\n", plugin, plugin->file);
+    }
   }
-}
 }
 
 /*

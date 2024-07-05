@@ -25,7 +25,9 @@
  * Marco van Wieringen, February 2015
  */
 
-#include <unistd.h>
+#if !defined(HAVE_MSVC)
+#  include <unistd.h>
+#endif
 
 #include "include/fcntl_def.h"
 #include "include/bareos.h"
@@ -179,7 +181,7 @@ void ChunkedDevice::StopThreads()
 
   // Wait for all threads to exit.
   if (thread_ids_) {
-    foreach_alist (handle, thread_ids_) {
+    for (auto* handle : thread_ids_) {
       switch (handle->type) {
         case WAIT_CANCEL_THREAD:
           Dmsg1(100, "Canceling thread with threadid=%s\n",
@@ -205,7 +207,6 @@ void ChunkedDevice::StopThreads()
 // Set the inflight flag for a chunk.
 bool ChunkedDevice::SetInflightChunk(chunk_io_request* request)
 {
-  int fd;
   PoolMem inflight_file(PM_FNAME);
 
   Mmsg(inflight_file, "%s/%s@%04d", me->working_directory, request->volname,
@@ -215,12 +216,13 @@ bool ChunkedDevice::SetInflightChunk(chunk_io_request* request)
   Dmsg3(100, "Creating inflight file %s for volume %s, chunk %d\n",
         inflight_file.c_str(), request->volname, request->chunk);
 
-  fd = ::open(inflight_file.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0640);
-  if (fd >= 0) {
+  int inflight_fd
+      = ::open(inflight_file.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0640);
+  if (inflight_fd >= 0) {
     lock_mutex(mutex);
     inflight_chunks_++;
     unlock_mutex(mutex);
-    ::close(fd);
+    ::close(inflight_fd);
   } else {
     return false;
   }

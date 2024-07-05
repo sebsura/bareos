@@ -68,9 +68,10 @@
 #include "lib/thread_specific_data.h"
 #include "lib/tree.h"
 #include "lib/util.h"
+#include "lib/version.h"
 #include "lib/watchdog.h"
 #include "include/protocol_types.h"
-#include "include/allow_deprecated.h"
+#include "include/compiler_macro.h"
 
 namespace directordaemon {
 
@@ -435,6 +436,9 @@ static void* job_thread(void* arg)
   // Let the statistics subsystem know a new Job was started.
   stats_job_started();
 
+  Jmsg(jcr, M_INFO, 0, T_("Version: %s (%s) %s\n"), kBareosVersionStrings.Full,
+       kBareosVersionStrings.Date, kBareosVersionStrings.GetOsInfo());
+
   if (jcr->dir_impl->res.job->MaxStartDelay != 0
       && jcr->dir_impl->res.job->MaxStartDelay
              < (utime_t)(jcr->start_time - jcr->sched_time)) {
@@ -638,23 +642,14 @@ static void* job_thread(void* arg)
   return NULL;
 }
 
-void SdMsgThreadSendSignal(JobControlRecord* jcr,
-                           int sig,
-                           const std::unique_lock<std::mutex>& lock)
+void SdMsgThreadSendSignal(JobControlRecord* jcr, int sig)
 {
-  ASSERT(lock);
-  ASSERT(lock.mutex() == &jcr->mutex_guard());
+  std::unique_lock l(jcr->mutex_guard());
   if (!jcr->dir_impl->sd_msg_thread_done && jcr->dir_impl->SD_msg_chan_started
       && !pthread_equal(jcr->dir_impl->SD_msg_chan, pthread_self())) {
     Dmsg1(800, "Send kill to SD msg chan jid=%d\n", jcr->JobId);
     pthread_kill(jcr->dir_impl->SD_msg_chan, sig);
   }
-}
-
-void SdMsgThreadSendSignal(JobControlRecord* jcr, int sig)
-{
-  std::unique_lock l(jcr->mutex_guard());
-  SdMsgThreadSendSignal(jcr, sig, l);
 }
 
 /**
@@ -1342,7 +1337,9 @@ bool GetOrCreateFilesetRecord(JobControlRecord* jcr)
     MD5_CTX md5c;
     unsigned char digest[16]; /* MD5 digest length */
     memcpy(&md5c, &jcr->dir_impl->res.fileset->md5c, sizeof(md5c));
-    ALLOW_DEPRECATED(MD5_Final(digest, &md5c));
+    IGNORE_DEPRECATED_ON;
+    MD5_Final(digest, &md5c);
+    IGNORE_DEPRECATED_OFF;
     /* Keep the flag (last arg) set to false otherwise old FileSets will
      * get new MD5 sums and the user will get Full backups on everything */
     BinToBase64(fsr.MD5, sizeof(fsr.MD5), (char*)digest, sizeof(digest), false);
@@ -1747,7 +1744,7 @@ void CreateClones(JobControlRecord* jcr)
 
     UaContext* ua = new_ua_context(jcr);
     ua->batch = true;
-    foreach_alist (runcmd, job->run_cmds) {
+    for (auto* runcmd : job->run_cmds) {
       cmd = edit_job_codes(jcr, cmd, runcmd, "", job_code_callback_director);
       Mmsg(ua->cmd, "run %s cloned=yes", cmd);
       Dmsg1(900, "=============== Clone cmd=%s\n", ua->cmd);

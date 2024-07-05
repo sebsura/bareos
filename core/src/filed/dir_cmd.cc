@@ -264,7 +264,7 @@ static bool ValidateCommand(JobControlRecord* jcr,
   // If there is no explicit list of allowed cmds allow all cmds.
   if (!allowed_job_cmds) { return true; }
 
-  foreach_alist (allowed_job_cmd, allowed_job_cmds) {
+  for (auto* allowed_job_cmd : allowed_job_cmds) {
     if (Bstrcasecmp(cmd, allowed_job_cmd)) {
       allowed = true;
       break;
@@ -2022,11 +2022,11 @@ static bool VerifyCmd(JobControlRecord* jcr)
     case L_VERIFY_CATALOG:
       DoVerify(jcr);
       break;
-    case L_VERIFY_VOLUME_TO_CATALOG:
+    case L_VERIFY_VOLUME_TO_CATALOG: {
       if (!OpenSdReadSession(jcr)) { return false; }
-      StartDirHeartbeat(jcr);
+      auto send_hb = MakeDirHeartbeat(jcr);
       DoVerifyVolume(jcr);
-      StopDirHeartbeat(jcr);
+      send_hb.reset();
       // Send Close session command to Storage daemon
       sd->fsend(read_close, jcr->fd_impl->Ticket);
       Dmsg1(130, "filed>stored: %s", sd->msg);
@@ -2036,8 +2036,7 @@ static bool VerifyCmd(JobControlRecord* jcr)
 
       /* Inform Storage daemon that we are done */
       sd->signal(BNET_TERMINATE);
-
-      break;
+    } break;
     case L_VERIFY_DISK_TO_CATALOG:
       DoVerify(jcr);
       break;
@@ -2204,32 +2203,35 @@ static bool RestoreCmd(JobControlRecord* jcr)
   jcr->setJobStatusWithPriorityCheck(JS_Running);
 
   // Do restore of files and data
-  StartDirHeartbeat(jcr);
-  GeneratePluginEvent(jcr, bEventStartRestoreJob);
+  {
+    auto hb_send = MakeDirHeartbeat(jcr);
+
+    GeneratePluginEvent(jcr, bEventStartRestoreJob);
 
 #if defined(WIN32_VSS)
-  // START VSS ON WIN32
-  if (jcr->fd_impl->pVSSClient) {
-    if (!jcr->fd_impl->pVSSClient->InitializeForRestore(jcr)) {
-      BErrNo be;
-      Jmsg(jcr, M_WARNING, 0,
-           T_("VSS was not initialized properly. VSS support is disabled. "
-              "ERR=%s\n"),
-           be.bstrerror());
+    // START VSS ON WIN32
+    if (jcr->fd_impl->pVSSClient) {
+      if (!jcr->fd_impl->pVSSClient->InitializeForRestore(jcr)) {
+        BErrNo be;
+        Jmsg(jcr, M_WARNING, 0,
+             T_("VSS was not initialized properly. VSS support is disabled. "
+                "ERR=%s\n"),
+             be.bstrerror());
+      }
+
+      GeneratePluginEvent(jcr, bEventVssRestoreLoadComponentMetadata);
+
+      RunScripts(jcr, jcr->fd_impl->RunScripts, "ClientAfterVSS",
+                 (jcr->fd_impl->director
+                  && jcr->fd_impl->director->allowed_script_dirs)
+                     ? jcr->fd_impl->director->allowed_script_dirs
+                     : me->allowed_script_dirs);
     }
-
-    GeneratePluginEvent(jcr, bEventVssRestoreLoadComponentMetadata);
-
-    RunScripts(
-        jcr, jcr->fd_impl->RunScripts, "ClientAfterVSS",
-        (jcr->fd_impl->director && jcr->fd_impl->director->allowed_script_dirs)
-            ? jcr->fd_impl->director->allowed_script_dirs
-            : me->allowed_script_dirs);
-  }
 #endif
 
-  DoRestore(jcr);
-  StopDirHeartbeat(jcr);
+    DoRestore(jcr);
+    hb_send.reset();
+  }
 
   if (jcr->JobWarnings) {
     jcr->setJobStatusWithPriorityCheck(JS_Warnings);

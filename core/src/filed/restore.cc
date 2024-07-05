@@ -51,6 +51,7 @@
 #include "lib/base64.h"
 #include "lib/serial.h"
 #include "lib/compression.h"
+#include "lib/version.h"
 
 #ifdef HAVE_WIN32
 #  include "win32/findlib/win32.h"
@@ -183,7 +184,7 @@ static inline void DropDelayedDataStreams(r_ctx& rctx, bool reuse)
 {
   if (!rctx.delayed_streams || rctx.delayed_streams->empty()) { return; }
 
-  foreach_alist (dds, rctx.delayed_streams) { free(dds->content); }
+  for (auto* dds : rctx.delayed_streams) { free(dds->content); }
 
   rctx.delayed_streams->destroy();
   if (reuse) { rctx.delayed_streams->init(10, owned_by_alist); }
@@ -312,7 +313,7 @@ static inline bool PopDelayedDataStreams(JobControlRecord* jcr, r_ctx& rctx)
    * processing for the following type of streams:
    * - *_ACL_*
    * - *_XATTR_* */
-  foreach_alist (dds, rctx.delayed_streams) {
+  for (auto* dds : rctx.delayed_streams) {
     switch (dds->stream) {
       case STREAM_UNIX_ACCESS_ACL:
       case STREAM_UNIX_DEFAULT_ACL:
@@ -387,9 +388,13 @@ bail_out:
 // Restore the requested files.
 void DoRestore(JobControlRecord* jcr)
 {
+  Jmsg(jcr, M_INFO, 0, T_("Version: %s (%s) %s\n"), kBareosVersionStrings.Full,
+       kBareosVersionStrings.Date, kBareosVersionStrings.GetOsInfo());
+
   BareosSocket* sd;
   uint32_t VolSessionId, VolSessionTime;
   int32_t file_index;
+  int32_t prev_file_index = 0;
   char ec1[50];      /* Buffer printing huge values */
   uint32_t buf_size; /* client buffer size */
   int status;
@@ -524,6 +529,18 @@ void DoRestore(JobControlRecord* jcr)
       rctx.fork_size = -1;
       rctx.fork_addr = 0;
     }
+
+    // these are all the streams that begin a new object
+    if (rctx.stream != STREAM_UNIX_ATTRIBUTES
+        && rctx.stream != STREAM_UNIX_ATTRIBUTES_EX
+        && rctx.stream != STREAM_PLUGIN_NAME && prev_file_index != file_index) {
+      Jmsg(jcr, M_FATAL, 0,
+           "Expected to write data to stream %d of file %d,"
+           " but this file was never created. Current file is: %d.\n",
+           rctx.stream, file_index, prev_file_index);
+      goto bail_out;
+    }
+    prev_file_index = file_index;
 
     // File Attributes stream
     switch (rctx.stream) {
@@ -825,6 +842,7 @@ void DoRestore(JobControlRecord* jcr)
 
           if (rctx.extract) {
             if (rctx.prev_stream != rctx.stream) {
+#if HAVE_DARWIN_OS
               if (BopenRsrc(&rctx.forkbfd, jcr->fd_impl->last_fname,
                             O_WRONLY | O_TRUNC | O_BINARY, 0)
                   < 0) {
@@ -837,6 +855,7 @@ void DoRestore(JobControlRecord* jcr)
 
               rctx.fork_size = rsrc_len;
               Dmsg0(130, "Restoring resource fork\n");
+#endif
             }
 
             if (ExtractData(jcr, &rctx.forkbfd, sd->msg, sd->message_length,
