@@ -2847,8 +2847,8 @@ static int PyRestoreObject_init(PyRestoreObject* self,
 static void PyRestoreObject_dealloc(PyRestoreObject* self)
 {
   PyObject_GC_UnTrack(self);
-  if (self->object_name) { Py_XDECREF(self->object_name); }
-  if (self->object) { Py_XDECREF(self->object); }
+  Py_XDECREF(self->object_name);
+  Py_XDECREF(self->object);
   PyTypeObject* type = Py_TYPE(self);
   type->tp_free(self);
   Py_DECREF(type);
@@ -3012,12 +3012,12 @@ static int PySavePacket_init(PySavePacket* self, PyObject* args, PyObject* kwds)
 static void PySavePacket_dealloc(PySavePacket* self)
 {
   PyObject_GC_UnTrack(self);
-  if (self->fname) { Py_XDECREF(self->fname); }
-  if (self->link) { Py_XDECREF(self->link); }
-  if (self->flags) { Py_XDECREF(self->flags); }
-  if (self->object_name) { Py_XDECREF(self->object_name); }
-  if (self->object) { Py_XDECREF(self->object); }
-  if (self->statp) { Py_XDECREF(self->statp); }
+  Py_XDECREF(self->fname);
+  Py_XDECREF(self->link);
+  Py_XDECREF(self->flags);
+  Py_XDECREF(self->object_name);
+  Py_XDECREF(self->object);
+  Py_XDECREF(self->statp);
   PyTypeObject* type = Py_TYPE(self);
   type->tp_free(self);
   Py_DECREF(type);
@@ -3091,6 +3091,7 @@ static int PyRestorePacket_init(PyRestorePacket* self,
 static void PyRestorePacket_dealloc(PyRestorePacket* self)
 {
   PyObject_GC_UnTrack(self);
+  Py_XDECREF(self->statp);
   PyTypeObject* type = Py_TYPE(self);
   type->tp_free(self);
   Py_DECREF(type);
@@ -3157,7 +3158,7 @@ static int PyIoPacket_init(PyIoPacket* self, PyObject* args, PyObject* kwds)
 static void PyIoPacket_dealloc(PyIoPacket* self)
 {
   PyObject_GC_UnTrack(self);
-  if (self->buf) { Py_XDECREF(self->buf); }
+  Py_XDECREF(self->buf);
   PyTypeObject* type = Py_TYPE(self);
   type->tp_free(self);
   Py_DECREF(type);

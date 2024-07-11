@@ -330,7 +330,8 @@ bRC freePlugin(PluginContext* plugin_ctx)
   auto* ts = PopThreadStateForInterp(plugin_priv_ctx->interp);
   PyEval_AcquireThread(ts);
 
-  if (plugin_priv_ctx->pModule) { Py_DECREF(plugin_priv_ctx->pModule); }
+  Py_XDECREF(plugin_priv_ctx->pModule);
+  Py_XDECREF(plugin_priv_ctx->bareos_fd_module);
 
   Py_EndInterpreter(ts);
   if (PyVersion() < VERSION_HEX(3, 12, 0)) {
