@@ -72,7 +72,23 @@ bool Plugin_AddDict(PyObject* module, const char* name, PyObject* dict)
 
   if (!module_dict) { return false; }
 
-  if (PyDict_Merge(module_dict, dict, false) != 0) { return false; }
+  /* NOTE: PyDict_Merge does not work as we use byte strings as keys instead
+   * of real strings */
+
+  {
+    Py_ssize_t pos = 0;
+    PyObject* key = nullptr;
+    PyObject* value = nullptr;
+
+    while (PyDict_Next(dict, &pos, &key, &value)) {
+      if (!PyUnicode_Check(key)) {
+        // cannot add bytes keys to module_dict
+        continue;
+      }
+
+      if (PyDict_SetItem(module_dict, key, value) != 0) { return false; }
+    }
+  }
   if (PyDict_SetItemString(module_dict, name, dict) != 0) { return false; }
   Py_DECREF(dict);
 

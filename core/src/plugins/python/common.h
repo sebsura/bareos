@@ -46,10 +46,17 @@ bool AddDictValue(PyObject* dict, const char* str, const T& val)
 
   if (!obj) { return false; }
 
-  auto res = PyDict_SetItemString(dict, str, obj);
-  Py_DECREF(obj);
+  auto* bytes = PyBytes_FromString(str);
+  if (!bytes) {
+    Py_DECREF(obj);
+    return false;
+  }
 
-  return res == 0;
+  auto res1 = PyDict_SetItemString(dict, str, obj);
+  auto res2 = PyDict_SetItem(dict, bytes, obj);
+  Py_DECREF(bytes);
+
+  return res1 == 0 && res2 == 0;
 }
 
 PyObject* bRC_dict();
