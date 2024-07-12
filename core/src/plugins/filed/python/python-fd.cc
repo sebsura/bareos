@@ -56,8 +56,16 @@ void SetupPathsFromEnv()
 {
   PyObject* sysPath = PySys_GetObject((char*)"path");
   constexpr const char* plugin_dir = PLUGIN_DIR;
-  PyObject* pluginPath = PyUnicode_FromString(plugin_dir);
-  PyList_Append(sysPath, pluginPath);
+  {
+    PyObject* pluginPath = PyUnicode_FromString(plugin_dir);
+    PyList_Append(sysPath, pluginPath);
+    Py_DECREF(pluginPath);
+  }
+  {
+    PyObject* searchPath = PyUnicode_FromString(PYTHON_MODULE_PATH);
+    PyList_Insert(sysPath, 0, searchPath);
+    Py_DECREF(searchPath);
+  }
 
   const char* pp = getenv("PYTHONPATH");
   if (pp) {
@@ -81,8 +89,6 @@ void SetupPathsFromEnv()
       paths_from_env = paths_from_env.substr(pos + 1);
     }
   }
-
-  Py_DECREF(pluginPath);
 }
 
 std::wstring python_executable;
