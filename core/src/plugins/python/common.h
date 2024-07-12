@@ -74,4 +74,14 @@ bool Plugin_AddDict(PyObject* module, const char* name, PyObject* dict);
 
 #define PYTHON_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
 
+struct common_private_context {
+  bool python_loaded;               // Plugin has python module loaded?
+  bool python_default_path_is_set;  // Python plugin default search path is set?
+  bool python_path_is_set;          // Python plugin search path is set?
+  char* module_path;                // Plugin Module Path
+  char* module_name;                // Plugin Module Name
+  PyObject* pModule;                // Python Module entry point
+  PyObject* pyModuleFunctionsDict;  // Python Dictionary
+};
+
 #endif  // BAREOS_PLUGINS_PYTHON_COMMON_H_

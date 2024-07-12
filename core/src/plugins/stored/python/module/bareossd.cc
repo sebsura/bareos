@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -96,8 +96,8 @@ static bRC set_plugin_context(PluginContext* new_plugin_context)
 static bRC PyParsePluginDefinition(PluginContext* plugin_ctx, void* value)
 {
   bRC retval = bRC_Error;
-  struct plugin_private_context* plugin_priv_ctx
-      = (struct plugin_private_context*)plugin_ctx->plugin_private_context;
+  auto* plugin_priv_ctx = static_cast<plugin_private_context*>(
+      plugin_ctx->plugin_private_context);
   PyObject* pFunc;
 
   // Lookup the parse_plugin_definition() function in the python module.

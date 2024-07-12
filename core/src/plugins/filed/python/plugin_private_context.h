@@ -22,24 +22,20 @@
 #ifndef BAREOS_PLUGINS_FILED_PYTHON_PLUGIN_PRIVATE_CONTEXT_H_
 #define BAREOS_PLUGINS_FILED_PYTHON_PLUGIN_PRIVATE_CONTEXT_H_
 
-struct plugin_private_context {
+
+#include "plugins/python/common.h"
+
+// Plugin private context
+struct plugin_private_context : public common_private_context {
   int32_t backup_level;  // Backup level e.g. Full/Differential/Incremental
   utime_t since;         // Since time for Differential/Incremental
-  bool python_loaded;    // Plugin has python module loaded?
-  bool python_default_path_is_set;  // Python plugin default search path is set?
-  bool python_path_is_set;          // Python plugin search path is set?
-  char* plugin_options;             // Plugin Option string
-  char* module_path;                // Plugin Module Path
-  char* module_name;                // Plugin Module Name
-  char* fname;                      // Next filename to save
-  char* link;                       // Target symlink points to
-  char* object_name;                // Restore Object Name
-  char* object;                     // Restore Object Content
-  PyInterpreterState*
-      interp;         // Python interpreter for this instance of the plugin
-  PyObject* pModule;  // Python Module entry point
-  PyObject* pyModuleFunctionsDict;  // Python Dictionary
-  PyObject* bareos_fd_module;       // interpreter local "bareosfd" module
+  char* plugin_options;  // Plugin Option string
+  char* fname;           // Next filename to save
+  char* link;            // Target symlink points to
+  char* object_name;     // Restore Object Name
+  char* object;          // Restore Object Content
+  PyObject* bareos_fd_module;  // interpreter local "bareosfd" module
+  PyInterpreterState* interp;  // python interpreter
 };
 
 

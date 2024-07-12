@@ -29,8 +29,7 @@
 static bRC PyLoadModule(PluginContext* plugin_ctx, void* value)
 {
   bRC retval = bRC_Error;
-  struct plugin_private_context* plugin_priv_ctx
-      = (struct plugin_private_context*)plugin_ctx->plugin_private_context;
+  auto* plugin_priv_ctx = static_cast<plugin_private_context*>(plugin_ctx->plugin_private_context);
   PyObject *sysPath, *mPath, *pName, *pFunc;
 
   /* See if we already setup the python search path.  */
