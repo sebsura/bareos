@@ -35,15 +35,15 @@
 #define L_INCREMENTAL 'I'  /* since last backup */
 #define L_DIFFERENTIAL 'D' /* since last full backup */
 
-#define Dmsg(context, level, ...)                                             \
-  if (bareos_core_functions && context) {                                     \
-    bareos_core_functions->DebugMessage(context, __FILE__, __LINE__, level,   \
-                                        __VA_ARGS__);                         \
-  } else {                                                                    \
-    fprintf(stderr,                                                           \
-            "Dmsg: bareos_core_functions(%p) and context(%p) need to be set " \
-            "before Dmsg call\n",                                             \
-            bareos_core_functions, context);                                  \
+#define Dmsg(context, level, ...)                                           \
+  if (bareos_core_functions) {                                              \
+    bareos_core_functions->DebugMessage(context, __FILE__, __LINE__, level, \
+                                        __VA_ARGS__);                       \
+  } else {                                                                  \
+    fprintf(stderr,                                                         \
+            "Dmsg: bareos_core_functions(%p) need to be set "               \
+            "before Dmsg call\n",                                           \
+            bareos_core_functions);                                         \
   }
 
 #define Jmsg(context, type, ...)                                            \

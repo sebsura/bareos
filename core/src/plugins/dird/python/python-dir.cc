@@ -189,7 +189,7 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
   PyObject* bareosdirModule = PyImport_ImportModule("bareosdir");
   if (!bareosdirModule) {
     printf("loading of bareosdir extension module failed\n");
-    if (PyErr_Occurred()) { PyErrorHandler(); }
+    if (PyErr_Occurred()) { PyErrorHandler(nullptr, M_FATAL); }
   }
 
   /* import the CAPI from the bareosdir python module

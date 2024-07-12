@@ -188,7 +188,7 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
   PyObject* bareossdModule = PyImport_ImportModule("bareossd");
   if (!bareossdModule) {
     printf("loading of bareossd extension module failed\n");
-    if (PyErr_Occurred()) { PyErrorHandler(); }
+    if (PyErr_Occurred()) { PyErrorHandler(nullptr, M_FATAL); }
   }
 
   /* import the CAPI from the bareossd python module

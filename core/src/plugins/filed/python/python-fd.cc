@@ -278,7 +278,7 @@ bRC newPlugin(PluginContext* plugin_ctx)
   PyObject* bareosfdModule = PyImport_ImportModule("bareosfd");
   if (!bareosfdModule) {
     Jmsg(plugin_ctx, M_ERROR, "loading of bareosfd extension module failed\n");
-    if (PyErr_Occurred()) { PyErrorHandler(); }
+    if (PyErr_Occurred()) { PyErrorHandler(nullptr, M_FATAL); }
   }
 
   plugin_priv_ctx->bareos_fd_module = bareosfdModule;
@@ -1076,7 +1076,7 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
   PyObject* bareosfdModule = PyImport_ImportModule("bareosfd");
   if (!bareosfdModule) {
     printf("loading of bareosfd extension module failed\n");
-    if (PyErr_Occurred()) { PyErrorHandler(); }
+    if (PyErr_Occurred()) { PyErrorHandler(nullptr, M_FATAL); }
     return bRC_Error;
   }
 
@@ -1085,7 +1085,7 @@ bRC loadPlugin(PluginApiDefinition* lbareos_plugin_interface_version,
   capi = import_bareosfd();
   if (!capi) {
     printf("loading of bareosfd extension module failed\n");
-    if (PyErr_Occurred()) { PyErrorHandler(); }
+    if (PyErr_Occurred()) { PyErrorHandler(nullptr, M_FATAL); }
     return bRC_Error;
   }
 
