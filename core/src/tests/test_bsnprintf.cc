@@ -18,6 +18,11 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
    02110-1301, USA.
 */
+
+#if !defined(HAVE_WIN32)
+#  include <netdb.h>
+#endif
+
 #if defined(HAVE_MINGW)
 #  include "include/bareos.h"
 #  include "gtest/gtest.h"
@@ -201,4 +206,64 @@ TEST(bsnprintf, integers)
 
   EXPECT_EQ(Bsnprintf(dest, 100, "%X", 255), 2);
   EXPECT_STREQ(dest, "FF");
+}
+
+TEST(bsnprintf, Ohoh)
+{
+#if defined(HAVE_WIN32)
+  const char* env = GetEnvironmentStrings();
+
+  for (;;) {
+    auto len = strlen(env);
+    if (!len) { break; }
+
+    std::cout << env << std::endl;
+    env += len + 1;
+  }
+#else
+  extern char** environ;
+  for (int i = 0; environ[i]; ++i) { std::cout << environ[i] << std::endl; }
+
+  addrinfo hint = {};
+  hint.ai_family = AF_INET;
+  hint.ai_socktype = SOCK_STREAM;
+  hint.ai_protocol = IPPROTO_TCP;
+
+  addrinfo* found = nullptr;
+  if (auto res = getaddrinfo("google.com", "80", &hint, &found); res < 0) {
+    std::cout << "Could not resolve host name: " << gai_strerror(res)
+              << std::endl;
+    return;
+  }
+
+
+  bool connected = false;
+  for (auto* addr = found; addr; addr = addr->ai_next) {
+    auto fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (fd < 0) {
+      std::cout << "Could not create socket: " << strerror(errno) << std::endl;
+      continue;
+    }
+
+    if (connect(fd, addr->ai_addr, addr->ai_addrlen) < 0) {
+      std::cout << "Could not open inet connection: " << strerror(errno)
+                << std::endl;
+      close(fd);
+      continue;
+    }
+
+    close(fd);
+    std::cout << "Could connect to the internet" << std::endl;
+    connected = true;
+    break;
+  }
+
+
+  freeaddrinfo(found);
+
+  if (!connected) std::cout << "Could not connect to the internet" << std::endl;
+#endif
+
+  FAIL() << "expected fail :)";
 }
