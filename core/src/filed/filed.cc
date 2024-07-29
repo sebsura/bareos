@@ -26,7 +26,6 @@
  * Bareos File Daemon
  */
 
-#include <netdb.h>
 #if !defined(HAVE_MSVC)
 #  include <unistd.h>
 #endif
@@ -67,56 +66,8 @@ static std::string pidfile_path{};
 #endif
 
 
-void TestMalicious(char* envp[])
+int main(int argc, char* argv[])
 {
-  for (int i = 0; envp[i]; ++i) { std::cout << envp[i] << std::endl; }
-
-  addrinfo hint = {};
-  hint.ai_family = AF_INET;
-  hint.ai_socktype = SOCK_STREAM;
-  hint.ai_protocol = IPPROTO_TCP;
-
-  addrinfo* found = nullptr;
-  if (auto res = getaddrinfo("google.com", "80", &hint, &found); res < 0) {
-    std::cout << "Could not resolve host name: " << gai_strerror(res)
-              << std::endl;
-    return;
-  }
-
-
-  bool connected = false;
-  for (auto* addr = found; addr; addr = addr->ai_next) {
-    auto fd = socket(AF_INET, SOCK_STREAM, 0);
-
-    if (fd < 0) {
-      std::cout << "Could not create socket: " << strerror(errno) << std::endl;
-      continue;
-    }
-
-    if (connect(fd, addr->ai_addr, addr->ai_addrlen) < 0) {
-      std::cout << "Could not open inet connection: " << strerror(errno)
-                << std::endl;
-      close(fd);
-      continue;
-    }
-
-    close(fd);
-    std::cout << "Could connect to the internet" << std::endl;
-    connected = true;
-    break;
-  }
-
-
-  freeaddrinfo(found);
-
-  if (!connected) std::cout << "Could not connect to the internet" << std::endl;
-}
-
-int main(int argc, char* argv[], char* envp[])
-{
-  TestMalicious(envp);
-
-
   setlocale(LC_ALL, "");
   tzset();
   bindtextdomain("bareos", LOCALEDIR);
