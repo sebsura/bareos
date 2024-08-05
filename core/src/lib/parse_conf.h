@@ -135,7 +135,7 @@ enum
   CFG_TYPE_AUDIT = 51,            /* Auditing Command List */
   CFG_TYPE_AUTHPROTOCOLTYPE = 52, /* Authentication Protocol */
   CFG_TYPE_AUTHTYPE = 53,         /* Authentication Type */
-  CFG_TYPE_DEVICE = 54,           /* Device resource */
+  // CFG_TYPE_DEVICE = 54,           /* Device resource (not used anymore) */
   CFG_TYPE_JOBTYPE = 55,          /* Type of Job */
   CFG_TYPE_PROTOCOLTYPE = 56,     /* Protocol */
   CFG_TYPE_LEVEL = 57,            /* Backup Level */

@@ -2159,7 +2159,6 @@ static DatatypeName datatype_names[] = {
     {CFG_TYPE_AUTHPROTOCOLTYPE, "AUTH_PROTOCOL_TYPE",
      "Authentication Protocol"},
     {CFG_TYPE_AUTHTYPE, "AUTH_TYPE", "Authentication Type"},
-    {CFG_TYPE_DEVICE, "DEVICE", "Device resource"},
     {CFG_TYPE_JOBTYPE, "JOB_TYPE", "Type of Job"},
     {CFG_TYPE_PROTOCOLTYPE, "PROTOCOL_TYPE", "Protocol"},
     {CFG_TYPE_LEVEL, "BACKUP_LEVEL", "Backup Level"},

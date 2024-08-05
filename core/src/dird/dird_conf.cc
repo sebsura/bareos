@@ -3260,23 +3260,11 @@ static bool HasDefaultValue(ResourceItem& item, alist<T>* values)
   return false;
 }
 
-
-static bool HasDefaultValueAlistConstChar(ResourceItem& item)
-{
-  alist<const char*>* values = GetItemVariable<alist<const char*>*>(item);
-  return HasDefaultValue(item, values);
-}
-
-
 static bool HasDefaultValue(ResourceItem& item)
 {
   bool is_default = false;
 
   switch (item.type) {
-    case CFG_TYPE_DEVICE: {
-      is_default = HasDefaultValueAlistConstChar(item);
-      break;
-    }
     case CFG_TYPE_RUNSCRIPT: {
       if (item.flags & CFG_ITEM_DEFAULT) {
         /* this should not happen */
@@ -3386,13 +3374,6 @@ static void PrintConfigCb(ResourceItem& item,
   if (!print) { return; }
 
   switch (item.type) {
-    case CFG_TYPE_DEVICE: {
-      // Each member of the list is comma-separated
-      send.KeyMultipleStringsInOneLine(
-          item.name, GetItemVariable<alist<const char*>*>(item),
-          GetResourceName, false, true);
-      break;
-    }
     case CFG_TYPE_RUNSCRIPT:
       Dmsg0(200, "CFG_TYPE_RUNSCRIPT\n");
       PrintConfigRunscript(send, item, inherited, verbose);
