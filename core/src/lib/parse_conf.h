@@ -117,7 +117,7 @@ enum
   CFG_TYPE_SIZE64 = 21,             /* 64 bits file size */
   CFG_TYPE_SIZE32 = 22,             /* 32 bits file size */
   CFG_TYPE_SPEED = 23,              /* Speed limit */
-  CFG_TYPE_DEFS = 24,               /* Definition */
+  //CFG_TYPE_DEFS = 24,               /* Definition */
   CFG_TYPE_LABEL = 25,              /* Label */
   CFG_TYPE_ADDRESSES = 26,          /* List of ip addresses */
   CFG_TYPE_ADDRESSES_ADDRESS = 27,  /* Ip address */

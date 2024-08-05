@@ -931,7 +931,6 @@ bool GetType(const ResourceItem& item, bareos_config_schema_type* type)
     case CFG_TYPE_META:
     case CFG_TYPE_RUNSCRIPT:
     case CFG_TYPE_SHRTRUNSCRIPT:
-    case CFG_TYPE_DEFS:
     case CFG_TYPE_SPEED:  // how to do units ?
     case CFG_TYPE_TIME:   // how to do units ?
     default:

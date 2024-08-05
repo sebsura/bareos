@@ -1435,9 +1435,6 @@ bool ConfigurationParser::StoreResource(int type,
     case CFG_TYPE_SPEED:
       StoreSpeed(lc, item, index, pass);
       break;
-    case CFG_TYPE_DEFS:
-      StoreDefs(lc, item, index, pass);
-      break;
     case CFG_TYPE_LABEL:
       StoreLabel(lc, item, index, pass);
       break;
@@ -2143,7 +2140,6 @@ static DatatypeName datatype_names[] = {
     {CFG_TYPE_SIZE64, "SIZE64", "64 bits file size"},
     {CFG_TYPE_SIZE32, "SIZE32", "32 bits file size"},
     {CFG_TYPE_SPEED, "SPEED", "speed"},
-    {CFG_TYPE_DEFS, "DEFS", "definition"},
     {CFG_TYPE_LABEL, "LABEL", "label"},
     {CFG_TYPE_ADDRESSES, "ADDRESSES", "ip addresses list"},
     {CFG_TYPE_ADDRESSES_ADDRESS, "ADDRESS", "ip address"},
