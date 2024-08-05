@@ -70,6 +70,7 @@ namespace directordaemon {
 /* ua_cmds.c */
 extern bool AutodisplayCmd(UaContext* ua, const char* cmd);
 extern bool ConfigureCmd(UaContext* ua, const char* cmd);
+extern bool ConfigCmd(UaContext* ua, const char* cmd);
 extern bool gui_cmd(UaContext* ua, const char* cmd);
 extern bool LabelCmd(UaContext* ua, const char* cmd);
 extern bool list_cmd(UaContext* ua, const char* cmd);
@@ -273,6 +274,8 @@ static struct ua_cmdstruct commands[] = {
      false, true},
     {NT_("configure"), ConfigureCmd, T_("Configure director resources"),
      NT_(GetUsageStringForConsoleConfigureCommand()), false, true},
+    {NT_("config"), ConfigCmd, T_("Configure director resources interactively"),
+     NT_("stuff"), false, true},
     {NT_("create"), CreateCmd, T_("Create DB Pool from resource"),
      NT_("pool=<pool-name>"), false, true},
     {NT_("delete"), DeleteCmd, T_("Delete volume, pool or job"),

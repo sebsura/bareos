@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2015-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2015-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -483,4 +483,37 @@ bool ConfigureCmd(UaContext* ua, const char*)
 
   return result;
 }
+
+bool ConfigCmd(UaContext* ua, const char*)
+{
+  bool result = false;
+
+  if (!(my_config->IsUsingConfigIncludeDir())) {
+    ua->WarningMsg(
+        T_("It seems that the configuration is not adapted to the include "
+           "directory structure. "
+           "This means, that the configure command may not work as expected. "
+           "Your configuration changes may not survive a reload/restart. "));
+  }
+
+  if (ua->argc < 3) {
+    ua->ErrorMsg(
+        T_("usage:\n"
+           "  configure add <resourcetype> <key1>=<value1> ...\n"
+           "  configure export client=<clientname>\n"));
+    return false;
+  }
+
+  if (Bstrcasecmp(ua->argk[1], NT_("add"))) {
+    result = ConfigureAdd(ua, 2);
+  } else if (Bstrcasecmp(ua->argk[1], NT_("export"))) {
+    result = ConfigureExport(ua);
+  } else {
+    ua->ErrorMsg(T_("invalid subcommand %s.\n"), ua->argk[1]);
+    return false;
+  }
+
+  return result;
+}
+
 } /* namespace directordaemon */
