@@ -94,11 +94,54 @@ std::optional<JobType> bareos_to_grpc_type(bareos_job_type type)
 }
 };  // namespace
 
+bareos_resource_type GrpcConfigTypeToBareosResourceType(
+    ::bareos::config::ConfigType type)
+{
+  switch (type) {
+    case JOB:
+      return BRT_JOB;
+    case CLIENT:
+      return BRT_CLIENT;
+    default:
+      throw grpc_error(grpc::StatusCode::INVALID_ARGUMENT,
+                       "Invalid config type");
+  }
+}
+
 class ConfigImpl final : public Config::Service {
  public:
   ConfigImpl(config_capability cc) : cap{cc} {}
 
  private:
+  Status Schema(ServerContext*,
+                const SchemaRequest* request,
+                SchemaResponse* response) override
+  {
+    try {
+      bareos_resource_type type
+          = GrpcConfigTypeToBareosResourceType(request->type());
+
+      auto process = [values = response->mutable_schema()](
+                         bareos_config_schema_entry entry) -> bool {
+        SchemaValue sv;
+        sv.set_is_required(entry.required);
+        sv.set_is_deprecated(entry.deprecated);
+        sv.set_name(entry.name);
+        if (entry.default_value) { sv.set_default_value(entry.default_value); }
+        if (entry.description) { sv.set_description(entry.description); }
+        values->Add(std::move(sv));
+        return true;
+      };
+
+      if (!cap.config_schema(type, c_callback<decltype(process)>, &process)) {
+        throw grpc_error(grpc::StatusCode::UNKNOWN, "Internal error occured");
+      }
+      return Status::OK;
+    } catch (const grpc_error& err) {
+      return err.status;
+    }
+  }
+
   Status ListClients(ServerContext*,
                      const ListClientsRequest*,
                      ListClientsResponse* response) override

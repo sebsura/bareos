@@ -30,14 +30,15 @@ message SchemaRequest {
 
 message SchemaValue {
   string type = 1;
-  optional string comment = 2;
+  string name = 5;
+  optional string description = 2;
   optional string default_value = 3;
   bool is_required = 4;
+  bool is_deprecated = 6;
 };
 
 message SchemaResponse {
-  map<string, SchemaValue> schema = 1;
-  map<string, SchemaValue> advanced = 2;
+  repeated SchemaValue schema = 1;
 };
 
 message ModifyRequest {

@@ -23,7 +23,7 @@
 #include "connection_plugin.h"
 #include "connection_plugin/plugin.h"
 #include "dird/create.h"
-#include "dird_conf.h"
+#include "dird_conf_funcs.h"
 #include "dird_globals.h"
 #include "include/filetypes.h"
 #include "include/protocol_types.h"
@@ -694,6 +694,174 @@ bool PluginMarkUnmark(restore_session_handle* handle,
   return true;
 }
 
+std::vector<std::string> resources_of_type(int type) { my_config }
+
+bool GetType(const ResourceItem& item, bareos_config_schema_type* type)
+{
+  switch (item.type) {
+      // multiple = yes
+    case CFG_TYPE_ACL:
+    case CFG_TYPE_ALIST_RES: {
+      *type = bareos_config_schema_type{
+          .base_type = BCSBT_ENUM,
+          .allow_multiple = true,
+          .enum_value_count = 0,
+          .enum_values = nullptr,
+      };
+    }
+      return true;
+
+    case CFG_TYPE_AUDIT:
+    case CFG_TYPE_ALIST_STR:
+    case CFG_TYPE_ALIST_DIR:
+    case CFG_TYPE_MSGS:
+    case CFG_TYPE_ADDRESSES:
+    case CFG_TYPE_ADDRESSES_ADDRESS:
+    case CFG_TYPE_ADDRESSES_PORT:
+    case CFG_TYPE_STR_VECTOR:
+    case CFG_TYPE_STR_VECTOR_OF_DIRS:
+    case CFG_TYPE_PLUGIN_NAMES:
+    case CFG_TYPE_OPTIONS: {
+      *type = bareos_config_schema_type{
+          .base_type = BCSBT_STRING,
+          .allow_multiple = true,
+          .enum_value_count = 0,
+          .enum_values = nullptr,
+      };
+    }
+      return true;
+
+
+      // multiple = no
+
+    case CFG_TYPE_BIT:
+    case CFG_TYPE_BOOL: {
+      *type = bareos_config_schema_type{
+          .base_type = BCSBT_BOOL,
+          .allow_multiple = false,
+          .enum_value_count = 0,
+          .enum_values = nullptr,
+      };
+    }
+      return true;
+
+    case CFG_TYPE_LABEL:
+    case CFG_TYPE_RES:
+    case CFG_TYPE_AUTHPROTOCOLTYPE:
+    case CFG_TYPE_AUTHTYPE:
+    case CFG_TYPE_JOBTYPE:
+    case CFG_TYPE_PROTOCOLTYPE:
+    case CFG_TYPE_LEVEL:
+    case CFG_TYPE_REPLACE:
+    case CFG_TYPE_MIGTYPE:
+    case CFG_TYPE_ACTIONONPURGE:
+    case CFG_TYPE_POOLTYPE: {
+      *type = bareos_config_schema_type{
+          .base_type = BCSBT_ENUM,
+          .allow_multiple = false,
+          .enum_value_count = 0,
+          .enum_values = nullptr,
+      };
+    }
+      return true;
+
+    case CFG_TYPE_INT16:
+    case CFG_TYPE_INT32:
+    case CFG_TYPE_INT64:
+    case CFG_TYPE_SIZE64:
+    case CFG_TYPE_SIZE32: {
+      *type = bareos_config_schema_type{
+          .base_type = BCSBT_NAT_INT,
+          .allow_multiple = false,
+          .enum_value_count = 0,
+          .enum_values = nullptr,
+      };
+    }
+      return true;
+
+    case CFG_TYPE_PINT16:
+    case CFG_TYPE_PINT32: {
+      *type = bareos_config_schema_type{
+          .base_type = BCSBT_POS_INT,
+          .allow_multiple = false,
+          .enum_value_count = 0,
+          .enum_values = nullptr,
+      };
+    }
+      return true;
+
+    case CFG_TYPE_STDSTR:
+    case CFG_TYPE_STDSTRDIR:
+    case CFG_TYPE_DIR_OR_CMD:
+    case CFG_TYPE_STR:
+    case CFG_TYPE_DIR:
+    case CFG_TYPE_MD5PASSWORD:
+    case CFG_TYPE_CLEARPASSWORD:
+    case CFG_TYPE_AUTOPASSWORD:
+    case CFG_TYPE_NAME:
+    case CFG_TYPE_STRNAME:
+    case CFG_TYPE_FNAME:
+    case CFG_TYPE_PLUGINNAME:
+    case CFG_TYPE_EXCLUDEDIR:
+    case CFG_TYPE_OPTION:
+    case CFG_TYPE_REGEX:
+    case CFG_TYPE_BASE:
+    case CFG_TYPE_WILD:
+    case CFG_TYPE_PLUGIN:
+    case CFG_TYPE_FSTYPE:
+    case CFG_TYPE_DRIVETYPE:
+    case CFG_TYPE_RUN:
+    case CFG_TYPE_RUNSCRIPT_CMD:
+    case CFG_TYPE_RUNSCRIPT_TARGET:
+    case CFG_TYPE_RUNSCRIPT_BOOL:
+    case CFG_TYPE_RUNSCRIPT_WHEN: {
+      *type = bareos_config_schema_type{
+          .base_type = BCSBT_STRING,
+          .allow_multiple = false,
+          .enum_value_count = 0,
+          .enum_values = nullptr,
+      };
+    }
+      return true;
+
+    case CFG_TYPE_INCEXC:
+    case CFG_TYPE_META:
+    case CFG_TYPE_RUNSCRIPT:
+    case CFG_TYPE_SHRTRUNSCRIPT:
+    case CFG_TYPE_SPEED:
+    case CFG_TYPE_DEFS:
+    case CFG_TYPE_TIME:
+    default:
+      return false;
+  }
+}
+
+bool PluginConfigSchema(bareos_resource_type type,
+                        config_schema_callback* cb,
+                        void* user)
+{
+  auto schema = TypeSchema((resource_code)type);
+
+  for (auto& item : schema) {
+    bareos_config_schema_type type;
+
+    if (!GetType(item, &type)) { continue; }
+
+    bareos_config_schema_entry entry = {
+        .type = type,
+        .name = item.name,
+        .default_value = item.default_value,
+        .description = item.description,
+        .required = (item.flags & CFG_ITEM_REQUIRED) == CFG_ITEM_REQUIRED,
+        .deprecated = (item.flags & CFG_ITEM_DEPRECATED) == CFG_ITEM_DEPRECATED,
+    };
+
+    if (!cb(user, entry)) { return false; }
+  }
+
+  return true;
+}
+
 bool PluginConfigListClients(config_client_callback* cb, void* user)
 {
   ResLocker _{my_config};
@@ -892,6 +1060,7 @@ bool QueryCabability(bareos_capability Cap, size_t bufsize, void* buffer)
     case CAP_Config: {
       if (check_buffer<config_capability>(bufsize, buffer)) {
         config_capability cap = {
+            .config_schema = &PluginConfigSchema,
             .list_clients = &PluginConfigListClients,
             .list_jobs = &PluginConfigListJobs,
             .list_catalogs = &PluginConfigListCatalogs,
