@@ -116,9 +116,8 @@ static bool GetStorageDevice(char* device, char* storage)
   if (storage[0] == 0) { return false; }
   store = (StorageResource*)my_config->GetResWithName(R_STORAGE, storage);
   if (!store) { return false; }
-  DeviceResource* dev = (DeviceResource*)(store->device->first());
-  if (!dev) { return false; }
-  bstrncpy(device, dev->resource_name_, MAX_NAME_LENGTH);
+  if (store->device.size() == 0) { return false; }
+  bstrncpy(device, store->device[0].c_str(), MAX_NAME_LENGTH);
   return true;
 }
 

@@ -406,7 +406,7 @@ static inline bool ConfigureAdd(UaContext* ua, int resource_type_parameter)
   ResourceTable* res_table = NULL;
 
   res_table = my_config->GetResourceTable(ua->argk[resource_type_parameter]);
-  if ((!res_table) || (res_table->rcode == R_DEVICE)) {
+  if (!res_table) {
     ua->ErrorMsg(T_("invalid resource type %s.\n"),
                  ua->argk[resource_type_parameter]);
     return false;

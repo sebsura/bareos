@@ -110,7 +110,6 @@ static ScheduleResource* res_sch;
 static PoolResource* res_pool;
 static MessagesResource* res_msgs;
 static CounterResource* res_counter;
-static DeviceResource* res_dev;
 static UserResource* res_user;
 static GrpcResource* res_grpc;
 
@@ -281,7 +280,7 @@ static ResourceItem store_items[] = {
   { "Username", CFG_TYPE_STR, ITEM(res_store, username), 0, 0, NULL, NULL, NULL },
   { "Password", CFG_TYPE_AUTOPASSWORD, ITEM(res_store, password_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL },
   { "SdPassword", CFG_TYPE_AUTOPASSWORD, ITEM(res_store, password_), 0, CFG_ITEM_ALIAS, NULL, NULL, "Alias for Password." },
-  { "Device", CFG_TYPE_DEVICE, ITEM(res_store, device), R_DEVICE, CFG_ITEM_REQUIRED, NULL, NULL, NULL },
+  { "Device", CFG_TYPE_STR_VECTOR, ITEM(res_store, device), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL },
   { "MediaType", CFG_TYPE_STRNAME, ITEM(res_store, media_type), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL },
   { "AutoChanger", CFG_TYPE_BOOL, ITEM(res_store, autochanger), 0, CFG_ITEM_DEFAULT, "false", NULL, NULL },
   { "Enabled", CFG_TYPE_BOOL, ITEM(res_store, enabled), 0, CFG_ITEM_DEFAULT, "true", NULL,
@@ -544,8 +543,6 @@ static ResourceTable dird_resource_tables[] = {
       [] (){ res_profile = new ProfileResource(); }, reinterpret_cast<BareosResource**>(&res_profile) },
   { "Console", "Consoles", con_items, R_CONSOLE, sizeof(ConsoleResource),
       [] (){ res_con = new ConsoleResource(); }, reinterpret_cast<BareosResource**>(&res_con) },
-  { "Device", "Devices", NULL, R_DEVICE, sizeof(DeviceResource),/* info obtained from SD */
-      [] (){ res_dev = new DeviceResource(); }, reinterpret_cast<BareosResource**>(&res_dev) },
   { "User", "Users", user_items, R_USER, sizeof(UserResource),
       [] (){ res_user = new UserResource(); }, reinterpret_cast<BareosResource**>(&res_user) },
   { "Grpc", "Grpcs", grpc_items, R_GRPC, sizeof(GrpcResource),
@@ -2189,8 +2186,6 @@ static bool UpdateResourcePointer(int type, ResourceItem* items)
     case R_CATALOG:
     case R_MSGS:
     case R_FILESET:
-    case R_DEVICE:
-      // Resources not containing a resource
       break;
     case R_POOL: {
       /* Resources containing another resource or alist. First
@@ -2505,58 +2500,6 @@ static void StoreActiononpurge(LEX* lc, ResourceItem* item, int index, int)
   ScanToEol(lc);
   item->SetPresent();
   ClearBit(index, (*item->allocated_resource)->inherit_content_);
-}
-
-/**
- * Store Device. Note, the resource is created upon the
- * first reference. The details of the resource are obtained
- * later from the SD.
- */
-static void StoreDevice(LEX* lc,
-                        ResourceItem* item,
-                        int index,
-                        int pass,
-                        BareosResource** configuration_resources)
-{
-  int rindex = R_DEVICE;
-
-  if (pass == 1) {
-    LexGetToken(lc, BCT_NAME);
-    if (!configuration_resources[rindex]) {
-      DeviceResource* device_resource = new DeviceResource;
-      device_resource->rcode_ = R_DEVICE;
-      device_resource->resource_name_ = strdup(lc->str);
-      configuration_resources[rindex] = device_resource; /* store first entry */
-      Dmsg3(900, "Inserting first %s res: %s index=%d\n",
-            my_config->ResToStr(R_DEVICE), device_resource->resource_name_,
-            rindex);
-    } else {
-      bool found = false;
-      BareosResource* next;
-      for (next = configuration_resources[rindex]; next->next_;
-           next = next->next_) {
-        if (bstrcmp(next->resource_name_, lc->str)) {
-          found = true;  // already defined
-          break;
-        }
-      }
-      if (!found) {
-        DeviceResource* device_resource = new DeviceResource;
-        device_resource->rcode_ = R_DEVICE;
-        device_resource->resource_name_ = strdup(lc->str);
-        next->next_ = device_resource;
-        Dmsg4(900, "Inserting %s res: %s index=%d pass=%d\n",
-              my_config->ResToStr(R_DEVICE), device_resource->resource_name_,
-              rindex, pass);
-      }
-    }
-
-    ScanToEol(lc);
-    item->SetPresent();
-    ClearBit(index, (*item->allocated_resource)->inherit_content_);
-  } else {
-    my_config->StoreResource(CFG_TYPE_ALIST_RES, lc, item, index, pass);
-  }
 }
 
 // Store Migration/Copy type
@@ -3206,11 +3149,12 @@ static void InitResourceCb(ResourceItem* item, int pass)
  * callback function for parse_config
  * See ../lib/parse_conf.c, function ParseConfig, for more generic handling.
  */
-static void ParseConfigCb(LEX* lc,
-                          ResourceItem* item,
-                          int index,
-                          int pass,
-                          BareosResource** configuration_resources)
+static void ParseConfigCb(
+    LEX* lc,
+    ResourceItem* item,
+    int index,
+    int pass,
+    [[maybe_unused]] BareosResource** configuration_resources)
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
@@ -3227,9 +3171,6 @@ static void ParseConfigCb(LEX* lc,
       break;
     case CFG_TYPE_AUTHTYPE:
       StoreAuthtype(lc, item, index, pass);
-      break;
-    case CFG_TYPE_DEVICE:
-      StoreDevice(lc, item, index, pass, configuration_resources);
       break;
     case CFG_TYPE_JOBTYPE:
       StoreJobtype(lc, item, index, pass);
@@ -3571,8 +3512,7 @@ static void ConfigBeforeCallback(ConfigurationParser& t_config)
       {R_SCHEDULE, "R_SCHEDULE"}, {R_FILESET, "R_FILESET"},
       {R_POOL, "R_POOL"},         {R_MSGS, "R_MSGS"},
       {R_COUNTER, "R_COUNTER"},   {R_PROFILE, "R_PROFILE"},
-      {R_CONSOLE, "R_CONSOLE"},   {R_DEVICE, "R_DEVICE"},
-      {R_USER, "R_USER"}};
+      {R_CONSOLE, "R_CONSOLE"},   {R_USER, "R_USER"}};
   t_config.InitializeQualifiedResourceNameTypeConverter(map);
 }
 
@@ -3640,10 +3580,6 @@ static bool AddResourceCopyToEndOfChain(int type,
       case R_USER:
         new_resource = res_user;
         res_user = nullptr;
-        break;
-      case R_DEVICE:
-        new_resource = res_dev;
-        res_dev = nullptr;
         break;
       case R_GRPC: {
         new_resource = res_grpc;
@@ -3740,7 +3676,6 @@ static void DumpResource(int type,
     case R_USER:
     case R_COUNTER:
     case R_CLIENT:
-    case R_DEVICE:
     case R_STORAGE:
     case R_CATALOG:
     case R_JOBDEFS:
@@ -3811,12 +3746,6 @@ static void FreeResource(BareosResource* res, int type)
       delete p;
       break;
     }
-    case R_DEVICE: {
-      DeviceResource* p = dynamic_cast<DeviceResource*>(res);
-      assert(p);
-      delete p;
-      break;
-    }
     case R_COUNTER: {
       CounterResource* p = dynamic_cast<CounterResource*>(res);
       assert(p);
@@ -3883,7 +3812,6 @@ static void FreeResource(BareosResource* res, int type)
       if (p->password_.value) { free(p->password_.value); }
       if (p->media_type) { free(p->media_type); }
       if (p->ndmp_changer_device) { free(p->ndmp_changer_device); }
-      if (p->device) { delete p->device; }
       delete p;
       break;
     }

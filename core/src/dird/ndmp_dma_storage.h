@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -52,7 +52,7 @@ bool NdmpSendLabelRequest(UaContext* ua,
                           bool relabel,
                           drive_number_t drive,
                           slot_number_t slot);
-char* lookup_ndmp_drive(StorageResource* store, drive_number_t drive);
+const char* lookup_ndmp_drive(StorageResource* store, drive_number_t drive);
 bool NdmpUpdateStorageMappings(JobControlRecord* jcr, StorageResource* store);
 bool ndmp_native_setup_robot_and_tape_for_native_backup_job(
     JobControlRecord* jcr,

@@ -771,8 +771,8 @@ static bool ActionOnPurgeCmd(UaContext* ua, const char*)
     if (ua->db->GetMediaRecord(ua->jcr, &mr_temp)) {
       /* TODO: ask for drive and change Pool */
       if (Bstrcasecmp("truncate", action) || Bstrcasecmp("all", action)) {
-        do_truncate_on_purge(ua, &mr_temp, pr.Name, store->dev_name(), drive,
-                             sd);
+        std::string dev_copy = store->dev_name();
+        do_truncate_on_purge(ua, &mr_temp, pr.Name, dev_copy.data(), drive, sd);
       }
     } else {
       Dmsg1(0, "Can't find MediaId=%lld\n", (uint64_t)mr_temp.MediaId);

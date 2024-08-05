@@ -48,7 +48,7 @@ namespace directordaemon {
 static std::string default_config_filename("bareos-dir.conf");
 
 // Resource codes -- they must be sequential for indexing
-enum
+enum resource_code
 {
   R_DIRECTOR = 0,
   R_CLIENT,
@@ -63,7 +63,6 @@ enum
   R_COUNTER,
   R_PROFILE,
   R_CONSOLE,
-  R_DEVICE,
   R_USER,
   R_GRPC,
   R_NUM /* Number of entries */
@@ -101,7 +100,6 @@ class ClientResource;
 class FilesetResource;
 class PoolResource;
 class RunResource;
-class DeviceResource;
 
 // Print configuration file schema in json format
 bool PrintConfigSchemaJson(PoolMem& buff);
@@ -146,38 +144,6 @@ class DirectorResource
   char* log_timestamp_format = nullptr; /* Timestamp format to use in generic
                                  logging messages */
   s_password keyencrkey;                /* Key Encryption Key */
-};
-
-/*
- * Device Resource
- *
- * This resource is a bit different from the other resources
- * because it is not defined in the Director
- * by Device { ... }, but rather by a "reference" such as
- * Device = xxx; Then when the Director connects to the
- * SD, it requests the information about the device.
- */
-class DeviceResource : public BareosResource {
- public:
-  DeviceResource() = default;
-  virtual ~DeviceResource() = default;
-
-  bool found = false;       /**< found with SD */
-  int32_t num_writers = 0;  /**< number of writers */
-  int32_t max_writers = 0;  /**< = 1 for files */
-  int32_t reserved = 0;     /**< number of reserves */
-  int32_t num_drives = 0;   /**< for autochanger */
-  bool autochanger = false; /**< set if device is autochanger */
-  bool open = false;        /**< drive open */
-  bool append = false;      /**< in append mode */
-  bool read = false;        /**< in read mode */
-  bool labeled = false;     /**< Volume name valid */
-  bool offline = false;     /**< not available */
-  bool autoselect = false;  /**< can be selected via autochanger */
-  uint32_t PoolId = 0;
-  char ChangerName[MAX_NAME_LENGTH] = {0};
-  char VolumeName[MAX_NAME_LENGTH] = {0};
-  char MediaType[MAX_NAME_LENGTH] = {0};
 };
 
 // Console ACL positions
@@ -346,8 +312,7 @@ class StorageResource
   char* media_type = nullptr; /**< Media Type provided by this Storage */
   char* ndmp_changer_device = nullptr; /**< If DIR controls storage directly
                                 (NDMP_NATIVE) changer device used */
-  alist<DeviceResource*>* device
-      = nullptr;                     /**< Alternate devices for this Storage */
+  std::vector<std::string> device{}; /**< Alternate devices for this Storage */
   int32_t MaxConcurrentJobs = 0;     /**< Maximum concurrent jobs */
   int32_t MaxConcurrentReadJobs = 0; /**< Maximum concurrent jobs reading */
   bool enabled = false;              /**< Set if device is enabled */
@@ -367,14 +332,12 @@ class StorageResource
                                       item for protocols like NDMP */
 
   /* Methods */
-  char* dev_name() const;
+  const char* dev_name() const
+  {
+    if (device.size() > 0) { return device[0].c_str(); }
+    return "<NONE>";
+  }
 };
-
-inline char* StorageResource::dev_name() const
-{
-  DeviceResource* dev = (DeviceResource*)device->first();
-  return dev->resource_name_;
-}
 
 /**
  * This is a sort of "unified" store that has both the
@@ -688,6 +651,5 @@ std::vector<JobResource*> GetAllJobResourcesByClientName(std::string name);
 struct GrpcResource : public BareosResource {
   dlist<IPADDR>* addrs = nullptr;
 };
-
 } /* namespace directordaemon */
 #endif  // BAREOS_DIRD_DIRD_CONF_H_

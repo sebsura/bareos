@@ -179,20 +179,11 @@ static void ShowDisabledSchedules(UaContext* ua)
 static void ShowAll(UaContext* ua, bool hide_sensitive_data, bool verbose)
 {
   for (int j = 0; j <= my_config->r_num_ - 1; j++) {
-    switch (j) {
-      case R_DEVICE:
-        // Skip R_DEVICE since it is really not used or updated
-        continue;
-      default:
-        if (my_config->config_resources_container_
-                ->configuration_resources_[j]) {
-          my_config->DumpResourceCb_(j,
-                                     my_config->config_resources_container_
-                                         ->configuration_resources_[j],
-                                     bsendmsg, ua, hide_sensitive_data,
-                                     verbose);
-        }
-        break;
+    if (my_config->config_resources_container_->configuration_resources_[j]) {
+      my_config->DumpResourceCb_(
+          j,
+          my_config->config_resources_container_->configuration_resources_[j],
+          bsendmsg, ua, hide_sensitive_data, verbose);
     }
   }
 }

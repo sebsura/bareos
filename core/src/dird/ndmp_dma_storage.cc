@@ -778,15 +778,13 @@ bool unreserve_ndmp_tapedevice_for_job(StorageResource* store,
 }
 
 // Lookup the name of a drive in a NDMP autochanger.
-char* lookup_ndmp_drive(StorageResource* store, drive_number_t drivenumber)
+const char* lookup_ndmp_drive(StorageResource* store,
+                              drive_number_t drivenumber)
 {
+  // MARKER
   int cnt = 0;
-  char* tapedevice;
-  for (auto* tapedeviceres : store->device) {
-    if (cnt == drivenumber) {
-      tapedevice = tapedeviceres->resource_name_;
-      return tapedevice;
-    }
+  for (auto& tapedeviceres : store->device) {
+    if (cnt == drivenumber) { return tapedeviceres.c_str(); }
     cnt++;
   }
 
@@ -950,8 +948,7 @@ bool NdmpSendLabelRequest(UaContext* ua,
   ndmp_job.auto_remedy = 1;
 
   // Set the remote tape drive to use.
-  ndmp_job.tape_device
-      = strdup(((DeviceResource*)(store->device->first()))->resource_name_);
+  ndmp_job.tape_device = strdup(store->device[0].c_str());
   if (!ndmp_job.tape_device) { free(ndmp_job.robot_target); }
 
   // Insert a media entry of the slot to label.

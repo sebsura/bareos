@@ -1306,13 +1306,11 @@ bool DotDefaultsCmd(UaContext* ua, const char*)
                                "%s\n");
 
       std::string devices;
-      for (auto* device_resource : storage->device) {
-        if (device_resource) {
-          // if the string is nonempty, then there are already devices in the
-          // "list", so seperate the new entry with a comma.
-          if (!devices.empty()) { devices += ","; }
-          devices += device_resource->resource_name_;
-        }
+      for (auto& device_name : storage->device) {
+        // if the string is nonempty, then there are already devices in the
+        // "list", so seperate the new entry with a comma.
+        if (!devices.empty()) { devices += ","; }
+        devices += device_name;
       }
       ua->send->ObjectKeyValue("device", "%s=", devices.c_str(), "%s\n");
     }
