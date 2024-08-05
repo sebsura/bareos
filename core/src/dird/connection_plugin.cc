@@ -39,6 +39,7 @@
 #include <string_view>
 #include <thread>
 #include <dlfcn.h>
+#include <gsl/span>
 
 #include "lib/fnmatch.h"
 #include "lib/parse_conf.h"
@@ -694,27 +695,59 @@ bool PluginMarkUnmark(restore_session_handle* handle,
   return true;
 }
 
-std::vector<std::string> resources_of_type(int type) { my_config }
+bareos_config_schema_type acl_list(int code)
+{
+  // this should be an enum, but i have yet to find a complete
+  // enumeration of all of them
+  (void)code;
+
+  return bareos_config_schema_type{
+      .base_type = BCSBT_STRING,
+      .allow_multiple = true,
+      .enum_value_count = 0,
+      .enum_values = nullptr,
+  };
+}
+
+bareos_config_schema_type resource_type(int type)
+{
+  // this needs to take ACLs into account.  This cannot be send immediately
+  (void)type;
+  return bareos_config_schema_type{
+      .base_type = BCSBT_ENUM,
+      .allow_multiple = false,
+      .enum_value_count = 0,
+      .enum_values = nullptr,
+  };
+}
+
+bareos_config_schema_type enum_type(gsl::span<const char* const> alternatives)
+{
+  return bareos_config_schema_type{
+      .base_type = BCSBT_ENUM,
+      .allow_multiple = false,
+      .enum_value_count = alternatives.size(),
+      .enum_values = alternatives.data(),
+  };
+}
 
 bool GetType(const ResourceItem& item, bareos_config_schema_type* type)
 {
   switch (item.type) {
       // multiple = yes
-    case CFG_TYPE_ACL:
+    case CFG_TYPE_ACL: {
+      *type = acl_list(item.code);
+    }
+      return true;
     case CFG_TYPE_ALIST_RES: {
-      *type = bareos_config_schema_type{
-          .base_type = BCSBT_ENUM,
-          .allow_multiple = true,
-          .enum_value_count = 0,
-          .enum_values = nullptr,
-      };
+      *type = resource_type(item.code);
+      type->allow_multiple = true;
     }
       return true;
 
     case CFG_TYPE_AUDIT:
     case CFG_TYPE_ALIST_STR:
     case CFG_TYPE_ALIST_DIR:
-    case CFG_TYPE_MSGS:
     case CFG_TYPE_ADDRESSES:
     case CFG_TYPE_ADDRESSES_ADDRESS:
     case CFG_TYPE_ADDRESSES_PORT:
@@ -745,23 +778,92 @@ bool GetType(const ResourceItem& item, bareos_config_schema_type* type)
     }
       return true;
 
-    case CFG_TYPE_LABEL:
-    case CFG_TYPE_RES:
-    case CFG_TYPE_AUTHPROTOCOLTYPE:
-    case CFG_TYPE_AUTHTYPE:
-    case CFG_TYPE_JOBTYPE:
-    case CFG_TYPE_PROTOCOLTYPE:
-    case CFG_TYPE_LEVEL:
-    case CFG_TYPE_REPLACE:
-    case CFG_TYPE_MIGTYPE:
-    case CFG_TYPE_ACTIONONPURGE:
-    case CFG_TYPE_POOLTYPE: {
+    case CFG_TYPE_LABEL: {
+      // this is only used in a deprecated option.  Just ignore
       *type = bareos_config_schema_type{
           .base_type = BCSBT_ENUM,
           .allow_multiple = false,
           .enum_value_count = 0,
           .enum_values = nullptr,
       };
+    }
+      return true;
+    case CFG_TYPE_RES: {
+      *type = resource_type(item.code);
+    }
+      return true;
+    case CFG_TYPE_AUTHPROTOCOLTYPE: {
+      constexpr static auto values
+          = std::array{"Native", "NDMPV2", "NDMPV3", "NDMPV4"};
+      *type = enum_type(gsl::span(values));
+    }
+      return true;
+    case CFG_TYPE_AUTHTYPE: {
+      // AT_VOID seems to be impossible ?
+      constexpr static auto values = std::array{"None", "Clear", "MD5"};
+      *type = enum_type(gsl::span(values));
+    }
+      return true;
+    case CFG_TYPE_JOBTYPE: {
+      constexpr static auto values = std::array{
+          "Backup",  "Admin",   "Archive", "Verify",
+          "Restore", "Migrate", "Copy",    "Consolidate",
+      };
+
+      *type = enum_type(gsl::span(values));
+    }
+      return true;
+    case CFG_TYPE_PROTOCOLTYPE: {
+      constexpr static auto values = std::array{
+          "Native",
+          "NDMP_BAREOS",
+          "NDMP",
+          "NDMP_NATIVE",
+      };
+      *type = enum_type(gsl::span(values));
+    }
+      return true;
+    case CFG_TYPE_LEVEL: {
+      // TODO: this should depend on the job
+      //       maybe should not send this to the client immediately
+      //       but instead have the client ask for completions instead ?
+      constexpr static auto values = std::array{
+          "Full",          "Base",        "Incremental",
+          "Differential",  "Since",       "VirtualFull",
+          "Catalog",       "InitCatalog", "VolumeToCatalog",
+          "DiskToCatalog", "Data",
+      };
+      *type = enum_type(gsl::span(values));
+    }
+      return true;
+    case CFG_TYPE_REPLACE: {
+      constexpr static auto values
+          = std::array{"Always", "IfNewer", "IfOlder", "Never"};
+      *type = enum_type(gsl::span(values));
+    }
+      return true;
+    case CFG_TYPE_MIGTYPE: {
+      constexpr static auto values = std::array{
+          "SmallestVolume",   "OldestVolume", "PoolOccupancy", "PoolTime",
+          "PoolUncopiedJobs", "Client",       "Volume",        "Job",
+          "SqlQuery",
+      };
+      *type = enum_type(gsl::span(values));
+    }
+      return true;
+    case CFG_TYPE_ACTIONONPURGE: {
+      constexpr static auto values = std::array{
+          "None",
+          "Truncate",
+      };
+      *type = enum_type(gsl::span(values));
+    }
+      return true;
+    case CFG_TYPE_POOLTYPE: {
+      constexpr static auto values = std::array{
+          "Backup", "Copy", "Cloned", "Archive", "Migration", "Scratch",
+      };
+      *type = enum_type(gsl::span(values));
     }
       return true;
 
@@ -824,13 +926,14 @@ bool GetType(const ResourceItem& item, bareos_config_schema_type* type)
     }
       return true;
 
+    case CFG_TYPE_MSGS:  // msgs are weird; probably need to define own syntai
     case CFG_TYPE_INCEXC:
     case CFG_TYPE_META:
     case CFG_TYPE_RUNSCRIPT:
     case CFG_TYPE_SHRTRUNSCRIPT:
-    case CFG_TYPE_SPEED:
     case CFG_TYPE_DEFS:
-    case CFG_TYPE_TIME:
+    case CFG_TYPE_SPEED:  // how to do units ?
+    case CFG_TYPE_TIME:   // how to do units ?
     default:
       return false;
   }

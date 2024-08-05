@@ -17,24 +17,48 @@ service Config {
   rpc ListCatalogs (ListCatalogsRequest) returns (ListCatalogsResponse);
 };
 
-enum ConfigType {
-  CONFIG_TYPE_UNSPECIFIED = 0;
-  JOB = 1;
+enum ResourceType {
+  RESOURCE_TYPE_UNSPECIFIED = 0;
+  DIRECTOR = 1;
   CLIENT = 2;
-  // ...
+  JOBDEFS = 3;
+  JOB = 4;
+  STORAGE = 5;
+  CATALOG = 6;
+  SCHEDULE = 7;
+  FILESET = 8;
+  POOL = 9;
+  MSGS = 10;
+  COUNTER = 11;
+  PROFILE = 12;
+  CONSOLE = 13;
+  USER = 14;
+  GRPC = 15;
 };
 
 message SchemaRequest {
-  ConfigType type = 1;
+  ResourceType type = 1;
+};
+
+enum ConfigType {
+  CONFIG_TYPE_UNSPECIFIED = 0;
+  STRING = 1;
+  ENUM = 2;
+  BOOL = 3;
+  POS_INT = 4; // excluding 0
+  NAT_INT = 5; // including 0
 };
 
 message SchemaValue {
-  string type = 1;
+  ConfigType type = 1;
   string name = 5;
   optional string description = 2;
   optional string default_value = 3;
   bool is_required = 4;
   bool is_deprecated = 6;
+  bool multiple = 8;
+
+  repeated string values = 7;
 };
 
 message SchemaResponse {

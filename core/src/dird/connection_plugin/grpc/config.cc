@@ -94,14 +94,40 @@ std::optional<JobType> bareos_to_grpc_type(bareos_job_type type)
 }
 };  // namespace
 
-bareos_resource_type GrpcConfigTypeToBareosResourceType(
-    ::bareos::config::ConfigType type)
+bareos_resource_type GrpcResourceTypeToBareosResourceType(
+    ::bareos::config::ResourceType type)
 {
   switch (type) {
-    case JOB:
-      return BRT_JOB;
+    case DIRECTOR:
+      return BRT_DIRECTOR;
     case CLIENT:
       return BRT_CLIENT;
+    case JOBDEFS:
+      return BRT_JOBDEFS;
+    case JOB:
+      return BRT_JOB;
+    case STORAGE:
+      return BRT_STORAGE;
+    case CATALOG:
+      return BRT_CATALOG;
+    case SCHEDULE:
+      return BRT_SCHEDULE;
+    case FILESET:
+      return BRT_FILESET;
+    case POOL:
+      return BRT_POOL;
+    case MSGS:
+      return BRT_MSGS;
+    case COUNTER:
+      return BRT_COUNTER;
+    case PROFILE:
+      return BRT_PROFILE;
+    case CONSOLE:
+      return BRT_CONSOLE;
+    case USER:
+      return BRT_USER;
+    case GRPC:
+      return BRT_GRPC;
     default:
       throw grpc_error(grpc::StatusCode::INVALID_ARGUMENT,
                        "Invalid config type");
@@ -119,7 +145,7 @@ class ConfigImpl final : public Config::Service {
   {
     try {
       bareos_resource_type type
-          = GrpcConfigTypeToBareosResourceType(request->type());
+          = GrpcResourceTypeToBareosResourceType(request->type());
 
       auto process = [values = response->mutable_schema()](
                          bareos_config_schema_entry entry) -> bool {
@@ -129,6 +155,34 @@ class ConfigImpl final : public Config::Service {
         sv.set_name(entry.name);
         if (entry.default_value) { sv.set_default_value(entry.default_value); }
         if (entry.description) { sv.set_description(entry.description); }
+
+        switch (entry.type.base_type) {
+          case BCSBT_STRING: {
+            sv.set_type(bareos::config::ConfigType::STRING);
+          } break;
+          case BCSBT_ENUM: {
+            sv.set_type(bareos::config::ConfigType::ENUM);
+          } break;
+          case BCSBT_BOOL: {
+            sv.set_type(bareos::config::ConfigType::BOOL);
+          } break;
+          case BCSBT_POS_INT: {
+            sv.set_type(bareos::config::ConfigType::POS_INT);
+          } break;
+          case BCSBT_NAT_INT: {
+            sv.set_type(bareos::config::ConfigType::NAT_INT);
+          } break;
+        }
+        sv.set_multiple(entry.type.allow_multiple);
+
+        if (entry.type.base_type == BCSBT_ENUM) {
+          auto* values = sv.mutable_values();
+          for (size_t i = 0; i < entry.type.enum_value_count; ++i) {
+            values->Add(entry.type.enum_values[i]);
+          }
+        }
+
+
         values->Add(std::move(sv));
         return true;
       };
