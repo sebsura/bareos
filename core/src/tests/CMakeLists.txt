@@ -381,7 +381,7 @@ if(NOT client-only)
         ${PROJECT_SOURCE_DIR}/src/dird/ua_acl.cc
         ${PROJECT_SOURCE_DIR}/src/dird/ua_audit.cc
       LINK_LIBRARIES bareos bareossql bareosfind GTest::gtest_main
-                     ${OPENSSL_LIBRARIES}
+                     ${OPENSSL_LIBRARIES} Microsoft.GSL::GSL
     )
   endif()
   bareos_add_test(

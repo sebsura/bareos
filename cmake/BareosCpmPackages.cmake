@@ -39,3 +39,10 @@ CPMAddPackage(
   GIT_TAG 10.2.1
   EXCLUDE_FROM_ALL YES
 )
+
+CPMAddPackage(
+  NAME GSL
+  VERSION "4.0.0"
+  GITHUB_REPOSITORY "microsoft/GSL"
+  EXCLUDE_FROM_ALL
+)

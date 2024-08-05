@@ -70,6 +70,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <gsl/span>
 
 namespace directordaemon {
 
@@ -3977,6 +3978,52 @@ std::vector<JobResource*> GetAllJobResourcesByClientName(std::string name)
   } while (job);
 
   return all_matching_jobs;
+}
+
+template <size_t N>
+gsl::span<const ResourceItem> span_of(const ResourceItem (&arr)[N])
+{
+  static_assert(N > 0);
+  return gsl::span(&arr[0], N - 1);
+}
+
+gsl::span<const ResourceItem> TypeSchema(resource_code type)
+{
+  switch (type) {
+    case R_DIRECTOR:
+      return span_of(dir_items);
+    case R_CLIENT:
+      return span_of(client_items);
+    case R_JOBDEFS:
+    case R_JOB:
+      return span_of(job_items);
+    case R_STORAGE:
+      return span_of(store_items);
+    case R_CATALOG:
+      return span_of(cat_items);
+    case R_SCHEDULE:
+      return span_of(sch_items);
+    case R_FILESET:
+      return span_of(fs_items);
+    case R_POOL:
+      return span_of(pool_items);
+    case R_MSGS:
+      return span_of(msgs_items);
+    case R_COUNTER:
+      return span_of(counter_items);
+    case R_PROFILE:
+      return span_of(profile_items);
+    case R_CONSOLE:
+      return span_of(con_items);
+    case R_USER:
+      return span_of(user_items);
+    case R_GRPC:
+      return span_of(grpc_items);
+    case R_NUM:
+      ASSERT(0);
+      break;
+  }
+  return {};
 }
 
 } /* namespace directordaemon */
