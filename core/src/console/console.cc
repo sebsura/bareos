@@ -47,6 +47,7 @@
 #include <stdio.h>
 #include <fstream>
 #include <string>
+#include <array>
 
 #define ConInit(x)
 #define ConTerm()
@@ -129,27 +130,26 @@ struct cmdstruct {
   int (*func)(FILE* input, BareosSocket* UA_sock);
   const char* help;
 };
-static struct cmdstruct commands[] = {
-    {NT_("input"), InputCmd, T_("input from file")},
-    {NT_("output"), OutputCmd, T_("output to file")},
-    {NT_("quit"), QuitCmd, T_("quit")},
-    {NT_("tee"), TeeCmd, T_("output to file and terminal")},
-    {NT_("sleep"), SleepCmd, T_("sleep specified time")},
-    {NT_("time"), TimeCmd, T_("print current time")},
-    {NT_("version"), Versioncmd, T_("print Console's version")},
-    {NT_("echo"), EchoCmd, T_("echo command string")},
-    {NT_("exec"), ExecCmd, T_("execute an external command")},
-    {NT_("exit"), QuitCmd, T_("exit = quit")},
-    {NT_("zed_keys"), ZedKeyscmd,
-     T_("zed_keys = use zed keys instead of bash keys")},
-    {NT_("help"), HelpCmd, T_("help listing")},
-    {NT_("separator"), EolCmd, T_("set command separator")},
+
+static const auto commands = std::array{
+    cmdstruct{NT_("input"), InputCmd, T_("input from file")},
+    cmdstruct{NT_("output"), OutputCmd, T_("output to file")},
+    cmdstruct{NT_("quit"), QuitCmd, T_("quit")},
+    cmdstruct{NT_("tee"), TeeCmd, T_("output to file and terminal")},
+    cmdstruct{NT_("sleep"), SleepCmd, T_("sleep specified time")},
+    cmdstruct{NT_("time"), TimeCmd, T_("print current time")},
+    cmdstruct{NT_("version"), Versioncmd, T_("print Console's version")},
+    cmdstruct{NT_("echo"), EchoCmd, T_("echo command string")},
+    cmdstruct{NT_("exec"), ExecCmd, T_("execute an external command")},
+    cmdstruct{NT_("exit"), QuitCmd, T_("exit = quit")},
+    cmdstruct{NT_("zed_keys"), ZedKeyscmd,
+              T_("zed_keys = use zed keys instead of bash keys")},
+    cmdstruct{NT_("help"), HelpCmd, T_("help listing")},
+    cmdstruct{NT_("separator"), EolCmd, T_("set command separator")},
 };
-#define comsize ((int)(sizeof(commands) / sizeof(struct cmdstruct)))
 
 static int Do_a_command(FILE* input, BareosSocket* UA_sock)
 {
-  unsigned int i;
   int status;
   int found;
   int len;
@@ -166,9 +166,9 @@ static int Do_a_command(FILE* input, BareosSocket* UA_sock)
     return 1;
   }
   len = strlen(cmd);
-  for (i = 0; i < comsize; i++) { /* search for command */
-    if (bstrncasecmp(cmd, T_(commands[i].key), len)) {
-      status = (*commands[i].func)(input, UA_sock); /* go execute command */
+  for (auto& command : commands) { /* search for command */
+    if (bstrncasecmp(cmd, T_(command.key), len)) {
+      status = (*command.func)(input, UA_sock); /* go execute command */
       found = 1;
       break;
     }
@@ -477,32 +477,31 @@ struct cpl_keywords_t {
   bool file_selection;
 };
 
-static struct cpl_keywords_t cpl_keywords[]
-    = {{"pool=", ".pool", false},
-       {"nextpool=", ".pool", false},
-       {"fileset=", ".fileset", false},
-       {"client=", ".client", false},
-       {"jobdefs=", ".jobdefs", false},
-       {"job=", ".jobs", false},
-       {"restore_job=", ".jobs type=R", false},
-       {"level=", ".level", false},
-       {"storage=", ".storage", false},
-       {"schedule=", ".schedule", false},
-       {"volume=", ".media", false},
-       {"oldvolume=", ".media", false},
-       {"volstatus=", ".volstatus", false},
-       {"catalog=", ".catalogs", false},
-       {"message=", ".msgs", false},
-       {"profile=", ".profiles", false},
-       {"actiononpurge=", ".actiononpurge", false},
-       {"ls", ".ls", true},
-       {"cd", ".lsdir", true},
-       {"add", ".ls", true},
-       {"mark", ".ls", true},
-       {"m", ".ls", true},
-       {"delete", ".lsmark", true},
-       {"unmark", ".lsmark", true}};
-#define key_size ((int)(sizeof(cpl_keywords) / sizeof(struct cpl_keywords_t)))
+static const auto cpl_keywords
+    = std::array{cpl_keywords_t{"pool=", ".pool", false},
+                 cpl_keywords_t{"nextpool=", ".pool", false},
+                 cpl_keywords_t{"fileset=", ".fileset", false},
+                 cpl_keywords_t{"client=", ".client", false},
+                 cpl_keywords_t{"jobdefs=", ".jobdefs", false},
+                 cpl_keywords_t{"job=", ".jobs", false},
+                 cpl_keywords_t{"restore_job=", ".jobs type=R", false},
+                 cpl_keywords_t{"level=", ".level", false},
+                 cpl_keywords_t{"storage=", ".storage", false},
+                 cpl_keywords_t{"schedule=", ".schedule", false},
+                 cpl_keywords_t{"volume=", ".media", false},
+                 cpl_keywords_t{"oldvolume=", ".media", false},
+                 cpl_keywords_t{"volstatus=", ".volstatus", false},
+                 cpl_keywords_t{"catalog=", ".catalogs", false},
+                 cpl_keywords_t{"message=", ".msgs", false},
+                 cpl_keywords_t{"profile=", ".profiles", false},
+                 cpl_keywords_t{"actiononpurge=", ".actiononpurge", false},
+                 cpl_keywords_t{"ls", ".ls", true},
+                 cpl_keywords_t{"cd", ".lsdir", true},
+                 cpl_keywords_t{"add", ".ls", true},
+                 cpl_keywords_t{"mark", ".ls", true},
+                 cpl_keywords_t{"m", ".ls", true},
+                 cpl_keywords_t{"delete", ".lsmark", true},
+                 cpl_keywords_t{"unmark", ".lsmark", true}};
 
 /* Attempt to complete on the contents of TEXT.  START and END bound the
  * region of rl_line_buffer that contains the word to complete.  TEXT is
@@ -524,12 +523,12 @@ static char** readline_completion(const char* text, int start, int)
   s = get_previous_keyword(start, 0);
   cmd = get_first_keyword();
   if (s) {
-    for (int i = 0; i < key_size; i++) {
+    for (auto& keyword : cpl_keywords) {
       // See if this keyword is allowed with the current file_selection setting.
-      if (cpl_keywords[i].file_selection != file_selection) { continue; }
+      if (keyword.file_selection != file_selection) { continue; }
 
-      if (Bstrcasecmp(s, cpl_keywords[i].key)) {
-        cpl_item = cpl_keywords[i].cmd;
+      if (Bstrcasecmp(s, keyword.key)) {
+        cpl_item = keyword.cmd;
         cpl_type = ITEM_ARG;
         matches = rl_completion_matches(text, cpl_generator);
         found = true;
@@ -1274,9 +1273,8 @@ static int QuitCmd(FILE*, BareosSocket*) { return 0; }
 /* @help */
 static int HelpCmd(FILE*, BareosSocket*)
 {
-  int i;
-  for (i = 0; i < comsize; i++) {
-    ConsoleOutputFormat("  %-10s %s\n", commands[i].key, commands[i].help);
+  for (auto& command : commands) {
+    ConsoleOutputFormat("  %-10s %s\n", command.key, command.help);
   }
   return 1;
 }
