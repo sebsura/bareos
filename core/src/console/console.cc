@@ -106,6 +106,7 @@ static int TimeCmd(FILE* input, BareosSocket* UA_sock);
 static int SleepCmd(FILE* input, BareosSocket* UA_sock);
 static int ExecCmd(FILE* input, BareosSocket* UA_sock);
 static int EolCmd(FILE* input, BareosSocket* UA_sock);
+static int ConfigCmd(FILE* input, BareosSocket* UA_sock);
 
 #ifndef HAVE_REGEX_H
 #  include "lib/bregex.h"
@@ -146,6 +147,7 @@ static const auto commands = std::array{
               T_("zed_keys = use zed keys instead of bash keys")},
     cmdstruct{NT_("help"), HelpCmd, T_("help listing")},
     cmdstruct{NT_("separator"), EolCmd, T_("set command separator")},
+    cmdstruct{NT_("config"), ConfigCmd, T_("change the director config")},
 };
 
 static int Do_a_command(FILE* input, BareosSocket* UA_sock)
@@ -1293,5 +1295,51 @@ static int TimeCmd(FILE*, BareosSocket*)
 
   bstrftimes(sdt, sizeof(sdt), time(NULL));
   ConsoleOutputFormat("%s\n", sdt);
+  return 1;
+}
+
+static int ConfigCmd(FILE*, BareosSocket* dir)
+{
+  // we can use g_argv/c/k
+  auto* msg = strdup(dir->msg);
+
+  dir->fsend(".api 2\n");
+
+  for (;;) {
+    auto status = dir->recv();
+    if (status < 0) { return 0; }
+
+    if (status == BNET_SIGNAL) {
+      auto signal = dir->message_length;
+      if (signal != BNET_EOD) {
+        return 1;
+      } else {
+        break;
+      }
+    } else {
+      ConsoleOutput(dir->msg);
+    }
+  }
+
+  dir->fsend("%s", msg + 1);  // skip @
+
+  for (;;) {
+    auto status = dir->recv();
+    if (status < 0) { return 0; }
+
+    if (status == BNET_SIGNAL) {
+      auto signal = dir->message_length;
+      if (signal != BNET_EOD) {
+        return 1;
+      } else {
+        break;
+      }
+    } else {
+      ConsoleOutput(dir->msg);
+    }
+  }
+
+  dir->fsend(".api 1 \n");
+
   return 1;
 }
