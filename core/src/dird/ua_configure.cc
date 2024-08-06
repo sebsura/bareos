@@ -34,6 +34,9 @@
 #include <array>
 #include <algorithm>
 
+#include "dird/dird_conf_funcs.h"
+#include "dird/connection_plugin/config.h"
+
 namespace directordaemon {
 
 static void ConfigureLexErrorHandler(const char*, int, LEX* lc, PoolMem& msg)
@@ -484,6 +487,66 @@ bool ConfigureCmd(UaContext* ua, const char*)
   return result;
 }
 
+
+extern bool PluginConfigSchema(bareos_resource_type type,
+                               config_schema_callback* cb,
+                               void* user);
+
+bool send_schema(void* user, bareos_config_schema_entry entry)
+{
+  auto* ua = static_cast<UaContext*>(user);
+  auto* s = ua->send;
+  s->ObjectStart();
+  s->ObjectKeyValue("name", entry.name);
+  if (entry.default_value) {
+    s->ObjectKeyValue("default_value", entry.default_value);
+  } else {
+    s->ObjectKeyValue("default_value", nullptr);
+  }
+  switch (entry.type.base_type) {
+    case BCSBT_STRING:
+      s->ObjectKeyValue("type", "STRING");
+      break;
+    case BCSBT_ENUM:
+      s->ObjectKeyValue("type", "ENUM");
+      break;
+    case BCSBT_BOOL:
+      s->ObjectKeyValue("type", "BOOL");
+      break;
+    case BCSBT_POS_INT:
+      s->ObjectKeyValue("type", "POS_INT");
+      break;
+    case BCSBT_NAT_INT:
+      s->ObjectKeyValue("type", "NAT_INT");
+      break;
+  }
+  s->ObjectKeyValueBool("multiple", entry.type.allow_multiple);
+  s->ObjectKeyValueBool("required", entry.required);
+  s->ArrayStart("values");
+  for (size_t i = 0; i < entry.type.enum_value_count; ++i) {
+    s->ArrayItem(entry.type.enum_values[i]);
+  }
+  s->ArrayEnd("values");
+  s->ObjectEnd();
+  return true;
+}
+
+bool ConfigSendSchema(UaContext* ua)
+{
+  const char* type_name = ua->argk[2];
+
+  resource_code rc;
+  if (!rcode_from_name(type_name, &rc)) { return false; }
+
+  ua->send->ArrayStart("values");
+  if (!PluginConfigSchema((bareos_resource_type)rc, send_schema, ua)) {
+    return false;
+  }
+  ua->send->ArrayEnd("values");
+
+  return true;
+}
+
 bool ConfigCmd(UaContext* ua, const char*)
 {
   bool result = false;
@@ -499,19 +562,15 @@ bool ConfigCmd(UaContext* ua, const char*)
   if (ua->argc < 3) {
     ua->ErrorMsg(
         T_("usage:\n"
-           "  configure add <resourcetype> <key1>=<value1> ...\n"
-           "  configure export client=<clientname>\n"));
+           "  configure add <resourcetype>\n"));
     return false;
   }
 
-  if (Bstrcasecmp(ua->argk[1], NT_("add"))) {
-    result = ConfigureAdd(ua, 2);
-  } else if (Bstrcasecmp(ua->argk[1], NT_("export"))) {
-    result = ConfigureExport(ua);
-  } else {
+  if (!Bstrcasecmp(ua->argk[1], NT_("add"))) {
     ua->ErrorMsg(T_("invalid subcommand %s.\n"), ua->argk[1]);
     return false;
   }
+  result = ConfigSendSchema(ua);
 
   return result;
 }

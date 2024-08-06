@@ -272,10 +272,10 @@ static struct ua_cmdstruct commands[] = {
      NT_("storage=<storage-name> | jobid=<jobid> | job=<job-name> | "
          "ujobid=<unique-jobid> | state=<job_state> | all yes"),
      false, true},
-    {NT_("configure"), ConfigureCmd, T_("Configure director resources"),
-     NT_(GetUsageStringForConsoleConfigureCommand()), false, true},
     {NT_("config"), ConfigCmd, T_("Configure director resources interactively"),
      NT_("stuff"), false, true},
+    {NT_("configure"), ConfigureCmd, T_("Configure director resources"),
+     NT_(GetUsageStringForConsoleConfigureCommand()), false, true},
     {NT_("create"), CreateCmd, T_("Create DB Pool from resource"),
      NT_("pool=<pool-name>"), false, true},
     {NT_("delete"), DeleteCmd, T_("Delete volume, pool or job"),

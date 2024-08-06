@@ -258,7 +258,7 @@ if(NOT client-only)
 
   bareos_add_test(
     configure LINK_LIBRARIES testing_common dird_objects bareosfind bareossql
-                             GTest::gtest_main
+                             GTest::gtest_main Microsoft.GSL::GSL
   )
   bareos_add_test(
     dir_fd_connection LINK_LIBRARIES testing_common dird_objects bareos

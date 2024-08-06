@@ -3987,6 +3987,17 @@ gsl::span<const ResourceItem> span_of(const ResourceItem (&arr)[N])
   return gsl::span(&arr[0], N - 1);
 }
 
+bool rcode_from_name(const char* name, resource_code* code)
+{
+  for (auto* rt = &dird_resource_tables[0]; rt->name; rt++) {
+    if (Bstrcasecmp(name, rt->name)) {
+      *code = static_cast<resource_code>(rt->rcode);
+      return true;
+    }
+  }
+  return false;
+}
+
 gsl::span<const ResourceItem> TypeSchema(resource_code type)
 {
   switch (type) {
