@@ -1738,32 +1738,117 @@ void PrintValueTable(gsl::span<bareos::config::SchemaValue> schema,
   fflush(stdout);
 }
 
-constexpr int finish = -1;
-constexpr int cancel = -2;
-constexpr int error = -3;
+bool CaseEq(std::string_view l, std::string_view r)
+{
+  if (l.size() != r.size()) { return false; }
+  return strncasecmp(l.data(), r.data(), l.size()) == 0;
+}
+// returns if l is a prefix of r (modulo case)
+bool CasePrefix(std::string_view l, std::string_view r)
+{
+  if (l.size() > r.size()) { return false; }
+  return strncasecmp(l.data(), r.data(), l.size()) == 0;
+}
 
-int GetIndex(std::string_view input, int max, std::string& errmsg)
+enum class match_status
+{
+  NoMatch,
+  Match,
+  Error,
+};
+
+match_status GetIndexByName(
+    std::string_view input,
+    int* idx,
+    const gsl::span<bareos::config::SchemaValue>& schema,
+    std::string& errmsg)
+{
+  match_status status = match_status::NoMatch;
+
+  int maybe_idx = -1;
+  bool found_partial_match = false;
+
+
+  for (size_t i = 0; i < schema.size(); ++i) {
+    auto& entry = schema[i];
+    if (CaseEq(input, entry.name())) {
+      // we always allow exact matches
+      *idx = i;
+      return match_status::Match;
+    } else if (CasePrefix(input, entry.name())) {
+      if (found_partial_match) {
+        maybe_idx = -1;  // do not accept a partial match if its not unique
+        errmsg = "found no exact match for '";
+        errmsg += input;
+        errmsg += "' and partial matches are not unique";
+        status = match_status::Error;
+      } else {
+        maybe_idx = i;
+        found_partial_match = true;
+        status = match_status::Match;
+      }
+    }
+  }
+
+  *idx = maybe_idx;
+  return status;
+}
+
+match_status GetIndexByNumber(std::string_view input,
+                              int* idx,
+                              int max,
+                              std::string& errmsg)
 {
   int index;
   auto result
       = std::from_chars(input.data(), input.data() + input.size(), index);
 
   if (result.ec != std::errc() || result.ptr != input.data() + input.size()) {
-    errmsg = "Could not parse '";
-    errmsg += input;
-    errmsg += "'";
-
-    return error;
+    // if its not a number, we cannot match it
+    return match_status::NoMatch;
   }
 
-  if (index >= max) {
-    errmsg = "Index '";
+  if (index >= max || index < 0) {
+    errmsg = "index '";
     errmsg += std::to_string(index);
-    errmsg += "' is out of bounds.";
-    return error;
+    errmsg += "' is out of bounds";
+    return match_status::Error;
   }
 
-  return index;
+  *idx = index;
+  return match_status::Match;
+}
+
+int GetIndex(std::string_view input,
+             const gsl::span<bareos::config::SchemaValue>& schema,
+             std::string& errmsg)
+{
+  int idx;
+
+  switch (GetIndexByName(input, &idx, schema, errmsg)) {
+    case match_status::Match:
+      return idx;
+    case match_status::Error:
+      return -1;
+    case match_status::NoMatch:
+      // just continue
+      break;
+  }
+  switch (GetIndexByNumber(input, &idx, schema.size(), errmsg)) {
+    case match_status::Match:
+      return idx;
+    case match_status::Error:
+      return -1;
+    case match_status::NoMatch:
+      // just continue
+      break;
+  }
+
+  errmsg = "could not parse '";
+  errmsg += input;
+  errmsg += "'";
+
+  return -1;
 }
 
 struct Cancel {};
@@ -1793,14 +1878,7 @@ std::string_view trim(std::string_view v)
   return v.substr(start, end - start + 1);
 }
 
-// returns if l is a prefix of r (modulo case)
-bool CasePrefix(std::string_view l, std::string_view r)
-{
-  if (l.size() > r.size()) { return false; }
-  return strncasecmp(l.data(), r.data(), l.size()) == 0;
-}
-
-Action GetNextAction(FILE* input, int max)
+Action GetNextAction(FILE* input, gsl::span<bareos::config::SchemaValue> schema)
 {
   const char* prompt = "*";
 start:
@@ -1828,13 +1906,16 @@ start:
     return Finish{};
   } else if (CasePrefix(command, "edit")) {
     std::string errmsg;
-    auto idx = GetIndex(trimmed, max, errmsg);
+
+    auto idx = GetIndex(trimmed, schema, errmsg);
     if (idx < 0) { return Error{std::move(errmsg)}; }
+
     return Edit{idx};
   } else if (CasePrefix(command, "doc") || CasePrefix(command, "help")) {
     std::string errmsg;
-    auto idx = GetIndex(trimmed, max, errmsg);
+    auto idx = GetIndex(trimmed, schema, errmsg);
     if (idx < 0) { return Error{std::move(errmsg)}; }
+
     return Doc{idx};
   } else {
     std::string msg;
@@ -1863,7 +1944,7 @@ std::optional<std::vector<std::unique_ptr<Value>>> EditValues(
     }
     notification.clear();
 
-    auto action = GetNextAction(input, schema.size());
+    auto action = GetNextAction(input, schema);
 
     bool cancel = false;
     bool finish = false;
