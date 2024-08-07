@@ -68,7 +68,7 @@ using namespace console;
 
 static void TerminateConsole(int sig);
 static int CheckResources();
-int GetCmd(FILE* input, const char* prompt, BareosSocket* sock, int sec);
+int GetCmd(FILE* input, const char* prompt, std::string& out);
 static int DoOutputcmd(FILE* input, BareosSocket* UA_sock);
 
 extern "C" void GotSigstop(int sig);
@@ -201,7 +201,9 @@ static void ReadAndProcessInput(FILE* input, BareosSocket* UA_sock)
       at_prompt = true;
     }
     if (tty_input) {
-      status = GetCmd(input, prompt, UA_sock, 30);
+      std::string line{};
+      status = GetCmd(input, prompt, line);
+      UA_sock->message_length = PmStrcpy(UA_sock->msg, line.c_str());
       if (usrbrk() == 1) { clrbrk(); }
       if (usrbrk()) { break; }
     } else {
@@ -576,7 +578,7 @@ static int EolCmd(FILE*, BareosSocket*)
  *        0 if no input
  *       -1 error (must stop)
  */
-int GetCmd(FILE* input, const char* prompt, BareosSocket* sock, int)
+int GetCmd(FILE* input, const char* prompt, std::string& out)
 {
   static char* line = NULL;
   static char* next = NULL;
@@ -603,8 +605,8 @@ int GetCmd(FILE* input, const char* prompt, BareosSocket* sock, int)
     ConsoleOutputFormat("%s%s\n", prompt, command);
   }
 
-  sock->message_length = PmStrcpy(sock->msg, command);
-  if (sock->message_length) { do_history++; }
+  out = command;
+  if (out.size()) { do_history++; }
 
   if (!next) {
     if (do_history) {
@@ -710,12 +712,14 @@ static bool SelectDirector(const char* director,
                           director_resource_tmp->DIRport);
     }
 
-    if (GetCmd(stdin, T_("Select Director by entering a number: "), UA_sock,
-               600)
-        < 0) {
+    std::string line{};
+    if (GetCmd(stdin, T_("Select Director by entering a number: "), line) < 0) {
       WSACleanup(); /* Cleanup Windows sockets */
       return 0;
     }
+
+    UA_sock->message_length = PmStrcpy(UA_sock->msg, line.c_str());
+
     if (!Is_a_number(UA_sock->msg)) {
       ConsoleOutputFormat(
           T_("%s is not a number. You must enter a number between "
