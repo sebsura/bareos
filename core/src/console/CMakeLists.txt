@@ -42,7 +42,8 @@ add_library(console_objects STATIC ${BCONSSRCS})
 
 target_link_libraries(console_objects PRIVATE bareos)
 target_link_libraries(
-  bconsole PRIVATE console_objects ${Readline_LIBRARY} CLI11::CLI11
+  bconsole PRIVATE console_objects ${Readline_LIBRARY} CLI11::CLI11 grpc-proto
+                   Microsoft.GSL::GSL
 )
 
 bareos_configure_file(FILES bconsole.conf.in)

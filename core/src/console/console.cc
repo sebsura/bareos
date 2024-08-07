@@ -26,6 +26,15 @@
  * Bareos Console interface to the Director
  */
 
+#include <grpcpp/grpcpp.h>
+#include <config.grpc.pb.h>
+#include <charconv>
+#include <gsl/span>
+
+#pragma GCC diagnostic ignored "-Wcpp"
+#include <strstream>
+#include <string_view>
+
 #include "include/bareos.h"
 #include "include/exit_codes.h"
 #include "console/console_conf.h"
@@ -108,6 +117,7 @@ static int TimeCmd(FILE* input, BareosSocket* UA_sock);
 static int SleepCmd(FILE* input, BareosSocket* UA_sock);
 static int ExecCmd(FILE* input, BareosSocket* UA_sock);
 static int EolCmd(FILE* input, BareosSocket* UA_sock);
+static int GrpcCmd(FILE* input, BareosSocket* UA_sock);
 static int ConfigCmd(FILE* input, BareosSocket* UA_sock);
 
 #ifndef HAVE_REGEX_H
@@ -150,6 +160,7 @@ static const auto commands = std::array{
     cmdstruct{NT_("help"), HelpCmd, T_("help listing")},
     cmdstruct{NT_("separator"), EolCmd, T_("set command separator")},
     cmdstruct{NT_("config"), ConfigCmd, T_("change the director config")},
+    cmdstruct{NT_("grpc"), GrpcCmd, "set grpc address"},
 };
 
 static int Do_a_command(FILE* input, BareosSocket* UA_sock)
@@ -1304,94 +1315,479 @@ static int TimeCmd(FILE*, BareosSocket*)
   return 1;
 }
 
-static int ConfigCmd(FILE*, BareosSocket* dir)
+std::optional<std::string> grpc_address;
+
+static int GrpcCmd(FILE*, BareosSocket*)
 {
-  // we can use g_argv/c/k
-  auto* msg = strdup(dir->msg);
+  if (g_argc != 2) {
+    ConsoleOutput("Usage: grpc <address>\n");
+    return 1;
+  }
 
-  ConsoleOutput("set api to 2\n");
-  fflush(stdout);
-  dir->fsend(".api 2\n");
+  if (!g_argk[1]) {
+    ConsoleOutput("Usage: grpc <address>\n");
+    return 1;
+  }
 
-  for (;;) {
-    auto status = dir->recv();
+  grpc_address = g_argk[1];
+  std::string buffer;
+  buffer += "Setting grpc address to '";
+  buffer += *grpc_address;
+  buffer += "'\n";
+  ConsoleOutput(buffer.c_str());
 
-    if (status == BNET_SIGNAL) {
-      auto signal = dir->message_length;
+  return 1;
+}
 
-      if (signal == BNET_MAIN_PROMPT || signal == BNET_EOD) {
-        break;
-      } else {
-        char buffer[100];
-        snprintf(buffer, sizeof(buffer), "Got Signal %d\n", signal);
-        ConsoleOutput(buffer);
-        continue;
-      }
-    } else if (status < 0) {
-      ConsoleOutput("bad 1\n");
-      fflush(stdout);
-      return 0;
-    } else {
-      ConsoleOutput(dir->msg);
-      fflush(stdout);
+namespace {
+
+template <size_t N> using char_arr = const char* [N];
+
+template <size_t N> int find_string(const char* s, const char_arr<N>& arr)
+{
+  for (size_t i = 0; i < N; ++i) {
+    if (strcasecmp(s, arr[i]) == 0) { return static_cast<int>(i); }
+  }
+
+  return -1;
+}
+
+std::optional<bareos::config::ResourceType> get_resource_type(const char* name)
+{
+  bareos::config::ResourceType types[] = {
+      bareos::config::ResourceType::DIRECTOR,
+      bareos::config::ResourceType::CLIENT,
+      bareos::config::ResourceType::JOBDEFS,
+      bareos::config::ResourceType::JOB,
+      bareos::config::ResourceType::STORAGE,
+      bareos::config::ResourceType::CATALOG,
+      bareos::config::ResourceType::SCHEDULE,
+      bareos::config::ResourceType::FILESET,
+      bareos::config::ResourceType::POOL,
+      bareos::config::ResourceType::MSGS,
+      bareos::config::ResourceType::COUNTER,
+      bareos::config::ResourceType::PROFILE,
+      bareos::config::ResourceType::CONSOLE,
+      bareos::config::ResourceType::USER,
+      bareos::config::ResourceType::GRPC,
+  };
+
+  auto idx = find_string(name, {
+                                   "DIRECTOR",
+                                   "CLIENT",
+                                   "JOBDEFS",
+                                   "JOB",
+                                   "STORAGE",
+                                   "CATALOG",
+                                   "SCHEDULE",
+                                   "FILESET",
+                                   "POOL",
+                                   "MSGS",
+                                   "COUNTER",
+                                   "PROFILE",
+                                   "CONSOLE",
+                                   "USER",
+                                   "GRPC",
+                               });
+
+  if (idx < 0) { return std::nullopt; }
+
+  return types[idx];
+}
+
+struct Value {
+  virtual bool set_from(std::string_view chars) = 0;
+  virtual void print_into(gsl::span<char> buffer) = 0;
+  virtual const char* type() = 0;
+  virtual ~Value() = default;
+};
+
+struct StringValue : public Value {
+  std::optional<std::string> content{};
+  bool set_from(std::string_view chars) override
+  {
+    content = chars;
+    return true;
+  }
+
+  const char* type() override { return "string"; }
+
+  void print_into(gsl::span<char> buffer) override
+  {
+    if (content) {
+      std::strstream s{buffer.data(), static_cast<int>(buffer.size())};
+      s << *content;
     }
   }
 
-  ConsoleOutput("sending msg\n");
-  fflush(stdout);
-  dir->fsend("%s", msg + 1);  // skip @
+  ~StringValue() override = default;
+};
 
-  std::string json{};
-  bool cmd_ok = false;
-  for (;;) {
-    auto status = dir->recv();
+struct EnumValue : public Value {
+  std::vector<std::string> possibilities;
 
-    if (status == BNET_SIGNAL) {
-      auto signal = dir->message_length;
-      if (signal == BNET_CMD_OK) {
-        cmd_ok = true;
-      } else if (signal == BNET_MAIN_PROMPT || signal == BNET_EOD) {
-        break;
-      } else {
-        char buffer[100];
-        snprintf(buffer, sizeof(buffer), "Got Signal %d\n", signal);
-        ConsoleOutput(buffer);
-        fflush(stdout);
-        continue;
+  std::optional<size_t> index;
+
+  std::vector<std::string>& options() { return possibilities; }
+
+  bool set_from(std::string_view chars) override
+  {
+    for (size_t i = 0; i < possibilities.size(); ++i) {
+      if (possibilities[i] == chars) {
+        index = i;
+        return true;
       }
-    } else if (status < 0) {
-      ConsoleOutput("bad 2\n");
-      fflush(stdout);
-      return 0;
-    } else {
-      json += dir->msg;
+    }
+
+    return false;
+  }
+
+  const char* type() override { return "enum"; }
+
+  void print_into(gsl::span<char> buffer) override
+  {
+    if (index) {
+      std::strstream s{buffer.data(), static_cast<int>(buffer.size())};
+      s << possibilities[*index];
     }
   }
 
-  if (!cmd_ok) {
-    ConsoleOutput("command bad\n");
-    fflush(stdout);
+  ~EnumValue() override = default;
+};
+
+struct IntValue : public Value {
+  std::optional<std::uint64_t> content{};
+  bool set_from(std::string_view chars) override
+  {
+    std::uint64_t val;
+    auto result = std::from_chars(std::begin(chars), std::end(chars), val);
+
+    if (result.ec != std::errc()) { return false; }
+
+    content = val;
+    return true;
   }
 
-  ConsoleOutput("---------\n");
-  ConsoleOutput(json.c_str());
-  ConsoleOutput("---------\n");
-  fflush(stdout);
+  const char* type() override { return "int"; }
 
-  json_error_t error = {};
-  json_t* obj = json_loads(json.c_str(), 0, &error);
-
-  if (!obj) {
-    char buffer[200];
-    snprintf(buffer, sizeof(buffer), "bad json %d: %s\n", error.line,
-             error.text);
-    ConsoleOutput(buffer);
-    fflush(stdout);
+  void print_into(gsl::span<char> buffer) override
+  {
+    if (content) {
+      std::strstream s{buffer.data(), static_cast<int>(buffer.size())};
+      s << *content;
+    }
   }
 
-  ConsoleOutput("set api to 1\n");
+  ~IntValue() override = default;
+};
+
+std::unique_ptr<Value> ValueOf(const bareos::config::SchemaValue& val)
+{
+  switch (val.type()) {
+    case bareos::config::POS_INT:
+    case bareos::config::NAT_INT:
+      return std::make_unique<IntValue>();
+    case bareos::config::STRING:
+      return std::make_unique<StringValue>();
+    case bareos::config::ENUM: {
+      auto result = std::make_unique<EnumValue>();
+
+      for (auto& opt : val.values()) { result->options().emplace_back(opt); }
+
+      return result;
+    }
+    case bareos::config::BOOL: {
+      auto result = std::make_unique<EnumValue>();
+      result->options().emplace_back("yes");
+      result->options().emplace_back("no");
+      return result;
+    }
+    default:
+      return nullptr;
+  }
+}
+
+std::vector<std::unique_ptr<Value>> MakeDefaultValues(
+    gsl::span<bareos::config::SchemaValue> schema)
+{
+  std::vector<std::unique_ptr<Value>> values;
+  values.reserve(schema.size());
+  for (auto entry : schema) {
+    auto value = ValueOf(entry);
+    if (value && entry.has_default_value()) {
+      value->set_from(entry.default_value());
+    }
+    values.emplace_back(std::move(value));
+  }
+  return values;
+}
+
+template <char sep = '|', size_t... Ns> struct row {
+  static constexpr auto col_count = sizeof...(Ns);
+
+  static constexpr auto max_size = (Ns + ...) + 4 + 3 * (col_count - 1);
+
+  std::array<char, max_size> bytes;
+
+  static constexpr auto sizes = std::array{Ns...};
+
+  constexpr row()
+  {
+    size_t current = 0;
+    bytes[current++] = sep;
+    bytes[current++] = ' ';
+
+    for (size_t i = 0; i < col_count; ++i) {
+      if (i != 0) {
+        bytes[current++] = ' ';
+        bytes[current++] = sep;
+        bytes[current++] = ' ';
+      }
+
+      memset(&bytes[current], ' ', sizes[i]);
+
+      current += sizes[i];
+    }
+
+    bytes[current++] = ' ';
+    bytes[current++] = sep;
+  }
+
+  constexpr gsl::span<char> column(size_t col)
+  {
+    size_t offset = 2 + 3 * col;
+    for (size_t i = 0; i < col; ++i) { offset += sizes[i]; }
+
+    return gsl::span{bytes.data() + offset, sizes[col]};
+  }
+
+  const std::string_view data() const
+  {
+    return std::string_view{bytes.data(), bytes.size()};
+  }
+};
+
+template <size_t... Ns> using simple_row = row<'|', Ns...>;
+
+template <size_t... Ns> struct value_table {
+  static constexpr auto col_count = sizeof...(Ns);
+
+  static_assert(((Ns >= 3) && ...),
+                "Table needs at least enough space to print '...'");
+
+  std::vector<simple_row<Ns...>> rows;
+
+  std::array<gsl::span<char>, col_count> next_row()
+  {
+    auto& next_row = rows.emplace_back();
+
+    std::array<gsl::span<char>, col_count> result;
+
+    for (size_t i = 0; i < col_count; ++i) { result[i] = next_row.column(i); }
+
+    return result;
+  }
+
+  std::string to_string()
+  {
+    row<'+', Ns...> delim{};
+
+    for (size_t i = 0; i < sizeof...(Ns); ++i) {
+      auto col = delim.column(i);
+
+      memset(col.data(), '-', col.size());
+    }
+
+    // constexpr auto max_size = simple_row<Ns...>::max_size;
+
+    // s.resize((max_size + 1) * (rows.size() + 2) - 1);
+
+    // static_assert(delim.max_size == max_size);
+
+    std::stringstream ss;
+
+    ss << delim.data() << "\n";
+
+    for (size_t i = 0; i < rows.size(); ++i) { ss << rows[i].data() << "\n"; }
+
+    ss << delim.data() << "\n";
+
+    return ss.str();
+  }
+};
+
+
+void PrintValueTable(gsl::span<bareos::config::SchemaValue> schema,
+                     gsl::span<std::unique_ptr<Value>> values)
+{
+  value_table<3, 20, 20> table;
+
+  static_assert(table.col_count == 3);
+
+  for (size_t i = 0; i < schema.size(); ++i) {
+    auto [num, name, value] = table.next_row();
+
+    {
+      std::strstream s{num.data(), static_cast<int>(num.size())};
+      s << i;
+    }
+    {
+      std::strstream s{name.data(), static_cast<int>(name.size())};
+      s << (schema[i].is_required() ? '*' : '-') << schema[i].name();
+    }
+    if (values[i]) {
+      values[i]->print_into(value);
+    } else {
+      std::strstream s{value.data(), static_cast<int>(value.size())};
+      s << "uhoh";
+    }
+  }
+
+  auto s = table.to_string();
+
+  ConsoleOutput(s.c_str());
+  ConsoleOutput("\n");
   fflush(stdout);
-  dir->fsend(".api 1\n");
+}
+
+constexpr int finish = -1;
+constexpr int cancel = -2;
+
+int GetIndex(FILE* input, int max)
+{
+  (void)input;
+  (void)max;
+  return -1;
+}
+
+std::optional<std::vector<std::unique_ptr<Value>>> EditValues(
+    FILE* input,
+    gsl::span<bareos::config::SchemaValue> schema)
+{
+  auto values = MakeDefaultValues(schema);
+
+  for (;;) {
+    PrintValueTable(schema, values);
+
+    auto ind = GetIndex(input, schema.size());
+
+    if (ind == finish) {
+      return values;
+    } else if (ind == cancel) {
+      return std::nullopt;
+    } else {
+      ConsoleOutput("had a choice\n");
+    }
+  }
+
+  return std::nullopt;
+}
+
+bool ConfigAdd(FILE* input,
+               int argc,
+               const char* const*,
+               const char* const argk[])
+{
+  if (argc != 1) {
+    ConsoleOutput("missing argument\n");
+    return false;
+  }
+
+  auto type = get_resource_type(argk[0]);
+
+  if (!type) {
+    ConsoleOutput("unknown resource type\n");
+    return false;
+  }
+
+  if (!grpc_address) {
+    ConsoleOutput("grpc address not yet set\n");
+    return 1;
+  }
+  auto channel = grpc::CreateChannel(grpc_address->c_str(),
+                                     grpc::InsecureChannelCredentials());
+
+  using namespace bareos::config;
+
+  auto stub = Config::NewStub(channel);
+
+
+  SchemaRequest request;
+  request.set_type(*type);
+  SchemaResponse response;
+
+  {
+    // dont reuse client context!
+    grpc::ClientContext ctx;
+    if (auto status = stub->Schema(&ctx, request, &response); !status.ok()) {
+      char buffer[100];
+      snprintf(buffer, sizeof(buffer), "Got Error %d: %s\n",
+               status.error_code(), status.error_message().c_str());
+      ConsoleOutput(buffer);
+      fflush(stdout);
+      return 1;
+    }
+  }
+
+  // std::string s{};
+  // for (auto value : response.schema()) {
+  //   s.clear();
+
+  //   s += value.name();
+
+
+  //   s += "\n";
+  //   ConsoleOutput(s.c_str());
+  // }
+
+  std::vector<SchemaValue> schema;
+  for (auto value : response.schema()) { schema.push_back(value); }
+
+  std::stable_sort(std::begin(schema), std::end(schema), [](auto& l, auto& r) {
+    // required < not required
+
+    bool lr = l.is_required();
+    bool rr = r.is_required();
+
+    if (lr == rr) { return false; }
+
+    if (lr) {
+      // so rr = false
+      return true;
+    }
+
+    return false;
+  });
+
+  auto values = EditValues(input, schema);
+
+  if (!values) { return false; }
+
+  {
+    // todo: send config to dir here
+  }
+
+  return true;
+}
+};  // namespace
+
+static int ConfigCmd(FILE* input, BareosSocket*)
+{
+  if (g_argc < 2) {
+    ConsoleOutput("Usage: config <cmd> <args>...\n");
+    fflush(stdout);
+    return 1;
+  }
+
+  if (g_argk[1] && bstrcmp(g_argk[1], "add")) {
+    if (ConfigAdd(input, g_argc - 2, g_argv + 2, g_argk + 2)) {
+      ConsoleOutput("Command succeded\n");
+    } else {
+      ConsoleOutput("Command failed\n");
+    }
+  } else {
+    ConsoleOutput("unknown command\n");
+  }
 
   return 1;
 }
