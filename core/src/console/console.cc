@@ -1742,20 +1742,15 @@ constexpr int finish = -1;
 constexpr int cancel = -2;
 constexpr int error = -3;
 
-int GetIndex(FILE* input, int max, std::string& errmsg)
+int GetIndex(std::string_view input, int max, std::string& errmsg)
 {
-  auto line = GetInputLine(input, "Select entry to modify: ");
-  if (!line) { return cancel; }
-
-  if (line->back() == '\n') { line->pop_back(); }
-
   int index;
   auto result
-      = std::from_chars(line->c_str(), line->c_str() + line->size(), index);
+      = std::from_chars(input.data(), input.data() + input.size(), index);
 
-  if (result.ec != std::errc() || result.ptr != line->c_str() + line->size()) {
+  if (result.ec != std::errc() || result.ptr != input.data() + input.size()) {
     errmsg = "Could not parse '";
-    errmsg += *line;
+    errmsg += input;
     errmsg += "'";
 
     return error;
@@ -1771,57 +1766,164 @@ int GetIndex(FILE* input, int max, std::string& errmsg)
   return index;
 }
 
+struct Cancel {};
+
+struct Finish {};
+
+struct Edit {
+  int index;
+};
+
+struct Doc {
+  int index;
+};
+
+struct Error {
+  std::string message;
+};
+
+using Action = std::variant<Cancel, Finish, Edit, Doc, Error>;
+
+std::string_view trim(std::string_view v)
+{
+  auto start = v.find_first_not_of(" \t\v\n");
+  if (start == v.npos) { return {}; }
+  auto end = v.find_last_not_of(" \t\v\n");
+
+  return v.substr(start, end - start + 1);
+}
+
+// returns if l is a prefix of r (modulo case)
+bool CasePrefix(std::string_view l, std::string_view r)
+{
+  if (l.size() > r.size()) { return false; }
+  return strncasecmp(l.data(), r.data(), l.size()) == 0;
+}
+
+Action GetNextAction(FILE* input, int max)
+{
+  const char* prompt = "*";
+start:
+  auto line = GetInputLine(input, prompt);
+  if (!line) { return Cancel{}; }
+
+  auto view = std::string_view{*line};
+
+  auto word_start = view.find_first_not_of(" \t\v\n");
+  if (word_start == view.npos) {
+    prompt = "";
+    goto start;
+  }
+
+  auto word_end = view.find_first_of(" \t\v\n", word_start);
+  if (word_end == view.npos) { word_end = view.size(); }
+
+  auto command = view.substr(word_start, word_end - word_start);
+  auto rest = view.substr(word_end);
+  auto trimmed = trim(rest);
+
+  if (CasePrefix(command, "cancel") || CasePrefix(command, ".")) {
+    return Cancel{};
+  } else if (CasePrefix(command, "finish") || CasePrefix(command, "done")) {
+    return Finish{};
+  } else if (CasePrefix(command, "edit")) {
+    std::string errmsg;
+    auto idx = GetIndex(trimmed, max, errmsg);
+    if (idx < 0) { return Error{std::move(errmsg)}; }
+    return Edit{idx};
+  } else if (CasePrefix(command, "doc") || CasePrefix(command, "help")) {
+    std::string errmsg;
+    auto idx = GetIndex(trimmed, max, errmsg);
+    if (idx < 0) { return Error{std::move(errmsg)}; }
+    return Doc{idx};
+  } else {
+    std::string msg;
+    msg += "Unknown command: '";
+    msg += command;
+    msg += "'";
+    return Error{std::move(msg)};
+  }
+}
+
 std::optional<std::vector<std::unique_ptr<Value>>> EditValues(
     FILE* input,
     gsl::span<bareos::config::SchemaValue> schema)
 {
   auto values = MakeDefaultValues(schema);
 
-  std::string errmsg{};
+  std::string notification{};
 
   auto old_console_state = console_state;
 
   for (;;) {
     PrintValueTable(schema, values);
-    if (errmsg.size()) {
-      ConsoleOutput(errmsg.c_str());
+    if (notification.size()) {
+      ConsoleOutput(notification.c_str());
       ConsoleOutput("\n");
     }
-    errmsg.clear();
+    notification.clear();
 
-    auto ind = GetIndex(input, schema.size(), errmsg);
+    auto action = GetNextAction(input, schema.size());
 
-    if (ind == finish) {
-      return values;
-    } else if (ind == cancel) {
+    bool cancel = false;
+    bool finish = false;
+    std::visit(
+        [&](auto&& a) {
+          using T = std::decay_t<decltype(a)>;
+          if constexpr (std::is_same_v<T, Cancel>) {
+            cancel = true;
+          } else if constexpr (std::is_same_v<T, Finish>) {
+            finish = true;
+          } else if constexpr (std::is_same_v<T, Doc>) {
+            auto& schema_entry = schema[a.index];
+            if (schema_entry.has_description()) {
+              std::string out;
+              out += schema_entry.name();
+              out += ": ";
+              out += schema_entry.description();
+              out += "\n";
+              notification = std::move(out);
+            } else {
+              std::string out;
+              out += "Option '";
+              out += schema_entry.name();
+              out += "' has not been documented yet.\n";
+              notification = std::move(out);
+            }
+          } else if constexpr (std::is_same_v<T, Edit>) {
+            auto& schema_entry = schema[a.index];
+            auto& value = values[a.index];
+
+            current_value = &schema_entry;
+
+            std::string prompt = schema_entry.name() + ": ";
+
+            console_state = CONFIG_EDIT;
+            auto line = GetInputLine(input, prompt.c_str());
+            if (!line) { return; }
+
+            // remove trailing '\n'
+            if (line->back() == '\n') line->pop_back();
+
+            if (!value->set_from(*line)) {
+              notification = "Could not set ";
+              notification += schema_entry.name();
+              notification += " to ";
+              notification += *line;
+            }
+            console_state = old_console_state;
+          } else if constexpr (std::is_same_v<T, Error>) {
+            notification = std::move(a.message);
+          } else {
+            static_assert("Type not handled\n");
+          }
+        },
+        action);
+
+    if (cancel) {
       return std::nullopt;
-    } else if (ind == error) {
-      continue;
-    }
-
-    auto& schema_entry = schema[ind];
-    auto& value = values[ind];
-
-    current_value = &schema_entry;
-
-    std::string prompt = schema_entry.name() + ": ";
-
-    console_state = CONFIG_EDIT;
-    auto line = GetInputLine(input, prompt.c_str());
-    console_state = old_console_state;
-
-    if (!line) { continue; }
-
-    // remove trailing '\n'
-    if (line->back() == '\n') line->pop_back();
-
-    if (!value->set_from(*line)) {
-      errmsg = "Could not set ";
-      errmsg += schema_entry.name();
-      errmsg += " to ";
-      errmsg += *line;
-
-      continue;
+    } else if (finish) {
+      return values;
     }
   }
 
@@ -1873,17 +1975,6 @@ bool ConfigAdd(FILE* input,
       return 1;
     }
   }
-
-  // std::string s{};
-  // for (auto value : response.schema()) {
-  //   s.clear();
-
-  //   s += value.name();
-
-
-  //   s += "\n";
-  //   ConsoleOutput(s.c_str());
-  // }
 
   std::vector<SchemaValue> schema;
   for (auto value : response.schema()) { schema.push_back(value); }
