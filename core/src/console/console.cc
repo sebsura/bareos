@@ -1618,6 +1618,8 @@ template <size_t... Ns> struct value_table {
   static_assert(((Ns >= 3) && ...),
                 "Table needs at least enough space to print '...'");
 
+  using internal_row = simple_row<Ns...>;
+
   std::vector<simple_row<Ns...>> rows;
 
   std::array<gsl::span<char>, col_count> next_row()
@@ -1663,9 +1665,9 @@ template <size_t... Ns> struct value_table {
 void PrintValueTable(gsl::span<bareos::config::SchemaValue> schema,
                      gsl::span<std::unique_ptr<Value>> values)
 {
-  value_table<3, 20, 20> table;
+  value_table<3, 25, 40> table;
 
-  static_assert(table.col_count == 3);
+  static_assert(decltype(table)::internal_row::max_size <= 80);
 
   for (size_t i = 0; i < schema.size(); ++i) {
     auto [num, name, value] = table.next_row();
