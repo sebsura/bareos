@@ -1697,12 +1697,35 @@ void PrintValueTable(gsl::span<bareos::config::SchemaValue> schema,
 
 constexpr int finish = -1;
 constexpr int cancel = -2;
+constexpr int error = -3;
 
-int GetIndex(FILE* input, int max)
+int GetIndex(FILE* input, int max, std::string& errmsg)
 {
-  (void)input;
-  (void)max;
-  return -1;
+  auto line = GetInputLine(input, "Select entry to modify: ");
+  if (!line) { return cancel; }
+
+  if (line->back() == '\n') { line->pop_back(); }
+
+  int index;
+  auto result
+      = std::from_chars(line->c_str(), line->c_str() + line->size(), index);
+
+  if (result.ec != std::errc() || result.ptr != line->c_str() + line->size()) {
+    errmsg = "Could not parse '";
+    errmsg += *line;
+    errmsg += "'";
+
+    return error;
+  }
+
+  if (index >= max) {
+    errmsg = "Index '";
+    errmsg += std::to_string(index);
+    errmsg += "' is out of bounds.";
+    return error;
+  }
+
+  return index;
 }
 
 std::optional<std::vector<std::unique_ptr<Value>>> EditValues(
@@ -1711,17 +1734,44 @@ std::optional<std::vector<std::unique_ptr<Value>>> EditValues(
 {
   auto values = MakeDefaultValues(schema);
 
+  std::string errmsg{};
+
   for (;;) {
     PrintValueTable(schema, values);
+    if (errmsg.size()) {
+      ConsoleOutput(errmsg.c_str());
+      ConsoleOutput("\n");
+    }
+    errmsg.clear();
 
-    auto ind = GetIndex(input, schema.size());
+    auto ind = GetIndex(input, schema.size(), errmsg);
 
     if (ind == finish) {
       return values;
     } else if (ind == cancel) {
       return std::nullopt;
-    } else {
-      ConsoleOutput("had a choice\n");
+    } else if (ind == error) {
+      continue;
+    }
+
+    auto& schema_entry = schema[ind];
+    auto& value = values[ind];
+
+
+    std::string prompt = schema_entry.name() + ": ";
+    auto line = GetInputLine(input, prompt.c_str());
+    if (!line) { continue; }
+
+    // remove trailing '\n'
+    if (line->back() == '\n') line->pop_back();
+
+    if (!value->set_from(*line)) {
+      errmsg = "Could not set ";
+      errmsg += schema_entry.name();
+      errmsg += "to ";
+      errmsg += *line;
+
+      continue;
     }
   }
 
