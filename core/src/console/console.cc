@@ -196,11 +196,43 @@ static int Do_a_command(FILE* input, BareosSocket* UA_sock)
   return status;
 }
 
+
+[[maybe_unused]] static std::optional<std::string> GetInputLine(
+    FILE* input,
+    const char* prompt)
+{
+  bool tty_input = isatty(fileno(input));
+
+  if (tty_input) {
+    std::string line;
+    if (GetCmd(input, prompt, line) < 0) { return std::nullopt; }
+    return line;
+  }
+
+  std::size_t block_size = 1024;
+  std::string line;
+
+  for (;;) {
+    auto start = line.size();
+    line.resize(start + block_size);
+
+    if (!fgets(line.data() + start, block_size, input)) {
+      return std::nullopt;  // error occured
+    }
+
+    if (strlen(line.data() + start) != block_size - 1
+        || line[start + block_size - 1] == '\n') {
+      // we read a line
+      return line;
+    }
+  }
+}
+
+
 static void ReadAndProcessInput(FILE* input, BareosSocket* UA_sock)
 {
   const char* prompt = "*";
   bool at_prompt = false;
-  int tty_input = isatty(fileno(input));
   int status;
   btimer_t* tid = NULL;
 
@@ -211,25 +243,16 @@ static void ReadAndProcessInput(FILE* input, BareosSocket* UA_sock)
       prompt = "*";
       at_prompt = true;
     }
-    if (tty_input) {
-      std::string line{};
-      status = GetCmd(input, prompt, line);
-      UA_sock->message_length = PmStrcpy(UA_sock->msg, line.c_str());
-      if (usrbrk() == 1) { clrbrk(); }
-      if (usrbrk()) { break; }
+
+    auto line = GetInputLine(input, prompt);
+
+    if (!line) {
+      status = -1;
     } else {
-      // Reading input from a file
-      int len = SizeofPoolMemory(UA_sock->msg) - 1;
-      if (usrbrk()) { break; }
-      if (fgets(UA_sock->msg, len, input) == NULL) {
-        status = -1;
-      } else {
-        ConsoleOutput(UA_sock->msg); /* echo to terminal */
-        StripTrailingJunk(UA_sock->msg);
-        UA_sock->message_length = strlen(UA_sock->msg);
-        status = 1;
-      }
+      UA_sock->message_length = PmStrcpy(UA_sock->msg, line->c_str());
+      status = 1;
     }
+
     if (status < 0) {
       break;                  /* error or interrupt */
     } else if (status == 0) { /* timeout */
