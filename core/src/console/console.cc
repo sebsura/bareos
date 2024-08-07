@@ -197,9 +197,7 @@ static int Do_a_command(FILE* input, BareosSocket* UA_sock)
 }
 
 
-[[maybe_unused]] static std::optional<std::string> GetInputLine(
-    FILE* input,
-    const char* prompt)
+static std::optional<std::string> GetInputLine(FILE* input, const char* prompt)
 {
   bool tty_input = isatty(fileno(input));
 
@@ -220,12 +218,34 @@ static int Do_a_command(FILE* input, BareosSocket* UA_sock)
       return std::nullopt;  // error occured
     }
 
-    if (strlen(line.data() + start) != block_size - 1
-        || line[start + block_size - 1] == '\n') {
-      // we read a line
-      return line;
+    auto read_block = strlen(line.data() + start);
+    line.resize(start + read_block);
+
+    if (read_block == block_size - 1) {
+      if (line[start + block_size - 2] == '\n') {
+        // we read a line
+        break;
+      } else {
+        continue;  // we need more data
+      }
     }
+
+    if (line[start + read_block - 1] != '\n') {
+      printf("line: '%s'\n", line.c_str());
+      printf("read_block: '%zu'\n", read_block);
+
+
+      line.push_back('\n');
+    }
+    break;
   }
+
+  // we only come here if we just read a line from file.
+  // We now just need to print it.
+
+  ConsoleOutput(line.c_str());
+
+  return line;
 }
 
 
