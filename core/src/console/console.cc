@@ -1539,12 +1539,6 @@ std::unique_ptr<Value> ValueOf(const bareos::config::SchemaValue& val)
 
       return result;
     }
-    case bareos::config::BOOL: {
-      auto result = std::make_unique<EnumValue>();
-      result->options().emplace_back("yes");
-      result->options().emplace_back("no");
-      return result;
-    }
     default:
       return nullptr;
   }

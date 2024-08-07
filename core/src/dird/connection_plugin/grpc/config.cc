@@ -162,9 +162,16 @@ class ConfigImpl final : public Config::Service {
           } break;
           case BCSBT_ENUM: {
             sv.set_type(bareos::config::ConfigType::ENUM);
+            auto* values = sv.mutable_values();
+            for (size_t i = 0; i < entry.type.enum_value_count; ++i) {
+              values->Add(entry.type.enum_values[i]);
+            }
           } break;
           case BCSBT_BOOL: {
-            sv.set_type(bareos::config::ConfigType::BOOL);
+            sv.set_type(bareos::config::ConfigType::ENUM);
+            auto* values = sv.mutable_values();
+            values->Add("Yes");
+            values->Add("No");
           } break;
           case BCSBT_POS_INT: {
             sv.set_type(bareos::config::ConfigType::POS_INT);
@@ -174,14 +181,6 @@ class ConfigImpl final : public Config::Service {
           } break;
         }
         sv.set_multiple(entry.type.allow_multiple);
-
-        if (entry.type.base_type == BCSBT_ENUM) {
-          auto* values = sv.mutable_values();
-          for (size_t i = 0; i < entry.type.enum_value_count; ++i) {
-            values->Add(entry.type.enum_values[i]);
-          }
-        }
-
 
         values->Add(std::move(sv));
         return true;

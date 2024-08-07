@@ -44,7 +44,6 @@ enum ConfigType {
   CONFIG_TYPE_UNSPECIFIED = 0;
   STRING = 1;
   ENUM = 2;
-  BOOL = 3;
   POS_INT = 4; // excluding 0
   NAT_INT = 5; // including 0
 };
