@@ -73,9 +73,8 @@ addgrpcprotofiles(
   "common.proto" "config.proto"
 )
 
-include_directories("${CMAKE_CURRENT_BINARY_DIR}")
-
 add_library(grpc-proto ${protosrcs} ${protohdrs} ${grpcsrcs} ${grpchdrs})
+target_include_directories(grpc-proto PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
 
 target_link_libraries(
   grpc-proto ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF}
