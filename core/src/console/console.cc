@@ -94,7 +94,14 @@ static int g_numdir;
 static POOLMEM* g_args;
 static char* g_argk[MAX_CMD_ARGS];
 static char* g_argv[MAX_CMD_ARGS];
-static bool file_selection = false;
+
+enum
+{
+  MAIN_PROMPT,
+  FILE_SELECTION,
+  CONFIG_EDIT,
+} console_state
+    = MAIN_PROMPT;
 
 #if defined(HAVE_PAM)
 static bool force_send_pam_credentials_unencrypted = false;
@@ -311,9 +318,9 @@ static void ReadAndProcessInput(FILE* input, BareosSocket* UA_sock)
                    && (UA_sock->message_length != BNET_SUB_PROMPT)))) {
       if (status == BNET_SIGNAL) {
         if (UA_sock->message_length == BNET_START_RTREE) {
-          file_selection = true;
+          console_state = FILE_SELECTION;
         } else if (UA_sock->message_length == BNET_END_RTREE) {
-          file_selection = false;
+          console_state = MAIN_PROMPT;
         }
         continue;
       }
@@ -534,59 +541,47 @@ static char* dummy_completion_function(const char*, int) { return NULL; }
 struct cpl_keywords_t {
   const char* key;
   const char* cmd;
-  bool file_selection;
 };
 
-static const auto cpl_keywords
-    = std::array{cpl_keywords_t{"pool=", ".pool", false},
-                 cpl_keywords_t{"nextpool=", ".pool", false},
-                 cpl_keywords_t{"fileset=", ".fileset", false},
-                 cpl_keywords_t{"client=", ".client", false},
-                 cpl_keywords_t{"jobdefs=", ".jobdefs", false},
-                 cpl_keywords_t{"job=", ".jobs", false},
-                 cpl_keywords_t{"restore_job=", ".jobs type=R", false},
-                 cpl_keywords_t{"level=", ".level", false},
-                 cpl_keywords_t{"storage=", ".storage", false},
-                 cpl_keywords_t{"schedule=", ".schedule", false},
-                 cpl_keywords_t{"volume=", ".media", false},
-                 cpl_keywords_t{"oldvolume=", ".media", false},
-                 cpl_keywords_t{"volstatus=", ".volstatus", false},
-                 cpl_keywords_t{"catalog=", ".catalogs", false},
-                 cpl_keywords_t{"message=", ".msgs", false},
-                 cpl_keywords_t{"profile=", ".profiles", false},
-                 cpl_keywords_t{"actiononpurge=", ".actiononpurge", false},
-                 cpl_keywords_t{"ls", ".ls", true},
-                 cpl_keywords_t{"cd", ".lsdir", true},
-                 cpl_keywords_t{"add", ".ls", true},
-                 cpl_keywords_t{"mark", ".ls", true},
-                 cpl_keywords_t{"m", ".ls", true},
-                 cpl_keywords_t{"delete", ".lsmark", true},
-                 cpl_keywords_t{"unmark", ".lsmark", true}};
+static const auto cpl_prompt_keywords = std::array{
+    cpl_keywords_t{"pool=", ".pool"},
+    cpl_keywords_t{"nextpool=", ".pool"},
+    cpl_keywords_t{"fileset=", ".fileset"},
+    cpl_keywords_t{"client=", ".client"},
+    cpl_keywords_t{"jobdefs=", ".jobdefs"},
+    cpl_keywords_t{"job=", ".jobs"},
+    cpl_keywords_t{"restore_job=", ".jobs type=R"},
+    cpl_keywords_t{"level=", ".level"},
+    cpl_keywords_t{"storage=", ".storage"},
+    cpl_keywords_t{"schedule=", ".schedule"},
+    cpl_keywords_t{"volume=", ".media"},
+    cpl_keywords_t{"oldvolume=", ".media"},
+    cpl_keywords_t{"volstatus=", ".volstatus"},
+    cpl_keywords_t{"catalog=", ".catalogs"},
+    cpl_keywords_t{"message=", ".msgs"},
+    cpl_keywords_t{"profile=", ".profiles"},
+    cpl_keywords_t{"actiononpurge=", ".actiononpurge"},
+};
+static const auto cpl_file_selection_keywords = std::array{
+    cpl_keywords_t{"ls", ".ls"},        cpl_keywords_t{"cd", ".lsdir"},
+    cpl_keywords_t{"add", ".ls"},       cpl_keywords_t{"mark", ".ls"},
+    cpl_keywords_t{"m", ".ls"},         cpl_keywords_t{"delete", ".lsmark"},
+    cpl_keywords_t{"unmark", ".lsmark"}};
 
-/* Attempt to complete on the contents of TEXT.  START and END bound the
- * region of rl_line_buffer that contains the word to complete.  TEXT is
- * the word to complete.  We can use the entire contents of rl_line_buffer
- * in case we want to do some simple parsing.  Return the array of matches,
- * or NULL if there aren't any.
- */
-static char** readline_completion(const char* text, int start, int)
+static char** select_from_keywords(gsl::span<const cpl_keywords_t> cpl_keywords,
+                                   const char* text,
+                                   int start)
 {
   bool found = false;
-  char** matches;
-  char *s, *cmd;
-  matches = (char**)NULL;
-
+  char** matches = nullptr;
   /* If this word is at the start of the line, then it is a command
    * to complete. Otherwise it is the name of a file in the current
    * directory.
    */
-  s = get_previous_keyword(start, 0);
-  cmd = get_first_keyword();
+  char* s = get_previous_keyword(start, 0);
+  char* cmd = get_first_keyword();
   if (s) {
     for (auto& keyword : cpl_keywords) {
-      // See if this keyword is allowed with the current file_selection setting.
-      if (keyword.file_selection != file_selection) { continue; }
-
       if (Bstrcasecmp(s, keyword.key)) {
         cpl_item = keyword.cmd;
         cpl_type = ITEM_ARG;
@@ -610,7 +605,59 @@ static char** readline_completion(const char* text, int start, int)
     matches = rl_completion_matches(text, cpl_generator);
   }
   if (cmd) { free(cmd); }
-  return (matches);
+
+  return matches;
+}
+
+bareos::config::SchemaValue* current_value = nullptr;
+
+static char* schema_value_generator(const char* text, int state)
+{
+  static int index = 0;
+  static std::string_view start;
+
+  if (!state) {
+    // first call
+    index = 0;
+    start = text;
+  }
+  while (index < current_value->values_size()) {
+    // we do not use a for loop here since we also need to increment index
+    // in the case where we found a match (so we do a return from here)
+    auto& val = current_value->values().Get(index++);
+    if (start.size() <= val.size()
+        && memcmp(start.data(), val.c_str(), start.size()) == 0) {
+      return strdup(val.c_str());
+    }
+  }
+
+  return nullptr;
+}
+
+/* Attempt to complete on the contents of TEXT.  START and END bound the
+ * region of rl_line_buffer that contains the word to complete.  TEXT is
+ * the word to complete.  We can use the entire contents of rl_line_buffer
+ * in case we want to do some simple parsing.  Return the array of matches,
+ * or NULL if there aren't any.
+ */
+static char** readline_completion(const char* text, int start, int)
+{
+  rl_attempted_completion_over = 1;
+
+  switch (console_state) {
+    case MAIN_PROMPT:
+      return select_from_keywords(cpl_prompt_keywords, text, start);
+    case FILE_SELECTION:
+      return select_from_keywords(cpl_file_selection_keywords, text, start);
+    case CONFIG_EDIT: {
+      if (current_value && current_value->values_size() > 0) {
+        return rl_completion_matches(text, schema_value_generator);
+      }
+      return nullptr;
+    } break;
+  }
+
+  return nullptr;
 }
 
 static char eol = '\0';
@@ -1476,7 +1523,9 @@ struct EnumValue : public Value {
   bool set_from(std::string_view chars) override
   {
     for (size_t i = 0; i < possibilities.size(); ++i) {
-      if (possibilities[i] == chars) {
+      auto& opt = possibilities[i];
+      if (opt.size() == chars.size()
+          && strncasecmp(opt.c_str(), chars.data(), opt.size()) == 0) {
         index = i;
         return true;
       }
@@ -1730,6 +1779,8 @@ std::optional<std::vector<std::unique_ptr<Value>>> EditValues(
 
   std::string errmsg{};
 
+  auto old_console_state = console_state;
+
   for (;;) {
     PrintValueTable(schema, values);
     if (errmsg.size()) {
@@ -1751,9 +1802,14 @@ std::optional<std::vector<std::unique_ptr<Value>>> EditValues(
     auto& schema_entry = schema[ind];
     auto& value = values[ind];
 
+    current_value = &schema_entry;
 
     std::string prompt = schema_entry.name() + ": ";
+
+    console_state = CONFIG_EDIT;
     auto line = GetInputLine(input, prompt.c_str());
+    console_state = old_console_state;
+
     if (!line) { continue; }
 
     // remove trailing '\n'
@@ -1762,7 +1818,7 @@ std::optional<std::vector<std::unique_ptr<Value>>> EditValues(
     if (!value->set_from(*line)) {
       errmsg = "Could not set ";
       errmsg += schema_entry.name();
-      errmsg += "to ";
+      errmsg += " to ";
       errmsg += *line;
 
       continue;
