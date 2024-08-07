@@ -37,6 +37,7 @@
 #include "lib/berrno.h"
 #include "lib/bnet.h"
 #include "lib/bnet_network_dump.h"
+#include "lib/bsock.h"
 #include "lib/bsock_tcp.h"
 #include "lib/bstringlist.h"
 #include "lib/cli.h"
@@ -44,6 +45,7 @@
 #include "lib/version.h"
 #include "lib/watchdog.h"
 #include "lib/bpipe.h"
+#include <jansson.h>
 #include <stdio.h>
 #include <fstream>
 #include <string>
@@ -1303,43 +1305,89 @@ static int ConfigCmd(FILE*, BareosSocket* dir)
   // we can use g_argv/c/k
   auto* msg = strdup(dir->msg);
 
+  ConsoleOutput("set api to 2\n");
+  fflush(stdout);
   dir->fsend(".api 2\n");
 
   for (;;) {
     auto status = dir->recv();
-    if (status < 0) { return 0; }
 
     if (status == BNET_SIGNAL) {
       auto signal = dir->message_length;
-      if (signal != BNET_EOD) {
-        return 1;
-      } else {
+
+      if (signal == BNET_MAIN_PROMPT || signal == BNET_EOD) {
         break;
+      } else {
+        char buffer[100];
+        snprintf(buffer, sizeof(buffer), "Got Signal %d\n", signal);
+        ConsoleOutput(buffer);
+        continue;
       }
+    } else if (status < 0) {
+      ConsoleOutput("bad 1\n");
+      fflush(stdout);
+      return 0;
     } else {
       ConsoleOutput(dir->msg);
+      fflush(stdout);
     }
   }
 
+  ConsoleOutput("sending msg\n");
+  fflush(stdout);
   dir->fsend("%s", msg + 1);  // skip @
 
+  std::string json{};
+  bool cmd_ok = false;
   for (;;) {
     auto status = dir->recv();
-    if (status < 0) { return 0; }
 
     if (status == BNET_SIGNAL) {
       auto signal = dir->message_length;
-      if (signal != BNET_EOD) {
-        return 1;
-      } else {
+      if (signal == BNET_CMD_OK) {
+        cmd_ok = true;
+      } else if (signal == BNET_MAIN_PROMPT || signal == BNET_EOD) {
         break;
+      } else {
+        char buffer[100];
+        snprintf(buffer, sizeof(buffer), "Got Signal %d\n", signal);
+        ConsoleOutput(buffer);
+        fflush(stdout);
+        continue;
       }
+    } else if (status < 0) {
+      ConsoleOutput("bad 2\n");
+      fflush(stdout);
+      return 0;
     } else {
-      ConsoleOutput(dir->msg);
+      json += dir->msg;
     }
   }
 
-  dir->fsend(".api 1 \n");
+  if (!cmd_ok) {
+    ConsoleOutput("command bad\n");
+    fflush(stdout);
+  }
+
+  ConsoleOutput("---------\n");
+  ConsoleOutput(json.c_str());
+  ConsoleOutput("---------\n");
+  fflush(stdout);
+
+  json_error_t error = {};
+  json_t* obj = json_loads(json.c_str(), 0, &error);
+
+  if (!obj) {
+    char buffer[200];
+    snprintf(buffer, sizeof(buffer), "bad json %d: %s\n", error.line,
+             error.text);
+    ConsoleOutput(buffer);
+    fflush(stdout);
+  }
+
+  ConsoleOutput("set api to 1\n");
+  fflush(stdout);
+  dir->fsend(".api 1\n");
 
   return 1;
 }
