@@ -1487,8 +1487,10 @@ std::optional<bareos::config::ResourceType> get_resource_type(const char* name)
 
 struct Value {
   virtual bool set_from(std::string_view chars) = 0;
-  virtual void print_into(gsl::span<char> buffer) = 0;
-  virtual const char* type() = 0;
+  virtual std::string_view printable() const = 0;
+  virtual const char* type() const = 0;
+  virtual bool is_set() const = 0;
+  virtual void unset() = 0;
   virtual ~Value() = default;
 };
 
@@ -1500,15 +1502,20 @@ struct StringValue : public Value {
     return true;
   }
 
-  const char* type() override { return "string"; }
+  const char* type() const override { return "string"; }
 
-  void print_into(gsl::span<char> buffer) override
+  std::string_view printable() const override
   {
     if (content) {
-      std::strstream s{buffer.data(), static_cast<int>(buffer.size())};
-      s << *content;
+      return std::string_view{*content};
+    } else {
+      return {};
     }
   }
+
+  bool is_set() const override { return content.has_value(); }
+
+  void unset() override { content.reset(); }
 
   ~StringValue() override = default;
 };
@@ -1534,13 +1541,18 @@ struct EnumValue : public Value {
     return false;
   }
 
-  const char* type() override { return "enum"; }
+  bool is_set() const override { return index.has_value(); }
 
-  void print_into(gsl::span<char> buffer) override
+  void unset() override { index.reset(); }
+
+  const char* type() const override { return "enum"; }
+
+  std::string_view printable() const override
   {
     if (index) {
-      std::strstream s{buffer.data(), static_cast<int>(buffer.size())};
-      s << possibilities[*index];
+      return possibilities[*index];
+    } else {
+      return {};
     }
   }
 
@@ -1549,6 +1561,8 @@ struct EnumValue : public Value {
 
 struct IntValue : public Value {
   std::optional<std::uint64_t> content{};
+  std::string buffer;
+
   bool set_from(std::string_view chars) override
   {
     std::uint64_t val;
@@ -1557,16 +1571,27 @@ struct IntValue : public Value {
     if (result.ec != std::errc()) { return false; }
 
     content = val;
+    buffer = std::to_string(*content);
     return true;
   }
 
-  const char* type() override { return "int"; }
+  bool is_set() const override { return content.has_value(); }
 
-  void print_into(gsl::span<char> buffer) override
+  void unset() override
+  {
+    content.reset();
+    buffer.clear();
+  }
+
+
+  const char* type() const override { return "int"; }
+
+  std::string_view printable() const override
   {
     if (content) {
-      std::strstream s{buffer.data(), static_cast<int>(buffer.size())};
-      s << *content;
+      return buffer;
+    } else {
+      return {};
     }
   }
 
@@ -1724,7 +1749,9 @@ void PrintValueTable(gsl::span<bareos::config::SchemaValue> schema,
       s << (schema[i].is_required() ? '*' : '-') << schema[i].name();
     }
     if (values[i]) {
-      values[i]->print_into(value);
+      auto printable = values[i]->printable();
+      memcpy(value.data(), printable.data(),
+             std::min(value.size(), printable.size()));
     } else {
       std::strstream s{value.data(), static_cast<int>(value.size())};
       s << "uhoh";
