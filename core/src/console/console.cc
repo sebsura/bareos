@@ -1890,11 +1890,15 @@ struct Doc {
   int index;
 };
 
+struct GetValue {
+  int index;
+};
+
 struct Error {
   std::string message;
 };
 
-using Action = std::variant<Cancel, Finish, Edit, Doc, Error>;
+using Action = std::variant<Cancel, Finish, Edit, Doc, GetValue, Error>;
 
 std::string_view trim(std::string_view v)
 {
@@ -1938,6 +1942,13 @@ start:
     if (idx < 0) { return Error{std::move(errmsg)}; }
 
     return Edit{idx};
+  } else if (CasePrefix(command, "value")) {
+    std::string errmsg;
+
+    auto idx = GetIndex(trimmed, schema, errmsg);
+    if (idx < 0) { return Error{std::move(errmsg)}; }
+
+    return GetValue{idx};
   } else if (CasePrefix(command, "doc") || CasePrefix(command, "help")) {
     std::string errmsg;
     auto idx = GetIndex(trimmed, schema, errmsg);
@@ -2020,10 +2031,23 @@ std::optional<std::vector<std::unique_ptr<Value>>> EditValues(
               notification += *line;
             }
             console_state = old_console_state;
+          } else if constexpr (std::is_same_v<T, GetValue>) {
+            auto& schema_entry = schema[a.index];
+            auto& value = values[a.index];
+
+            if (value->is_set()) {
+              auto print = value->printable();
+              notification = schema_entry.name();
+              notification += ": ";
+              notification += print;
+            } else {
+              notification = schema_entry.name();
+              notification += " is not set";
+            }
           } else if constexpr (std::is_same_v<T, Error>) {
             notification = std::move(a.message);
           } else {
-            static_assert("Type not handled\n");
+            static_assert(0, "Type not handled\n");
           }
         },
         action);
