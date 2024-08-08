@@ -100,6 +100,7 @@ enum
   MAIN_PROMPT,
   FILE_SELECTION,
   CONFIG_EDIT,
+  CONFIG_GET_ACTION,
 } console_state
     = MAIN_PROMPT;
 
@@ -169,6 +170,20 @@ static const auto commands = std::array{
     cmdstruct{NT_("config"), ConfigCmd, T_("change the director config")},
     cmdstruct{NT_("grpc"), GrpcCmd, "set grpc address"},
 };
+
+namespace {
+bool CaseEq(std::string_view l, std::string_view r)
+{
+  if (l.size() != r.size()) { return false; }
+  return strncasecmp(l.data(), r.data(), l.size()) == 0;
+}
+// returns if l is a prefix of r (modulo case)
+bool CasePrefix(std::string_view l, std::string_view r)
+{
+  if (l.size() > r.size()) { return false; }
+  return strncasecmp(l.data(), r.data(), l.size()) == 0;
+}
+};  // namespace
 
 static int Do_a_command(FILE* input, BareosSocket* UA_sock)
 {
@@ -634,6 +649,33 @@ static char* schema_value_generator(const char* text, int state)
   return nullptr;
 }
 
+static char* config_action_generator(const char* text, int state)
+{
+  static constexpr auto actions = std::array{
+      std::string_view{"edit"},   std::string_view{"value"},
+      std::string_view{"doc"},    std::string_view{"help"},
+      std::string_view{"finish"}, std::string_view{"done"},
+      std::string_view{"cancel"},
+  };
+
+  static size_t index = 0;
+  static std::string_view start;
+  if (!state) {
+    index = 0;
+    start = text;
+  }
+
+  while (index < actions.size()) {
+    auto& current = actions[index++];
+
+    if (CasePrefix(start, current)) {
+      return strndup(current.data(), current.size());
+    }
+  }
+
+  return nullptr;
+}
+
 /* Attempt to complete on the contents of TEXT.  START and END bound the
  * region of rl_line_buffer that contains the word to complete.  TEXT is
  * the word to complete.  We can use the entire contents of rl_line_buffer
@@ -655,6 +697,9 @@ static char** readline_completion(const char* text, int start, int)
       }
       return nullptr;
     } break;
+    case CONFIG_GET_ACTION: {
+      return rl_completion_matches(text, config_action_generator);
+    }
   }
 
   return nullptr;
@@ -1765,18 +1810,6 @@ void PrintValueTable(gsl::span<bareos::config::SchemaValue> schema,
   fflush(stdout);
 }
 
-bool CaseEq(std::string_view l, std::string_view r)
-{
-  if (l.size() != r.size()) { return false; }
-  return strncasecmp(l.data(), r.data(), l.size()) == 0;
-}
-// returns if l is a prefix of r (modulo case)
-bool CasePrefix(std::string_view l, std::string_view r)
-{
-  if (l.size() > r.size()) { return false; }
-  return strncasecmp(l.data(), r.data(), l.size()) == 0;
-}
-
 enum class match_status
 {
   NoMatch,
@@ -1911,9 +1944,13 @@ std::string_view trim(std::string_view v)
 
 Action GetNextAction(FILE* input, gsl::span<bareos::config::SchemaValue> schema)
 {
+  auto old_console_state = console_state;
   const char* prompt = "*";
+
 start:
+  console_state = CONFIG_GET_ACTION;
   auto line = GetInputLine(input, prompt);
+  console_state = old_console_state;
   if (!line) { return Cancel{}; }
 
   auto view = std::string_view{*line};
