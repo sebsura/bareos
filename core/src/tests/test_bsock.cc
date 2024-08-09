@@ -88,7 +88,7 @@ void InitForTest()
   bindtextdomain("bareos", LOCALEDIR);
   textdomain("bareos");
 
-  debug_level = 0;
+  debug_level = 100;
   SetTrace(0);
 
   working_directory = "/tmp";
