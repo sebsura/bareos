@@ -51,7 +51,7 @@ class ConfigResourcesContainer;
  * use. It is at least safer to use than the undefined behaviour we previously
  * utilized.
  */
-#define ITEM(c, m) offsetof(std::remove_pointer<decltype(c)>::type, m)
+#define ITEM(c, m) offsetof(c, m)
 #define ITEMC(c) 0
 
 /*

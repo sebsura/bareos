@@ -229,11 +229,11 @@ void ConfigurationParser::SetAllResourceDefaultsByParserPass(
 
   switch (pass) {
     case 1:
-      SetDefaults = [rcode](ConfigurationParser& c, BareosResource* res,
+      SetDefaults = [rcode](ConfigurationParser& c, BareosResource* to_init,
                             ResourceItem* item) {
-        res->rcode_ = rcode;
-        res->refcnt_ = 1;
-        c.SetResourceDefaultsParserPass1(res, item);
+        to_init->rcode_ = rcode;
+        to_init->refcnt_ = 1;
+        c.SetResourceDefaultsParserPass1(to_init, item);
       };
       break;
     case 2:

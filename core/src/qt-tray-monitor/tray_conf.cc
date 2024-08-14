@@ -67,17 +67,6 @@ static void DumpResource(int type,
                          void* sock,
                          bool hide_sensitive_data,
                          bool verbose);
-/*
- * We build the current resource here as we are
- * scanning the resource configuration definition,
- * then move it to allocated memory when the resource
- * scan is complete.
- */
-static MonitorResource* res_monitor;
-static DirectorResource* res_dir;
-static ClientResource* res_client;
-static StorageResource* res_store;
-static ConsoleFontResource* res_font;
 
 /* clang-format off */
 
@@ -87,15 +76,15 @@ static ConsoleFontResource* res_font;
  * name handler value code flags default_value
  */
 static ResourceItem mon_items[] = {
-  {"Name", CFG_TYPE_NAME, ITEM(res_monitor,resource_name_), 0, CFG_ITEM_REQUIRED, 0, NULL, NULL},
-  {"Description", CFG_TYPE_STR, ITEM(res_monitor,description_), 0, 0, 0, NULL, NULL},
-  {"Password", CFG_TYPE_MD5PASSWORD, ITEM(res_monitor,password), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-  {"RefreshInterval", CFG_TYPE_TIME, ITEM(res_monitor,RefreshInterval), 0, CFG_ITEM_DEFAULT, "60", NULL, NULL},
-  {"FdConnectTimeout", CFG_TYPE_TIME, ITEM(res_monitor,FDConnectTimeout), 0, CFG_ITEM_DEFAULT, "10", NULL, NULL},
-  {"SdConnectTimeout", CFG_TYPE_TIME, ITEM(res_monitor,SDConnectTimeout), 0, CFG_ITEM_DEFAULT, "10", NULL, NULL},
-  {"DirConnectTimeout", CFG_TYPE_TIME, ITEM(res_monitor,DIRConnectTimeout), 0, CFG_ITEM_DEFAULT, "10", NULL, NULL},
-    TLS_COMMON_CONFIG(res_monitor),
-    TLS_CERT_CONFIG(res_monitor),
+  {"Name", CFG_TYPE_NAME, ITEM(MonitorResource,resource_name_), 0, CFG_ITEM_REQUIRED, 0, NULL, NULL},
+  {"Description", CFG_TYPE_STR, ITEM(MonitorResource,description_), 0, 0, 0, NULL, NULL},
+  {"Password", CFG_TYPE_MD5PASSWORD, ITEM(MonitorResource,password), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
+  {"RefreshInterval", CFG_TYPE_TIME, ITEM(MonitorResource,RefreshInterval), 0, CFG_ITEM_DEFAULT, "60", NULL, NULL},
+  {"FdConnectTimeout", CFG_TYPE_TIME, ITEM(MonitorResource,FDConnectTimeout), 0, CFG_ITEM_DEFAULT, "10", NULL, NULL},
+  {"SdConnectTimeout", CFG_TYPE_TIME, ITEM(MonitorResource,SDConnectTimeout), 0, CFG_ITEM_DEFAULT, "10", NULL, NULL},
+  {"DirConnectTimeout", CFG_TYPE_TIME, ITEM(MonitorResource,DIRConnectTimeout), 0, CFG_ITEM_DEFAULT, "10", NULL, NULL},
+    TLS_COMMON_CONFIG(MonitorResource),
+    TLS_CERT_CONFIG(MonitorResource),
     {}
 };
 
@@ -105,12 +94,12 @@ static ResourceItem mon_items[] = {
  * name handler value code flags default_value
  */
 static ResourceItem dir_items[] = {
-  {"Name", CFG_TYPE_NAME, ITEM(res_dir,resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-  {"Description", CFG_TYPE_STR, ITEM(res_dir,description_), 0, 0, NULL, NULL, NULL},
-  {"DirPort", CFG_TYPE_PINT32, ITEM(res_dir,DIRport), 0, CFG_ITEM_DEFAULT, DIR_DEFAULT_PORT, NULL, NULL},
-  {"Address", CFG_TYPE_STR, ITEM(res_dir,address), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-    TLS_COMMON_CONFIG(res_dir),
-    TLS_CERT_CONFIG(res_dir),
+  {"Name", CFG_TYPE_NAME, ITEM(DirectorResource,resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
+  {"Description", CFG_TYPE_STR, ITEM(DirectorResource,description_), 0, 0, NULL, NULL, NULL},
+  {"DirPort", CFG_TYPE_PINT32, ITEM(DirectorResource,DIRport), 0, CFG_ITEM_DEFAULT, DIR_DEFAULT_PORT, NULL, NULL},
+  {"Address", CFG_TYPE_STR, ITEM(DirectorResource,address), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
+    TLS_COMMON_CONFIG(DirectorResource),
+    TLS_CERT_CONFIG(DirectorResource),
     {}
 };
 
@@ -120,13 +109,13 @@ static ResourceItem dir_items[] = {
  * name handler value code flags default_value
  */
 static ResourceItem client_items[] = {
-  {"Name", CFG_TYPE_NAME, ITEM(res_client,resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-  {"Description", CFG_TYPE_STR, ITEM(res_client,description_), 0, 0, NULL, NULL, NULL},
-  {"Address", CFG_TYPE_STR, ITEM(res_client,address), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-  {"FdPort", CFG_TYPE_PINT32, ITEM(res_client,FDport), 0, CFG_ITEM_DEFAULT, FD_DEFAULT_PORT, NULL, NULL},
-  {"Password", CFG_TYPE_MD5PASSWORD, ITEM(res_client,password), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-    TLS_COMMON_CONFIG(res_client),
-    TLS_CERT_CONFIG(res_client),
+  {"Name", CFG_TYPE_NAME, ITEM(ClientResource,resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
+  {"Description", CFG_TYPE_STR, ITEM(ClientResource,description_), 0, 0, NULL, NULL, NULL},
+  {"Address", CFG_TYPE_STR, ITEM(ClientResource,address), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
+  {"FdPort", CFG_TYPE_PINT32, ITEM(ClientResource,FDport), 0, CFG_ITEM_DEFAULT, FD_DEFAULT_PORT, NULL, NULL},
+  {"Password", CFG_TYPE_MD5PASSWORD, ITEM(ClientResource,password), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
+    TLS_COMMON_CONFIG(ClientResource),
+    TLS_CERT_CONFIG(ClientResource),
     {}
 };
 
@@ -136,15 +125,15 @@ static ResourceItem client_items[] = {
  * name handler value code flags default_value
  */
 static ResourceItem store_items[] = {
-  {"Name", CFG_TYPE_NAME, ITEM(res_store,resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-  {"Description", CFG_TYPE_STR, ITEM(res_store,description_), 0, 0, NULL, NULL, NULL},
-  {"SdPort", CFG_TYPE_PINT32, ITEM(res_store,SDport), 0, CFG_ITEM_DEFAULT, SD_DEFAULT_PORT, NULL, NULL},
-  {"Address", CFG_TYPE_STR, ITEM(res_store,address), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-  {"SdAddress", CFG_TYPE_STR, ITEM(res_store,address), 0, 0, NULL, NULL, NULL},
-  {"Password", CFG_TYPE_MD5PASSWORD, ITEM(res_store,password), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-  {"SdPassword", CFG_TYPE_MD5PASSWORD, ITEM(res_store,password), 0, 0, NULL, NULL, NULL},
-    TLS_COMMON_CONFIG(res_store),
-    TLS_CERT_CONFIG(res_store),
+  {"Name", CFG_TYPE_NAME, ITEM(StorageResource,resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
+  {"Description", CFG_TYPE_STR, ITEM(StorageResource,description_), 0, 0, NULL, NULL, NULL},
+  {"SdPort", CFG_TYPE_PINT32, ITEM(StorageResource,SDport), 0, CFG_ITEM_DEFAULT, SD_DEFAULT_PORT, NULL, NULL},
+  {"Address", CFG_TYPE_STR, ITEM(StorageResource,address), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
+  {"SdAddress", CFG_TYPE_STR, ITEM(StorageResource,address), 0, 0, NULL, NULL, NULL},
+  {"Password", CFG_TYPE_MD5PASSWORD, ITEM(StorageResource,password), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
+  {"SdPassword", CFG_TYPE_MD5PASSWORD, ITEM(StorageResource,password), 0, 0, NULL, NULL, NULL},
+    TLS_COMMON_CONFIG(StorageResource),
+    TLS_CERT_CONFIG(StorageResource),
   {}
 };
 
@@ -154,9 +143,9 @@ static ResourceItem store_items[] = {
  * name handler value code flags default_value
  */
 static ResourceItem con_font_items[] = {
-  {"Name", CFG_TYPE_NAME, ITEM(res_font,resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-  {"Description", CFG_TYPE_STR, ITEM(res_font,description_), 0, 0, NULL, NULL, NULL},
-  {"Font", CFG_TYPE_STR, ITEM(res_font,fontface), 0, 0, NULL, NULL, NULL},
+  {"Name", CFG_TYPE_NAME, ITEM(ConsoleFontResource,resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
+  {"Description", CFG_TYPE_STR, ITEM(ConsoleFontResource,description_), 0, 0, NULL, NULL, NULL},
+  {"Font", CFG_TYPE_STR, ITEM(ConsoleFontResource,fontface), 0, 0, NULL, NULL, NULL},
   {}
 };
 

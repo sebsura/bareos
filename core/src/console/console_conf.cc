@@ -48,35 +48,31 @@ static void DumpResource(int type,
                          bool hide_sensitive_data,
                          bool verbose);
 
-/* the first configuration pass uses this static memory */
-static DirectorResource* res_dir;
-static ConsoleResource* res_cons;
-
 /* clang-format off */
 
 static ResourceItem cons_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_cons, resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, "The name of this resource." },
-  { "Description", CFG_TYPE_STR, ITEM(res_cons, description_), 0, 0, NULL, NULL, NULL },
-  { "RcFile", CFG_TYPE_DIR, ITEM(res_cons, rc_file), 0, 0, NULL, NULL, NULL },
-  { "HistoryFile", CFG_TYPE_DIR, ITEM(res_cons, history_file), 0, 0, NULL, NULL, NULL },
-  { "HistoryLength", CFG_TYPE_PINT32, ITEM(res_cons, history_length), 0, CFG_ITEM_DEFAULT, "100", NULL, NULL },
-  { "Password", CFG_TYPE_MD5PASSWORD, ITEM(res_cons, password_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL },
-  { "Director", CFG_TYPE_STR, ITEM(res_cons, director), 0, 0, NULL, NULL, NULL },
-  { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_cons, heartbeat_interval), 0, CFG_ITEM_DEFAULT, "0", NULL, NULL },
-  TLS_COMMON_CONFIG(res_cons),
-  TLS_CERT_CONFIG(res_cons),
+  { "NAME", CFG_TYPE_NAME, ITEM(ConsoleResource, resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, "The name of this resource." },
+  { "Description", CFG_TYPE_STR, ITEM(ConsoleResource, description_), 0, 0, NULL, NULL, NULL },
+  { "RcFile", CFG_TYPE_DIR, ITEM(ConsoleResource, rc_file), 0, 0, NULL, NULL, NULL },
+  { "HistoryFile", CFG_TYPE_DIR, ITEM(ConsoleResource, history_file), 0, 0, NULL, NULL, NULL },
+  { "HistoryLength", CFG_TYPE_PINT32, ITEM(ConsoleResource, history_length), 0, CFG_ITEM_DEFAULT, "100", NULL, NULL },
+  { "Password", CFG_TYPE_MD5PASSWORD, ITEM(ConsoleResource, password_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL },
+  { "Director", CFG_TYPE_STR, ITEM(ConsoleResource, director), 0, 0, NULL, NULL, NULL },
+  { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(ConsoleResource, heartbeat_interval), 0, CFG_ITEM_DEFAULT, "0", NULL, NULL },
+  TLS_COMMON_CONFIG(ConsoleResource),
+  TLS_CERT_CONFIG(ConsoleResource),
   {}
 };
 
 static ResourceItem dir_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_dir, resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL },
-  { "Description", CFG_TYPE_STR, ITEM(res_dir, description_), 0, 0, NULL, NULL, NULL },
-  { "DirPort", CFG_TYPE_PINT32, ITEM(res_dir, DIRport), 0, CFG_ITEM_DEFAULT, DIR_DEFAULT_PORT, NULL, NULL },
-  { "Address", CFG_TYPE_STR, ITEM(res_dir, address), 0, 0, NULL, NULL, NULL },
-  { "Password", CFG_TYPE_MD5PASSWORD, ITEM(res_dir, password_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL },
-  { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_dir, heartbeat_interval), 0, CFG_ITEM_DEFAULT, "0", NULL, NULL },
-  TLS_COMMON_CONFIG(res_dir),
-  TLS_CERT_CONFIG(res_dir),
+  { "Name", CFG_TYPE_NAME, ITEM(DirectorResource, resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL },
+  { "Description", CFG_TYPE_STR, ITEM(DirectorResource, description_), 0, 0, NULL, NULL, NULL },
+  { "DirPort", CFG_TYPE_PINT32, ITEM(DirectorResource, DIRport), 0, CFG_ITEM_DEFAULT, DIR_DEFAULT_PORT, NULL, NULL },
+  { "Address", CFG_TYPE_STR, ITEM(DirectorResource, address), 0, 0, NULL, NULL, NULL },
+  { "Password", CFG_TYPE_MD5PASSWORD, ITEM(DirectorResource, password_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL },
+  { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(DirectorResource, heartbeat_interval), 0, CFG_ITEM_DEFAULT, "0", NULL, NULL },
+  TLS_COMMON_CONFIG(DirectorResource),
+  TLS_CERT_CONFIG(DirectorResource),
   {}
 };
 
@@ -189,6 +185,7 @@ static bool SaveResource(BareosResource* new_res,
   if (pass == 2) {
     switch (type) {
       case R_CONSOLE: {
+        auto* res_cons = dynamic_cast<ConsoleResource*>(new_res);
         ConsoleResource* p = dynamic_cast<ConsoleResource*>(
             my_config->GetResWithName(R_CONSOLE, res_cons->resource_name_));
         if (!p) {
@@ -201,6 +198,7 @@ static bool SaveResource(BareosResource* new_res,
         break;
       }
       case R_DIRECTOR: {
+        auto* res_dir = dynamic_cast<DirectorResource*>(new_res);
         DirectorResource* p = dynamic_cast<DirectorResource*>(
             my_config->GetResWithName(R_DIRECTOR, res_dir->resource_name_));
         if (!p) {

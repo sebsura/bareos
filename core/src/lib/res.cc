@@ -626,8 +626,8 @@ void ConfigurationParser::StoreRes(BareosResource* res,
 {
   LexGetToken(lc, BCT_NAME);
   if (pass == 2) {
-    BareosResource* res = GetResWithName(item->code, lc->str);
-    if (res == NULL) {
+    BareosResource* referenced_res = GetResWithName(item->code, lc->str);
+    if (referenced_res == NULL) {
       scan_err3(
           lc,
           T_("Could not find config resource \"%s\" referenced on line %d: %s"),
@@ -642,7 +642,7 @@ void ConfigurationParser::StoreRes(BareosResource* res,
           item->name, lc->line_no, lc->line);
       return;
     }
-    *p = res;
+    *p = referenced_res;
   }
   ScanToEol(lc);
   item->SetPresent(res);
@@ -674,17 +674,17 @@ void ConfigurationParser::StoreAlistRes(BareosResource* res,
   while (token == BCT_COMMA) {
     LexGetToken(lc, BCT_NAME); /* scan next item */
     if (pass == 2) {
-      BareosResource* res = GetResWithName(item->code, lc->str);
-      if (res == NULL) {
+      BareosResource* referenced_res = GetResWithName(item->code, lc->str);
+      if (referenced_res == NULL) {
         scan_err3(lc,
                   T_("Could not find config Resource \"%s\" referenced on line "
                      "%d : %s\n"),
                   item->name, lc->line_no, lc->line);
         return;
       }
-      Dmsg5(900, "Append %p (%s) to alist %p size=%d %s\n", res,
-            res->resource_name_, list, list->size(), item->name);
-      list->append(res);
+      Dmsg5(900, "Append %p (%s) to alist %p size=%d %s\n", referenced_res,
+            referenced_res->resource_name_, list, list->size(), item->name);
+      list->append(referenced_res);
     }
     token = LexGetToken(lc, BCT_ALL);
   }
