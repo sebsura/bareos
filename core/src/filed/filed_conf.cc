@@ -56,7 +56,10 @@
 
 namespace filedaemon {
 
-static bool SaveResource(int type, ResourceItem* items, int pass);
+static bool SaveResource(BareosResource* new_res,
+                         int type,
+                         ResourceItem* items,
+                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* reshdr,

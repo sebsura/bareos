@@ -51,7 +51,10 @@
 namespace storagedaemon {
 
 static void FreeResource(BareosResource* sres, int type);
-static bool SaveResource(int type, ResourceItem* items, int pass);
+static bool SaveResource(BareosResource*,
+                         int type,
+                         ResourceItem* items,
+                         int pass);
 static void DumpResource(int type,
                          BareosResource* reshdr,
                          bool sendit(void* sock, const char* fmt, ...),
@@ -726,7 +729,10 @@ static void DumpResource(int type,
   }
 }
 
-static bool SaveResource(int type, ResourceItem* items, int pass)
+static bool SaveResource(BareosResource* new_res,
+                         int type,
+                         ResourceItem* items,
+                         int pass)
 {
   int i;
   int error = 0;
@@ -833,37 +839,7 @@ static bool SaveResource(int type, ResourceItem* items, int pass)
   }
 
   if (!error) {
-    BareosResource* new_resource = nullptr;
-    switch (resources[type].rcode) {
-      case R_DIRECTOR:
-        new_resource = res_dir;
-        res_dir = nullptr;
-        break;
-      case R_NDMP:
-        new_resource = res_ndmp;
-        res_ndmp = nullptr;
-        break;
-      case R_STORAGE:
-        new_resource = res_store;
-        res_store = nullptr;
-        break;
-      case R_DEVICE:
-        new_resource = res_dev;
-        res_dev = nullptr;
-        break;
-      case R_MSGS:
-        new_resource = res_msgs;
-        res_msgs = nullptr;
-        break;
-      case R_AUTOCHANGER:
-        new_resource = res_changer;
-        res_changer = nullptr;
-        break;
-      default:
-        ASSERT(false);
-        break;
-    }
-    error = my_config->AppendToResourcesChain(new_resource, type) ? 0 : 1;
+    error = my_config->AppendToResourcesChain(new_res, type) ? 0 : 1;
   }
   return (error == 0);
 }  // namespace storagedaemon

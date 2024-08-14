@@ -56,7 +56,10 @@
 
 static const std::string default_config_filename("tray-monitor.conf");
 
-static bool SaveResource(int type, ResourceItem* items, int pass);
+static bool SaveResource(BareosResource* new_res,
+                         int type,
+                         ResourceItem* items,
+                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* reshdr,
@@ -266,7 +269,10 @@ static void FreeResource(BareosResource* res, int type)
  * pointers because they may not have been defined until
  * later in pass 1.
  */
-static bool SaveResource(int type, ResourceItem* items, int pass)
+static bool SaveResource(BareosResource* new_res,
+                         int type,
+                         ResourceItem* items,
+                         int pass)
 {
   int i;
   int error = 0;
@@ -329,33 +335,7 @@ static bool SaveResource(int type, ResourceItem* items, int pass)
   }
 
   if (!error) {
-    BareosResource* new_resource = nullptr;
-    switch (type) {
-      case R_MONITOR:
-        new_resource = res_monitor;
-        res_monitor = nullptr;
-        break;
-      case R_CLIENT:
-        new_resource = res_client;
-        res_client = nullptr;
-        break;
-      case R_STORAGE:
-        new_resource = res_store;
-        res_store = nullptr;
-        break;
-      case R_DIRECTOR:
-        new_resource = res_dir;
-        res_dir = nullptr;
-        break;
-      case R_CONSOLE_FONT:
-        new_resource = res_font;
-        res_font = nullptr;
-        break;
-      default:
-        ASSERT(false);
-        break;
-    }
-    error = my_config->AppendToResourcesChain(new_resource, type) ? 0 : 1;
+    error = my_config->AppendToResourcesChain(new_res, type) ? 0 : 1;
   }
   return (error == 0);
 }

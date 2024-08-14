@@ -88,7 +88,10 @@ extern void StoreRun(LEX* lc, ResourceItem* item, int index, int pass);
 
 static void CreateAndAddUserAgentConsoleResource(
     ConfigurationParser& my_config);
-static bool SaveResource(int type, ResourceItem* items, int pass);
+static bool SaveResource(BareosResource*,
+                         int type,
+                         ResourceItem* items,
+                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* ures,
@@ -110,8 +113,9 @@ static ScheduleResource* res_sch;
 static PoolResource* res_pool;
 static MessagesResource* res_msgs;
 static CounterResource* res_counter;
-static DeviceResource* res_dev;
 static UserResource* res_user;
+
+template <typename T, typename Inner> size_t offset(Inner T::*ptr) { return 0; }
 
 
 /* clang-format off */
@@ -3556,76 +3560,6 @@ static void ConfigReadyCallback(ConfigurationParser& t_config)
   ResetAllClientConnectionHandshakeModes(t_config);
 }
 
-static bool AddResourceCopyToEndOfChain(int type,
-                                        BareosResource* new_resource = nullptr)
-{
-  if (!new_resource) {
-    switch (type) {
-      case R_DIRECTOR:
-        new_resource = res_dir;
-        res_dir = nullptr;
-        break;
-      case R_CLIENT:
-        new_resource = res_client;
-        res_client = nullptr;
-        break;
-      case R_JOBDEFS:
-      case R_JOB:
-        new_resource = res_job;
-        res_job = nullptr;
-        break;
-      case R_STORAGE:
-        new_resource = res_store;
-        res_store = nullptr;
-        break;
-      case R_CATALOG:
-        new_resource = res_cat;
-        res_cat = nullptr;
-        break;
-      case R_SCHEDULE:
-        new_resource = res_sch;
-        res_sch = nullptr;
-        break;
-      case R_FILESET:
-        new_resource = res_fs;
-        res_fs = nullptr;
-        break;
-      case R_POOL:
-        new_resource = res_pool;
-        res_pool = nullptr;
-        break;
-      case R_MSGS:
-        new_resource = res_msgs;
-        res_msgs = nullptr;
-        break;
-      case R_COUNTER:
-        new_resource = res_counter;
-        res_counter = nullptr;
-        break;
-      case R_PROFILE:
-        new_resource = res_profile;
-        res_profile = nullptr;
-        break;
-      case R_CONSOLE:
-        new_resource = res_con;
-        res_con = nullptr;
-        break;
-      case R_USER:
-        new_resource = res_user;
-        res_user = nullptr;
-        break;
-      case R_DEVICE:
-        new_resource = res_dev;
-        res_dev = nullptr;
-        break;
-      default:
-        Dmsg3(100, "Unhandled resource type: %d\n", type);
-        return false;
-    }
-  }
-  return my_config->AppendToResourcesChain(new_resource, type);
-}
-
 /*
  * Create a special Console named "*UserAgent*" with
  * root console password so that incoming console
@@ -3649,7 +3583,7 @@ static void CreateAndAddUserAgentConsoleResource(ConfigurationParser& t_config)
   c->refcnt_ = 1;
   c->internal_ = true;
 
-  AddResourceCopyToEndOfChain(R_CONSOLE, c);
+  t_config.AppendToResourcesChain(c, R_CONSOLE);
 }
 
 ConfigurationParser* InitDirConfig(const char* t_configfile, int exit_code)
@@ -3947,7 +3881,7 @@ static void FreeResource(BareosResource* res, int type)
  * pointers because they may not have been defined until
  * later in pass 1.
  */
-static bool SaveResource(BareosResource* allocated_resource,
+static bool SaveResource(BareosResource* new_res,
                          int type,
                          ResourceItem* items,
                          int pass)
@@ -3961,7 +3895,7 @@ static bool SaveResource(BareosResource* allocated_resource,
         for (int i = 0; items[i].name; i++) {
           if (Bstrcasecmp(items[i].name, "DirAddresses")) {
             // SetBit(i, allocated_resource->item_present_);
-            ClearBit(i, allocated_resource->inherit_content_);
+            ClearBit(i, new_res->inherit_content_);
           }
         }
       }
@@ -3973,7 +3907,7 @@ static bool SaveResource(BareosResource* allocated_resource,
       /* Check Job requirements after applying JobDefs
        * Ensure that the name item is present however. */
       if (items[0].flags & CFG_ITEM_REQUIRED) {
-        if (!allocated_resource->IsMemberPresent(items[0].name)) {
+        if (!new_res->IsMemberPresent(items[0].name)) {
           Emsg2(M_ERROR, 0,
                 T_("%s item is required in %s resource, but not found.\n"),
                 items[0].name, dird_resource_tables[type].name);
@@ -3983,7 +3917,7 @@ static bool SaveResource(BareosResource* allocated_resource,
       break;
     default:
       // Ensure that all required items are present
-      if (pass == 1 && !ValidateResource(type, items, allocated_resource)) {
+      if (pass == 1 && !ValidateResource(type, items, new_res)) {
         return false;
       }
       break;
@@ -4002,8 +3936,8 @@ static bool SaveResource(BareosResource* allocated_resource,
       case R_DIRECTOR:
         break;
       default: {
-        BareosResource* pass1_resource = my_config->GetResWithName(
-            type, allocated_resource->resource_name_);
+        BareosResource* pass1_resource
+            = my_config->GetResWithName(type, new_res->resource_name_);
         validation = ValidateResource(type, items, pass1_resource);
       } break;
     }
@@ -4011,8 +3945,7 @@ static bool SaveResource(BareosResource* allocated_resource,
     return validation && ret;
   }
 
-  if (!AddResourceCopyToEndOfChain(type)) { return false; }
-  return true;
+  return my_config->AppendToResourcesChain(new_res, type);
 }
 
 std::vector<JobResource*> GetAllJobResourcesByClientName(std::string name)

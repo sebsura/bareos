@@ -36,7 +36,10 @@
 
 namespace console {
 
-static bool SaveResource(int type, ResourceItem* items, int pass);
+static bool SaveResource(BareosResource* new_res,
+                         int type,
+                         ResourceItem* items,
+                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* reshdr,
@@ -163,7 +166,10 @@ static void FreeResource(BareosResource* res, int type)
   if (next_resource) { FreeResource(next_resource, type); }
 }
 
-static bool SaveResource(int type, ResourceItem* items, int pass)
+static bool SaveResource(BareosResource* new_res,
+                         int type,
+                         ResourceItem* items,
+                         int pass)
 {
   int i;
   int error = 0;
@@ -222,24 +228,7 @@ static bool SaveResource(int type, ResourceItem* items, int pass)
   }
 
   if (!error) {
-    BareosResource* new_resource = nullptr;
-    switch (resources[type].rcode) {
-      case R_DIRECTOR: {
-        new_resource = res_dir;
-        res_dir = nullptr;
-        break;
-      }
-      case R_CONSOLE: {
-        new_resource = res_cons;
-        res_cons = nullptr;
-        break;
-      }
-      default:
-        Emsg1(M_ERROR_TERM, 0, "Unknown resource type: %d\n",
-              resources[type].rcode);
-        return false;
-    }
-    error = my_config->AppendToResourcesChain(new_resource, type) ? 0 : 1;
+    error = my_config->AppendToResourcesChain(new_res, type) ? 0 : 1;
   }
   return (error == 0);
 }
