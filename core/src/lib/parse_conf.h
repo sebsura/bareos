@@ -51,10 +51,8 @@ class ConfigResourcesContainer;
  * use. It is at least safer to use than the undefined behaviour we previously
  * utilized.
  */
-#define ITEM(c, m)                                     \
-  offsetof(std::remove_pointer<decltype(c)>::type, m), \
-      reinterpret_cast<BareosResource**>(&c)
-#define ITEMC(c) 0, reinterpret_cast<BareosResource**>(&c)
+#define ITEM(c, m) offsetof(std::remove_pointer<decltype(c)>::type, m)
+#define ITEMC(c) 0
 
 /*
  * Master Resource configuration structure definition
@@ -185,13 +183,17 @@ struct DatatypeName {
   const char* description;
 };
 
-typedef void(INIT_RES_HANDLER)(ResourceItem* item, int pass);
-typedef void(STORE_RES_HANDLER)(LEX* lc,
+typedef void(INIT_RES_HANDLER)(BareosResource* res,
+                               ResourceItem* item,
+                               int pass);
+typedef void(STORE_RES_HANDLER)(BareosResource* res,
+                                LEX* lc,
                                 ResourceItem* item,
                                 int index,
                                 int pass,
                                 BareosResource** configuration_resources);
-typedef void(PRINT_RES_HANDLER)(ResourceItem& item,
+typedef void(PRINT_RES_HANDLER)(BareosResource* res,
+                                ResourceItem& item,
                                 OutputFormatterResource& send,
                                 bool hide_sensitive_data,
                                 bool inherited,
@@ -304,7 +306,8 @@ class ConfigurationParser {
   void b_UnlockRes(const char* file, int line) const;
   const char* ResToStr(int rcode) const;
   const char* ResGroupToStr(int rcode) const;
-  bool StoreResource(int rcode,
+  bool StoreResource(BareosResource* res,
+                     int rcode,
                      LEX* lc,
                      ResourceItem* item,
                      int index,
@@ -370,43 +373,168 @@ class ConfigurationParser {
   bool GetConfigIncludePath(PoolMem& full_path, const char* config_dir);
   bool FindConfigPath(PoolMem& full_path);
   int GetResourceTableIndex(const char* resource_type_name);
-  void StoreMsgs(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreName(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreStrname(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreStr(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreStdstr(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreDir(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreStdstrdir(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreMd5Password(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreClearpassword(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreRes(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreAlistRes(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreAlistStr(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreStdVectorStr(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreAlistDir(LEX* lc, ResourceItem* item, int index, int pass);
-  void StorePluginNames(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreDefs(LEX* lc, ResourceItem* item, int index, int pass);
-  void store_int16(LEX* lc, ResourceItem* item, int index, int pass);
-  void store_int32(LEX* lc, ResourceItem* item, int index, int pass);
-  void store_pint16(LEX* lc, ResourceItem* item, int index, int pass);
-  void store_pint32(LEX* lc, ResourceItem* item, int index, int pass);
-  void store_int64(LEX* lc, ResourceItem* item, int index, int pass);
-  void store_int_unit(LEX* lc,
+  void StoreMsgs(BareosResource* res,
+                 LEX* lc,
+                 ResourceItem* item,
+                 int index,
+                 int pass);
+  void StoreName(BareosResource* res,
+                 LEX* lc,
+                 ResourceItem* item,
+                 int index,
+                 int pass);
+  void StoreStrname(BareosResource* res,
+                    LEX* lc,
+                    ResourceItem* item,
+                    int index,
+                    int pass);
+  void StoreStr(BareosResource* res,
+                LEX* lc,
+                ResourceItem* item,
+                int index,
+                int pass);
+  void StoreStdstr(BareosResource* res,
+                   LEX* lc,
+                   ResourceItem* item,
+                   int index,
+                   int pass);
+  void StoreDir(BareosResource* res,
+                LEX* lc,
+                ResourceItem* item,
+                int index,
+                int pass);
+  void StoreStdstrdir(BareosResource* res,
+                      LEX* lc,
+                      ResourceItem* item,
+                      int index,
+                      int pass);
+  void StoreMd5Password(BareosResource* res,
+                        LEX* lc,
+                        ResourceItem* item,
+                        int index,
+                        int pass);
+  void StoreClearpassword(BareosResource* res,
+                          LEX* lc,
+                          ResourceItem* item,
+                          int index,
+                          int pass);
+  void StoreRes(BareosResource* res,
+                LEX* lc,
+                ResourceItem* item,
+                int index,
+                int pass);
+  void StoreAlistRes(BareosResource* res,
+                     LEX* lc,
+                     ResourceItem* item,
+                     int index,
+                     int pass);
+  void StoreAlistStr(BareosResource* res,
+                     LEX* lc,
+                     ResourceItem* item,
+                     int index,
+                     int pass);
+  void StoreStdVectorStr(BareosResource* res,
+                         LEX* lc,
+                         ResourceItem* item,
+                         int index,
+                         int pass);
+  void StoreAlistDir(BareosResource* res,
+                     LEX* lc,
+                     ResourceItem* item,
+                     int index,
+                     int pass);
+  void StorePluginNames(BareosResource* res,
+                        LEX* lc,
+                        ResourceItem* item,
+                        int index,
+                        int pass);
+  void StoreDefs(BareosResource* res,
+                 LEX* lc,
+                 ResourceItem* item,
+                 int index,
+                 int pass);
+  void store_int16(BareosResource* res,
+                   LEX* lc,
+                   ResourceItem* item,
+                   int index,
+                   int pass);
+  void store_int32(BareosResource* res,
+                   LEX* lc,
+                   ResourceItem* item,
+                   int index,
+                   int pass);
+  void store_pint16(BareosResource* res,
+                    LEX* lc,
+                    ResourceItem* item,
+                    int index,
+                    int pass);
+  void store_pint32(BareosResource* res,
+                    LEX* lc,
+                    ResourceItem* item,
+                    int index,
+                    int pass);
+  void store_int64(BareosResource* res,
+                   LEX* lc,
+                   ResourceItem* item,
+                   int index,
+                   int pass);
+  void store_int_unit(BareosResource* res,
+                      LEX* lc,
                       ResourceItem* item,
                       int index,
                       int pass,
                       bool size32,
                       enum unit_type type);
-  void store_size32(LEX* lc, ResourceItem* item, int index, int pass);
-  void store_size64(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreSpeed(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreTime(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreBit(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreBool(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreLabel(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreAddresses(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreAddressesAddress(LEX* lc, ResourceItem* item, int index, int pass);
-  void StoreAddressesPort(LEX* lc, ResourceItem* item, int index, int pass);
+  void store_size32(BareosResource* res,
+                    LEX* lc,
+                    ResourceItem* item,
+                    int index,
+                    int pass);
+  void store_size64(BareosResource* res,
+                    LEX* lc,
+                    ResourceItem* item,
+                    int index,
+                    int pass);
+  void StoreSpeed(BareosResource* res,
+                  LEX* lc,
+                  ResourceItem* item,
+                  int index,
+                  int pass);
+  void StoreTime(BareosResource* res,
+                 LEX* lc,
+                 ResourceItem* item,
+                 int index,
+                 int pass);
+  void StoreBit(BareosResource* res,
+                LEX* lc,
+                ResourceItem* item,
+                int index,
+                int pass);
+  void StoreBool(BareosResource* res,
+                 LEX* lc,
+                 ResourceItem* item,
+                 int index,
+                 int pass);
+  void StoreLabel(BareosResource* res,
+                  LEX* lc,
+                  ResourceItem* item,
+                  int index,
+                  int pass);
+  void StoreAddresses(BareosResource* res,
+                      LEX* lc,
+                      ResourceItem* item,
+                      int index,
+                      int pass);
+  void StoreAddressesAddress(BareosResource* res,
+                             LEX* lc,
+                             ResourceItem* item,
+                             int index,
+                             int pass);
+  void StoreAddressesPort(BareosResource* res,
+                          LEX* lc,
+                          ResourceItem* item,
+                          int index,
+                          int pass);
   void ScanTypes(LEX* lc,
                  MessagesResource* msg,
                  MessageDestinationCode dest_code,
@@ -416,15 +544,18 @@ class ConfigurationParser {
   void lex_error(const char* cf,
                  LEX_ERROR_HANDLER* ScanError,
                  LEX_WARNING_HANDLER* scan_warning) const;
-  void SetAllResourceDefaultsByParserPass(int rcode,
+  void SetAllResourceDefaultsByParserPass(BareosResource* res,
+                                          int rcode,
                                           ResourceItem items[],
                                           int pass);
   void SetAllResourceDefaultsIterateOverItems(
+      BareosResource* res,
       int rcode,
       ResourceItem items[],
-      std::function<void(ConfigurationParser&, ResourceItem*)> SetDefaults);
-  void SetResourceDefaultsParserPass1(ResourceItem* item);
-  void SetResourceDefaultsParserPass2(ResourceItem* item);
+      std::function<void(ConfigurationParser&, BareosResource*, ResourceItem*)>
+          SetDefaults);
+  void SetResourceDefaultsParserPass1(BareosResource* res, ResourceItem* item);
+  void SetResourceDefaultsParserPass2(BareosResource* res, ResourceItem* item);
 };
 
 
@@ -463,8 +594,8 @@ class ConfigResourcesContainer {
 bool PrintMessage(void* sock, const char* fmt, ...);
 bool IsTlsConfigured(TlsResource* tls_resource);
 
-const char* GetName(ResourceItem& item, s_kw* keywords);
-bool HasDefaultValue(ResourceItem& item, s_kw* keywords);
+const char* GetName(BareosResource* res, ResourceItem& item, s_kw* keywords);
+bool HasDefaultValue(BareosResource* res, ResourceItem& item, s_kw* keywords);
 
 // Data type routines
 DatatypeName* GetDatatype(int number);

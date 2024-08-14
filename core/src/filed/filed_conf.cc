@@ -127,7 +127,7 @@ static ResourceItem cli_items[] = {
   {"LogTimestampFormat", CFG_TYPE_STR, ITEM(res_client, log_timestamp_format), 0, CFG_ITEM_DEFAULT, "%d-%b %H:%M", "15.2.3-", NULL},
     TLS_COMMON_CONFIG(res_client),
     TLS_CERT_CONFIG(res_client),
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+  {}
 };
 // Directors that can use our services
 static ResourceItem dir_items[] = {
@@ -148,7 +148,7 @@ static ResourceItem dir_items[] = {
   {"AllowedJobCommand", CFG_TYPE_ALIST_STR, ITEM(res_dir, allowed_job_cmds), 0, 0, NULL, NULL, NULL},
     TLS_COMMON_CONFIG(res_dir),
     TLS_CERT_CONFIG(res_dir),
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+  {}
 };
 // Message resource
 #include "lib/messages_resource_items.h"
@@ -176,7 +176,11 @@ static struct s_kw CryptoCiphers[]
        {"aes256hmacsha1", CRYPTO_CIPHER_AES_256_CBC_HMAC_SHA1},
        {NULL, 0}};
 
-static void StoreCipher(LEX* lc, ResourceItem* item, int index, int)
+static void StoreCipher(BareosResource* res,
+                        LEX* lc,
+                        ResourceItem* item,
+                        int index,
+                        int)
 {
   int i;
   LexGetToken(lc, BCT_NAME);
@@ -184,7 +188,7 @@ static void StoreCipher(LEX* lc, ResourceItem* item, int index, int)
   // Scan Crypto Ciphers name.
   for (i = 0; CryptoCiphers[i].name; i++) {
     if (Bstrcasecmp(lc->str, CryptoCiphers[i].name)) {
-      SetItemVariable<uint32_t>(*item, CryptoCiphers[i].token);
+      SetItemVariable<uint32_t>(res, *item, CryptoCiphers[i].token);
       i = 0;
       break;
     }
@@ -193,15 +197,15 @@ static void StoreCipher(LEX* lc, ResourceItem* item, int index, int)
     scan_err1(lc, T_("Expected a Crypto Cipher option, got: %s"), lc->str);
   }
   ScanToEol(lc);
-  item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
 }
 
 /**
  * callback function for init_resource
  * See ../lib/parse_conf.c, function InitResource, for more generic handling.
  */
-static void InitResourceCb(ResourceItem* item, int pass)
+static void InitResourceCb(BareosResource* res, ResourceItem* item, int pass)
 {
   switch (pass) {
     case 1:
@@ -209,7 +213,7 @@ static void InitResourceCb(ResourceItem* item, int pass)
         case CFG_TYPE_CIPHER:
           for (int i = 0; CryptoCiphers[i].name; i++) {
             if (Bstrcasecmp(item->default_value, CryptoCiphers[i].name)) {
-              SetItemVariable<uint32_t>(*item, CryptoCiphers[i].token);
+              SetItemVariable<uint32_t>(res, *item, CryptoCiphers[i].token);
             }
           }
           break;
@@ -226,15 +230,17 @@ static void InitResourceCb(ResourceItem* item, int pass)
  * callback function for parse_config
  * See ../lib/parse_conf.c, function ParseConfig, for more generic handling.
  */
-static void ParseConfigCb(LEX* lc,
+static void ParseConfigCb(BareosResource* res,
+                          LEX* lc,
                           ResourceItem* item,
                           int index,
                           int pass,
                           BareosResource**)
 {
+  /* MARKER */
   switch (item->type) {
     case CFG_TYPE_CIPHER:
-      StoreCipher(lc, item, index, pass);
+      StoreCipher(res, lc, item, index, pass);
       break;
     default:
       break;
@@ -426,7 +432,7 @@ static bool SaveResource(BareosResource* new_res,
   // Ensure that all required items are present
   for (i = 0; items[i].name; i++) {
     if (items[i].flags & CFG_ITEM_REQUIRED) {
-      if (!items[i].IsPresent()) {
+      if (!items[i].IsPresent(new_res)) {
         Emsg2(M_ABORT, 0,
               T_("%s item is required in %s resource, but not found.\n"),
               items[i].name, resources[type].name);

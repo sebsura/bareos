@@ -50,7 +50,8 @@ static void CheckIfItemDefaultBitIsSet(ResourceItem* item)
   }
 }
 
-void ConfigurationParser::SetResourceDefaultsParserPass1(ResourceItem* item)
+void ConfigurationParser::SetResourceDefaultsParserPass1(BareosResource* res,
+                                                         ResourceItem* item)
 {
   Dmsg3(900, "Item=%s def=%s defval=%s\n", item->name,
         (item->flags & CFG_ITEM_DEFAULT) ? "yes" : "no",
@@ -63,73 +64,78 @@ void ConfigurationParser::SetResourceDefaultsParserPass1(ResourceItem* item)
     switch (item->type) {
       case CFG_TYPE_BIT:
         if (Bstrcasecmp(item->default_value, "on")) {
-          char* bitfield = GetItemVariablePointer<char*>(*item);
+          char* bitfield = GetItemVariablePointer<char*>(res, *item);
           SetBit(item->code, bitfield);
         } else if (Bstrcasecmp(item->default_value, "off")) {
-          char* bitfield = GetItemVariablePointer<char*>(*item);
+          char* bitfield = GetItemVariablePointer<char*>(res, *item);
           ClearBit(item->code, bitfield);
         }
         break;
       case CFG_TYPE_BOOL:
         if (Bstrcasecmp(item->default_value, "yes")
             || Bstrcasecmp(item->default_value, "true")) {
-          SetItemVariable<bool>(*item, true);
+          SetItemVariable<bool>(res, *item, true);
         } else if (Bstrcasecmp(item->default_value, "no")
                    || Bstrcasecmp(item->default_value, "false")) {
-          SetItemVariable<bool>(*item, false);
+          SetItemVariable<bool>(res, *item, false);
         }
         break;
       case CFG_TYPE_PINT32:
       case CFG_TYPE_INT32:
       case CFG_TYPE_SIZE32:
-        SetItemVariable<uint32_t>(*item, str_to_uint64(item->default_value));
+        SetItemVariable<uint32_t>(res, *item,
+                                  str_to_uint64(item->default_value));
         break;
       case CFG_TYPE_INT64:
-        SetItemVariable<uint64_t>(*item, str_to_int64(item->default_value));
+        SetItemVariable<uint64_t>(res, *item,
+                                  str_to_int64(item->default_value));
         break;
       case CFG_TYPE_SIZE64:
-        SetItemVariable<uint64_t>(*item, str_to_uint64(item->default_value));
+        SetItemVariable<uint64_t>(res, *item,
+                                  str_to_uint64(item->default_value));
         break;
       case CFG_TYPE_SPEED:
-        SetItemVariable<uint64_t>(*item, str_to_uint64(item->default_value));
+        SetItemVariable<uint64_t>(res, *item,
+                                  str_to_uint64(item->default_value));
         break;
       case CFG_TYPE_TIME: {
-        SetItemVariable<utime_t>(*item, str_to_int64(item->default_value));
+        SetItemVariable<utime_t>(res, *item, str_to_int64(item->default_value));
         break;
       }
       case CFG_TYPE_STRNAME:
       case CFG_TYPE_STR:
-        SetItemVariable<char*>(*item, strdup(item->default_value));
+        SetItemVariable<char*>(res, *item, strdup(item->default_value));
         break;
       case CFG_TYPE_STDSTR:
-        SetItemVariable<std::string>(*item, item->default_value);
+        SetItemVariable<std::string>(res, *item, item->default_value);
         break;
       case CFG_TYPE_DIR: {
         PoolMem pathname(PM_FNAME);
         MakePathName(pathname, item->default_value);
-        SetItemVariable<char*>(*item, strdup(pathname.c_str()));
+        SetItemVariable<char*>(res, *item, strdup(pathname.c_str()));
         break;
       }
       case CFG_TYPE_STDSTRDIR: {
         PoolMem pathname(PM_FNAME);
         MakePathName(pathname, item->default_value);
-        SetItemVariable<std::string>(*item, std::string(pathname.c_str()));
+        SetItemVariable<std::string>(res, *item, std::string(pathname.c_str()));
         break;
       }
       case CFG_TYPE_ADDRESSES: {
         dlist<IPADDR>** dlistvalue
-            = GetItemVariablePointer<dlist<IPADDR>**>(*item);
+            = GetItemVariablePointer<dlist<IPADDR>**>(res, *item);
         InitDefaultAddresses(dlistvalue, item->default_value);
         break;
       }
       default:
-        if (init_res_) { init_res_(item, 1); }
+        if (init_res_) { init_res_(res, item, 1); }
         break;
     }
   }
 }
 
-void ConfigurationParser::SetResourceDefaultsParserPass2(ResourceItem* item)
+void ConfigurationParser::SetResourceDefaultsParserPass2(BareosResource* res,
+                                                         ResourceItem* item)
 {
   Dmsg3(900, "Item=%s def=%s defval=%s\n", item->name,
         (item->flags & CFG_ITEM_DEFAULT) ? "yes" : "no",
@@ -139,7 +145,7 @@ void ConfigurationParser::SetResourceDefaultsParserPass2(ResourceItem* item)
     switch (item->type) {
       case CFG_TYPE_ALIST_STR: {
         alist<const char*>** alistvalue
-            = GetItemVariablePointer<alist<const char*>**>(*item);
+            = GetItemVariablePointer<alist<const char*>**>(res, *item);
         if (!alistvalue) {
           *(alistvalue) = new alist<const char*>(10, owned_by_alist);
         }
@@ -149,7 +155,7 @@ void ConfigurationParser::SetResourceDefaultsParserPass2(ResourceItem* item)
       case CFG_TYPE_ALIST_DIR: {
         PoolMem pathname(PM_FNAME);
         alist<const char*>** alistvalue
-            = GetItemVariablePointer<alist<const char*>**>(*item);
+            = GetItemVariablePointer<alist<const char*>**>(res, *item);
 
         if (!*alistvalue) {
           *alistvalue = new alist<const char*>(10, owned_by_alist);
@@ -169,7 +175,7 @@ void ConfigurationParser::SetResourceDefaultsParserPass2(ResourceItem* item)
       }
       case CFG_TYPE_STR_VECTOR_OF_DIRS: {
         std::vector<std::string>* list
-            = GetItemVariablePointer<std::vector<std::string>*>(*item);
+            = GetItemVariablePointer<std::vector<std::string>*>(res, *item);
 
         PoolMem pathname(PM_FNAME);
         PmStrcpy(pathname, item->default_value);
@@ -182,26 +188,26 @@ void ConfigurationParser::SetResourceDefaultsParserPass2(ResourceItem* item)
         break;
       }
       default:
-        if (init_res_) { init_res_(item, 2); }
+        if (init_res_) { init_res_(res, item, 2); }
         break;
     }
   }
 }
 
 void ConfigurationParser::SetAllResourceDefaultsIterateOverItems(
+    BareosResource* res,
     int rcode,
     ResourceItem items[],
-    std::function<void(ConfigurationParser&, ResourceItem*)> SetDefaults)
+    std::function<void(ConfigurationParser&,
+                       BareosResource* res,
+                       ResourceItem*)> SetDefaults)
 {
   int res_item_index = 0;
 
   while (items[res_item_index].name) {
-    SetDefaults(*this, &items[res_item_index]);
+    SetDefaults(*this, res, &items[res_item_index]);
 
-    if (!omit_defaults_) {
-      SetBit(res_item_index,
-             (*items[res_item_index].allocated_resource)->inherit_content_);
-    }
+    if (!omit_defaults_) { SetBit(res_item_index, res->inherit_content_); }
 
     res_item_index++;
 
@@ -213,18 +219,21 @@ void ConfigurationParser::SetAllResourceDefaultsIterateOverItems(
 }
 
 void ConfigurationParser::SetAllResourceDefaultsByParserPass(
+    BareosResource* res,
     int rcode,
     ResourceItem items[],
     int pass)
 {
-  std::function<void(ConfigurationParser&, ResourceItem*)> SetDefaults;
+  std::function<void(ConfigurationParser&, BareosResource*, ResourceItem*)>
+      SetDefaults;
 
   switch (pass) {
     case 1:
-      SetDefaults = [rcode](ConfigurationParser& c, ResourceItem* item) {
-        (*item->allocated_resource)->rcode_ = rcode;
-        (*item->allocated_resource)->refcnt_ = 1;
-        c.SetResourceDefaultsParserPass1(item);
+      SetDefaults = [rcode](ConfigurationParser& c, BareosResource* res,
+                            ResourceItem* item) {
+        res->rcode_ = rcode;
+        res->refcnt_ = 1;
+        c.SetResourceDefaultsParserPass1(res, item);
       };
       break;
     case 2:
@@ -235,7 +244,7 @@ void ConfigurationParser::SetAllResourceDefaultsByParserPass(
       break;
   }
 
-  SetAllResourceDefaultsIterateOverItems(rcode, items, SetDefaults);
+  SetAllResourceDefaultsIterateOverItems(res, rcode, items, SetDefaults);
 }
 
 void ConfigurationParser::InitResource(int rcode,
@@ -243,6 +252,5 @@ void ConfigurationParser::InitResource(int rcode,
                                        int pass,
                                        BareosResource* res)
 {
-  (void)res;
-  SetAllResourceDefaultsByParserPass(rcode, items, pass);
+  SetAllResourceDefaultsByParserPass(res, rcode, items, pass);
 }

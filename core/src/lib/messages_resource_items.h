@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2014-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2014-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -51,7 +51,7 @@ static ResourceItem msgs_items[] = {
    { "Console", CFG_TYPE_MSGS, ITEMC(res_msgs), static_cast<int>(MessageDestinationCode::kConsole), 0, NULL, NULL, NULL },
    { "Operator", CFG_TYPE_MSGS, ITEMC(res_msgs), static_cast<int>(MessageDestinationCode::kOperator), 0, NULL, NULL, NULL },
    { "Catalog", CFG_TYPE_MSGS, ITEMC(res_msgs), static_cast<int>(MessageDestinationCode::kCatalog), 0, NULL, NULL, NULL },
-   {nullptr, 0, 0, nullptr, static_cast<int>(MessageDestinationCode::kUndefined), 0, nullptr, nullptr, nullptr}
+   {}
 };
 
 /* clang-format on */

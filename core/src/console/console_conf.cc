@@ -65,7 +65,7 @@ static ResourceItem cons_items[] = {
   { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_cons, heartbeat_interval), 0, CFG_ITEM_DEFAULT, "0", NULL, NULL },
   TLS_COMMON_CONFIG(res_cons),
   TLS_CERT_CONFIG(res_cons),
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+  {}
 };
 
 static ResourceItem dir_items[] = {
@@ -77,7 +77,7 @@ static ResourceItem dir_items[] = {
   { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_dir, heartbeat_interval), 0, CFG_ITEM_DEFAULT, "0", NULL, NULL },
   TLS_COMMON_CONFIG(res_dir),
   TLS_CERT_CONFIG(res_dir),
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+  {}
 };
 
 static ResourceTable resources[] = {
@@ -177,7 +177,7 @@ static bool SaveResource(BareosResource* new_res,
   // Ensure that all required items are present
   for (i = 0; items[i].name; i++) {
     if (items[i].flags & CFG_ITEM_REQUIRED) {
-      if (!items[i].IsPresent()) {
+      if (!items[i].IsPresent(new_res)) {
         Emsg2(M_ABORT, 0,
               T_("%s item is required in %s resource, but not found.\n"),
               items[i].name, resources[type].name);

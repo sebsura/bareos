@@ -24,6 +24,7 @@
 #ifndef BAREOS_LIB_RESOURCE_ITEM_H_
 #define BAREOS_LIB_RESOURCE_ITEM_H_
 
+#include "lib/bareos_resource.h"
 struct s_password;
 template <typename T> class alist;
 template <typename T> class dlist;
@@ -33,60 +34,68 @@ template <typename T> class dlist;
  * each resource. It is used to define the configuration tables.
  */
 struct ResourceItem {
-  const char* name; /* Resource name i.e. Director, ... */
-  const int type;
-  std::size_t offset;
-  BareosResource** allocated_resource;
-  int32_t code;              /* Item code/additional info */
-  uint32_t flags;            /* Flags: See CFG_ITEM_* */
-  const char* default_value; /* Default value */
+  const char* name{}; /* Resource name i.e. Director, ... */
+  const int type{};
+  std::size_t offset{};
+  int32_t code{};              /* Item code/additional info */
+  uint32_t flags{};            /* Flags: See CFG_ITEM_* */
+  const char* default_value{}; /* Default value */
   /* version string in format: [start_version]-[end_version]
    * start_version: directive has been introduced in this version
    * end_version:   directive is deprecated since this version */
-  const char* versions;
+  const char* versions{};
   /* short description of the directive, in plain text,
    * used for the documentation.
    * Full sentence.
    * Every new directive should have a description. */
-  const char* description;
+  const char* description{};
 
-  void SetPresent() { (*allocated_resource)->SetMemberPresent(name); }
+  void SetPresent(BareosResource* res) { res->SetMemberPresent(name); }
 
-  bool IsPresent() const
+  bool IsPresent(BareosResource* res) const
   {
-    return (*allocated_resource)->IsMemberPresent(name);
+    return res->IsMemberPresent(name);
   }
 };
 
-static inline void* CalculateAddressOfMemberVariable(const ResourceItem& item)
+static inline void* CalculateAddressOfMemberVariable(BareosResource* res,
+                                                     const ResourceItem& item)
 {
-  char* base = reinterpret_cast<char*>(*item.allocated_resource);
+  /* MARKER */
+  char* base = reinterpret_cast<char*>(
+      res);  //= reinterpret_cast<char*>(*item.allocated_resource);
   return static_cast<void*>(base + item.offset);
 }
 
-template <typename P> P GetItemVariable(const ResourceItem& item)
+template <typename P>
+P GetItemVariable(BareosResource* res, const ResourceItem& item)
 {
-  void* p = CalculateAddressOfMemberVariable(item);
+  void* p = CalculateAddressOfMemberVariable(res, item);
   return *(static_cast<typename std::remove_reference<P>::type*>(p));
 }
 
-template <typename P> P GetItemVariablePointer(const ResourceItem& item)
+template <typename P>
+P GetItemVariablePointer(BareosResource* res, const ResourceItem& item)
 {
-  void* p = CalculateAddressOfMemberVariable(item);
+  void* p = CalculateAddressOfMemberVariable(res, item);
   return static_cast<P>(p);
 }
 
 template <typename P, typename V>
-void SetItemVariable(const ResourceItem& item, const V& value)
+void SetItemVariable(BareosResource* res,
+                     const ResourceItem& item,
+                     const V& value)
 {
-  P* p = GetItemVariablePointer<P*>(item);
+  P* p = GetItemVariablePointer<P*>(res, item);
   *p = value;
 }
 
 template <typename P, typename V>
-void SetItemVariableFreeMemory(const ResourceItem& item, const V& value)
+void SetItemVariableFreeMemory(BareosResource* res,
+                               const ResourceItem& item,
+                               const V& value)
 {
-  void* p = GetItemVariablePointer<void*>(item);
+  void* p = GetItemVariablePointer<void*>(res, item);
   P** q = (P**)p;
   if (*q) free(*q);
   (*(P**)p) = (P*)value;

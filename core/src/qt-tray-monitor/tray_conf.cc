@@ -96,7 +96,7 @@ static ResourceItem mon_items[] = {
   {"DirConnectTimeout", CFG_TYPE_TIME, ITEM(res_monitor,DIRConnectTimeout), 0, CFG_ITEM_DEFAULT, "10", NULL, NULL},
     TLS_COMMON_CONFIG(res_monitor),
     TLS_CERT_CONFIG(res_monitor),
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+    {}
 };
 
 /*
@@ -111,7 +111,7 @@ static ResourceItem dir_items[] = {
   {"Address", CFG_TYPE_STR, ITEM(res_dir,address), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
     TLS_COMMON_CONFIG(res_dir),
     TLS_CERT_CONFIG(res_dir),
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+    {}
 };
 
 /*
@@ -127,7 +127,7 @@ static ResourceItem client_items[] = {
   {"Password", CFG_TYPE_MD5PASSWORD, ITEM(res_client,password), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
     TLS_COMMON_CONFIG(res_client),
     TLS_CERT_CONFIG(res_client),
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+    {}
 };
 
 /*
@@ -145,7 +145,7 @@ static ResourceItem store_items[] = {
   {"SdPassword", CFG_TYPE_MD5PASSWORD, ITEM(res_store,password), 0, 0, NULL, NULL, NULL},
     TLS_COMMON_CONFIG(res_store),
     TLS_CERT_CONFIG(res_store),
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+  {}
 };
 
 /*
@@ -157,7 +157,7 @@ static ResourceItem con_font_items[] = {
   {"Name", CFG_TYPE_NAME, ITEM(res_font,resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
   {"Description", CFG_TYPE_STR, ITEM(res_font,description_), 0, 0, NULL, NULL, NULL},
   {"Font", CFG_TYPE_STR, ITEM(res_font,fontface), 0, 0, NULL, NULL, NULL},
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+  {}
 };
 
 /*
@@ -280,7 +280,7 @@ static bool SaveResource(BareosResource* new_res,
   // Ensure that all required items are present
   for (i = 0; items[i].name; i++) {
     if (items[i].flags & CFG_ITEM_REQUIRED) {
-      if (!items[i].IsPresent()) {
+      if (!items[i].IsPresent(new_res)) {
         Emsg2(M_ERROR_TERM, 0,
               T_("%s item is required in %s resource, but not found.\n"),
               items[i].name, resource_definitions[type].name);
@@ -319,16 +319,14 @@ static bool SaveResource(BareosResource* new_res,
      *
      * currently, this is the best place to free that */
 
-    BareosResource* res = *items[0].allocated_resource;
-
-    if (res) {
-      if (res->resource_name_) {
-        free(res->resource_name_);
-        res->resource_name_ = nullptr;
+    if (new_res) {
+      if (new_res->resource_name_) {
+        free(new_res->resource_name_);
+        new_res->resource_name_ = nullptr;
       }
-      if (res->description_) {
-        free(res->description_);
-        res->description_ = nullptr;
+      if (new_res->description_) {
+        free(new_res->description_);
+        new_res->description_ = nullptr;
       }
     }
     return (error == 0);

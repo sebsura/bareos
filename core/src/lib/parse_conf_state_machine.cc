@@ -144,14 +144,16 @@ ConfigParserStateMachine::ScanResource(int token)
 
         Dmsg1(800, "calling handler for %s\n", item->name);
 
-        if (!my_config_.StoreResource(item->type, lexical_parser_, item,
-                                      resource_item_index,
-                                      parser_pass_number_)) {
+        if (!my_config_.StoreResource(
+                currently_parsed_resource_.allocated_resource_, item->type,
+                lexical_parser_, item, resource_item_index,
+                parser_pass_number_)) {
           if (my_config_.store_res_) {
-            my_config_.store_res_(lexical_parser_, item, resource_item_index,
-                                  parser_pass_number_,
-                                  my_config_.config_resources_container_
-                                      ->configuration_resources_.get());
+            my_config_.store_res_(
+                currently_parsed_resource_.allocated_resource_, lexical_parser_,
+                item, resource_item_index, parser_pass_number_,
+                my_config_.config_resources_container_->configuration_resources_
+                    .get());
           }
         }
       } else {

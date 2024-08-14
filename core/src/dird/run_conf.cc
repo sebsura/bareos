@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -165,8 +165,9 @@ struct s_kw RunFields[] = {{"pool", 'P'},
  *   together.
  *
  */
-void StoreRun(LEX* lc, ResourceItem* item, int index, int pass)
+void StoreRun(BareosResource*, LEX* lc, ResourceItem* item, int index, int pass)
 {
+  /* MARKER */
   char* p;
   int i, j;
   int options = lc->options;
@@ -698,7 +699,7 @@ void StoreRun(LEX* lc, ResourceItem* item, int index, int pass)
    * in the schedule resource.
    */
   if (pass == 2) {
-    RunResource** run = GetItemVariablePointer<RunResource**>(*item);
+    RunResource** run = GetItemVariablePointer<RunResource**>(res, *item);
     RunResource* tail;
 
     RunResource* nrun = new RunResource(std::move(res_run));
@@ -714,7 +715,7 @@ void StoreRun(LEX* lc, ResourceItem* item, int index, int pass)
   }
 
   lc->options = options; /* Restore scanner options */
-  item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
 }
 } /* namespace directordaemon */

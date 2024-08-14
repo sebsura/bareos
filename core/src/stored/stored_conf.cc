@@ -119,7 +119,7 @@ static ResourceItem store_items[] = {
   {"LogTimestampFormat", CFG_TYPE_STR, ITEM(res_store, log_timestamp_format), 0, CFG_ITEM_DEFAULT, "%d-%b %H:%M", "15.2.3-", NULL},
     TLS_COMMON_CONFIG(res_store),
     TLS_CERT_CONFIG(res_store),
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+    {}
 };
 
 static ResourceItem dir_items[] = {
@@ -131,7 +131,7 @@ static ResourceItem dir_items[] = {
   {"KeyEncryptionKey", CFG_TYPE_AUTOPASSWORD, ITEM(res_dir, keyencrkey), 1, 0, NULL, NULL, NULL},
     TLS_COMMON_CONFIG(res_dir),
     TLS_CERT_CONFIG(res_dir),
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+    {}
 };
 
 static ResourceItem ndmp_items[] = {
@@ -141,7 +141,7 @@ static ResourceItem ndmp_items[] = {
   {"Password", CFG_TYPE_AUTOPASSWORD, ITEM(res_ndmp, password), 0, CFG_ITEM_REQUIRED, 0, NULL, NULL},
   {"AuthType", CFG_TYPE_AUTHTYPE, ITEM(res_ndmp, AuthType), 0, CFG_ITEM_DEFAULT, "None", NULL, NULL},
   {"LogLevel", CFG_TYPE_PINT32, ITEM(res_ndmp, LogLevel), 0, CFG_ITEM_DEFAULT, "4", NULL, NULL},
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+  {}
 };
 
 static ResourceItem dev_items[] = {
@@ -219,7 +219,7 @@ static ResourceItem dev_items[] = {
   {"Count", CFG_TYPE_PINT32, ITEM(res_dev, count), 0, CFG_ITEM_DEFAULT, "1", NULL, "If Count is set to (1 < Count < 10000), "
   "this resource will be multiplied Count times. The names of multiplied resources will have a serial number (0001, 0002, ...) attached. "
   "If set to 1 only this single resource will be used and its name will not be altered."},
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+  {}
 };
 
 static ResourceItem autochanger_items[] = {
@@ -228,7 +228,7 @@ static ResourceItem autochanger_items[] = {
   {"Device", CFG_TYPE_ALIST_RES, ITEM(res_changer, device_resources), R_DEVICE, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
   {"ChangerDevice", CFG_TYPE_STRNAME, ITEM(res_changer, changer_name), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
   {"ChangerCommand", CFG_TYPE_STRNAME, ITEM(res_changer, changer_command), 0, CFG_ITEM_REQUIRED, NULL, NULL, NULL},
-  {nullptr, 0, 0, nullptr, 0, 0, nullptr, nullptr, nullptr}
+  {}
 };
 
 static ResourceTable resources[] = {
@@ -263,7 +263,11 @@ static s_kw compression_algorithms[]
        {"lzfast", COMPRESS_FZFZ}, {"lz4", COMPRESS_FZ4L},
        {"lz4hc", COMPRESS_FZ4H},  {NULL, 0}};
 
-static void StoreAuthenticationType(LEX* lc, ResourceItem* item, int index, int)
+static void StoreAuthenticationType(BareosResource* res,
+                                    LEX* lc,
+                                    ResourceItem* item,
+                                    int index,
+                                    int)
 {
   int i;
 
@@ -271,7 +275,7 @@ static void StoreAuthenticationType(LEX* lc, ResourceItem* item, int index, int)
   // Store the type both pass 1 and pass 2
   for (i = 0; authentication_methods[i].name; i++) {
     if (Bstrcasecmp(lc->str, authentication_methods[i].name)) {
-      SetItemVariable<uint32_t>(*item, authentication_methods[i].token);
+      SetItemVariable<uint32_t>(res, *item, authentication_methods[i].token);
       i = 0;
       break;
     }
@@ -281,58 +285,73 @@ static void StoreAuthenticationType(LEX* lc, ResourceItem* item, int index, int)
               lc->str);
   }
   ScanToEol(lc);
-  item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
 }
 
 // Store password either clear if for NDMP or MD5 hashed for native.
-static void StoreAutopassword(LEX* lc, ResourceItem* item, int index, int pass)
+static void StoreAutopassword(BareosResource* res,
+                              LEX* lc,
+                              ResourceItem* item,
+                              int index,
+                              int pass)
 {
-  switch ((*item->allocated_resource)->rcode_) {
+  switch (res->rcode_) {
     case R_DIRECTOR:
       /* As we need to store both clear and MD5 hashed within the same
        * resource class we use the item->code as a hint default is 0
        * and for clear we need a code of 1. */
       switch (item->code) {
         case 1:
-          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, index,
+          my_config->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index,
                                    pass);
           break;
         default:
-          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, index, pass);
+          my_config->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index,
+                                   pass);
           break;
       }
       break;
     case R_NDMP:
-      my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, index, pass);
+      my_config->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index,
+                               pass);
       break;
     default:
-      my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, index, pass);
+      my_config->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index,
+                               pass);
       break;
   }
 }
 
 // Store Maximum Block Size, and check it is not greater than MAX_BLOCK_LENGTH
-static void StoreMaxblocksize(LEX* lc, ResourceItem* item, int index, int pass)
+static void StoreMaxblocksize(BareosResource* res,
+                              LEX* lc,
+                              ResourceItem* item,
+                              int index,
+                              int pass)
 {
-  my_config->StoreResource(CFG_TYPE_SIZE32, lc, item, index, pass);
-  if (GetItemVariable<uint32_t>(*item) > MAX_BLOCK_LENGTH) {
+  my_config->StoreResource(res, CFG_TYPE_SIZE32, lc, item, index, pass);
+  if (GetItemVariable<uint32_t>(res, *item) > MAX_BLOCK_LENGTH) {
     scan_err2(lc,
               T_("Maximum Block Size configured value %u is greater than "
                  "allowed maximum: %u"),
-              GetItemVariable<uint32_t>(*item), MAX_BLOCK_LENGTH);
+              GetItemVariable<uint32_t>(res, *item), MAX_BLOCK_LENGTH);
   }
 }
 
 // Store the IO direction on a certain device.
-static void StoreIoDirection(LEX* lc, ResourceItem* item, int index, int)
+static void StoreIoDirection(BareosResource* res,
+                             LEX* lc,
+                             ResourceItem* item,
+                             int index,
+                             int)
 {
   int i;
 
   LexGetToken(lc, BCT_NAME);
   for (i = 0; io_directions[i].name; i++) {
     if (Bstrcasecmp(lc->str, io_directions[i].name)) {
-      SetItemVariable<IODirection>(*item, io_directions[i].token);
+      SetItemVariable<IODirection>(res, *item, io_directions[i].token);
       i = 0;
       break;
     }
@@ -341,12 +360,13 @@ static void StoreIoDirection(LEX* lc, ResourceItem* item, int index, int)
     scan_err1(lc, T_("Expected a IO direction keyword, got: %s"), lc->str);
   }
   ScanToEol(lc);
-  item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
 }
 
 // Store the compression algorithm to use on a certain device.
-static void StoreCompressionalgorithm(LEX* lc,
+static void StoreCompressionalgorithm(BareosResource* res,
+                                      LEX* lc,
                                       ResourceItem* item,
                                       int index,
                                       int)
@@ -356,7 +376,7 @@ static void StoreCompressionalgorithm(LEX* lc,
   LexGetToken(lc, BCT_NAME);
   for (i = 0; compression_algorithms[i].name; i++) {
     if (Bstrcasecmp(lc->str, compression_algorithms[i].name)) {
-      SetItemVariable<uint32_t>(*item,
+      SetItemVariable<uint32_t>(res, *item,
                                 compression_algorithms[i].token & 0xffffffff);
       i = 0;
       break;
@@ -367,15 +387,15 @@ static void StoreCompressionalgorithm(LEX* lc,
               lc->str);
   }
   ScanToEol(lc);
-  item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
 }
 
 /**
  * callback function for init_resource
  * See ../lib/parse_conf.c, function InitResource, for more generic handling.
  */
-static void InitResourceCb(ResourceItem* item, int pass)
+static void InitResourceCb(BareosResource* res, ResourceItem* item, int pass)
 {
   switch (pass) {
     case 1:
@@ -384,7 +404,8 @@ static void InitResourceCb(ResourceItem* item, int pass)
           for (int i = 0; authentication_methods[i].name; i++) {
             if (Bstrcasecmp(item->default_value,
                             authentication_methods[i].name)) {
-              SetItemVariable<uint32_t>(*item, authentication_methods[i].token);
+              SetItemVariable<uint32_t>(res, *item,
+                                        authentication_methods[i].token);
             }
           }
           break;
@@ -397,27 +418,29 @@ static void InitResourceCb(ResourceItem* item, int pass)
   }
 }
 
-static void ParseConfigCb(LEX* lc,
+static void ParseConfigCb(BareosResource* res,
+                          LEX* lc,
                           ResourceItem* item,
                           int index,
                           int pass,
                           BareosResource**)
 {
+  /* MARKER */
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
-      StoreAutopassword(lc, item, index, pass);
+      StoreAutopassword(res, lc, item, index, pass);
       break;
     case CFG_TYPE_AUTHTYPE:
-      StoreAuthenticationType(lc, item, index, pass);
+      StoreAuthenticationType(res, lc, item, index, pass);
       break;
     case CFG_TYPE_MAXBLOCKSIZE:
-      StoreMaxblocksize(lc, item, index, pass);
+      StoreMaxblocksize(res, lc, item, index, pass);
       break;
     case CFG_TYPE_IODIRECTION:
-      StoreIoDirection(lc, item, index, pass);
+      StoreIoDirection(res, lc, item, index, pass);
       break;
     case CFG_TYPE_CMPRSALGO:
-      StoreCompressionalgorithm(lc, item, index, pass);
+      StoreCompressionalgorithm(res, lc, item, index, pass);
       break;
     default:
       break;
@@ -740,7 +763,7 @@ static bool SaveResource(BareosResource* new_res,
   // Ensure that all required items are present
   for (i = 0; items[i].name; i++) {
     if (items[i].flags & CFG_ITEM_REQUIRED) {
-      if (!items[i].IsPresent()) {
+      if (!items[i].IsPresent(new_res)) {
         Emsg2(
             M_ERROR_TERM, 0,
             T_("\"%s\" item is required in \"%s\" resource, but not found.\n"),
@@ -756,8 +779,8 @@ static bool SaveResource(BareosResource* new_res,
 
   // save previously discovered pointers into dynamic memory
   if (pass == 2) {
-    BareosResource* allocated_resource = my_config->GetResWithName(
-        type, (*items->allocated_resource)->resource_name_);
+    BareosResource* allocated_resource
+        = my_config->GetResWithName(type, new_res->resource_name_);
     if (allocated_resource && !allocated_resource->Validate()) { return false; }
     switch (type) {
       case R_DEVICE:
@@ -823,16 +846,14 @@ static bool SaveResource(BareosResource* new_res,
      *
      * currently, this is the best place to free that */
 
-    BareosResource* res = *items[0].allocated_resource;
-
-    if (res) {
-      if (res->resource_name_) {
-        free(res->resource_name_);
-        res->resource_name_ = nullptr;
+    if (new_res) {
+      if (new_res->resource_name_) {
+        free(new_res->resource_name_);
+        new_res->resource_name_ = nullptr;
       }
-      if (res->description_) {
-        free(res->description_);
-        res->description_ = nullptr;
+      if (new_res->description_) {
+        free(new_res->description_);
+        new_res->description_ = nullptr;
       }
     }
     return (error == 0);
