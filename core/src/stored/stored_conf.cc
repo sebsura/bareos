@@ -229,19 +229,14 @@ static ResourceItem autochanger_items[] = {
 };
 
 static ResourceTable resources[] = {
-  {"Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
-      []() { res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir)},
-  {"Ndmp", "Ndmp", ndmp_items, R_NDMP, sizeof(NdmpResource),
-      []() { res_ndmp = new NdmpResource(); }, reinterpret_cast<BareosResource**>(&res_ndmp)},
-  {"Storage", "Storages", store_items, R_STORAGE, sizeof(StorageResource),
-      []() { res_store = new StorageResource(); }, reinterpret_cast<BareosResource**>(&res_store)},
-  {"Device", "Devices", dev_items, R_DEVICE, sizeof(DeviceResource),
-      []() { res_dev = new DeviceResource(); }, reinterpret_cast<BareosResource**>(&res_dev)},
-  {"Messages", "Messages", msgs_items, R_MSGS, sizeof(MessagesResource),
-      []() { res_msgs = new MessagesResource(); }, reinterpret_cast<BareosResource**>(&res_msgs)},
-  {"Autochanger", "Autochangers", autochanger_items, R_AUTOCHANGER, sizeof(AutochangerResource),
-      []() { res_changer = new AutochangerResource(); }, reinterpret_cast<BareosResource**>(&res_changer)},
-  {nullptr, nullptr, nullptr, 0, 0, nullptr, nullptr}};
+  {"Director", "Directors", dir_items, R_DIRECTOR, ResourceFactory<DirectorResource> },
+  {"Ndmp", "Ndmp", ndmp_items, R_NDMP, ResourceFactory<NdmpResource> },
+  {"Storage", "Storages", store_items, R_STORAGE, ResourceFactory<StorageResource> },
+  {"Device", "Devices", dev_items, R_DEVICE, ResourceFactory<DeviceResource> },
+  {"Messages", "Messages", msgs_items, R_MSGS, ResourceFactory<MessagesResource>},
+  {"Autochanger", "Autochangers", autochanger_items, R_AUTOCHANGER, ResourceFactory<AutochangerResource> },
+  {}
+};
 
 /* clang-format on */
 

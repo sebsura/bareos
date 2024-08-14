@@ -151,7 +151,7 @@ ConfigParserStateMachine::ScanResource(int token)
             my_config_.store_res_(lexical_parser_, item, resource_item_index,
                                   parser_pass_number_,
                                   my_config_.config_resources_container_
-                                      ->configuration_resources_);
+                                      ->configuration_resources_.get());
           }
         }
       } else {
@@ -177,6 +177,7 @@ ConfigParserStateMachine::ScanResource(int token)
       }
       /* save resource */
       if (!my_config_.SaveResourceCb_(
+              currently_parsed_resource_.allocated_resource_,
               currently_parsed_resource_.rcode_,
               currently_parsed_resource_.resource_items_,
               parser_pass_number_)) {
@@ -232,15 +233,13 @@ ConfigParserStateMachine::ParserInitResource(int token)
     currently_parsed_resource_.rcode_ = resource_table->rcode;
     currently_parsed_resource_.resource_items_ = resource_table->items;
 
+    BareosResource* new_res = resource_table->make();
+    ASSERT(new_res);
     my_config_.InitResource(currently_parsed_resource_.rcode_,
                             currently_parsed_resource_.resource_items_,
-                            parser_pass_number_,
-                            resource_table->ResourceSpecificInitializer);
+                            parser_pass_number_, new_res);
 
-    ASSERT(resource_table->allocated_resource_);
-    currently_parsed_resource_.allocated_resource_
-        = *resource_table->allocated_resource_;
-    ASSERT(currently_parsed_resource_.allocated_resource_);
+    currently_parsed_resource_.allocated_resource_ = new_res;
 
     currently_parsed_resource_.allocated_resource_->rcode_str_
         = my_config_.GetQualifiedResourceNameTypeConverter()

@@ -66,10 +66,13 @@ struct ResourceTable {
   const char* groupname; /* Resource name in plural form */
   ResourceItem* items;   /* List of resource keywords */
   uint32_t rcode;        /* Code if needed */
-  uint32_t size;         /* Size of resource */
 
-  std::function<void()> ResourceSpecificInitializer; /* this allocates memory */
-  BareosResource** allocated_resource_;
+  BareosResource* (*make)();
+
+  // uint32_t size;         /* Size of resource */
+
+  // std::function<void()> ResourceSpecificInitializer; /* this allocates memory
+  // */ BareosResource** allocated_resource_;
 };
 
 // Common Resource definitions
@@ -265,7 +268,8 @@ class ConfigurationParser {
   void InitResource(int rcode,
                     ResourceItem items[],
                     int pass,
-                    std::function<void()> ResourceSpecificInitializer);
+                    BareosResource* new_res);
+
   bool AppendToResourcesChain(BareosResource* new_resource, int rcode);
   bool RemoveResource(int rcode, const char* name);
   bool DumpResources(bool sendit(void* sock, const char* fmt, ...),
@@ -430,30 +434,26 @@ class ConfigResourcesContainer {
   ConfigurationParser* config_ = nullptr;
 
  public:
-  BareosResource** configuration_resources_ = nullptr;
+  std::unique_ptr<BareosResource*[]> configuration_resources_ = nullptr;
   ConfigResourcesContainer(ConfigurationParser* config)
   {
     config_ = config;
     int num = config_->r_num_;
-    configuration_resources_
-        = (BareosResource**)malloc(num * sizeof(BareosResource*));
-
-    for (int i = 0; i < num; i++) { configuration_resources_[i] = nullptr; }
+    configuration_resources_ = std::make_unique<BareosResource*[]>(num);
     Dmsg1(10, "ConfigResourcesContainer: new configuration_resources_ %p\n",
-          configuration_resources_);
+          configuration_resources_.get());
   }
 
   ~ConfigResourcesContainer()
   {
     Dmsg1(10, "ConfigResourcesContainer freeing %p %s\n",
-          configuration_resources_, TPAsString(timestamp_).c_str());
+          configuration_resources_.get(), TPAsString(timestamp_).c_str());
     int num = config_->r_num_;
     for (int j = 0; j < num; j++) {
       config_->FreeResourceCb_(configuration_resources_[j], j);
       configuration_resources_[j] = nullptr;
     }
-    free(configuration_resources_);
-    configuration_resources_ = nullptr;
+    configuration_resources_.reset(nullptr);
   }
   void SetTimestampToNow() { timestamp_ = std::chrono::system_clock::now(); }
   std::string TimeStampAsString() { return TPAsString(timestamp_); }
@@ -506,5 +506,11 @@ class ResLocker {
   ResLocker(ResLocker&&) = delete;
   ResLocker& operator=(ResLocker&&) = delete;
 };
+
+template <typename Resource> BareosResource* ResourceFactory()
+{
+  static_assert(std::is_base_of_v<BareosResource, Resource>);
+  return new Resource();
+}
 
 #endif  // BAREOS_LIB_PARSE_CONF_H_

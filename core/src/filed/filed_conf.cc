@@ -151,15 +151,11 @@ static ResourceItem dir_items[] = {
 #include "lib/messages_resource_items.h"
 
 static ResourceTable resources[] = {
-  {"Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
-      []() { res_dir = new  DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir)},
-  {"FileDaemon", "FileDaemons", cli_items, R_CLIENT, sizeof(ClientResource),
-      []() { res_client = new ClientResource(); }, reinterpret_cast<BareosResource**>(&res_client)},
-  {"Client", "Clients", cli_items, R_CLIENT, sizeof(ClientResource),
-      []() { res_client = new ClientResource(); }, reinterpret_cast<BareosResource**>(&res_client)}, /* alias for filedaemon */
-  {"Messages", "Messages", msgs_items, R_MSGS, sizeof(MessagesResource),
-      []() { res_msgs = new MessagesResource(); }, reinterpret_cast<BareosResource**>(&res_msgs)},
-  {nullptr, nullptr, nullptr, 0, 0, nullptr, nullptr}
+  {"Director", "Directors", dir_items, R_DIRECTOR, ResourceFactory<DirectorResource> },
+  {"FileDaemon", "FileDaemons", cli_items, R_CLIENT, ResourceFactory<ClientResource> },
+  {"Client", "Clients", cli_items, R_CLIENT, ResourceFactory<ClientResource> }, /* alias for filedaemon */
+  {"Messages", "Messages", msgs_items, R_MSGS, ResourceFactory<MessagesResource> },
+  {}
 };
 
 /* clang-format on */
@@ -416,7 +412,10 @@ static void FreeResource(BareosResource* res, int type)
  * the resource. If this is pass 2, we update any resource
  * pointers (currently only in the Job resource).
  */
-static bool SaveResource(int type, ResourceItem* items, int pass)
+static bool SaveResource(BareosResource* new_res,
+                         int type,
+                         ResourceItem* items,
+                         int pass)
 {
   int i;
   int error = 0;
@@ -488,28 +487,7 @@ static bool SaveResource(int type, ResourceItem* items, int pass)
   }
 
   if (!error) {
-    BareosResource* new_resource = nullptr;
-    switch (type) {
-      case R_DIRECTOR: {
-        new_resource = res_dir;
-        res_dir = nullptr;
-        break;
-      }
-      case R_CLIENT: {
-        new_resource = res_client;
-        res_client = nullptr;
-        break;
-      }
-      case R_MSGS: {
-        new_resource = res_msgs;
-        res_msgs = nullptr;
-        break;
-      }
-      default:
-        ASSERT(false);
-        break;
-    }
-    error = my_config->AppendToResourcesChain(new_resource, type) ? 0 : 1;
+    error = my_config->AppendToResourcesChain(new_res, type) ? 0 : 1;
   }
   return (error == 0);
 }

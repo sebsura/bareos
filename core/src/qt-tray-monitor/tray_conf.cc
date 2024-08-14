@@ -167,17 +167,12 @@ static ResourceItem con_font_items[] = {
  *  name items rcode configuration_resources
  */
 static ResourceTable resource_definitions[] = {
-  {"Monitor", "Monitors", mon_items, R_MONITOR, sizeof(MonitorResource),
-      []() { res_monitor = new MonitorResource(); }, reinterpret_cast<BareosResource**>(&res_monitor)},
-  {"Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
-      []() { res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir)},
-  {"Client", "Clients", client_items, R_CLIENT, sizeof(ClientResource),
-      []() { res_client = new ClientResource(); }, reinterpret_cast<BareosResource**>(&res_client)},
-  {"Storage", "Storages", store_items, R_STORAGE, sizeof(StorageResource),
-      []() { res_store = new StorageResource(); }, reinterpret_cast<BareosResource**>(&res_store)},
-  {"ConsoleFont", "ConsoleFonts", con_font_items, R_CONSOLE_FONT, sizeof(ConsoleFontResource),
-      []() { res_font = new ConsoleFontResource(); }, reinterpret_cast<BareosResource**>(&res_font)},
-  {nullptr, nullptr, nullptr, 0, 0, nullptr, nullptr}
+  {"Monitor", "Monitors", mon_items, R_MONITOR, ResourceFactory<MonitorResource> },
+  {"Director", "Directors", dir_items, R_DIRECTOR, ResourceFactory<DirectorResource> },
+  {"Client", "Clients", client_items, R_CLIENT, ResourceFactory<ClientResource> },
+  {"Storage", "Storages", store_items, R_STORAGE, ResourceFactory<StorageResource> },
+  {"ConsoleFont", "ConsoleFonts", con_font_items, R_CONSOLE_FONT, ResourceFactory<ConsoleFontResource> },
+  {}
 };
 
 /* clang-format on */

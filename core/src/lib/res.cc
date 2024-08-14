@@ -2014,7 +2014,8 @@ bool BareosResource::PrintConfig(OutputFormatterResource& send,
   if (!my_config.resource_definitions_[rindex].items) { return true; }
   items = my_config.resource_definitions_[rindex].items;
 
-  *my_config.resource_definitions_[rindex].allocated_resource_ = this;
+  /* MARKER */
+  // *my_config.resource_definitions_[rindex].allocated_resource_ = this;
 
   send.ResourceStart(my_config.ResGroupToStr(rcode_),
                      my_config.ResToStr(rcode_), resource_name_, internal_);

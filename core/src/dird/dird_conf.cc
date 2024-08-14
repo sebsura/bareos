@@ -509,37 +509,22 @@ static ResourceItem counter_items[] = {
  * name handler value code flags default_value
  */
 static ResourceTable dird_resource_tables[] = {
-  { "Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
-      [] (){ res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir) },
-  { "Client", "Clients", client_items, R_CLIENT, sizeof(ClientResource),
-      [] (){ res_client = new ClientResource(); }, reinterpret_cast<BareosResource**>(&res_client)  },
-  { "JobDefs", "JobDefs", job_items, R_JOBDEFS, sizeof(JobResource),
-      [] (){ res_job = new JobResource(); }, reinterpret_cast<BareosResource**>(&res_job) },
-  { "Job", "Jobs", job_items, R_JOB, sizeof(JobResource),
-      [] (){ res_job = new JobResource(); }, reinterpret_cast<BareosResource**>(&res_job) },
-  { "Storage", "Storages", store_items, R_STORAGE, sizeof(StorageResource),
-      [] (){ res_store = new StorageResource(); }, reinterpret_cast<BareosResource**>(&res_store) },
-  { "Catalog", "Catalogs", cat_items, R_CATALOG, sizeof(CatalogResource),
-      [] (){ res_cat = new CatalogResource(); }, reinterpret_cast<BareosResource**>(&res_cat) },
-  { "Schedule", "Schedules", sch_items, R_SCHEDULE, sizeof(ScheduleResource),
-      [] (){ res_sch = new ScheduleResource(); }, reinterpret_cast<BareosResource**>(&res_sch) },
-  { "FileSet", "FileSets", fs_items, R_FILESET, sizeof(FilesetResource),
-      [] (){ res_fs = new FilesetResource(); }, reinterpret_cast<BareosResource**>(&res_fs) },
-  { "Pool", "Pools", pool_items, R_POOL, sizeof(PoolResource),
-      [] (){ res_pool = new PoolResource(); }, reinterpret_cast<BareosResource**>(&res_pool) },
-  { "Messages", "Messages", msgs_items, R_MSGS, sizeof(MessagesResource),
-      [] (){ res_msgs = new MessagesResource(); }, reinterpret_cast<BareosResource**>(&res_msgs) },
-  { "Counter", "Counters", counter_items, R_COUNTER, sizeof(CounterResource),
-      [] (){ res_counter = new CounterResource(); }, reinterpret_cast<BareosResource**>(&res_counter) },
-  { "Profile", "Profiles", profile_items, R_PROFILE, sizeof(ProfileResource),
-      [] (){ res_profile = new ProfileResource(); }, reinterpret_cast<BareosResource**>(&res_profile) },
-  { "Console", "Consoles", con_items, R_CONSOLE, sizeof(ConsoleResource),
-      [] (){ res_con = new ConsoleResource(); }, reinterpret_cast<BareosResource**>(&res_con) },
-  { "Device", "Devices", NULL, R_DEVICE, sizeof(DeviceResource),/* info obtained from SD */
-      [] (){ res_dev = new DeviceResource(); }, reinterpret_cast<BareosResource**>(&res_dev) },
-  { "User", "Users", user_items, R_USER, sizeof(UserResource),
-      [] (){ res_user = new UserResource(); }, reinterpret_cast<BareosResource**>(&res_user) },
-  { nullptr, nullptr, nullptr, 0, 0, nullptr, nullptr }
+  { "Director", "Directors", dir_items, R_DIRECTOR, ResourceFactory<DirectorResource> },
+  { "Client", "Clients", client_items, R_CLIENT, ResourceFactory<ClientResource> },
+  { "JobDefs", "JobDefs", job_items, R_JOBDEFS, ResourceFactory<JobResource> },
+  { "Job", "Jobs", job_items, R_JOB, ResourceFactory<JobResource> },
+  { "Storage", "Storages", store_items, R_STORAGE, ResourceFactory<StorageResource> },
+  { "Catalog", "Catalogs", cat_items, R_CATALOG, ResourceFactory<CatalogResource> },
+  { "Schedule", "Schedules", sch_items, R_SCHEDULE, ResourceFactory<ScheduleResource> },
+  { "FileSet", "FileSets", fs_items, R_FILESET, ResourceFactory<FilesetResource> },
+  { "Pool", "Pools", pool_items, R_POOL, ResourceFactory<PoolResource> },
+  { "Messages", "Messages", msgs_items, R_MSGS, ResourceFactory<MessagesResource> },
+  { "Counter", "Counters", counter_items, R_COUNTER, ResourceFactory<CounterResource> },
+  { "Profile", "Profiles", profile_items, R_PROFILE, ResourceFactory<ProfileResource> },
+  { "Console", "Consoles", con_items, R_CONSOLE, ResourceFactory<ConsoleResource> },
+  { "Device", "Devices", NULL, R_DEVICE, ResourceFactory<DeviceResource> },
+  { "User", "Users", user_items, R_USER, ResourceFactory<UserResource> },
+  {}
 };
 
 /**
@@ -3962,11 +3947,11 @@ static void FreeResource(BareosResource* res, int type)
  * pointers because they may not have been defined until
  * later in pass 1.
  */
-static bool SaveResource(int type, ResourceItem* items, int pass)
+static bool SaveResource(BareosResource* allocated_resource,
+                         int type,
+                         ResourceItem* items,
+                         int pass)
 {
-  BareosResource* allocated_resource
-      = *dird_resource_tables[type].allocated_resource_;
-
   switch (type) {
     case R_DIRECTOR: {
       /* IP Addresses can be set by multiple directives.
