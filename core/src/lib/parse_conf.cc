@@ -224,17 +224,19 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
     if (!state_machine.InitParserPass()) { return false; }
 
     if (!state_machine.ParseAllTokens()) {
-      scan_err0(state_machine.lexical_parser_, T_("ParseAllTokens failed."));
+      scan_err0(state_machine.lexical_parser_.get(),
+                T_("ParseAllTokens failed."));
       return false;
     }
 
     switch (state_machine.GetParseError()) {
       case ConfigParserStateMachine::ParserError::kResourceIncomplete:
-        scan_err0(state_machine.lexical_parser_,
+        scan_err0(state_machine.lexical_parser_.get(),
                   T_("End of conf file reached with unclosed resource."));
         return false;
       case ConfigParserStateMachine::ParserError::kParserError:
-        scan_err0(state_machine.lexical_parser_, T_("Parser Error occurred."));
+        scan_err0(state_machine.lexical_parser_.get(),
+                  T_("Parser Error occurred."));
         return false;
       case ConfigParserStateMachine::ParserError::kNoError:
         break;

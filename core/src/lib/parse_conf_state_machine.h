@@ -24,7 +24,25 @@
 #ifndef BAREOS_LIB_PARSE_CONF_STATE_MACHINE_H_
 #define BAREOS_LIB_PARSE_CONF_STATE_MACHINE_H_
 
+#include <memory>
 #include "lib/lex.h"
+
+struct lex_closer {
+  void operator()(LEX* l) const
+  {
+    auto* ptr = l;
+
+    while (ptr) { ptr = LexCloseFile(ptr); }
+  }
+};
+
+using lex_ptr = std::unique_ptr<LEX, lex_closer>;
+
+lex_ptr LexFile(const char* file,
+                void* ctx,
+                int err_type,
+                LEX_ERROR_HANDLER* err,
+                LEX_WARNING_HANDLER* warn);
 
 class ConfigurationParser;
 class BareosResource;
@@ -38,7 +56,6 @@ class ConfigParserStateMachine {
                            LEX_ERROR_HANDLER* ScanError,
                            LEX_WARNING_HANDLER* scan_warning,
                            ConfigurationParser& my_config);
-  ~ConfigParserStateMachine();
   ConfigParserStateMachine(ConfigParserStateMachine& ohter) = delete;
   ConfigParserStateMachine(ConfigParserStateMachine&& ohter) = delete;
   ConfigParserStateMachine& operator=(ConfigParserStateMachine& rhs) = delete;
@@ -60,7 +77,7 @@ class ConfigParserStateMachine {
   void DumpResourcesAfterSecondPass();
 
  public:
-  LEX* lexical_parser_ = nullptr;
+  lex_ptr lexical_parser_{};
 
  private:
   struct parsed_resource {
@@ -73,7 +90,7 @@ class ConfigParserStateMachine {
   bool ScanResource(int token);
   void FreeUnusedMemoryFromPass2();
 
-  int config_level_ = 0;
+  int config_level_ = 0;  // number of open blocks
   int parser_pass_number_ = 0;
   std::string config_file_name_;
   void* caller_ctx_ = nullptr;
