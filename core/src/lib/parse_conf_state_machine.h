@@ -25,6 +25,7 @@
 #define BAREOS_LIB_PARSE_CONF_STATE_MACHINE_H_
 
 #include <memory>
+#include <variant>
 #include "lib/lex.h"
 
 struct lex_closer {
@@ -49,6 +50,16 @@ class BareosResource;
 struct ResourceTable;
 struct ResourceItem;
 
+struct ident {
+  std::string name;
+};
+
+struct done {};
+
+struct unexpected_token {
+  int value;
+};
+
 class ConfigParserStateMachine {
  public:
   ConfigParserStateMachine(ConfigurationParser* my_config, size_t pass)
@@ -67,37 +78,15 @@ class ConfigParserStateMachine {
     kParserError
   };
 
-  ParserError GetParseError(LEX* lex) const;
-
-  bool ParseAllTokens(LEX* lex);
   void DumpResourcesAfterSecondPass();
 
+  std::variant<done, ident, unexpected_token> NextResourceIdentifier(LEX* lex);
+
+  ParserError ParseResource(BareosResource* res, ResourceItem* items, LEX* lex);
+
  private:
-  struct parsed_resource {
-    int rcode_{};
-    ResourceItem* items_{};
-    BareosResource* resource_{};
-  };
-
-  bool ParserInitResource(LEX* lex, int token);
-  bool ScanResource(LEX* lex, int token);
-  void FreeUnusedMemoryFromPass2();
-
-  enum class ParseState
-  {
-    kInit,
-    kResource
-  };
-
- public:
- private:
-  int config_level_ = 0;  // number of open blocks
   int parser_pass_number_ = 0;
-
-  ParseState state = ParseState::kInit;
   ConfigurationParser* my_config_;
-
-  parsed_resource currently_parsed_resource_;
 };
 
 #endif  // BAREOS_LIB_PARSE_CONF_STATE_MACHINE_H_

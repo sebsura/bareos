@@ -27,75 +27,71 @@
 #include "lib/lex.h"
 #include "lib/qualified_resource_name_type_converter.h"
 
-bool ConfigParserStateMachine::ParseAllTokens(LEX* lex)
+auto ConfigParserStateMachine::NextResourceIdentifier(LEX* lex)
+    -> std::variant<done, ident, unexpected_token>
 {
-  int token;
-
-  while ((token = LexGetToken(lex, BCT_ALL)) != BCT_EOF) {
-    Dmsg3(900, "parse state=%d parser_pass_number_=%d got token=%s\n", state,
-          parser_pass_number_, lex_tok_to_str(token));
-    switch (state) {
-      case ParseState::kInit: {
-        if (!ParserInitResource(lex, token)) { return false; }
+  for (;;) {
+    auto token = LexGetToken(lex, BCT_ALL);
+    switch (token) {
+      case BCT_IDENTIFIER: {
+        return ident{lex->str};
       } break;
-      case ParseState::kResource: {
-        if (!ScanResource(lex, token)) {
-          // delete the inited resource
-          my_config_->FreeResourceCb_(currently_parsed_resource_.resource_,
-                                      currently_parsed_resource_.rcode_);
-          currently_parsed_resource_.resource_ = nullptr;
-          return false;
-        }
+      case BCT_EOL: {
+        // continue on
+      } break;
+      case BCT_EOF: {
+        return done{};
       } break;
       default: {
-        scan_err1(lex, T_("Unknown parser state %d\n"), state);
-        return false;
+        return unexpected_token{token};
       } break;
     }
   }
-  return true;
 }
 
-void ConfigParserStateMachine::FreeUnusedMemoryFromPass2()
+auto ConfigParserStateMachine::ParseResource(BareosResource* res,
+                                             ResourceItem* items,
+                                             LEX* lex) -> ParserError
 {
-  if (parser_pass_number_ == 2) {
-    // free all resource memory from second pass
-    if (currently_parsed_resource_.resource_) {
-      if (currently_parsed_resource_.resource_->resource_name_) {
-        free(currently_parsed_resource_.resource_->resource_name_);
-      }
-      delete currently_parsed_resource_.resource_;
-    }
-    currently_parsed_resource_.rcode_ = 0;
-    currently_parsed_resource_.items_ = nullptr;
-    currently_parsed_resource_.resource_ = nullptr;
-  }
-}
+  int level = 0;
+  for (;;) {
+    int token = LexGetToken(lex, BCT_ALL);
+    switch (token) {
+      case BCT_BOB: {
+        level += 1;
+      } break;
+      case BCT_EOB: {
+        level -= 1;
 
-bool ConfigParserStateMachine::ScanResource(LEX* lex, int token)
-{
-  switch (token) {
-    case BCT_BOB:
-      config_level_++;
-      return true;
-    case BCT_IDENTIFIER: {
-      if (config_level_ != 1) {
-        scan_err1(lex, T_("not in resource definition: %s"), lex->str);
-        return false;
-      }
+        if (level == 0) {
+          return ParserError::kNoError;
+        } else if (level < 0) {
+          scan_err0(lex, T_("unexpected end of block"));
+          return ParserError::kParserError;
+        }
+      } break;
+      case BCT_IDENTIFIER: {
+        int resource_item_index
+            = my_config_->GetResourceItemIndex(items, lex->str);
 
-      int resource_item_index = my_config_->GetResourceItemIndex(
-          currently_parsed_resource_.items_, lex->str);
+        if (resource_item_index < 0) {
+          Dmsg2(900, "config_level_=%d id=%s\n", level, lex->str);
+          Dmsg1(900, "Keyword = %s\n", lex->str);
+          scan_err1(lex,
+                    T_("Keyword \"%s\" not permitted in this resource.\n"
+                       "Perhaps you left the trailing brace off of the "
+                       "previous resource."),
+                    lex->str);
+          return ParserError::kParserError;
+        }
 
-      if (resource_item_index >= 0) {
-        ResourceItem* item = nullptr;
-        item = &currently_parsed_resource_.items_[resource_item_index];
+        ResourceItem* item = &items[resource_item_index];
         if (!(item->flags & CFG_ITEM_NO_EQUALS)) {
           token = LexGetToken(lex, BCT_SKIP_EOL);
           Dmsg1(900, "in BCT_IDENT got token=%s\n", lex_tok_to_str(token));
           if (token != BCT_EQUALS) {
             scan_err1(lex, T_("expected an equals, got: %s"), lex->str);
-            return false;
+            return ParserError::kParserError;
           }
         }
 
@@ -108,113 +104,30 @@ bool ConfigParserStateMachine::ScanResource(LEX* lex, int token)
 
         Dmsg1(800, "calling handler for %s\n", item->name);
 
-        if (!my_config_->StoreResource(
-                currently_parsed_resource_.resource_, item->type, lex, item,
-                resource_item_index, parser_pass_number_)) {
+        if (!my_config_->StoreResource(res, item->type, lex, item,
+                                       resource_item_index,
+                                       parser_pass_number_)) {
           if (my_config_->store_res_) {
-            my_config_->store_res_(currently_parsed_resource_.resource_, lex,
-                                   item, resource_item_index,
+            my_config_->store_res_(res, lex, item, resource_item_index,
                                    parser_pass_number_,
                                    my_config_->config_resources_container_
                                        ->configuration_resources_.get());
           }
         }
-      } else {
-        Dmsg2(900, "config_level_=%d id=%s\n", config_level_, lex->str);
-        Dmsg1(900, "Keyword = %s\n", lex->str);
-        scan_err1(lex,
-                  T_("Keyword \"%s\" not permitted in this resource.\n"
-                     "Perhaps you left the trailing brace off of the "
-                     "previous resource."),
-                  lex->str);
-        return false;
-      }
-      return true;
+      } break;
+      case BCT_EOL: {
+        // continue on
+      } break;
+      case BCT_EOF: {
+        return ParserError::kResourceIncomplete;
+      } break;
+
+      default:
+        scan_err2(lex, T_("unexpected token %d %s in resource definition"),
+                  token, lex_tok_to_str(token));
+        return ParserError::kParserError;
     }
-    case BCT_EOB:
-      config_level_--;
-      state = ParseState::kInit;
-      Dmsg0(900, "BCT_EOB => define new resource\n");
-      if (!currently_parsed_resource_.resource_->resource_name_) {
-        scan_err0(lex, T_("Name not specified for resource"));
-        return false;
-      }
-      /* save resource */
-      if (!my_config_->SaveResourceCb_(currently_parsed_resource_.resource_,
-                                       currently_parsed_resource_.rcode_,
-                                       currently_parsed_resource_.items_,
-                                       parser_pass_number_)) {
-        scan_err0(lex, T_("SaveResource failed"));
-        return false;
-      }
-
-      FreeUnusedMemoryFromPass2();
-      return true;
-
-    case BCT_EOL:
-      return true;
-
-    default:
-      scan_err2(lex, T_("unexpected token %d %s in resource definition"), token,
-                lex_tok_to_str(token));
-      return true;
   }
-  return true;
-}
-
-bool ConfigParserStateMachine::ParserInitResource(LEX* lex, int token)
-{
-  const char* resource_identifier = lex->str;
-
-  switch (token) {
-    case BCT_EOL:
-    case BCT_UTF8_BOM:
-      return true;
-    case BCT_UTF16_BOM:
-      scan_err0(lex, T_("Currently we cannot handle UTF-16 source files. "
-                        "Please convert the conf file to UTF-8\n"));
-      return false;
-    default:
-      if (token != BCT_IDENTIFIER) {
-        scan_err1(lex, T_("Expected a Resource name identifier, got: %s"),
-                  resource_identifier);
-        return false;
-      }
-      break;
-  }
-
-  ResourceTable* resource_table;
-  resource_table = my_config_->GetResourceTable(resource_identifier);
-
-  bool init_done = false;
-
-  if (resource_table && resource_table->items) {
-    currently_parsed_resource_.rcode_ = resource_table->rcode;
-    currently_parsed_resource_.items_ = resource_table->items;
-
-    BareosResource* new_res = resource_table->make();
-    ASSERT(new_res);
-    my_config_->InitResource(currently_parsed_resource_.rcode_,
-                             currently_parsed_resource_.items_,
-                             parser_pass_number_, new_res);
-
-    currently_parsed_resource_.resource_ = new_res;
-
-    currently_parsed_resource_.resource_->rcode_str_
-        = my_config_->GetQualifiedResourceNameTypeConverter()
-              ->ResourceTypeToString(resource_table->rcode);
-
-    state = ParseState::kResource;
-
-    init_done = true;
-  }
-
-  if (!init_done) {
-    scan_err1(lex, T_("expected resource identifier, got: %s"),
-              resource_identifier);
-    return false;
-  }
-  return true;
 }
 
 void ConfigParserStateMachine::DumpResourcesAfterSecondPass()
@@ -226,18 +139,6 @@ void ConfigParserStateMachine::DumpResourcesAfterSecondPass()
           my_config_->config_resources_container_->configuration_resources_[i],
           PrintMessage, nullptr, false, false);
     }
-  }
-}
-
-auto ConfigParserStateMachine::GetParseError(LEX* lex) const -> ParserError
-{
-  // in this order
-  if (state != ParseState::kInit) {
-    return ParserError::kResourceIncomplete;
-  } else if (lex->error_counter > 0) {
-    return ParserError::kParserError;
-  } else {
-    return ParserError::kNoError;
   }
 }
 

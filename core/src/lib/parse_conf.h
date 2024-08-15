@@ -73,6 +73,14 @@ struct ResourceTable {
   // */ BareosResource** allocated_resource_;
 };
 
+struct parsable_resource {
+  BareosResource* res{};
+  ResourceItem* items{};
+  int code;
+
+  operator bool() const { return res != nullptr; }
+};
+
 // Common Resource definitions
 #define MAX_RES_NAME_LENGTH \
   (MAX_NAME_LENGTH - 1) /* maximum resource name length */
@@ -271,6 +279,8 @@ class ConfigurationParser {
                     ResourceItem items[],
                     int pass,
                     BareosResource* new_res);
+
+  parsable_resource make_resource(size_t pass, const char* name);
 
   bool AppendToResourcesChain(BareosResource* new_resource, int rcode);
   bool RemoveResource(int rcode, const char* name);

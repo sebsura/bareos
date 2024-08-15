@@ -210,6 +210,25 @@ void ConfigurationParser::lex_error(const char* cf,
   free(lexical_parser_);
 }
 
+parsable_resource ConfigurationParser::make_resource(size_t pass,
+                                                     const char* name)
+{
+  auto* table = GetResourceTable(name);
+  if (!table || !table->items) { return {}; }
+
+  BareosResource* res = table->make();
+
+  ASSERT(res);
+
+  InitResource(table->rcode, table->items, pass, res);
+
+  res->rcode_str_
+      = GetQualifiedResourceNameTypeConverter()->ResourceTypeToString(
+          table->rcode);
+
+  return {res, table->items, (int)table->rcode};
+}
+
 bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
                                           void* caller_ctx,
                                           LEX_ERROR_HANDLER* scan_error,
@@ -226,22 +245,50 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
 
     ConfigParserStateMachine state_machine(this, pass + 1);
 
+    for (;;) {
+      auto res = state_machine.NextResourceIdentifier(lexer.get());
 
-    if (!state_machine.ParseAllTokens(lexer.get())) {
-      scan_err0(lexer.get(), T_("ParseAllTokens failed."));
-      return false;
-    }
-
-    switch (state_machine.GetParseError(lexer.get())) {
-      case ConfigParserStateMachine::ParserError::kResourceIncomplete:
-        scan_err0(lexer.get(),
-                  T_("End of conf file reached with unclosed resource."));
-        return false;
-      case ConfigParserStateMachine::ParserError::kParserError:
-        scan_err0(lexer.get(), T_("Parser Error occurred."));
-        return false;
-      case ConfigParserStateMachine::ParserError::kNoError:
+      if (std::get_if<done>(&res) != nullptr) {
         break;
+      } else if (auto* token = std::get_if<unexpected_token>(&res)) {
+        scan_err2(lexer.get(),
+                  T_("Expected a Resource name identifier, got: %d %s"),
+                  token->value, lex_tok_to_str(token->value));
+        return false;
+      }
+
+      auto& str = std::get<ident>(res).name;
+
+      Dmsg1(900, "Start Resource(%s)\n", str.c_str());
+
+      auto new_res = make_resource(pass + 1, str.c_str());
+
+      if (!new_res) {
+        scan_err1(lexer.get(), "Could not allocate %s resource.", str.c_str());
+        return false;
+      }
+
+      switch (state_machine.ParseResource(new_res.res, new_res.items,
+                                          lexer.get())) {
+        case ConfigParserStateMachine::ParserError::kResourceIncomplete:
+          scan_err0(lexer.get(),
+                    T_("End of conf file reached with unclosed resource."));
+          return false;
+        case ConfigParserStateMachine::ParserError::kParserError:
+          scan_err0(lexer.get(), T_("Parser Error occurred."));
+          return false;
+        case ConfigParserStateMachine::ParserError::kNoError:
+          break;
+      }
+
+      if (!SaveResourceCb_(new_res.res, new_res.code, new_res.items,
+                           pass + 1)) {
+        scan_err0(lexer.get(), "SaveResource failed");
+      }
+      if (pass == num_passes - 1) {
+        free(new_res.res->resource_name_);
+        delete new_res.res;
+      }
     }
 
     if (pass == num_passes - 1) {
