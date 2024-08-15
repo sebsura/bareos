@@ -24,26 +24,8 @@
 #ifndef BAREOS_LIB_PARSE_CONF_STATE_MACHINE_H_
 #define BAREOS_LIB_PARSE_CONF_STATE_MACHINE_H_
 
-#include <memory>
 #include <variant>
 #include "lib/lex.h"
-
-struct lex_closer {
-  void operator()(LEX* l) const
-  {
-    auto* ptr = l;
-
-    while (ptr) { ptr = LexCloseFile(ptr); }
-  }
-};
-
-using lex_ptr = std::unique_ptr<LEX, lex_closer>;
-
-lex_ptr LexFile(const char* file,
-                void* ctx,
-                int err_type,
-                LEX_ERROR_HANDLER* err,
-                LEX_WARNING_HANDLER* warn);
 
 class ConfigurationParser;
 class BareosResource;

@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -28,6 +28,7 @@
 #ifndef BAREOS_LIB_LEX_H_
 #define BAREOS_LIB_LEX_H_
 
+#include <memory>
 #include "include/bareos.h"
 
 /* Lex get_char() return values */
@@ -195,5 +196,23 @@ int LexGetToken(LEX* lf, int expect);
 void LexSetDefaultErrorHandler(LEX* lf);
 void LexSetDefaultWarningHandler(LEX* lf);
 void LexSetErrorHandlerErrorType(LEX* lf, int err_type);
+
+struct lex_closer {
+  void operator()(LEX* l) const
+  {
+    auto* ptr = l;
+
+    while (ptr) { ptr = LexCloseFile(ptr); }
+  }
+};
+
+using lex_ptr = std::unique_ptr<LEX, lex_closer>;
+
+lex_ptr LexFile(const char* file,
+                void* ctx,
+                int err_type,
+                LEX_ERROR_HANDLER* err,
+                LEX_WARNING_HANDLER* warn);
+
 
 #endif  // BAREOS_LIB_LEX_H_

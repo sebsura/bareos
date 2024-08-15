@@ -133,20 +133,3 @@ parse_result ConfigParserStateMachine::ParseResource(BareosResource* res,
     }
   }
 }
-
-lex_ptr LexFile(const char* file,
-                void* ctx,
-                int err_type,
-                LEX_ERROR_HANDLER* err,
-                LEX_WARNING_HANDLER* warn)
-{
-  lex_ptr p{lex_open_file(nullptr, file, err, warn)};
-
-  if (!p) { return p; }
-
-  LexSetErrorHandlerErrorType(p.get(), err_type);
-  p->error_counter = 0;
-  p->caller_ctx = ctx;
-
-  return p;
-}
