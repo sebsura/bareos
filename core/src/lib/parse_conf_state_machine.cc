@@ -130,18 +130,6 @@ auto ConfigParserStateMachine::ParseResource(BareosResource* res,
   }
 }
 
-void ConfigParserStateMachine::DumpResourcesAfterSecondPass()
-{
-  if (debug_level >= 900 && parser_pass_number_ == 2) {
-    for (int i = 0; i <= my_config_->r_num_ - 1; i++) {
-      my_config_->DumpResourceCb_(
-          i,
-          my_config_->config_resources_container_->configuration_resources_[i],
-          PrintMessage, nullptr, false, false);
-    }
-  }
-}
-
 lex_ptr LexFile(const char* file,
                 void* ctx,
                 int err_type,

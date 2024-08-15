@@ -78,8 +78,6 @@ class ConfigParserStateMachine {
     kParserError
   };
 
-  void DumpResourcesAfterSecondPass();
-
   std::variant<done, ident, unexpected_token> NextResourceIdentifier(LEX* lex);
 
   ParserError ParseResource(BareosResource* res, ResourceItem* items, LEX* lex);

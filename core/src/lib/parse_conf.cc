@@ -290,9 +290,14 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
         delete new_res.res;
       }
     }
+  }
 
-    if (pass == num_passes - 1) {
-      state_machine.DumpResourcesAfterSecondPass();
+  // Dump all resources for debugging purposes
+  if (debug_level >= 900) {
+    for (int i = 0; i <= r_num_ - 1; i++) {
+      DumpResourceCb_(i,
+                      config_resources_container_->configuration_resources_[i],
+                      PrintMessage, nullptr, false, false);
     }
   }
 
