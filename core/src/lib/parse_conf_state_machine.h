@@ -63,6 +63,11 @@ class ConfigParserStateMachine {
   LEX* lexical_parser_ = nullptr;
 
  private:
+  struct parsed_resource {
+    int rcode_{};
+    ResourceItem* items_{};
+    BareosResource* resource_{};
+  };
 
   bool ParserInitResource(int token);
   bool ScanResource(int token);
@@ -76,11 +81,7 @@ class ConfigParserStateMachine {
   LEX_WARNING_HANDLER* scan_warning_ = nullptr;
   ConfigurationParser& my_config_;
 
-  struct {
-    int rcode_ = 0;
-    ResourceItem* resource_items_ = nullptr;
-    BareosResource* allocated_resource_ = nullptr;
-  } currently_parsed_resource_;
+  parsed_resource currently_parsed_resource_;
 
   enum class ParseState
   {

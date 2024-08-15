@@ -80,15 +80,15 @@ void ConfigParserStateMachine::FreeUnusedMemoryFromPass2()
 {
   if (parser_pass_number_ == 2) {
     // free all resource memory from second pass
-    if (currently_parsed_resource_.allocated_resource_) {
-      if (currently_parsed_resource_.allocated_resource_->resource_name_) {
-        free(currently_parsed_resource_.allocated_resource_->resource_name_);
+    if (currently_parsed_resource_.resource_) {
+      if (currently_parsed_resource_.resource_->resource_name_) {
+        free(currently_parsed_resource_.resource_->resource_name_);
       }
-      delete currently_parsed_resource_.allocated_resource_;
+      delete currently_parsed_resource_.resource_;
     }
     currently_parsed_resource_.rcode_ = 0;
-    currently_parsed_resource_.resource_items_ = nullptr;
-    currently_parsed_resource_.allocated_resource_ = nullptr;
+    currently_parsed_resource_.items_ = nullptr;
+    currently_parsed_resource_.resource_ = nullptr;
   }
 }
 
@@ -106,11 +106,11 @@ bool ConfigParserStateMachine::ScanResource(int token)
       }
 
       int resource_item_index = my_config_.GetResourceItemIndex(
-          currently_parsed_resource_.resource_items_, lexical_parser_->str);
+          currently_parsed_resource_.items_, lexical_parser_->str);
 
       if (resource_item_index >= 0) {
         ResourceItem* item = nullptr;
-        item = &currently_parsed_resource_.resource_items_[resource_item_index];
+        item = &currently_parsed_resource_.items_[resource_item_index];
         if (!(item->flags & CFG_ITEM_NO_EQUALS)) {
           token = LexGetToken(lexical_parser_, BCT_SKIP_EOL);
           Dmsg1(900, "in BCT_IDENT got token=%s\n", lex_tok_to_str(token));
@@ -130,16 +130,16 @@ bool ConfigParserStateMachine::ScanResource(int token)
 
         Dmsg1(800, "calling handler for %s\n", item->name);
 
-        if (!my_config_.StoreResource(
-                currently_parsed_resource_.allocated_resource_, item->type,
-                lexical_parser_, item, resource_item_index,
-                parser_pass_number_)) {
+        if (!my_config_.StoreResource(currently_parsed_resource_.resource_,
+                                      item->type, lexical_parser_, item,
+                                      resource_item_index,
+                                      parser_pass_number_)) {
           if (my_config_.store_res_) {
-            my_config_.store_res_(
-                currently_parsed_resource_.allocated_resource_, lexical_parser_,
-                item, resource_item_index, parser_pass_number_,
-                my_config_.config_resources_container_->configuration_resources_
-                    .get());
+            my_config_.store_res_(currently_parsed_resource_.resource_,
+                                  lexical_parser_, item, resource_item_index,
+                                  parser_pass_number_,
+                                  my_config_.config_resources_container_
+                                      ->configuration_resources_.get());
           }
         }
       } else {
@@ -159,16 +159,15 @@ bool ConfigParserStateMachine::ScanResource(int token)
       config_level_--;
       state = ParseState::kInit;
       Dmsg0(900, "BCT_EOB => define new resource\n");
-      if (!currently_parsed_resource_.allocated_resource_->resource_name_) {
+      if (!currently_parsed_resource_.resource_->resource_name_) {
         scan_err0(lexical_parser_, T_("Name not specified for resource"));
         return false;
       }
       /* save resource */
-      if (!my_config_.SaveResourceCb_(
-              currently_parsed_resource_.allocated_resource_,
-              currently_parsed_resource_.rcode_,
-              currently_parsed_resource_.resource_items_,
-              parser_pass_number_)) {
+      if (!my_config_.SaveResourceCb_(currently_parsed_resource_.resource_,
+                                      currently_parsed_resource_.rcode_,
+                                      currently_parsed_resource_.items_,
+                                      parser_pass_number_)) {
         scan_err0(lexical_parser_, T_("SaveResource failed"));
         return false;
       }
@@ -218,17 +217,17 @@ bool ConfigParserStateMachine::ParserInitResource(int token)
 
   if (resource_table && resource_table->items) {
     currently_parsed_resource_.rcode_ = resource_table->rcode;
-    currently_parsed_resource_.resource_items_ = resource_table->items;
+    currently_parsed_resource_.items_ = resource_table->items;
 
     BareosResource* new_res = resource_table->make();
     ASSERT(new_res);
     my_config_.InitResource(currently_parsed_resource_.rcode_,
-                            currently_parsed_resource_.resource_items_,
+                            currently_parsed_resource_.items_,
                             parser_pass_number_, new_res);
 
-    currently_parsed_resource_.allocated_resource_ = new_res;
+    currently_parsed_resource_.resource_ = new_res;
 
-    currently_parsed_resource_.allocated_resource_->rcode_str_
+    currently_parsed_resource_.resource_->rcode_str_
         = my_config_.GetQualifiedResourceNameTypeConverter()
               ->ResourceTypeToString(resource_table->rcode);
 
