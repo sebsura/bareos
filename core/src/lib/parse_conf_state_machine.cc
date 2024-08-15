@@ -51,7 +51,8 @@ auto ConfigParserStateMachine::NextResourceIdentifier(LEX* lex)
 
 parse_result ConfigParserStateMachine::ParseResource(BareosResource* res,
                                                      ResourceItem* items,
-                                                     LEX* lex)
+                                                     LEX* lex,
+                                                     size_t pass)
 {
   int open_blocks = 0;
   for (;;) {
@@ -97,7 +98,7 @@ parse_result ConfigParserStateMachine::ParseResource(BareosResource* res,
           }
         }
 
-        if (parser_pass_number_ == 1 && item->flags & CFG_ITEM_DEPRECATED) {
+        if (pass == 1 && item->flags & CFG_ITEM_DEPRECATED) {
           my_config_->AddWarning(std::string("using deprecated keyword ")
                                  + item->name + " on line "
                                  + std::to_string(lex->line_no) + " of file "
@@ -107,11 +108,9 @@ parse_result ConfigParserStateMachine::ParseResource(BareosResource* res,
         Dmsg1(800, "calling handler for %s\n", item->name);
 
         if (!my_config_->StoreResource(res, item->type, lex, item,
-                                       resource_item_index,
-                                       parser_pass_number_)) {
+                                       resource_item_index, pass)) {
           if (my_config_->store_res_) {
-            my_config_->store_res_(res, lex, item, resource_item_index,
-                                   parser_pass_number_,
+            my_config_->store_res_(res, lex, item, resource_item_index, pass,
                                    my_config_->config_resources_container_
                                        ->configuration_resources_.get());
           }

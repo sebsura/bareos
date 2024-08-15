@@ -243,7 +243,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
     lex_ptr lexer = LexFile(config_file_name, caller_ctx, err_type_, scan_error,
                             scan_warning);
 
-    ConfigParserStateMachine state_machine(this, pass + 1);
+    ConfigParserStateMachine state_machine(this);
 
     for (;;) {
       auto res = state_machine.NextResourceIdentifier(lexer.get());
@@ -269,7 +269,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
       }
 
       auto parse_res = state_machine.ParseResource(new_res.res, new_res.items,
-                                                   lexer.get());
+                                                   lexer.get(), pass + 1);
       if (!parse_res) {
         scan_err1(lexer.get(), "%s", parse_res.strerror());
         return false;

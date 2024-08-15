@@ -55,8 +55,8 @@ struct parse_result {
 
 class ConfigParserStateMachine {
  public:
-  ConfigParserStateMachine(ConfigurationParser* my_config, size_t pass)
-      : parser_pass_number_{(int)pass}, my_config_{my_config}
+  ConfigParserStateMachine(ConfigurationParser* my_config)
+      : my_config_{my_config}
   {
   }
   ConfigParserStateMachine(ConfigParserStateMachine& other) = delete;
@@ -68,10 +68,10 @@ class ConfigParserStateMachine {
 
   parse_result ParseResource(BareosResource* res,
                              ResourceItem* items,
-                             LEX* lex);
+                             LEX* lex,
+                             size_t pass);
 
  private:
-  int parser_pass_number_ = 0;
   ConfigurationParser* my_config_;
 };
 

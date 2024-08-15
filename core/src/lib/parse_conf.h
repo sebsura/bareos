@@ -66,11 +66,6 @@ struct ResourceTable {
   uint32_t rcode;        /* Code if needed */
 
   BareosResource* (*make)();
-
-  // uint32_t size;         /* Size of resource */
-
-  // std::function<void()> ResourceSpecificInitializer; /* this allocates memory
-  // */ BareosResource** allocated_resource_;
 };
 
 struct parsable_resource {
