@@ -49,25 +49,24 @@ auto ConfigParserStateMachine::NextResourceIdentifier(LEX* lex)
   }
 }
 
-auto ConfigParserStateMachine::ParseResource(BareosResource* res,
-                                             ResourceItem* items,
-                                             LEX* lex) -> ParserError
+parse_result ConfigParserStateMachine::ParseResource(BareosResource* res,
+                                                     ResourceItem* items,
+                                                     LEX* lex)
 {
-  int level = 0;
+  int open_blocks = 0;
   for (;;) {
     int token = LexGetToken(lex, BCT_ALL);
     switch (token) {
       case BCT_BOB: {
-        level += 1;
+        open_blocks += 1;
       } break;
       case BCT_EOB: {
-        level -= 1;
+        open_blocks -= 1;
 
-        if (level == 0) {
-          return ParserError::kNoError;
-        } else if (level < 0) {
-          scan_err0(lex, T_("unexpected end of block"));
-          return ParserError::kParserError;
+        if (open_blocks == 0) {
+          return {};
+        } else if (open_blocks < 0) {
+          return parse_result("unexpected end of block");
         }
       } break;
       case BCT_IDENTIFIER: {
@@ -75,14 +74,16 @@ auto ConfigParserStateMachine::ParseResource(BareosResource* res,
             = my_config_->GetResourceItemIndex(items, lex->str);
 
         if (resource_item_index < 0) {
-          Dmsg2(900, "config_level_=%d id=%s\n", level, lex->str);
+          Dmsg2(900, "config_level_=%d id=%s\n", open_blocks, lex->str);
           Dmsg1(900, "Keyword = %s\n", lex->str);
-          scan_err1(lex,
-                    T_("Keyword \"%s\" not permitted in this resource.\n"
-                       "Perhaps you left the trailing brace off of the "
-                       "previous resource."),
-                    lex->str);
-          return ParserError::kParserError;
+
+          PoolMem errmsg;
+          Mmsg(errmsg,
+               "Keyword \"%s\" not permitted in this resource.\n"
+               "Perhaps you left the trailing brace off of the "
+               "previous resource.",
+               lex->str);
+          return parse_result(errmsg.c_str());
         }
 
         ResourceItem* item = &items[resource_item_index];
@@ -90,8 +91,9 @@ auto ConfigParserStateMachine::ParseResource(BareosResource* res,
           token = LexGetToken(lex, BCT_SKIP_EOL);
           Dmsg1(900, "in BCT_IDENT got token=%s\n", lex_tok_to_str(token));
           if (token != BCT_EQUALS) {
-            scan_err1(lex, T_("expected an equals, got: %s"), lex->str);
-            return ParserError::kParserError;
+            PoolMem errmsg;
+            Mmsg(errmsg, "expected an equals, got: %s", lex->str);
+            return parse_result(errmsg.c_str());
           }
         }
 
@@ -119,13 +121,15 @@ auto ConfigParserStateMachine::ParseResource(BareosResource* res,
         // continue on
       } break;
       case BCT_EOF: {
-        return ParserError::kResourceIncomplete;
+        return parse_result("End of conf file reached with unclosed resource.");
       } break;
 
-      default:
-        scan_err2(lex, T_("unexpected token %d %s in resource definition"),
-                  token, lex_tok_to_str(token));
-        return ParserError::kParserError;
+      default: {
+        PoolMem errmsg;
+        Mmsg(errmsg, "unexpected token %d %s in resource definition", token,
+             lex_tok_to_str(token));
+        return parse_result(errmsg.c_str());
+      } break;
     }
   }
 }

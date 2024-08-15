@@ -268,17 +268,11 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
         return false;
       }
 
-      switch (state_machine.ParseResource(new_res.res, new_res.items,
-                                          lexer.get())) {
-        case ConfigParserStateMachine::ParserError::kResourceIncomplete:
-          scan_err0(lexer.get(),
-                    T_("End of conf file reached with unclosed resource."));
-          return false;
-        case ConfigParserStateMachine::ParserError::kParserError:
-          scan_err0(lexer.get(), T_("Parser Error occurred."));
-          return false;
-        case ConfigParserStateMachine::ParserError::kNoError:
-          break;
+      auto parse_res = state_machine.ParseResource(new_res.res, new_res.items,
+                                                   lexer.get());
+      if (!parse_res) {
+        scan_err1(lexer.get(), "%s", parse_res.strerror());
+        return false;
       }
 
       if (!SaveResourceCb_(new_res.res, new_res.code, new_res.items,

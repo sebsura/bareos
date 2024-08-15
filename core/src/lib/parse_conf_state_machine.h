@@ -60,6 +60,17 @@ struct unexpected_token {
   int value;
 };
 
+struct parse_result {
+  std::string errmsg;
+
+  parse_result() = default;
+  parse_result(std::string_view msg) : errmsg(msg) {}
+
+  operator bool() const { return errmsg.size() == 0; }
+
+  const char* strerror() const { return errmsg.c_str(); }
+};
+
 class ConfigParserStateMachine {
  public:
   ConfigParserStateMachine(ConfigurationParser* my_config, size_t pass)
@@ -71,16 +82,11 @@ class ConfigParserStateMachine {
   ConfigParserStateMachine& operator=(ConfigParserStateMachine& rhs) = delete;
   ConfigParserStateMachine& operator=(ConfigParserStateMachine&& rhs) = delete;
 
-  enum class ParserError
-  {
-    kNoError,
-    kResourceIncomplete,
-    kParserError
-  };
-
   std::variant<done, ident, unexpected_token> NextResourceIdentifier(LEX* lex);
 
-  ParserError ParseResource(BareosResource* res, ResourceItem* items, LEX* lex);
+  parse_result ParseResource(BareosResource* res,
+                             ResourceItem* items,
+                             LEX* lex);
 
  private:
   int parser_pass_number_ = 0;
