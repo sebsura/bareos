@@ -51,13 +51,12 @@ struct ResourceItem;
 
 class ConfigParserStateMachine {
  public:
-  ConfigParserStateMachine(const char* config_file_name,
-                           void* caller_ctx,
-                           LEX_ERROR_HANDLER* ScanError,
-                           LEX_WARNING_HANDLER* scan_warning,
-                           ConfigurationParser& my_config);
-  ConfigParserStateMachine(ConfigParserStateMachine& ohter) = delete;
-  ConfigParserStateMachine(ConfigParserStateMachine&& ohter) = delete;
+  ConfigParserStateMachine(ConfigurationParser* my_config, size_t pass)
+      : parser_pass_number_{(int)pass}, my_config_{my_config}
+  {
+  }
+  ConfigParserStateMachine(ConfigParserStateMachine& other) = delete;
+  ConfigParserStateMachine(ConfigParserStateMachine&& other) = delete;
   ConfigParserStateMachine& operator=(ConfigParserStateMachine& rhs) = delete;
   ConfigParserStateMachine& operator=(ConfigParserStateMachine&& rhs) = delete;
 
@@ -68,16 +67,10 @@ class ConfigParserStateMachine {
     kParserError
   };
 
-  ParserError GetParseError() const;
+  ParserError GetParseError(LEX* lex) const;
 
-  bool InitParserPass();
-  bool Finished() const { return parser_pass_number_ == 2; }
-
-  bool ParseAllTokens();
+  bool ParseAllTokens(LEX* lex);
   void DumpResourcesAfterSecondPass();
-
- public:
-  lex_ptr lexical_parser_{};
 
  private:
   struct parsed_resource {
@@ -86,19 +79,9 @@ class ConfigParserStateMachine {
     BareosResource* resource_{};
   };
 
-  bool ParserInitResource(int token);
-  bool ScanResource(int token);
+  bool ParserInitResource(LEX* lex, int token);
+  bool ScanResource(LEX* lex, int token);
   void FreeUnusedMemoryFromPass2();
-
-  int config_level_ = 0;  // number of open blocks
-  int parser_pass_number_ = 0;
-  std::string config_file_name_;
-  void* caller_ctx_ = nullptr;
-  LEX_ERROR_HANDLER* scan_error_ = nullptr;
-  LEX_WARNING_HANDLER* scan_warning_ = nullptr;
-  ConfigurationParser& my_config_;
-
-  parsed_resource currently_parsed_resource_;
 
   enum class ParseState
   {
@@ -106,7 +89,15 @@ class ConfigParserStateMachine {
     kResource
   };
 
+ public:
+ private:
+  int config_level_ = 0;  // number of open blocks
+  int parser_pass_number_ = 0;
+
   ParseState state = ParseState::kInit;
+  ConfigurationParser* my_config_;
+
+  parsed_resource currently_parsed_resource_;
 };
 
 #endif  // BAREOS_LIB_PARSE_CONF_STATE_MACHINE_H_

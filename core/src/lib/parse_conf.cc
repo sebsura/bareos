@@ -215,36 +215,39 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
                                           LEX_ERROR_HANDLER* scan_error,
                                           LEX_WARNING_HANDLER* scan_warning)
 {
-  ConfigParserStateMachine state_machine(config_file_name, caller_ctx,
-                                         scan_error, scan_warning, *this);
+  constexpr size_t num_passes = 2;
 
   Dmsg1(900, "Enter ParseConfigFile(%s)\n", config_file_name);
 
-  do {
-    if (!state_machine.InitParserPass()) { return false; }
+  for (size_t pass = 0; pass < num_passes; ++pass) {
+    Dmsg1(900, "Enter Pass(%u)\n", pass);
+    lex_ptr lexer = LexFile(config_file_name, caller_ctx, err_type_, scan_error,
+                            scan_warning);
 
-    if (!state_machine.ParseAllTokens()) {
-      scan_err0(state_machine.lexical_parser_.get(),
-                T_("ParseAllTokens failed."));
+    ConfigParserStateMachine state_machine(this, pass + 1);
+
+
+    if (!state_machine.ParseAllTokens(lexer.get())) {
+      scan_err0(lexer.get(), T_("ParseAllTokens failed."));
       return false;
     }
 
-    switch (state_machine.GetParseError()) {
+    switch (state_machine.GetParseError(lexer.get())) {
       case ConfigParserStateMachine::ParserError::kResourceIncomplete:
-        scan_err0(state_machine.lexical_parser_.get(),
+        scan_err0(lexer.get(),
                   T_("End of conf file reached with unclosed resource."));
         return false;
       case ConfigParserStateMachine::ParserError::kParserError:
-        scan_err0(state_machine.lexical_parser_.get(),
-                  T_("Parser Error occurred."));
+        scan_err0(lexer.get(), T_("Parser Error occurred."));
         return false;
       case ConfigParserStateMachine::ParserError::kNoError:
         break;
     }
 
-  } while (!state_machine.Finished());
-
-  state_machine.DumpResourcesAfterSecondPass();
+    if (pass == num_passes - 1) {
+      state_machine.DumpResourcesAfterSecondPass();
+    }
+  }
 
   Dmsg0(900, "Leave ParseConfigFile()\n");
   return true;
