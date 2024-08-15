@@ -186,6 +186,28 @@ struct DatatypeName {
   const char* description;
 };
 
+struct ident {
+  std::string name;
+};
+
+struct done {};
+
+struct unexpected_token {
+  int value;
+};
+
+struct parse_result {
+  std::string errmsg;
+
+  parse_result() = default;
+  parse_result(std::string_view msg) : errmsg(msg) {}
+
+  operator bool() const { return errmsg.size() == 0; }
+
+  const char* strerror() const { return errmsg.c_str(); }
+};
+
+
 typedef void(INIT_RES_HANDLER)(BareosResource* res,
                                ResourceItem* item,
                                int pass);
@@ -338,6 +360,13 @@ class ConfigurationParser {
   void ClearWarnings();
   bool HasWarnings() const;
   const BStringList& GetWarnings() const;
+
+  std::variant<done, ident, unexpected_token> NextResourceIdentifier(LEX* lex);
+
+  parse_result ParseResource(BareosResource* res,
+                             ResourceItem* items,
+                             LEX* lex,
+                             size_t pass);
 
  private:
   ConfigurationParser(const ConfigurationParser&) = delete;

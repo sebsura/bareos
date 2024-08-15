@@ -59,7 +59,6 @@
 #include "lib/address_conf.h"
 #include "lib/edit.h"
 #include "lib/parse_conf.h"
-#include "lib/parse_conf_state_machine.h"
 #include "lib/qualified_resource_name_type_converter.h"
 #include "lib/bstringlist.h"
 #include "lib/ascii_control_characters.h"
@@ -243,10 +242,8 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
     lex_ptr lexer = LexFile(config_file_name, caller_ctx, err_type_, scan_error,
                             scan_warning);
 
-    ConfigParserStateMachine state_machine(this);
-
     for (;;) {
-      auto res = state_machine.NextResourceIdentifier(lexer.get());
+      auto res = NextResourceIdentifier(lexer.get());
 
       if (std::get_if<done>(&res) != nullptr) {
         break;
@@ -268,8 +265,8 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
         return false;
       }
 
-      auto parse_res = state_machine.ParseResource(new_res.res, new_res.items,
-                                                   lexer.get(), pass + 1);
+      auto parse_res
+          = ParseResource(new_res.res, new_res.items, lexer.get(), pass + 1);
       if (!parse_res) {
         scan_err1(lexer.get(), "%s", parse_res.strerror());
         return false;
@@ -762,4 +759,108 @@ bool ConfigurationParser::HasWarnings() const { return !warnings_.empty(); }
 const BStringList& ConfigurationParser::GetWarnings() const
 {
   return warnings_;
+}
+
+auto ConfigurationParser::NextResourceIdentifier(LEX* lex)
+    -> std::variant<done, ident, unexpected_token>
+{
+  for (;;) {
+    auto token = LexGetToken(lex, BCT_ALL);
+    switch (token) {
+      case BCT_IDENTIFIER: {
+        return ident{lex->str};
+      } break;
+      case BCT_EOL: {
+        // continue on
+      } break;
+      case BCT_EOF: {
+        return done{};
+      } break;
+      default: {
+        return unexpected_token{token};
+      } break;
+    }
+  }
+}
+
+parse_result ConfigurationParser::ParseResource(BareosResource* res,
+                                                ResourceItem* items,
+                                                LEX* lex,
+                                                size_t pass)
+{
+  int open_blocks = 0;
+  for (;;) {
+    int token = LexGetToken(lex, BCT_ALL);
+    switch (token) {
+      case BCT_BOB: {
+        open_blocks += 1;
+      } break;
+      case BCT_EOB: {
+        open_blocks -= 1;
+
+        if (open_blocks == 0) {
+          return {};
+        } else if (open_blocks < 0) {
+          return parse_result("unexpected end of block");
+        }
+      } break;
+      case BCT_IDENTIFIER: {
+        int resource_item_index = GetResourceItemIndex(items, lex->str);
+
+        if (resource_item_index < 0) {
+          Dmsg2(900, "config_level_=%d id=%s\n", open_blocks, lex->str);
+          Dmsg1(900, "Keyword = %s\n", lex->str);
+
+          PoolMem errmsg;
+          Mmsg(errmsg,
+               "Keyword \"%s\" not permitted in this resource.\n"
+               "Perhaps you left the trailing brace off of the "
+               "previous resource.",
+               lex->str);
+          return parse_result(errmsg.c_str());
+        }
+
+        ResourceItem* item = &items[resource_item_index];
+        if (!(item->flags & CFG_ITEM_NO_EQUALS)) {
+          token = LexGetToken(lex, BCT_SKIP_EOL);
+          Dmsg1(900, "in BCT_IDENT got token=%s\n", lex_tok_to_str(token));
+          if (token != BCT_EQUALS) {
+            PoolMem errmsg;
+            Mmsg(errmsg, "expected an equals, got: %s", lex->str);
+            return parse_result(errmsg.c_str());
+          }
+        }
+
+        if (pass == 1 && item->flags & CFG_ITEM_DEPRECATED) {
+          AddWarning(std::string("using deprecated keyword ") + item->name
+                     + " on line " + std::to_string(lex->line_no) + " of file "
+                     + lex->fname);
+        }
+
+        Dmsg1(800, "calling handler for %s\n", item->name);
+
+        if (!StoreResource(res, item->type, lex, item, resource_item_index,
+                           pass)) {
+          if (store_res_) {
+            store_res_(
+                res, lex, item, resource_item_index, pass,
+                config_resources_container_->configuration_resources_.get());
+          }
+        }
+      } break;
+      case BCT_EOL: {
+        // continue on
+      } break;
+      case BCT_EOF: {
+        return parse_result("End of conf file reached with unclosed resource.");
+      } break;
+
+      default: {
+        PoolMem errmsg;
+        Mmsg(errmsg, "unexpected token %d %s in resource definition", token,
+             lex_tok_to_str(token));
+        return parse_result(errmsg.c_str());
+      } break;
+    }
+  }
 }
