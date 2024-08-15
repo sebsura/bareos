@@ -2911,6 +2911,7 @@ static void StoreRunscriptTarget(BareosResource* res,
                   T_("Could not find config Resource %s referenced on line %d "
                      ": %s\n"),
                   lc->str, lc->line_no, lc->line);
+        return;
       }
 
       r->SetTarget(lc->str);
