@@ -251,11 +251,11 @@ void ConfigurationParser::ScanTypes(LEX* lc,
 }
 
 // Store Messages Destination information
-void StoreMsgs(ConfigurationParser* p,
-               BareosResource* res,
-               LEX* lc,
-               ResourceItem* item,
-               int index)
+static void StoreMsgs(ConfigurationParser* p,
+                      BareosResource* res,
+                      LEX* lc,
+                      ResourceItem* item,
+                      int index)
 {
   int token;
   const char* cmd = nullptr;
@@ -400,11 +400,11 @@ void StoreMsgs(ConfigurationParser* p,
  * This routine is ONLY for resource names
  * Store a name at specified address.
  */
-void StoreName(ConfigurationParser*,
-               BareosResource* res,
-               LEX* lc,
-               ResourceItem* item,
-               int index)
+static void StoreName(ConfigurationParser*,
+                      BareosResource* res,
+                      LEX* lc,
+                      ResourceItem* item,
+                      int index)
 {
   std::string msg{};
 
@@ -431,11 +431,11 @@ void StoreName(ConfigurationParser*,
  * Store a name string at specified address
  * A name string is limited to MAX_RES_NAME_LENGTH
  */
-void StoreStrname(ConfigurationParser*,
-                  BareosResource* res,
-                  LEX* lc,
-                  ResourceItem* item,
-                  int index)
+static void StoreStrname(ConfigurationParser*,
+                         BareosResource* res,
+                         LEX* lc,
+                         ResourceItem* item,
+                         int index)
 {
   LexGetToken(lc, BCT_NAME);
   char** p = GetItemVariablePointer<char**>(res, *item);
@@ -447,11 +447,11 @@ void StoreStrname(ConfigurationParser*,
 }
 
 // Store a string at specified address
-void StoreStr(ConfigurationParser*,
-              BareosResource* res,
-              LEX* lc,
-              ResourceItem* item,
-              int index)
+static void StoreStr(ConfigurationParser*,
+                     BareosResource* res,
+                     LEX* lc,
+                     ResourceItem* item,
+                     int index)
 {
   LexGetToken(lc, BCT_STRING);
   SetItemVariableFreeMemory<char*>(res, *item, strdup(lc->str));
@@ -461,11 +461,11 @@ void StoreStr(ConfigurationParser*,
 }
 
 // Store a string at specified address
-void StoreStdstr(ConfigurationParser*,
-                 BareosResource* res,
-                 LEX* lc,
-                 ResourceItem* item,
-                 int index)
+static void StoreStdstr(ConfigurationParser*,
+                        BareosResource* res,
+                        LEX* lc,
+                        ResourceItem* item,
+                        int index)
 {
   LexGetToken(lc, BCT_STRING);
   SetItemVariable<std::string>(res, *item, lc->str);
@@ -479,11 +479,11 @@ void StoreStdstr(ConfigurationParser*,
  * shell expansion except if the string begins with a vertical
  * bar (i.e. it will likely be passed to the shell later).
  */
-void StoreDir(ConfigurationParser*,
-              BareosResource* res,
-              LEX* lc,
-              ResourceItem* item,
-              int index)
+static void StoreDir(ConfigurationParser*,
+                     BareosResource* res,
+                     LEX* lc,
+                     ResourceItem* item,
+                     int index)
 {
   LexGetToken(lc, BCT_STRING);
   char** p = GetItemVariablePointer<char**>(res, *item);
@@ -497,11 +497,11 @@ void StoreDir(ConfigurationParser*,
   ClearBit(index, res->inherit_content_);
 }
 
-void StoreStdstrdir(ConfigurationParser*,
-                    BareosResource* res,
-                    LEX* lc,
-                    ResourceItem* item,
-                    int index)
+static void StoreStdstrdir(ConfigurationParser*,
+                           BareosResource* res,
+                           LEX* lc,
+                           ResourceItem* item,
+                           int index)
 {
   LexGetToken(lc, BCT_STRING);
   if (lc->str[0] != '|') {
@@ -514,11 +514,11 @@ void StoreStdstrdir(ConfigurationParser*,
 }
 
 // Store a password at specified address in MD5 coding
-void StoreMd5Password(ConfigurationParser*,
-                      BareosResource* res,
-                      LEX* lc,
-                      ResourceItem* item,
-                      int index)
+static void StoreMd5Password(ConfigurationParser*,
+                             BareosResource* res,
+                             LEX* lc,
+                             ResourceItem* item,
+                             int index)
 {
   LexGetToken(lc, BCT_STRING);
   s_password* pwd = GetItemVariablePointer<s_password*>(res, *item);
@@ -571,11 +571,11 @@ void StoreMd5Password(ConfigurationParser*,
 }
 
 // Store a password at specified address in MD5 coding
-void StoreClearpassword(ConfigurationParser*,
-                        BareosResource* res,
-                        LEX* lc,
-                        ResourceItem* item,
-                        int index)
+static void StoreClearpassword(ConfigurationParser*,
+                               BareosResource* res,
+                               LEX* lc,
+                               ResourceItem* item,
+                               int index)
 {
   LexGetToken(lc, BCT_STRING);
   s_password* pwd = GetItemVariablePointer<s_password*>(res, *item);
@@ -601,11 +601,11 @@ void StoreClearpassword(ConfigurationParser*,
  * If we are in pass 2, do a lookup of the
  * resource.
  */
-void StoreRes(ConfigurationParser* p,
-              BareosResource* res,
-              LEX* lc,
-              ResourceItem* item,
-              int index)
+static void StoreRes(ConfigurationParser* p,
+                     BareosResource* res,
+                     LEX* lc,
+                     ResourceItem* item,
+                     int index)
 {
   LexGetToken(lc, BCT_NAME);
 
@@ -621,11 +621,11 @@ void StoreRes(ConfigurationParser* p,
  *
  * If we are in pass 2, do a lookup of the resource.
  */
-void StoreAlistRes(ConfigurationParser* p,
-                   BareosResource* res,
-                   LEX* lc,
-                   ResourceItem* item,
-                   int index)
+static void StoreAlistRes(ConfigurationParser* p,
+                          BareosResource* res,
+                          LEX* lc,
+                          ResourceItem* item,
+                          int index)
 {
   int token = BCT_COMMA;
   while (token == BCT_COMMA) {
@@ -638,11 +638,11 @@ void StoreAlistRes(ConfigurationParser* p,
 }
 
 // Store a std::string in an std::vector<std::string>.
-void StoreStdVectorStr(ConfigurationParser*,
-                       BareosResource* res,
-                       LEX* lc,
-                       ResourceItem* item,
-                       int index)
+static void StoreStdVectorStr(ConfigurationParser*,
+                              BareosResource* res,
+                              LEX* lc,
+                              ResourceItem* item,
+                              int index)
 {
   std::vector<std::string>* list
       = GetItemVariablePointer<std::vector<std::string>*>(res, *item);
@@ -669,11 +669,11 @@ void StoreStdVectorStr(ConfigurationParser*,
 }
 
 // Store a string in an alist.
-void StoreAlistStr(ConfigurationParser*,
-                   BareosResource* res,
-                   LEX* lc,
-                   ResourceItem* item,
-                   int index)
+static void StoreAlistStr(ConfigurationParser*,
+                          BareosResource* res,
+                          LEX* lc,
+                          ResourceItem* item,
+                          int index)
 {
   alist<const char*>** alistvalue
       = GetItemVariablePointer<alist<const char*>**>(res, *item);
@@ -715,11 +715,11 @@ void StoreAlistStr(ConfigurationParser*,
  * with a vertical bar (i.e. it will likely be passed to the
  * shell later).
  */
-void StoreAlistDir(ConfigurationParser*,
-                   BareosResource* res,
-                   LEX* lc,
-                   ResourceItem* item,
-                   int index)
+static void StoreAlistDir(ConfigurationParser*,
+                          BareosResource* res,
+                          LEX* lc,
+                          ResourceItem* item,
+                          int index)
 {
   alist<const char*>** alistvalue
       = GetItemVariablePointer<alist<const char*>**>(res, *item);
@@ -757,11 +757,11 @@ void StoreAlistDir(ConfigurationParser*,
 }
 
 // Store a list of plugin names to load by the daemon on startup.
-void StorePluginNames(ConfigurationParser*,
-                      BareosResource* res,
-                      LEX* lc,
-                      ResourceItem* item,
-                      int index)
+static void StorePluginNames(ConfigurationParser*,
+                             BareosResource* res,
+                             LEX* lc,
+                             ResourceItem* item,
+                             int index)
 {
   alist<const char*>** alistvalue
       = GetItemVariablePointer<alist<const char*>**>(res, *item);
@@ -809,11 +809,11 @@ void StorePluginNames(ConfigurationParser*,
  * Note, here item points to the main resource (e.g. Job, not
  *  the jobdefs, which we look up).
  */
-void StoreDefs(ConfigurationParser*,
-               BareosResource*,
-               LEX* lc,
-               ResourceItem* item,
-               int)
+static void StoreDefs(ConfigurationParser*,
+                      BareosResource*,
+                      LEX* lc,
+                      ResourceItem* item,
+                      int)
 {
   LexGetToken(lc, BCT_NAME);
   /* MARKER */
@@ -822,11 +822,11 @@ void StoreDefs(ConfigurationParser*,
 }
 
 // Store an integer at specified address
-void store_int16(ConfigurationParser*,
-                 BareosResource* res,
-                 LEX* lc,
-                 ResourceItem* item,
-                 int index)
+static void store_int16(ConfigurationParser*,
+                        BareosResource* res,
+                        LEX* lc,
+                        ResourceItem* item,
+                        int index)
 {
   LexGetToken(lc, BCT_INT16);
   SetItemVariable<int16_t>(res, *item, lc->u.int16_val);
@@ -835,11 +835,11 @@ void store_int16(ConfigurationParser*,
   ClearBit(index, res->inherit_content_);
 }
 
-void store_int32(ConfigurationParser*,
-                 BareosResource* res,
-                 LEX* lc,
-                 ResourceItem* item,
-                 int index)
+static void store_int32(ConfigurationParser*,
+                        BareosResource* res,
+                        LEX* lc,
+                        ResourceItem* item,
+                        int index)
 {
   LexGetToken(lc, BCT_INT32);
   SetItemVariable<int32_t>(res, *item, lc->u.int32_val);
@@ -849,11 +849,11 @@ void store_int32(ConfigurationParser*,
 }
 
 // Store a positive integer at specified address
-void store_pint16(ConfigurationParser*,
-                  BareosResource* res,
-                  LEX* lc,
-                  ResourceItem* item,
-                  int index)
+static void store_pint16(ConfigurationParser*,
+                         BareosResource* res,
+                         LEX* lc,
+                         ResourceItem* item,
+                         int index)
 {
   LexGetToken(lc, BCT_PINT16);
   SetItemVariable<uint16_t>(res, *item, lc->u.pint16_val);
@@ -862,11 +862,11 @@ void store_pint16(ConfigurationParser*,
   ClearBit(index, res->inherit_content_);
 }
 
-void store_pint32(ConfigurationParser*,
-                  BareosResource* res,
-                  LEX* lc,
-                  ResourceItem* item,
-                  int index)
+static void store_pint32(ConfigurationParser*,
+                         BareosResource* res,
+                         LEX* lc,
+                         ResourceItem* item,
+                         int index)
 {
   LexGetToken(lc, BCT_PINT32);
   SetItemVariable<uint32_t>(res, *item, lc->u.pint32_val);
@@ -876,11 +876,11 @@ void store_pint32(ConfigurationParser*,
 }
 
 // Store an 64 bit integer at specified address
-void store_int64(ConfigurationParser*,
-                 BareosResource* res,
-                 LEX* lc,
-                 ResourceItem* item,
-                 int index)
+static void store_int64(ConfigurationParser*,
+                        BareosResource* res,
+                        LEX* lc,
+                        ResourceItem* item,
+                        int index)
 {
   LexGetToken(lc, BCT_INT64);
   SetItemVariable<int64_t>(res, *item, lc->u.int64_val);
@@ -889,14 +889,20 @@ void store_int64(ConfigurationParser*,
   ClearBit(index, res->inherit_content_);
 }
 
+enum class unit_type
+{
+  Size,
+  Speed
+};
+
 // Store a size in bytes
-void store_int_unit(ConfigurationParser*,
-                    BareosResource* res,
-                    LEX* lc,
-                    ResourceItem* item,
-                    int index,
-                    bool size32,
-                    unit_type type)
+static void store_int_unit(ConfigurationParser*,
+                           BareosResource* res,
+                           LEX* lc,
+                           ResourceItem* item,
+                           int index,
+                           bool size32,
+                           unit_type type)
 {
   uint64_t uvalue;
   char bsize[500];
@@ -964,42 +970,42 @@ void store_int_unit(ConfigurationParser*,
 }
 
 // Store a size in bytes
-void store_size32(ConfigurationParser* p,
-                  BareosResource* res,
-                  LEX* lc,
-                  ResourceItem* item,
-                  int index)
+static void store_size32(ConfigurationParser* p,
+                         BareosResource* res,
+                         LEX* lc,
+                         ResourceItem* item,
+                         int index)
 {
   store_int_unit(p, res, lc, item, index, true /* 32 bit */, unit_type::Size);
 }
 
 // Store a size in bytes
-void store_size64(ConfigurationParser* p,
-                  BareosResource* res,
-                  LEX* lc,
-                  ResourceItem* item,
-                  int index)
+static void store_size64(ConfigurationParser* p,
+                         BareosResource* res,
+                         LEX* lc,
+                         ResourceItem* item,
+                         int index)
 {
   store_int_unit(p, res, lc, item, index, false /* not 32 bit */,
                  unit_type::Size);
 }
 
 // Store a speed in bytes/s
-void StoreSpeed(ConfigurationParser* p,
-                BareosResource* res,
-                LEX* lc,
-                ResourceItem* item,
-                int index)
+static void StoreSpeed(ConfigurationParser* p,
+                       BareosResource* res,
+                       LEX* lc,
+                       ResourceItem* item,
+                       int index)
 {
   store_int_unit(p, res, lc, item, index, false /* 64 bit */, unit_type::Speed);
 }
 
 // Store a time period in seconds
-void StoreTime(ConfigurationParser*,
-               BareosResource* res,
-               LEX* lc,
-               ResourceItem* item,
-               int index)
+static void StoreTime(ConfigurationParser*,
+                      BareosResource* res,
+                      LEX* lc,
+                      ResourceItem* item,
+                      int index)
 {
   utime_t utime;
   char period[500];
@@ -1038,11 +1044,11 @@ void StoreTime(ConfigurationParser*,
 }
 
 // Store a yes/no in a bit field
-void StoreBit(ConfigurationParser*,
-              BareosResource* res,
-              LEX* lc,
-              ResourceItem* item,
-              int index)
+static void StoreBit(ConfigurationParser*,
+                     BareosResource* res,
+                     LEX* lc,
+                     ResourceItem* item,
+                     int index)
 {
   LexGetToken(lc, BCT_NAME);
   char* bitvalue = GetItemVariablePointer<char*>(res, *item);
@@ -1061,11 +1067,11 @@ void StoreBit(ConfigurationParser*,
 }
 
 // Store a bool in a bit field
-void StoreBool(ConfigurationParser*,
-               BareosResource* res,
-               LEX* lc,
-               ResourceItem* item,
-               int index)
+static void StoreBool(ConfigurationParser*,
+                      BareosResource* res,
+                      LEX* lc,
+                      ResourceItem* item,
+                      int index)
 {
   LexGetToken(lc, BCT_NAME);
   if (Bstrcasecmp(lc->str, "yes") || Bstrcasecmp(lc->str, "true")) {
@@ -1083,11 +1089,11 @@ void StoreBool(ConfigurationParser*,
 }
 
 // Store Tape Label Type (BAREOS, ANSI, IBM)
-void StoreLabel(ConfigurationParser*,
-                BareosResource* res,
-                LEX* lc,
-                ResourceItem* item,
-                int index)
+static void StoreLabel(ConfigurationParser*,
+                       BareosResource* res,
+                       LEX* lc,
+                       ResourceItem* item,
+                       int index)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the label pass 2 so that type is defined
@@ -1136,11 +1142,11 @@ void StoreLabel(ConfigurationParser*,
  *   = { ipv4 { addr = doof.nowaytoheavenxyz.uhu; } }
  *   = { ipv4 { port = 4711 } }
  */
-void StoreAddresses(ConfigurationParser*,
-                    BareosResource* res,
-                    LEX* lc,
-                    ResourceItem* item,
-                    int index)
+static void StoreAddresses(ConfigurationParser*,
+                           BareosResource* res,
+                           LEX* lc,
+                           ResourceItem* item,
+                           int index)
 {
   int token;
   int exist;
@@ -1253,11 +1259,11 @@ void StoreAddresses(ConfigurationParser*,
   ClearBit(index, res->inherit_content_);
 }
 
-void StoreAddressesAddress(ConfigurationParser*,
-                           BareosResource* res,
-                           LEX* lc,
-                           ResourceItem* item,
-                           int)
+static void StoreAddressesAddress(ConfigurationParser*,
+                                  BareosResource* res,
+                                  LEX* lc,
+                                  ResourceItem* item,
+                                  int)
 {
   int token;
   char errmsg[1024];
@@ -1277,11 +1283,11 @@ void StoreAddressesAddress(ConfigurationParser*,
   }
 }
 
-void StoreAddressesPort(ConfigurationParser*,
-                        BareosResource* res,
-                        LEX* lc,
-                        ResourceItem* item,
-                        int)
+static void StoreAddressesPort(ConfigurationParser*,
+                               BareosResource* res,
+                               LEX* lc,
+                               ResourceItem* item,
+                               int)
 {
   int token;
   char errmsg[1024];
