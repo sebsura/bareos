@@ -801,27 +801,6 @@ static void StorePluginNames(ConfigurationParser*,
   ClearBit(index, res->inherit_content_);
 }
 
-/*
- * Store default values for Resource from xxxDefs
- * If we are in pass 2, do a lookup of the
- * resource and store everything not explicitly set
- * in main resource.
- *
- * Note, here item points to the main resource (e.g. Job, not
- *  the jobdefs, which we look up).
- */
-static void StoreDefs(ConfigurationParser*,
-                      BareosResource*,
-                      LEX* lc,
-                      ResourceItem* item,
-                      int)
-{
-  LexGetToken(lc, BCT_NAME);
-  /* MARKER */
-  (void)item;
-  ScanToEol(lc);
-}
-
 // Store an integer at specified address
 static void store_int16(ConfigurationParser*,
                         BareosResource* res,
@@ -1406,9 +1385,6 @@ bool ConfigurationParser::StoreResource(BareosResource* res,
       break;
     case CFG_TYPE_SPEED:
       StoreSpeed(this, res, lc, item, index);
-      break;
-    case CFG_TYPE_DEFS:
-      StoreDefs(this, res, lc, item, index);
       break;
     case CFG_TYPE_LABEL:
       StoreLabel(this, res, lc, item, index);
@@ -2127,7 +2103,6 @@ static DatatypeName datatype_names[] = {
     {CFG_TYPE_SIZE64, "SIZE64", "64 bits file size"},
     {CFG_TYPE_SIZE32, "SIZE32", "32 bits file size"},
     {CFG_TYPE_SPEED, "SPEED", "speed"},
-    {CFG_TYPE_DEFS, "DEFS", "definition"},
     {CFG_TYPE_LABEL, "LABEL", "label"},
     {CFG_TYPE_ADDRESSES, "ADDRESSES", "ip addresses list"},
     {CFG_TYPE_ADDRESSES_ADDRESS, "ADDRESS", "ip address"},
