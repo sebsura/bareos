@@ -401,7 +401,6 @@ static void ParseConfigCb(ConfigurationParser* p,
                           ResourceItem* item,
                           int index)
 {
-  /* MARKER */
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
       StoreAutopassword(p, res, lc, item, index);

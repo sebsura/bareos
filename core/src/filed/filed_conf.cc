@@ -215,7 +215,6 @@ static void ParseConfigCb(ConfigurationParser*,
                           ResourceItem* item,
                           int index)
 {
-  /* MARKER */
   switch (item->type) {
     case CFG_TYPE_CIPHER:
       StoreCipher(res, lc, item, index);

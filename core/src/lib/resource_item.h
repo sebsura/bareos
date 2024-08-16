@@ -61,9 +61,7 @@ struct ResourceItem {
 static inline void* CalculateAddressOfMemberVariable(BareosResource* res,
                                                      const ResourceItem& item)
 {
-  /* MARKER */
-  char* base = reinterpret_cast<char*>(
-      res);  //= reinterpret_cast<char*>(*item.allocated_resource);
+  char* base = reinterpret_cast<char*>(res);
   return static_cast<void*>(base + item.offset);
 }
 
