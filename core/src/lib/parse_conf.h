@@ -232,6 +232,32 @@ enum class DependencyStorageType
   VECTOR,
 };
 
+struct dependency_target {
+  /* a depedency target is a tuple that describes where to store a certain
+     resource dependency */
+
+  BareosResource* base;
+  ResourceItem* item;
+
+  bool operator==(const dependency_target& other) const
+  {
+    return base == other.base && item == other.item;
+  }
+};
+
+template <> struct std::hash<dependency_target> {
+  size_t operator()(const dependency_target& tgt) const
+  {
+    auto l = std::hash<BareosResource*>{}(tgt.base);
+    auto r = std::hash<ResourceItem*>{}(tgt.item);
+
+    std::size_t seed{0};
+    seed = hash_combine(seed, l);
+    seed = hash_combine(seed, r);
+    return seed;
+  }
+};
+
 class ConfigurationParser {
   friend class ConfiguredTlsPolicyGetterPrivate;
   friend class ConfigParserStateMachine;
@@ -432,6 +458,14 @@ class ConfigurationParser {
       std::function<void(ConfigurationParser&, BareosResource*, ResourceItem*)>
           SetDefaults);
   void SetResourceDefaultsParserPass1(BareosResource* res, ResourceItem* item);
+
+
+ private:
+  std::unordered_map<dependency_target, std::string> single_dependencies;
+  std::unordered_map<dependency_target, std::vector<std::string>>
+      vector_dependencies;
+  std::unordered_map<dependency_target, std::vector<std::string>>
+      alist_dependencies;
 };
 
 

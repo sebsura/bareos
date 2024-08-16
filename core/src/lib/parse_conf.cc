@@ -855,13 +855,125 @@ bool ConfigurationParser::ParsingPass(LEX* lex)
 bool ConfigurationParser::FixupPass()
 {
   Dmsg1(900, "Enter Parsing Pass\n");
+
+  for (auto& [tgt, depname] : single_dependencies) {
+    auto* destination
+        = GetItemVariablePointer<BareosResource**>(tgt.base, *tgt.item);
+
+    if (!destination) {
+      // error : tgt.base does not have member tgt.item->name
+      return false;
+    }
+
+    if (*destination) {
+      // error : trying to overwrite defined resource
+      return false;
+    }
+
+    Dmsg3(900, "Setting %s->%s to %s\n", tgt.base->resource_name_,
+          tgt.item->name, depname.c_str());
+
+    auto* dependency = GetResWithName(tgt.item->code, depname.c_str());
+    if (!dependency) {
+      // error : no such dependency defined
+      return false;
+    }
+
+    *destination = dependency;
+  }
+
+  for (auto& [tgt, deps] : alist_dependencies) {
+    auto* destination
+        = GetItemVariablePointer<alist<BareosResource*>**>(tgt.base, *tgt.item);
+    if (!destination) {
+      // error : tgt.base does not have member tgt.item->name
+      return false;
+    }
+
+    if (!*destination) {
+      *destination = new alist<BareosResource*>(deps.size(), owned_by_alist);
+    }
+
+    for (auto& depname : deps) {
+      Dmsg3(900, "Appending %s to %s->%s\n", depname.c_str(),
+            tgt.base->resource_name_, tgt.item->name);
+
+      auto* dependency = GetResWithName(tgt.item->code, depname.c_str());
+      if (!dependency) {
+        // error : no such dependency defined
+        return false;
+      }
+
+      (*destination)->append(dependency);
+    }
+  }
+
+  for (auto& [tgt, deps] : vector_dependencies) {
+    auto* destination = GetItemVariablePointer<std::vector<BareosResource*>*>(
+        tgt.base, *tgt.item);
+
+    if (!destination) {
+      // error : tgt.base does not have member tgt.item->name
+      return false;
+    }
+
+    for (auto& depname : deps) {
+      Dmsg3(900, "Appending %s to %s->%s\n", depname.c_str(),
+            tgt.base->resource_name_, tgt.item->name);
+
+      auto* dependency = GetResWithName(tgt.item->code, depname.c_str());
+      if (!dependency) {
+        // error
+        return false;
+      }
+
+      destination->push_back(dependency);
+    }
+  }
+
   Dmsg1(900, "Leave Parsing Pass\n");
+  return true;
+}
+
+static bool CheckRequired(BareosResource* res, ResourceTable* tbl)
+{
+  ResourceItem* current = tbl->items;
+
+  while (current->name) {
+    if ((current->flags & CFG_ITEM_REQUIRED) && (!current->IsPresent(res))) {
+      // Emsg2(M_ERROR, 0,
+      //       T_("%s item is required in %s resource, but not found.\n"),
+      //       items[0].name, dird_resource_tables[type].name);
+      return false;
+    }
+
+    current += 1;
+  }
+
   return true;
 }
 
 bool ConfigurationParser::VerifyPass()
 {
   Dmsg1(900, "Enter Verify Pass\n");
+
+  bool ok = true;
+
+  for (int i = 0; i <= r_num_ - 1; i++) {
+    BareosResource** current
+        = &config_resources_container_->configuration_resources_[i];
+    ResourceTable* tbl = &resource_definitions_[i];
+
+    while (*current) {
+      // every resource has to pass validation, but we also want to validate
+      // all of them before returning
+      ok &= CheckRequired(*current, tbl);
+      current = &(*current)->next_;
+    }
+  }
+
+  if (!ok) { return false; }
+
   // Dump all resources for debugging purposes
   if (debug_level >= 900) {
     for (int i = 0; i <= r_num_ - 1; i++) {
@@ -879,10 +991,25 @@ bool ConfigurationParser::AddDependency(DependencyStorageType type,
                                         ResourceItem* item,
                                         std::string_view referenced_name)
 {
-  (void)type;
-  (void)res;
-  (void)item;
-  (void)referenced_name;
+  dependency_target tgt{res, item};
+
+  switch (type) {
+    case DependencyStorageType::SINGLE: {
+      if (auto found = single_dependencies.find(tgt);
+          found != single_dependencies.end()) {
+        // error
+        return false;
+      }
+      single_dependencies.emplace(tgt, referenced_name);
+    } break;
+    case DependencyStorageType::ALIST: {
+      alist_dependencies[tgt].emplace_back(referenced_name);
+    } break;
+    case DependencyStorageType::VECTOR: {
+      vector_dependencies[tgt].emplace_back(referenced_name);
+    } break;
+  }
+
   return true;
 }
 
