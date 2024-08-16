@@ -399,8 +399,7 @@ static void ParseConfigCb(ConfigurationParser* p,
                           BareosResource* res,
                           LEX* lc,
                           ResourceItem* item,
-                          int index,
-                          BareosResource**)
+                          int index)
 {
   /* MARKER */
   switch (item->type) {

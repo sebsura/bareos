@@ -787,9 +787,7 @@ parse_result ConfigurationParser::ParseResource(BareosResource* res,
 
         if (!StoreResource(res, item->type, lex, item, resource_item_index)) {
           if (store_res_) {
-            store_res_(
-                this, res, lex, item, resource_item_index,
-                config_resources_container_->configuration_resources_.get());
+            store_res_(this, res, lex, item, resource_item_index);
           }
         }
       } break;

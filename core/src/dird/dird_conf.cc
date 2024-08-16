@@ -3230,8 +3230,7 @@ static void ParseConfigCb(ConfigurationParser* p,
                           BareosResource* res,
                           LEX* lc,
                           ResourceItem* item,
-                          int index,
-                          BareosResource**)
+                          int index)
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:

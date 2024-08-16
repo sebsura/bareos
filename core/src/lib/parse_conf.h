@@ -213,8 +213,7 @@ typedef void(STORE_RES_HANDLER)(ConfigurationParser* p,
                                 BareosResource* res,
                                 LEX* lc,
                                 ResourceItem* item,
-                                int index,
-                                BareosResource** configuration_resources);
+                                int index);
 typedef void(PRINT_RES_HANDLER)(BareosResource* res,
                                 ResourceItem& item,
                                 OutputFormatterResource& send,
