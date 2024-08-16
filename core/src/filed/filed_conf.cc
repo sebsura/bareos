@@ -56,10 +56,6 @@
 
 namespace filedaemon {
 
-static bool SaveResource(BareosResource* new_res,
-                         int type,
-                         ResourceItem* items,
-                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* reshdr,
@@ -169,8 +165,7 @@ static struct s_kw CryptoCiphers[]
 static void StoreCipher(BareosResource* res,
                         LEX* lc,
                         ResourceItem* item,
-                        int index,
-                        int)
+                        int index)
 {
   int i;
   LexGetToken(lc, BCT_NAME);
@@ -195,20 +190,14 @@ static void StoreCipher(BareosResource* res,
  * callback function for init_resource
  * See ../lib/parse_conf.c, function InitResource, for more generic handling.
  */
-static void InitResourceCb(BareosResource* res, ResourceItem* item, int pass)
+static void InitResourceCb(BareosResource* res, ResourceItem* item)
 {
-  switch (pass) {
-    case 1:
-      switch (item->type) {
-        case CFG_TYPE_CIPHER:
-          for (int i = 0; CryptoCiphers[i].name; i++) {
-            if (Bstrcasecmp(item->default_value, CryptoCiphers[i].name)) {
-              SetItemVariable<uint32_t>(res, *item, CryptoCiphers[i].token);
-            }
-          }
-          break;
-        default:
-          break;
+  switch (item->type) {
+    case CFG_TYPE_CIPHER:
+      for (int i = 0; CryptoCiphers[i].name; i++) {
+        if (Bstrcasecmp(item->default_value, CryptoCiphers[i].name)) {
+          SetItemVariable<uint32_t>(res, *item, CryptoCiphers[i].token);
+        }
       }
       break;
     default:
@@ -220,17 +209,17 @@ static void InitResourceCb(BareosResource* res, ResourceItem* item, int pass)
  * callback function for parse_config
  * See ../lib/parse_conf.c, function ParseConfig, for more generic handling.
  */
-static void ParseConfigCb(BareosResource* res,
+static void ParseConfigCb(ConfigurationParser*,
+                          BareosResource* res,
                           LEX* lc,
                           ResourceItem* item,
                           int index,
-                          int pass,
                           BareosResource**)
 {
   /* MARKER */
   switch (item->type) {
     case CFG_TYPE_CIPHER:
-      StoreCipher(res, lc, item, index, pass);
+      StoreCipher(res, lc, item, index);
       break;
     default:
       break;
@@ -254,8 +243,8 @@ ConfigurationParser* InitFdConfig(const char* t_configfile, int exit_code)
   ConfigurationParser* config = new ConfigurationParser(
       t_configfile, nullptr, nullptr, InitResourceCb, ParseConfigCb, nullptr,
       exit_code, R_NUM, resources, default_config_filename.c_str(),
-      "bareos-fd.d", ConfigBeforeCallback, ConfigReadyCallback, SaveResource,
-      DumpResource, FreeResource);
+      "bareos-fd.d", ConfigBeforeCallback, ConfigReadyCallback, DumpResource,
+      FreeResource);
   if (config) { config->r_own_ = R_CLIENT; }
   return config;
 }
@@ -404,92 +393,5 @@ static void FreeResource(BareosResource* res, int type)
       break;
   }
   if (next_resource) { FreeResource(next_resource, type); }
-}
-
-/**
- * Save the new resource by chaining it into the head list for
- * the resource. If this is pass 2, we update any resource
- * pointers (currently only in the Job resource).
- */
-static bool SaveResource(BareosResource* new_res,
-                         int type,
-                         ResourceItem* items,
-                         int pass)
-{
-  int i;
-  int error = 0;
-
-  // Ensure that all required items are present
-  for (i = 0; items[i].name; i++) {
-    if (items[i].flags & CFG_ITEM_REQUIRED) {
-      if (!items[i].IsPresent(new_res)) {
-        Emsg2(M_ABORT, 0,
-              T_("%s item is required in %s resource, but not found.\n"),
-              items[i].name, resources[type].name);
-      }
-    }
-  }
-
-  // save previously discovered pointers into dynamic memory
-  if (pass == 2) {
-    switch (type) {
-      case R_MSGS:
-        // Resources not containing a resource
-        break;
-      case R_DIRECTOR: {
-        DirectorResource* p = dynamic_cast<DirectorResource*>(
-            my_config->GetResWithName(R_DIRECTOR, new_res->resource_name_));
-        DirectorResource* res_dir = dynamic_cast<DirectorResource*>(new_res);
-        if (!p) {
-          Emsg1(M_ABORT, 0, T_("Cannot find Director resource %s\n"),
-                res_dir->resource_name_);
-        } else {
-          p->tls_cert_.allowed_certificate_common_names_
-              = std::move(res_dir->tls_cert_.allowed_certificate_common_names_);
-          p->allowed_script_dirs = res_dir->allowed_script_dirs;
-          p->allowed_job_cmds = res_dir->allowed_job_cmds;
-        }
-        break;
-      }
-      case R_CLIENT: {
-        auto* res_client = dynamic_cast<ClientResource*>(new_res);
-        ClientResource* p = dynamic_cast<ClientResource*>(
-            my_config->GetResWithName(R_CLIENT, res_client->resource_name_));
-        if (!p) {
-          Emsg1(M_ABORT, 0, T_("Cannot find Client resource %s\n"),
-                res_client->resource_name_);
-        } else {
-          p->plugin_names = res_client->plugin_names;
-          p->pki_signing_key_files = res_client->pki_signing_key_files;
-          p->pki_master_key_files = res_client->pki_master_key_files;
-          p->pki_signers = res_client->pki_signers;
-          p->pki_recipients = res_client->pki_recipients;
-          p->messages = res_client->messages;
-          p->tls_cert_.allowed_certificate_common_names_ = std::move(
-              res_client->tls_cert_.allowed_certificate_common_names_);
-          p->allowed_script_dirs = res_client->allowed_script_dirs;
-          p->allowed_job_cmds = res_client->allowed_job_cmds;
-        }
-        break;
-      }
-      default:
-        Emsg1(M_ERROR, 0, T_("Unknown resource type %d\n"), type);
-        error = 1;
-        break;
-    }
-
-    /* resource_name_ was already deep copied during 1. pass
-     * as matter of fact the remaining allocated memory is
-     * redundant and would not be freed in the dynamic resources;
-     *
-     * currently, this is the best place to free that */
-
-    return (error == 0);
-  }
-
-  if (!error) {
-    error = my_config->AppendToResourcesChain(new_res, type) ? 0 : 1;
-  }
-  return (error == 0);
 }
 } /* namespace filedaemon */

@@ -26,10 +26,6 @@ struct ResourceItem;
 class BareosResource;
 class ConfigurationParser;
 
-typedef bool (*SaveResourceCb_t)(BareosResource* res,
-                                 int type,
-                                 ResourceItem* item,
-                                 int pass);
 typedef void (*DumpResourceCb_t)(int type,
                                  BareosResource* res,
                                  bool sendmsg(void* sock, const char* fmt, ...),

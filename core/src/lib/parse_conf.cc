@@ -95,7 +95,6 @@ ConfigurationParser::ConfigurationParser(
     const char* config_include_dir,
     void (*ParseConfigBeforeCb)(ConfigurationParser&),
     void (*ParseConfigReadyCb)(ConfigurationParser&),
-    SaveResourceCb_t SaveResourceCb,
     DumpResourceCb_t DumpResourceCb,
     FreeResourceCb_t FreeResourceCb)
     : ConfigurationParser()
@@ -117,10 +116,8 @@ ConfigurationParser::ConfigurationParser(
   config_include_dir_ = config_include_dir == nullptr ? "" : config_include_dir;
   ParseConfigBeforeCb_ = ParseConfigBeforeCb;
   ParseConfigReadyCb_ = ParseConfigReadyCb;
-  ASSERT(SaveResourceCb);
   ASSERT(DumpResourceCb);
   ASSERT(FreeResourceCb);
-  SaveResourceCb_ = SaveResourceCb;
   DumpResourceCb_ = DumpResourceCb;
   FreeResourceCb_ = FreeResourceCb;
 }
@@ -209,8 +206,7 @@ void ConfigurationParser::lex_error(const char* cf,
   free(lexical_parser_);
 }
 
-parsable_resource ConfigurationParser::make_resource(size_t pass,
-                                                     const char* name)
+parsable_resource ConfigurationParser::make_resource(const char* name)
 {
   auto* table = GetResourceTable(name);
   if (!table || !table->items) { return {}; }
@@ -219,7 +215,7 @@ parsable_resource ConfigurationParser::make_resource(size_t pass,
 
   ASSERT(res);
 
-  InitResource(table->rcode, table->items, pass, res);
+  InitResource(table->rcode, table->items, res);
 
   res->rcode_str_
       = GetQualifiedResourceNameTypeConverter()->ResourceTypeToString(
@@ -233,64 +229,15 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
                                           LEX_ERROR_HANDLER* scan_error,
                                           LEX_WARNING_HANDLER* scan_warning)
 {
-  constexpr size_t num_passes = 2;
-
   Dmsg1(900, "Enter ParseConfigFile(%s)\n", config_file_name);
 
-  for (size_t pass = 0; pass < num_passes; ++pass) {
-    Dmsg1(900, "Enter Pass(%u)\n", pass);
-    lex_ptr lexer = LexFile(config_file_name, caller_ctx, err_type_, scan_error,
-                            scan_warning);
+  lex_ptr lexer = LexFile(config_file_name, caller_ctx, err_type_, scan_error,
+                          scan_warning);
 
-    for (;;) {
-      auto res = NextResourceIdentifier(lexer.get());
-
-      if (std::get_if<done>(&res) != nullptr) {
-        break;
-      } else if (auto* token = std::get_if<unexpected_token>(&res)) {
-        scan_err2(lexer.get(),
-                  T_("Expected a Resource name identifier, got: %d %s"),
-                  token->value, lex_tok_to_str(token->value));
-        return false;
-      }
-
-      auto& str = std::get<ident>(res).name;
-
-      Dmsg1(900, "Start Resource(%s)\n", str.c_str());
-
-      auto new_res = make_resource(pass + 1, str.c_str());
-
-      if (!new_res) {
-        scan_err1(lexer.get(), "Could not allocate %s resource.", str.c_str());
-        return false;
-      }
-
-      auto parse_res
-          = ParseResource(new_res.res, new_res.items, lexer.get(), pass + 1);
-      if (!parse_res) {
-        scan_err1(lexer.get(), "%s", parse_res.strerror());
-        return false;
-      }
-
-      if (!SaveResourceCb_(new_res.res, new_res.code, new_res.items,
-                           pass + 1)) {
-        scan_err0(lexer.get(), "SaveResource failed");
-      }
-      if (pass == num_passes - 1) {
-        free(new_res.res->resource_name_);
-        delete new_res.res;
-      }
-    }
+  if (!ParsingPass(lexer.get()) || !FixupPass() || !VerifyPass()) {
+    return false;
   }
 
-  // Dump all resources for debugging purposes
-  if (debug_level >= 900) {
-    for (int i = 0; i <= r_num_ - 1; i++) {
-      DumpResourceCb_(i,
-                      config_resources_container_->configuration_resources_[i],
-                      PrintMessage, nullptr, false, false);
-    }
-  }
 
   Dmsg0(900, "Leave ParseConfigFile()\n");
   return true;
@@ -785,8 +732,7 @@ auto ConfigurationParser::NextResourceIdentifier(LEX* lex)
 
 parse_result ConfigurationParser::ParseResource(BareosResource* res,
                                                 ResourceItem* items,
-                                                LEX* lex,
-                                                size_t pass)
+                                                LEX* lex)
 {
   int open_blocks = 0;
   for (;;) {
@@ -831,7 +777,7 @@ parse_result ConfigurationParser::ParseResource(BareosResource* res,
           }
         }
 
-        if (pass == 1 && item->flags & CFG_ITEM_DEPRECATED) {
+        if (item->flags & CFG_ITEM_DEPRECATED) {
           AddWarning(std::string("using deprecated keyword ") + item->name
                      + " on line " + std::to_string(lex->line_no) + " of file "
                      + lex->fname);
@@ -839,11 +785,10 @@ parse_result ConfigurationParser::ParseResource(BareosResource* res,
 
         Dmsg1(800, "calling handler for %s\n", item->name);
 
-        if (!StoreResource(res, item->type, lex, item, resource_item_index,
-                           pass)) {
+        if (!StoreResource(res, item->type, lex, item, resource_item_index)) {
           if (store_res_) {
             store_res_(
-                res, lex, item, resource_item_index, pass,
+                this, res, lex, item, resource_item_index,
                 config_resources_container_->configuration_resources_.get());
           }
         }
@@ -863,4 +808,97 @@ parse_result ConfigurationParser::ParseResource(BareosResource* res,
       } break;
     }
   }
+}
+
+bool ConfigurationParser::ParsingPass(LEX* lex)
+{
+  Dmsg1(900, "Enter Parsing Pass\n");
+
+  for (;;) {
+    auto res = NextResourceIdentifier(lex);
+
+    if (std::get_if<done>(&res) != nullptr) {
+      break;
+    } else if (auto* token = std::get_if<unexpected_token>(&res)) {
+      scan_err2(lex, T_("Expected a Resource name identifier, got: %d %s"),
+                token->value, lex_tok_to_str(token->value));
+      return false;
+    }
+
+    auto& str = std::get<ident>(res).name;
+
+    Dmsg1(900, "Start Resource(%s)\n", str.c_str());
+
+    auto new_res = make_resource(str.c_str());
+
+    if (!new_res) {
+      scan_err1(lex, "Could not allocate %s resource.", str.c_str());
+      return false;
+    }
+
+    auto parse_res = ParseResource(new_res.res, new_res.items, lex);
+    if (!parse_res) {
+      scan_err1(lex, "%s", parse_res.strerror());
+      return false;
+    }
+
+    // if (!SaveResourceCb_(new_res.res, new_res.code, new_res.items)) {
+    //   scan_err0(lex, "SaveResource failed");
+    // }
+
+    InsertResource(new_res.code, new_res.res);
+  }
+  Dmsg1(900, "Leave Parsing Pass\n");
+  return true;
+}
+
+bool ConfigurationParser::FixupPass()
+{
+  Dmsg1(900, "Enter Parsing Pass\n");
+  Dmsg1(900, "Leave Parsing Pass\n");
+  return true;
+}
+
+bool ConfigurationParser::VerifyPass()
+{
+  Dmsg1(900, "Enter Verify Pass\n");
+  // Dump all resources for debugging purposes
+  if (debug_level >= 900) {
+    for (int i = 0; i <= r_num_ - 1; i++) {
+      DumpResourceCb_(i,
+                      config_resources_container_->configuration_resources_[i],
+                      PrintMessage, nullptr, false, false);
+    }
+  }
+  Dmsg1(900, "Leave Verify Pass\n");
+  return true;
+}
+
+bool ConfigurationParser::AddDependency(DependencyStorageType type,
+                                        BareosResource* res,
+                                        ResourceItem* item,
+                                        std::string_view referenced_name)
+{
+  (void)type;
+  (void)res;
+  (void)item;
+  (void)referenced_name;
+  return true;
+}
+
+
+void ConfigurationParser::InsertResource(int resource_type, BareosResource* res)
+{
+  // TODO: merge with AppendToResourcesChain
+  auto* resources
+      = config_resources_container_->configuration_resources_[resource_type];
+  if (!resources) {
+    config_resources_container_->configuration_resources_[resource_type] = res;
+
+    return;
+  }
+
+  while (resources->next_) { resources = resources->next_; }
+
+  resources->next_ = res;
 }

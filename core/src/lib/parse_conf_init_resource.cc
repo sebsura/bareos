@@ -128,71 +128,71 @@ void ConfigurationParser::SetResourceDefaultsParserPass1(BareosResource* res,
         break;
       }
       default:
-        if (init_res_) { init_res_(res, item, 1); }
+        if (init_res_) { init_res_(res, item); }
         break;
     }
   }
 }
 
-void ConfigurationParser::SetResourceDefaultsParserPass2(BareosResource* res,
-                                                         ResourceItem* item)
-{
-  Dmsg3(900, "Item=%s def=%s defval=%s\n", item->name,
-        (item->flags & CFG_ITEM_DEFAULT) ? "yes" : "no",
-        (item->default_value) ? item->default_value : "None");
+// void ConfigurationParser::SetResourceDefaultsParserPass2(BareosResource* res,
+//                                                          ResourceItem* item)
+// {
+//   Dmsg3(900, "Item=%s def=%s defval=%s\n", item->name,
+//         (item->flags & CFG_ITEM_DEFAULT) ? "yes" : "no",
+//         (item->default_value) ? item->default_value : "None");
 
-  if (item->flags & CFG_ITEM_DEFAULT && item->default_value) {
-    switch (item->type) {
-      case CFG_TYPE_ALIST_STR: {
-        alist<const char*>** alistvalue
-            = GetItemVariablePointer<alist<const char*>**>(res, *item);
-        if (!alistvalue) {
-          *(alistvalue) = new alist<const char*>(10, owned_by_alist);
-        }
-        (*alistvalue)->append(strdup(item->default_value));
-        break;
-      }
-      case CFG_TYPE_ALIST_DIR: {
-        PoolMem pathname(PM_FNAME);
-        alist<const char*>** alistvalue
-            = GetItemVariablePointer<alist<const char*>**>(res, *item);
+//   if (item->flags & CFG_ITEM_DEFAULT && item->default_value) {
+//     switch (item->type) {
+//       case CFG_TYPE_ALIST_STR: {
+//         alist<const char*>** alistvalue
+//             = GetItemVariablePointer<alist<const char*>**>(res, *item);
+//         if (!alistvalue) {
+//           *(alistvalue) = new alist<const char*>(10, owned_by_alist);
+//         }
+//         (*alistvalue)->append(strdup(item->default_value));
+//         break;
+//       }
+//       case CFG_TYPE_ALIST_DIR: {
+//         PoolMem pathname(PM_FNAME);
+//         alist<const char*>** alistvalue
+//             = GetItemVariablePointer<alist<const char*>**>(res, *item);
 
-        if (!*alistvalue) {
-          *alistvalue = new alist<const char*>(10, owned_by_alist);
-        }
+//         if (!*alistvalue) {
+//           *alistvalue = new alist<const char*>(10, owned_by_alist);
+//         }
 
-        PmStrcpy(pathname, item->default_value);
-        if (*item->default_value != '|') {
-          int size;
+//         PmStrcpy(pathname, item->default_value);
+//         if (*item->default_value != '|') {
+//           int size;
 
-          // Make sure we have enough room
-          size = pathname.size() + 1024;
-          pathname.check_size(size);
-          DoShellExpansion(pathname.c_str(), pathname.size());
-        }
-        (*alistvalue)->append(strdup(pathname.c_str()));
-        break;
-      }
-      case CFG_TYPE_STR_VECTOR_OF_DIRS: {
-        std::vector<std::string>* list
-            = GetItemVariablePointer<std::vector<std::string>*>(res, *item);
+//           // Make sure we have enough room
+//           size = pathname.size() + 1024;
+//           pathname.check_size(size);
+//           DoShellExpansion(pathname.c_str(), pathname.size());
+//         }
+//         (*alistvalue)->append(strdup(pathname.c_str()));
+//         break;
+//       }
+//       case CFG_TYPE_STR_VECTOR_OF_DIRS: {
+//         std::vector<std::string>* list
+//             = GetItemVariablePointer<std::vector<std::string>*>(res, *item);
 
-        PoolMem pathname(PM_FNAME);
-        PmStrcpy(pathname, item->default_value);
-        if (*item->default_value != '|') {
-          int size = pathname.size() + 1024;
-          pathname.check_size(size);
-          DoShellExpansion(pathname.c_str(), pathname.size());
-        }
-        list->emplace_back(pathname.c_str());
-        break;
-      }
-      default:
-        if (init_res_) { init_res_(res, item, 2); }
-        break;
-    }
-  }
-}
+//         PoolMem pathname(PM_FNAME);
+//         PmStrcpy(pathname, item->default_value);
+//         if (*item->default_value != '|') {
+//           int size = pathname.size() + 1024;
+//           pathname.check_size(size);
+//           DoShellExpansion(pathname.c_str(), pathname.size());
+//         }
+//         list->emplace_back(pathname.c_str());
+//         break;
+//       }
+//       default:
+//         if (init_res_) { init_res_(res, item, 2); }
+//         break;
+//     }
+//   }
+// }
 
 void ConfigurationParser::SetAllResourceDefaultsIterateOverItems(
     BareosResource* res,
@@ -218,39 +218,15 @@ void ConfigurationParser::SetAllResourceDefaultsIterateOverItems(
   }
 }
 
-void ConfigurationParser::SetAllResourceDefaultsByParserPass(
-    BareosResource* res,
-    int rcode,
-    ResourceItem items[],
-    int pass)
-{
-  std::function<void(ConfigurationParser&, BareosResource*, ResourceItem*)>
-      SetDefaults;
-
-  switch (pass) {
-    case 1:
-      SetDefaults = [rcode](ConfigurationParser& c, BareosResource* to_init,
-                            ResourceItem* item) {
-        to_init->rcode_ = rcode;
-        to_init->refcnt_ = 1;
-        c.SetResourceDefaultsParserPass1(to_init, item);
-      };
-      break;
-    case 2:
-      SetDefaults = &ConfigurationParser::SetResourceDefaultsParserPass2;
-      break;
-    default:
-      ASSERT(false);
-      break;
-  }
-
-  SetAllResourceDefaultsIterateOverItems(res, rcode, items, SetDefaults);
-}
-
 void ConfigurationParser::InitResource(int rcode,
                                        ResourceItem items[],
-                                       int pass,
                                        BareosResource* res)
 {
-  SetAllResourceDefaultsByParserPass(res, rcode, items, pass);
+  auto SetDefaults = [rcode](ConfigurationParser& c, BareosResource* to_init,
+                             ResourceItem* item) {
+    to_init->rcode_ = rcode;
+    to_init->refcnt_ = 1;
+    c.SetResourceDefaultsParserPass1(to_init, item);
+  };
+  SetAllResourceDefaultsIterateOverItems(res, rcode, items, SetDefaults);
 }

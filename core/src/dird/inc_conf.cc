@@ -1015,11 +1015,11 @@ static void StoreNewinc(BareosResource* res,
  * Store FileSet Include/Exclude info
  *  new style includes are handled in StoreNewinc()
  */
-void StoreInc(BareosResource* res,
+void StoreInc(ConfigurationParser*,
+              BareosResource* res,
               LEX* lc,
               ResourceItem* item,
-              int index,
-              int pass)
+              int index)
 {
   int token;
 
@@ -1028,7 +1028,8 @@ void StoreInc(BareosResource* res,
    *  old include has options following the Include. */
   token = LexGetToken(lc, BCT_SKIP_EOL);
   if (token == BCT_BOB) {
-    StoreNewinc(res, lc, item, index, pass);
+    /* MARKER */
+    StoreNewinc(res, lc, item, index, 0);
     return;
   }
   scan_err0(lc, T_("Old style Include/Exclude not supported\n"));

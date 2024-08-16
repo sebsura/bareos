@@ -51,10 +51,6 @@
 namespace storagedaemon {
 
 static void FreeResource(BareosResource* sres, int type);
-static bool SaveResource(BareosResource*,
-                         int type,
-                         ResourceItem* items,
-                         int pass);
 static void DumpResource(int type,
                          BareosResource* reshdr,
                          bool sendit(void* sock, const char* fmt, ...),
@@ -255,11 +251,11 @@ static s_kw compression_algorithms[]
        {"lzfast", COMPRESS_FZFZ}, {"lz4", COMPRESS_FZ4L},
        {"lz4hc", COMPRESS_FZ4H},  {NULL, 0}};
 
-static void StoreAuthenticationType(BareosResource* res,
+static void StoreAuthenticationType(ConfigurationParser*,
+                                    BareosResource* res,
                                     LEX* lc,
                                     ResourceItem* item,
-                                    int index,
-                                    int)
+                                    int index)
 {
   int i;
 
@@ -282,11 +278,11 @@ static void StoreAuthenticationType(BareosResource* res,
 }
 
 // Store password either clear if for NDMP or MD5 hashed for native.
-static void StoreAutopassword(BareosResource* res,
+static void StoreAutopassword(ConfigurationParser* p,
+                              BareosResource* res,
                               LEX* lc,
                               ResourceItem* item,
-                              int index,
-                              int pass)
+                              int index)
 {
   switch (res->rcode_) {
     case R_DIRECTOR:
@@ -295,34 +291,30 @@ static void StoreAutopassword(BareosResource* res,
        * and for clear we need a code of 1. */
       switch (item->code) {
         case 1:
-          my_config->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index,
-                                   pass);
+          p->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index);
           break;
         default:
-          my_config->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index,
-                                   pass);
+          p->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index);
           break;
       }
       break;
     case R_NDMP:
-      my_config->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index,
-                               pass);
+      p->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index);
       break;
     default:
-      my_config->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index,
-                               pass);
+      p->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index);
       break;
   }
 }
 
 // Store Maximum Block Size, and check it is not greater than MAX_BLOCK_LENGTH
-static void StoreMaxblocksize(BareosResource* res,
+static void StoreMaxblocksize(ConfigurationParser* p,
+                              BareosResource* res,
                               LEX* lc,
                               ResourceItem* item,
-                              int index,
-                              int pass)
+                              int index)
 {
-  my_config->StoreResource(res, CFG_TYPE_SIZE32, lc, item, index, pass);
+  p->StoreResource(res, CFG_TYPE_SIZE32, lc, item, index);
   if (GetItemVariable<uint32_t>(res, *item) > MAX_BLOCK_LENGTH) {
     scan_err2(lc,
               T_("Maximum Block Size configured value %u is greater than "
@@ -332,11 +324,11 @@ static void StoreMaxblocksize(BareosResource* res,
 }
 
 // Store the IO direction on a certain device.
-static void StoreIoDirection(BareosResource* res,
+static void StoreIoDirection(ConfigurationParser*,
+                             BareosResource* res,
                              LEX* lc,
                              ResourceItem* item,
-                             int index,
-                             int)
+                             int index)
 {
   int i;
 
@@ -357,11 +349,11 @@ static void StoreIoDirection(BareosResource* res,
 }
 
 // Store the compression algorithm to use on a certain device.
-static void StoreCompressionalgorithm(BareosResource* res,
+static void StoreCompressionalgorithm(ConfigurationParser*,
+                                      BareosResource* res,
                                       LEX* lc,
                                       ResourceItem* item,
-                                      int index,
-                                      int)
+                                      int index)
 {
   int i;
 
@@ -387,22 +379,15 @@ static void StoreCompressionalgorithm(BareosResource* res,
  * callback function for init_resource
  * See ../lib/parse_conf.c, function InitResource, for more generic handling.
  */
-static void InitResourceCb(BareosResource* res, ResourceItem* item, int pass)
+static void InitResourceCb(BareosResource* res, ResourceItem* item)
 {
-  switch (pass) {
-    case 1:
-      switch (item->type) {
-        case CFG_TYPE_AUTHTYPE:
-          for (int i = 0; authentication_methods[i].name; i++) {
-            if (Bstrcasecmp(item->default_value,
-                            authentication_methods[i].name)) {
-              SetItemVariable<uint32_t>(res, *item,
-                                        authentication_methods[i].token);
-            }
-          }
-          break;
-        default:
-          break;
+  switch (item->type) {
+    case CFG_TYPE_AUTHTYPE:
+      for (int i = 0; authentication_methods[i].name; i++) {
+        if (Bstrcasecmp(item->default_value, authentication_methods[i].name)) {
+          SetItemVariable<uint32_t>(res, *item,
+                                    authentication_methods[i].token);
+        }
       }
       break;
     default:
@@ -410,29 +395,29 @@ static void InitResourceCb(BareosResource* res, ResourceItem* item, int pass)
   }
 }
 
-static void ParseConfigCb(BareosResource* res,
+static void ParseConfigCb(ConfigurationParser* p,
+                          BareosResource* res,
                           LEX* lc,
                           ResourceItem* item,
                           int index,
-                          int pass,
                           BareosResource**)
 {
   /* MARKER */
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
-      StoreAutopassword(res, lc, item, index, pass);
+      StoreAutopassword(p, res, lc, item, index);
       break;
     case CFG_TYPE_AUTHTYPE:
-      StoreAuthenticationType(res, lc, item, index, pass);
+      StoreAuthenticationType(p, res, lc, item, index);
       break;
     case CFG_TYPE_MAXBLOCKSIZE:
-      StoreMaxblocksize(res, lc, item, index, pass);
+      StoreMaxblocksize(p, res, lc, item, index);
       break;
     case CFG_TYPE_IODIRECTION:
-      StoreIoDirection(res, lc, item, index, pass);
+      StoreIoDirection(p, res, lc, item, index);
       break;
     case CFG_TYPE_CMPRSALGO:
-      StoreCompressionalgorithm(res, lc, item, index, pass);
+      StoreCompressionalgorithm(p, res, lc, item, index);
       break;
     default:
       break;
@@ -604,8 +589,8 @@ ConfigurationParser* InitSdConfig(const char* t_configfile, int exit_code)
   ConfigurationParser* config = new ConfigurationParser(
       t_configfile, nullptr, nullptr, InitResourceCb, ParseConfigCb, nullptr,
       exit_code, R_NUM, resources, default_config_filename.c_str(),
-      "bareos-sd.d", ConfigBeforeCallback, ConfigReadyCallback, SaveResource,
-      DumpResource, FreeResource);
+      "bareos-sd.d", ConfigBeforeCallback, ConfigReadyCallback, DumpResource,
+      FreeResource);
   if (config) { config->r_own_ = R_STORAGE; }
   return config;
 }
@@ -743,122 +728,6 @@ static void DumpResource(int type,
     p = p->next_;
   }
 }
-
-static bool SaveResource(BareosResource* new_res,
-                         int type,
-                         ResourceItem* items,
-                         int pass)
-{
-  int i;
-  int error = 0;
-
-  // Ensure that all required items are present
-  for (i = 0; items[i].name; i++) {
-    if (items[i].flags & CFG_ITEM_REQUIRED) {
-      if (!items[i].IsPresent(new_res)) {
-        Emsg2(
-            M_ERROR_TERM, 0,
-            T_("\"%s\" item is required in \"%s\" resource, but not found.\n"),
-            items[i].name, resources[type].name);
-      }
-    }
-
-    if (i >= MAX_RES_ITEMS) {
-      Emsg1(M_ERROR_TERM, 0, T_("Too many items in \"%s\" resource\n"),
-            resources[type].name);
-    }
-  }
-
-  // save previously discovered pointers into dynamic memory
-  if (pass == 2) {
-    BareosResource* allocated_resource
-        = my_config->GetResWithName(type, new_res->resource_name_);
-    if (allocated_resource && !allocated_resource->Validate()) { return false; }
-    switch (type) {
-      case R_DEVICE:
-      case R_MSGS:
-      case R_NDMP:
-        // Resources not containing a resource
-        break;
-      case R_DIRECTOR: {
-        DirectorResource* res_dir = dynamic_cast<DirectorResource*>(new_res);
-        DirectorResource* p
-            = dynamic_cast<DirectorResource*>(allocated_resource);
-        if (!p) {
-          Emsg1(M_ERROR_TERM, 0, T_("Cannot find Director resource %s\n"),
-                res_dir->resource_name_);
-        } else {
-          p->tls_cert_.allowed_certificate_common_names_
-              = std::move(res_dir->tls_cert_.allowed_certificate_common_names_);
-        }
-        break;
-      }
-      case R_STORAGE: {
-        auto* res_store = dynamic_cast<StorageResource*>(new_res);
-        StorageResource* p = dynamic_cast<StorageResource*>(allocated_resource);
-        if (!p) {
-          Emsg1(M_ERROR_TERM, 0, T_("Cannot find Storage resource %s\n"),
-                res_store->resource_name_);
-        } else {
-          p->plugin_names = res_store->plugin_names;
-          p->messages = res_store->messages;
-          p->backend_directories = res_store->backend_directories;
-          p->tls_cert_.allowed_certificate_common_names_ = std::move(
-              res_store->tls_cert_.allowed_certificate_common_names_);
-        }
-        break;
-      }
-      case R_AUTOCHANGER: {
-        auto* res_changer = dynamic_cast<AutochangerResource*>(new_res);
-        AutochangerResource* p
-            = dynamic_cast<AutochangerResource*>(allocated_resource);
-        if (!p) {
-          Emsg1(M_ERROR_TERM, 0, T_("Cannot find AutoChanger resource %s\n"),
-                res_changer->resource_name_);
-        } else {
-          p->device_resources = res_changer->device_resources;
-
-          for (auto* q : p->device_resources) { q->changer_res = p; }
-
-          int errstat;
-          if ((errstat = RwlInit(&p->changer_lock, PRIO_SD_ACH_ACCESS)) != 0) {
-            BErrNo be;
-            Jmsg1(NULL, M_ERROR_TERM, 0, T_("Unable to init lock: ERR=%s\n"),
-                  be.bstrerror(errstat));
-          }
-        }
-        break;
-      }
-      default:
-        printf(T_("Unknown resource type %d\n"), type);
-        error = 1;
-        break;
-    }
-
-    /* resource_name_ was already deep copied during 1. pass
-     * as matter of fact the remaining allocated memory is
-     * redundant and would not be freed in the dynamic resources;
-     *
-     * currently, this is the best place to free that */
-
-    if (new_res) {
-      if (new_res->resource_name_) {
-        free(new_res->resource_name_);
-        new_res->resource_name_ = nullptr;
-      }
-      if (new_res->description_) {
-        free(new_res->description_);
-        new_res->description_ = nullptr;
-      }
-    }
-    return (error == 0);
-  }
-
-  if (!error) {
-    error = my_config->AppendToResourcesChain(new_res, type) ? 0 : 1;
-  }
-  return (error == 0);
-}  // namespace storagedaemon
 
 static void FreeResource(BareosResource* res, int type)
 {

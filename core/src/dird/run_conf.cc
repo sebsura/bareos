@@ -66,76 +66,76 @@ struct s_keyw {
 };
 
 // Keywords understood by parser
-static struct s_keyw keyw[] = {{NT_("on"), s_none, 0},
-                               {NT_("at"), s_at, 0},
-                               {NT_("last"), s_last, 0},
-                               {NT_("sun"), s_wday, 0},
-                               {NT_("mon"), s_wday, 1},
-                               {NT_("tue"), s_wday, 2},
-                               {NT_("wed"), s_wday, 3},
-                               {NT_("thu"), s_wday, 4},
-                               {NT_("fri"), s_wday, 5},
-                               {NT_("sat"), s_wday, 6},
-                               {NT_("jan"), s_month, 0},
-                               {NT_("feb"), s_month, 1},
-                               {NT_("mar"), s_month, 2},
-                               {NT_("apr"), s_month, 3},
-                               {NT_("may"), s_month, 4},
-                               {NT_("jun"), s_month, 5},
-                               {NT_("jul"), s_month, 6},
-                               {NT_("aug"), s_month, 7},
-                               {NT_("sep"), s_month, 8},
-                               {NT_("oct"), s_month, 9},
-                               {NT_("nov"), s_month, 10},
-                               {NT_("dec"), s_month, 11},
-                               {NT_("sunday"), s_wday, 0},
-                               {NT_("monday"), s_wday, 1},
-                               {NT_("tuesday"), s_wday, 2},
-                               {NT_("wednesday"), s_wday, 3},
-                               {NT_("thursday"), s_wday, 4},
-                               {NT_("friday"), s_wday, 5},
-                               {NT_("saturday"), s_wday, 6},
-                               {NT_("january"), s_month, 0},
-                               {NT_("february"), s_month, 1},
-                               {NT_("march"), s_month, 2},
-                               {NT_("april"), s_month, 3},
-                               {NT_("june"), s_month, 5},
-                               {NT_("july"), s_month, 6},
-                               {NT_("august"), s_month, 7},
-                               {NT_("september"), s_month, 8},
-                               {NT_("october"), s_month, 9},
-                               {NT_("november"), s_month, 10},
-                               {NT_("december"), s_month, 11},
-                               {NT_("daily"), s_daily, 0},
-                               {NT_("weekly"), s_weekly, 0},
-                               {NT_("monthly"), s_monthly, 0},
-                               {NT_("hourly"), s_hourly, 0},
-                               {NT_("1st"), s_wom, 0},
-                               {NT_("2nd"), s_wom, 1},
-                               {NT_("3rd"), s_wom, 2},
-                               {NT_("4th"), s_wom, 3},
-                               {NT_("5th"), s_wom, 4},
-                               {NT_("first"), s_wom, 0},
-                               {NT_("second"), s_wom, 1},
-                               {NT_("third"), s_wom, 2},
-                               {NT_("fourth"), s_wom, 3},
-                               {NT_("fifth"), s_wom, 4},
-                               {NULL, s_none, 0}};
+// static struct s_keyw keyw[] = {{NT_("on"), s_none, 0},
+//                                {NT_("at"), s_at, 0},
+//                                {NT_("last"), s_last, 0},
+//                                {NT_("sun"), s_wday, 0},
+//                                {NT_("mon"), s_wday, 1},
+//                                {NT_("tue"), s_wday, 2},
+//                                {NT_("wed"), s_wday, 3},
+//                                {NT_("thu"), s_wday, 4},
+//                                {NT_("fri"), s_wday, 5},
+//                                {NT_("sat"), s_wday, 6},
+//                                {NT_("jan"), s_month, 0},
+//                                {NT_("feb"), s_month, 1},
+//                                {NT_("mar"), s_month, 2},
+//                                {NT_("apr"), s_month, 3},
+//                                {NT_("may"), s_month, 4},
+//                                {NT_("jun"), s_month, 5},
+//                                {NT_("jul"), s_month, 6},
+//                                {NT_("aug"), s_month, 7},
+//                                {NT_("sep"), s_month, 8},
+//                                {NT_("oct"), s_month, 9},
+//                                {NT_("nov"), s_month, 10},
+//                                {NT_("dec"), s_month, 11},
+//                                {NT_("sunday"), s_wday, 0},
+//                                {NT_("monday"), s_wday, 1},
+//                                {NT_("tuesday"), s_wday, 2},
+//                                {NT_("wednesday"), s_wday, 3},
+//                                {NT_("thursday"), s_wday, 4},
+//                                {NT_("friday"), s_wday, 5},
+//                                {NT_("saturday"), s_wday, 6},
+//                                {NT_("january"), s_month, 0},
+//                                {NT_("february"), s_month, 1},
+//                                {NT_("march"), s_month, 2},
+//                                {NT_("april"), s_month, 3},
+//                                {NT_("june"), s_month, 5},
+//                                {NT_("july"), s_month, 6},
+//                                {NT_("august"), s_month, 7},
+//                                {NT_("september"), s_month, 8},
+//                                {NT_("october"), s_month, 9},
+//                                {NT_("november"), s_month, 10},
+//                                {NT_("december"), s_month, 11},
+//                                {NT_("daily"), s_daily, 0},
+//                                {NT_("weekly"), s_weekly, 0},
+//                                {NT_("monthly"), s_monthly, 0},
+//                                {NT_("hourly"), s_hourly, 0},
+//                                {NT_("1st"), s_wom, 0},
+//                                {NT_("2nd"), s_wom, 1},
+//                                {NT_("3rd"), s_wom, 2},
+//                                {NT_("4th"), s_wom, 3},
+//                                {NT_("5th"), s_wom, 4},
+//                                {NT_("first"), s_wom, 0},
+//                                {NT_("second"), s_wom, 1},
+//                                {NT_("third"), s_wom, 2},
+//                                {NT_("fourth"), s_wom, 3},
+//                                {NT_("fifth"), s_wom, 4},
+//                                {NULL, s_none, 0}};
 
-static bool have_hour, have_mday, have_wday, have_month, have_wom;
-static bool have_at, have_woy;
+// static bool have_hour, have_mday, have_wday, have_month, have_wom;
+// static bool have_at, have_woy;
 
-static void set_defaults(RunResource& res_run)
-{
-  have_hour = have_mday = have_wday = have_month = have_wom = have_woy = false;
-  have_at = false;
-  SetBitRange(0, 23, res_run.date_time_bitfield.hour);
-  SetBitRange(0, 30, res_run.date_time_bitfield.mday);
-  SetBitRange(0, 6, res_run.date_time_bitfield.wday);
-  SetBitRange(0, 11, res_run.date_time_bitfield.month);
-  SetBitRange(0, 4, res_run.date_time_bitfield.wom);
-  SetBitRange(0, 53, res_run.date_time_bitfield.woy);
-}
+// static void set_defaults(RunResource& res_run)
+// {
+//   have_hour = have_mday = have_wday = have_month = have_wom = have_woy =
+//   false; have_at = false; SetBitRange(0, 23,
+//   res_run.date_time_bitfield.hour); SetBitRange(0, 30,
+//   res_run.date_time_bitfield.mday); SetBitRange(0, 6,
+//   res_run.date_time_bitfield.wday); SetBitRange(0, 11,
+//   res_run.date_time_bitfield.month); SetBitRange(0, 4,
+//   res_run.date_time_bitfield.wom); SetBitRange(0, 53,
+//   res_run.date_time_bitfield.woy);
+// }
 
 // Keywords (RHS) permitted in Run records
 struct s_kw RunFields[] = {{"pool", 'P'},
@@ -165,8 +165,17 @@ struct s_kw RunFields[] = {{"pool", 'P'},
  *   together.
  *
  */
-void StoreRun(BareosResource*, LEX* lc, ResourceItem* item, int index, int pass)
+void StoreRun(ConfigurationParser*,
+              BareosResource*,
+              LEX* lc,
+              ResourceItem* item,
+              int index)
 {
+#if 1
+  (void)lc;
+  (void)item;
+  (void)index;
+#else
   /* MARKER */
   char* p;
   int i, j;
@@ -717,5 +726,6 @@ void StoreRun(BareosResource*, LEX* lc, ResourceItem* item, int index, int pass)
   lc->options = options; /* Restore scanner options */
   item->SetPresent(res);
   ClearBit(index, res->inherit_content_);
+#endif
 }
 } /* namespace directordaemon */

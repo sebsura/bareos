@@ -36,10 +36,6 @@
 
 namespace console {
 
-static bool SaveResource(BareosResource* new_res,
-                         int type,
-                         ResourceItem* items,
-                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* reshdr,
@@ -162,75 +158,6 @@ static void FreeResource(BareosResource* res, int type)
   if (next_resource) { FreeResource(next_resource, type); }
 }
 
-static bool SaveResource(BareosResource* new_res,
-                         int type,
-                         ResourceItem* items,
-                         int pass)
-{
-  int i;
-  int error = 0;
-
-  // Ensure that all required items are present
-  for (i = 0; items[i].name; i++) {
-    if (items[i].flags & CFG_ITEM_REQUIRED) {
-      if (!items[i].IsPresent(new_res)) {
-        Emsg2(M_ABORT, 0,
-              T_("%s item is required in %s resource, but not found.\n"),
-              items[i].name, resources[type].name);
-      }
-    }
-  }
-
-  // save previously discovered pointers into dynamic memory
-  if (pass == 2) {
-    switch (type) {
-      case R_CONSOLE: {
-        auto* res_cons = dynamic_cast<ConsoleResource*>(new_res);
-        ConsoleResource* p = dynamic_cast<ConsoleResource*>(
-            my_config->GetResWithName(R_CONSOLE, res_cons->resource_name_));
-        if (!p) {
-          Emsg1(M_ABORT, 0, T_("Cannot find Console resource %s\n"),
-                res_cons->resource_name_);
-        } else {
-          p->tls_cert_.allowed_certificate_common_names_ = std::move(
-              res_cons->tls_cert_.allowed_certificate_common_names_);
-        }
-        break;
-      }
-      case R_DIRECTOR: {
-        auto* res_dir = dynamic_cast<DirectorResource*>(new_res);
-        DirectorResource* p = dynamic_cast<DirectorResource*>(
-            my_config->GetResWithName(R_DIRECTOR, res_dir->resource_name_));
-        if (!p) {
-          Emsg1(M_ABORT, 0, T_("Cannot find Director resource %s\n"),
-                res_dir->resource_name_);
-        } else {
-          p->tls_cert_.allowed_certificate_common_names_
-              = std::move(res_dir->tls_cert_.allowed_certificate_common_names_);
-        }
-        break;
-      }
-      default:
-        Emsg1(M_ERROR, 0, T_("Unknown resource type %d\n"), type);
-        error = 1;
-        break;
-    }
-
-    /* resource_name_ was already deep copied during 1. pass
-     * as matter of fact the remaining allocated memory is
-     * redundant and would not be freed in the dynamic resources;
-     *
-     * currently, this is the best place to free that */
-
-    return (error == 0);
-  }
-
-  if (!error) {
-    error = my_config->AppendToResourcesChain(new_res, type) ? 0 : 1;
-  }
-  return (error == 0);
-}
-
 static void ConfigBeforeCallback(ConfigurationParser& t_config)
 {
   std::map<int, std::string> map{{R_DIRECTOR, "R_DIRECTOR"},
@@ -245,8 +172,7 @@ ConfigurationParser* InitConsConfig(const char* configfile, int exit_code)
   ConfigurationParser* config = new ConfigurationParser(
       configfile, nullptr, nullptr, nullptr, nullptr, nullptr, exit_code, R_NUM,
       resources, default_config_filename.c_str(), "bconsole.d",
-      ConfigBeforeCallback, ConfigReadyCallback, SaveResource, DumpResource,
-      FreeResource);
+      ConfigBeforeCallback, ConfigReadyCallback, DumpResource, FreeResource);
   if (config) { config->r_own_ = R_CONSOLE; }
   return config;
 }

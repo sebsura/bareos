@@ -83,23 +83,19 @@ extern struct s_kw RunFields[];
  */
 static PoolMem* configure_usage_string = NULL;
 
-extern void StoreInc(BareosResource* res,
+extern void StoreInc(ConfigurationParser*,
+                     BareosResource* res,
                      LEX* lc,
                      ResourceItem* item,
-                     int index,
-                     int pass);
-extern void StoreRun(BareosResource* res,
+                     int index);
+extern void StoreRun(ConfigurationParser*,
+                     BareosResource* res,
                      LEX* lc,
                      ResourceItem* item,
-                     int index,
-                     int pass);
+                     int index);
 
 static void CreateAndAddUserAgentConsoleResource(
     ConfigurationParser& my_config);
-static bool SaveResource(BareosResource*,
-                         int type,
-                         ResourceItem* items,
-                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* ures,
@@ -2144,236 +2140,240 @@ static void FreeIncludeExcludeItem(IncludeExcludeItem* incexe)
   delete incexe;
 }
 
-static bool UpdateResourcePointer(BareosResource* res,
-                                  int type,
-                                  ResourceItem* items)
-{
-  switch (type) {
-    case R_PROFILE:
-    case R_CATALOG:
-    case R_MSGS:
-    case R_FILESET:
-    case R_DEVICE:
-      // Resources not containing a resource
-      break;
-    case R_POOL: {
-      /* Resources containing another resource or alist. First
-       * look up the resource which contains another resource. It
-       * was written during pass 1.  Then stuff in the pointers to
-       * the resources it contains, which were inserted this pass.
-       * Finally, it will all be stored back.
-       *
-       * Find resource saved in pass 1 */
-      auto* res_pool = dynamic_cast<PoolResource*>(res);
-      PoolResource* p = dynamic_cast<PoolResource*>(
-          my_config->GetResWithName(R_POOL, res_pool->resource_name_));
-      if (!p) {
-        Emsg1(M_ERROR, 0, T_("Cannot find Pool resource %s\n"),
-              res_pool->resource_name_);
-        return false;
-      } else {
-        p->NextPool = res_pool->NextPool;
-        p->RecyclePool = res_pool->RecyclePool;
-        p->ScratchPool = res_pool->ScratchPool;
-        p->storage = res_pool->storage;
-        if (res_pool->catalog || !res_pool->use_catalog) {
-          p->catalog = res_pool->catalog;
-        }
-      }
-      break;
-    }
-    case R_CONSOLE: {
-      auto* res_con = dynamic_cast<ConsoleResource*>(res);
-      ConsoleResource* p = dynamic_cast<ConsoleResource*>(
-          my_config->GetResWithName(R_CONSOLE, res_con->resource_name_));
-      if (!p) {
-        Emsg1(M_ERROR, 0, T_("Cannot find Console resource %s\n"),
-              res_con->resource_name_);
-        return false;
-      } else {
-        p->tls_cert_.allowed_certificate_common_names_
-            = std::move(res_con->tls_cert_.allowed_certificate_common_names_);
-        p->user_acl.profiles = res_con->user_acl.profiles;
-        p->user_acl.corresponding_resource = p;
-      }
-      break;
-    }
-    case R_USER: {
-      auto* res_user = dynamic_cast<UserResource*>(res);
-      UserResource* p = dynamic_cast<UserResource*>(
-          my_config->GetResWithName(R_USER, res_user->resource_name_));
-      if (!p) {
-        Emsg1(M_ERROR, 0, T_("Cannot find User resource %s\n"),
-              res_user->resource_name_);
-        return false;
-      } else {
-        p->user_acl.profiles = res_user->user_acl.profiles;
-        p->user_acl.corresponding_resource = p;
-      }
-      break;
-    }
-    case R_DIRECTOR: {
-      auto* res_dir = dynamic_cast<DirectorResource*>(res);
-      DirectorResource* p = dynamic_cast<DirectorResource*>(
-          my_config->GetResWithName(R_DIRECTOR, res_dir->resource_name_));
-      if (!p) {
-        Emsg1(M_ERROR, 0, T_("Cannot find Director resource %s\n"),
-              res_dir->resource_name_);
-        return false;
-      } else {
-        p->plugin_names = res_dir->plugin_names;
-        p->messages = res_dir->messages;
-        p->tls_cert_.allowed_certificate_common_names_
-            = std::move(res_dir->tls_cert_.allowed_certificate_common_names_);
-      }
-      break;
-    }
-    case R_STORAGE: {
-      auto* res_store = dynamic_cast<StorageResource*>(res);
-      StorageResource* p = dynamic_cast<StorageResource*>(
-          my_config->GetResWithName(type, res_store->resource_name_));
-      if (!p) {
-        Emsg1(M_ERROR, 0, T_("Cannot find Storage resource %s\n"),
-              res_store->resource_name_);
-        return false;
-      } else {
-        p->paired_storage = res_store->paired_storage;
-        p->tls_cert_.allowed_certificate_common_names_
-            = std::move(res_store->tls_cert_.allowed_certificate_common_names_);
-        p->device = res_store->device;
-        p->runtime_storage_status
-            = GetRuntimeStatus<RuntimeStorageStatus>(p->resource_name_);
-      }
-      break;
-    }
-    case R_JOBDEFS:
-    case R_JOB: {
-      auto* res_job = dynamic_cast<JobResource*>(res);
-      JobResource* p = dynamic_cast<JobResource*>(
-          my_config->GetResWithName(type, res_job->resource_name_));
-      if (!p) {
-        Emsg1(M_ERROR, 0, T_("Cannot find Job resource %s\n"),
-              res_job->resource_name_);
-        return false;
-      } else {
-        p->messages = res_job->messages;
-        p->schedule = res_job->schedule;
-        p->client = res_job->client;
-        p->fileset = res_job->fileset;
-        p->storage = res_job->storage;
-        p->catalog = res_job->catalog;
-        p->FdPluginOptions = res_job->FdPluginOptions;
-        p->SdPluginOptions = res_job->SdPluginOptions;
-        p->DirPluginOptions = res_job->DirPluginOptions;
-        p->base = res_job->base;
-        p->pool = res_job->pool;
-        p->full_pool = res_job->full_pool;
-        p->vfull_pool = res_job->vfull_pool;
-        p->inc_pool = res_job->inc_pool;
-        p->diff_pool = res_job->diff_pool;
-        p->next_pool = res_job->next_pool;
-        p->verify_job = res_job->verify_job;
-        p->jobdefs = res_job->jobdefs;
-        p->run_cmds = res_job->run_cmds;
-        p->RunScripts = res_job->RunScripts;
-        if ((p->RunScripts) && (p->RunScripts->size() > 0)) {
-          for (int i = 0; items[i].name; i++) {
-            if (Bstrcasecmp(items[i].name, "RunScript")) {
-              // SetBit(i, p->item_present_);
-              ClearBit(i, p->inherit_content_);
-            }
-          }
-        }
+// static bool UpdateResourcePointer(BareosResource* res,
+//                                   int type,
+//                                   ResourceItem* items)
+// {
+//   switch (type) {
+//     case R_PROFILE:
+//     case R_CATALOG:
+//     case R_MSGS:
+//     case R_FILESET:
+//     case R_DEVICE:
+//       // Resources not containing a resource
+//       break;
+//     case R_POOL: {
+//       /* Resources containing another resource or alist. First
+//        * look up the resource which contains another resource. It
+//        * was written during pass 1.  Then stuff in the pointers to
+//        * the resources it contains, which were inserted this pass.
+//        * Finally, it will all be stored back.
+//        *
+//        * Find resource saved in pass 1 */
+//       auto* res_pool = dynamic_cast<PoolResource*>(res);
+//       PoolResource* p = dynamic_cast<PoolResource*>(
+//           my_config->GetResWithName(R_POOL, res_pool->resource_name_));
+//       if (!p) {
+//         Emsg1(M_ERROR, 0, T_("Cannot find Pool resource %s\n"),
+//               res_pool->resource_name_);
+//         return false;
+//       } else {
+//         p->NextPool = res_pool->NextPool;
+//         p->RecyclePool = res_pool->RecyclePool;
+//         p->ScratchPool = res_pool->ScratchPool;
+//         p->storage = res_pool->storage;
+//         if (res_pool->catalog || !res_pool->use_catalog) {
+//           p->catalog = res_pool->catalog;
+//         }
+//       }
+//       break;
+//     }
+//     case R_CONSOLE: {
+//       auto* res_con = dynamic_cast<ConsoleResource*>(res);
+//       ConsoleResource* p = dynamic_cast<ConsoleResource*>(
+//           my_config->GetResWithName(R_CONSOLE, res_con->resource_name_));
+//       if (!p) {
+//         Emsg1(M_ERROR, 0, T_("Cannot find Console resource %s\n"),
+//               res_con->resource_name_);
+//         return false;
+//       } else {
+//         p->tls_cert_.allowed_certificate_common_names_
+//             =
+//             std::move(res_con->tls_cert_.allowed_certificate_common_names_);
+//         p->user_acl.profiles = res_con->user_acl.profiles;
+//         p->user_acl.corresponding_resource = p;
+//       }
+//       break;
+//     }
+//     case R_USER: {
+//       auto* res_user = dynamic_cast<UserResource*>(res);
+//       UserResource* p = dynamic_cast<UserResource*>(
+//           my_config->GetResWithName(R_USER, res_user->resource_name_));
+//       if (!p) {
+//         Emsg1(M_ERROR, 0, T_("Cannot find User resource %s\n"),
+//               res_user->resource_name_);
+//         return false;
+//       } else {
+//         p->user_acl.profiles = res_user->user_acl.profiles;
+//         p->user_acl.corresponding_resource = p;
+//       }
+//       break;
+//     }
+//     case R_DIRECTOR: {
+//       auto* res_dir = dynamic_cast<DirectorResource*>(res);
+//       DirectorResource* p = dynamic_cast<DirectorResource*>(
+//           my_config->GetResWithName(R_DIRECTOR, res_dir->resource_name_));
+//       if (!p) {
+//         Emsg1(M_ERROR, 0, T_("Cannot find Director resource %s\n"),
+//               res_dir->resource_name_);
+//         return false;
+//       } else {
+//         p->plugin_names = res_dir->plugin_names;
+//         p->messages = res_dir->messages;
+//         p->tls_cert_.allowed_certificate_common_names_
+//             =
+//             std::move(res_dir->tls_cert_.allowed_certificate_common_names_);
+//       }
+//       break;
+//     }
+//     case R_STORAGE: {
+//       auto* res_store = dynamic_cast<StorageResource*>(res);
+//       StorageResource* p = dynamic_cast<StorageResource*>(
+//           my_config->GetResWithName(type, res_store->resource_name_));
+//       if (!p) {
+//         Emsg1(M_ERROR, 0, T_("Cannot find Storage resource %s\n"),
+//               res_store->resource_name_);
+//         return false;
+//       } else {
+//         p->paired_storage = res_store->paired_storage;
+//         p->tls_cert_.allowed_certificate_common_names_
+//             =
+//             std::move(res_store->tls_cert_.allowed_certificate_common_names_);
+//         p->device = res_store->device;
+//         p->runtime_storage_status
+//             = GetRuntimeStatus<RuntimeStorageStatus>(p->resource_name_);
+//       }
+//       break;
+//     }
+//     case R_JOBDEFS:
+//     case R_JOB: {
+//       auto* res_job = dynamic_cast<JobResource*>(res);
+//       JobResource* p = dynamic_cast<JobResource*>(
+//           my_config->GetResWithName(type, res_job->resource_name_));
+//       if (!p) {
+//         Emsg1(M_ERROR, 0, T_("Cannot find Job resource %s\n"),
+//               res_job->resource_name_);
+//         return false;
+//       } else {
+//         p->messages = res_job->messages;
+//         p->schedule = res_job->schedule;
+//         p->client = res_job->client;
+//         p->fileset = res_job->fileset;
+//         p->storage = res_job->storage;
+//         p->catalog = res_job->catalog;
+//         p->FdPluginOptions = res_job->FdPluginOptions;
+//         p->SdPluginOptions = res_job->SdPluginOptions;
+//         p->DirPluginOptions = res_job->DirPluginOptions;
+//         p->base = res_job->base;
+//         p->pool = res_job->pool;
+//         p->full_pool = res_job->full_pool;
+//         p->vfull_pool = res_job->vfull_pool;
+//         p->inc_pool = res_job->inc_pool;
+//         p->diff_pool = res_job->diff_pool;
+//         p->next_pool = res_job->next_pool;
+//         p->verify_job = res_job->verify_job;
+//         p->jobdefs = res_job->jobdefs;
+//         p->run_cmds = res_job->run_cmds;
+//         p->RunScripts = res_job->RunScripts;
+//         if ((p->RunScripts) && (p->RunScripts->size() > 0)) {
+//           for (int i = 0; items[i].name; i++) {
+//             if (Bstrcasecmp(items[i].name, "RunScript")) {
+//               // SetBit(i, p->item_present_);
+//               ClearBit(i, p->inherit_content_);
+//             }
+//           }
+//         }
 
-        Dmsg3(200, "job %s RunScript inherited: %i %i\n",
-              res_job->resource_name_, BitIsSet(69, res_job->inherit_content_),
-              BitIsSet(69, p->inherit_content_));
+//         Dmsg3(200, "job %s RunScript inherited: %i %i\n",
+//               res_job->resource_name_, BitIsSet(69,
+//               res_job->inherit_content_), BitIsSet(69, p->inherit_content_));
 
-        /* TODO: JobDefs where/regexwhere doesn't work well (but this is not
-         * very useful) We have to SetBit(index, item_present_); or
-         * something like that
-         *
-         * We take RegexWhere before all other options */
-        if (!p->RegexWhere
-            && (p->strip_prefix || p->add_suffix || p->add_prefix)) {
-          int len = BregexpGetBuildWhereSize(p->strip_prefix, p->add_prefix,
-                                             p->add_suffix);
-          p->RegexWhere = (char*)malloc(len * sizeof(char));
-          bregexp_build_where(p->RegexWhere, len, p->strip_prefix,
-                              p->add_prefix, p->add_suffix);
-          // TODO: test bregexp
-        }
+//         /* TODO: JobDefs where/regexwhere doesn't work well (but this is not
+//          * very useful) We have to SetBit(index, item_present_); or
+//          * something like that
+//          *
+//          * We take RegexWhere before all other options */
+//         if (!p->RegexWhere
+//             && (p->strip_prefix || p->add_suffix || p->add_prefix)) {
+//           int len = BregexpGetBuildWhereSize(p->strip_prefix, p->add_prefix,
+//                                              p->add_suffix);
+//           p->RegexWhere = (char*)malloc(len * sizeof(char));
+//           bregexp_build_where(p->RegexWhere, len, p->strip_prefix,
+//                               p->add_prefix, p->add_suffix);
+//           // TODO: test bregexp
+//         }
 
-        if (p->RegexWhere && p->RestoreWhere) {
-          free(p->RestoreWhere);
-          p->RestoreWhere = NULL;
-        }
+//         if (p->RegexWhere && p->RestoreWhere) {
+//           free(p->RestoreWhere);
+//           p->RestoreWhere = NULL;
+//         }
 
-        p->rjs = GetRuntimeStatus<RuntimeJobStatus>(p->resource_name_);
-      }
-      break;
-    }
-    case R_COUNTER: {
-      auto* res_counter = dynamic_cast<CounterResource*>(res);
-      CounterResource* p = dynamic_cast<CounterResource*>(
-          my_config->GetResWithName(type, res_counter->resource_name_));
-      if (!p) {
-        Emsg1(M_ERROR, 0, T_("Cannot find Counter resource %s\n"),
-              res_counter->resource_name_);
-        return false;
-      } else {
-        p->Catalog = res_counter->Catalog;
-        p->WrapCounter = res_counter->WrapCounter;
-      }
-      break;
-    }
-    case R_CLIENT: {
-      auto* res_client = dynamic_cast<ClientResource*>(res);
-      ClientResource* p = dynamic_cast<ClientResource*>(
-          my_config->GetResWithName(type, res_client->resource_name_));
-      if (!p) {
-        Emsg1(M_ERROR, 0, T_("Cannot find Client resource %s\n"),
-              res_client->resource_name_);
-        return false;
-      } else {
-        if (res_client->catalog) {
-          p->catalog = res_client->catalog;
-        } else {
-          // No catalog overwrite given use the first catalog definition.
-          p->catalog = (CatalogResource*)my_config->GetNextRes(R_CATALOG, NULL);
-        }
-        p->tls_cert_.allowed_certificate_common_names_ = std::move(
-            res_client->tls_cert_.allowed_certificate_common_names_);
+//         p->rjs = GetRuntimeStatus<RuntimeJobStatus>(p->resource_name_);
+//       }
+//       break;
+//     }
+//     case R_COUNTER: {
+//       auto* res_counter = dynamic_cast<CounterResource*>(res);
+//       CounterResource* p = dynamic_cast<CounterResource*>(
+//           my_config->GetResWithName(type, res_counter->resource_name_));
+//       if (!p) {
+//         Emsg1(M_ERROR, 0, T_("Cannot find Counter resource %s\n"),
+//               res_counter->resource_name_);
+//         return false;
+//       } else {
+//         p->Catalog = res_counter->Catalog;
+//         p->WrapCounter = res_counter->WrapCounter;
+//       }
+//       break;
+//     }
+//     case R_CLIENT: {
+//       auto* res_client = dynamic_cast<ClientResource*>(res);
+//       ClientResource* p = dynamic_cast<ClientResource*>(
+//           my_config->GetResWithName(type, res_client->resource_name_));
+//       if (!p) {
+//         Emsg1(M_ERROR, 0, T_("Cannot find Client resource %s\n"),
+//               res_client->resource_name_);
+//         return false;
+//       } else {
+//         if (res_client->catalog) {
+//           p->catalog = res_client->catalog;
+//         } else {
+//           // No catalog overwrite given use the first catalog definition.
+//           p->catalog = (CatalogResource*)my_config->GetNextRes(R_CATALOG,
+//           NULL);
+//         }
+//         p->tls_cert_.allowed_certificate_common_names_ = std::move(
+//             res_client->tls_cert_.allowed_certificate_common_names_);
 
-        p->rcs = GetRuntimeStatus<RuntimeClientStatus>(p->resource_name_);
-      }
-      break;
-    }
-    case R_SCHEDULE: {
-      auto* res_sch = dynamic_cast<ScheduleResource*>(res);
-      /* Schedule is a bit different in that it contains a RunResource record
-       * chain which isn't a "named" resource. This chain was linked
-       * in by run_conf.c during pass 2, so here we jam the pointer
-       * into the Schedule resource. */
-      ScheduleResource* p = dynamic_cast<ScheduleResource*>(
-          my_config->GetResWithName(type, res_sch->resource_name_));
-      if (!p) {
-        Emsg1(M_ERROR, 0, T_("Cannot find Schedule resource %s\n"),
-              res_sch->resource_name_);
-        return false;
-      } else {
-        p->run = res_sch->run;
-      }
-      break;
-    }
-    default:
-      Emsg1(M_ERROR, 0, T_("Unknown resource type %d in SaveResource.\n"),
-            type);
-      return false;
-  }
+//         p->rcs = GetRuntimeStatus<RuntimeClientStatus>(p->resource_name_);
+//       }
+//       break;
+//     }
+//     case R_SCHEDULE: {
+//       auto* res_sch = dynamic_cast<ScheduleResource*>(res);
+//       /* Schedule is a bit different in that it contains a RunResource record
+//        * chain which isn't a "named" resource. This chain was linked
+//        * in by run_conf.c during pass 2, so here we jam the pointer
+//        * into the Schedule resource. */
+//       ScheduleResource* p = dynamic_cast<ScheduleResource*>(
+//           my_config->GetResWithName(type, res_sch->resource_name_));
+//       if (!p) {
+//         Emsg1(M_ERROR, 0, T_("Cannot find Schedule resource %s\n"),
+//               res_sch->resource_name_);
+//         return false;
+//       } else {
+//         p->run = res_sch->run;
+//       }
+//       break;
+//     }
+//     default:
+//       Emsg1(M_ERROR, 0, T_("Unknown resource type %d in SaveResource.\n"),
+//             type);
+//       return false;
+//   }
 
-  return true;
-}
+//   return true;
+// }
 
 bool PropagateJobdefs(int res_type, JobResource* res)
 {
@@ -2432,26 +2432,24 @@ static bool PopulateJobdefaults()
 
 bool PopulateDefs() { return PopulateJobdefaults(); }
 
-static void StorePooltype(BareosResource* res,
+static void StorePooltype(ConfigurationParser*,
+                          BareosResource* res,
                           LEX* lc,
                           ResourceItem* item,
-                          int index,
-                          int pass)
+                          int index)
 {
   LexGetToken(lc, BCT_NAME);
-  if (pass == 1) {
-    bool found = false;
-    for (int i = 0; PoolTypes[i].name; i++) {
-      if (Bstrcasecmp(lc->str, PoolTypes[i].name)) {
-        SetItemVariableFreeMemory<char*>(res, *item, strdup(PoolTypes[i].name));
-        found = true;
-        break;
-      }
+  bool found = false;
+  for (int i = 0; PoolTypes[i].name; i++) {
+    if (Bstrcasecmp(lc->str, PoolTypes[i].name)) {
+      SetItemVariableFreeMemory<char*>(res, *item, strdup(PoolTypes[i].name));
+      found = true;
+      break;
     }
+  }
 
-    if (!found) {
-      scan_err1(lc, T_("Expected a Pool Type option, got: %s"), lc->str);
-    }
+  if (!found) {
+    scan_err1(lc, T_("Expected a Pool Type option, got: %s"), lc->str);
   }
 
   ScanToEol(lc);
@@ -2459,11 +2457,11 @@ static void StorePooltype(BareosResource* res,
   ClearBit(index, res->inherit_content_);
 }
 
-static void StoreActiononpurge(BareosResource* res,
+static void StoreActiononpurge(ConfigurationParser*,
+                               BareosResource* res,
                                LEX* lc,
                                ResourceItem* item,
-                               int index,
-                               int)
+                               int index)
 {
   uint32_t* destination = GetItemVariablePointer<uint32_t*>(res, *item);
 
@@ -2493,56 +2491,36 @@ static void StoreActiononpurge(BareosResource* res,
  * first reference. The details of the resource are obtained
  * later from the SD.
  */
-static void StoreDevice(BareosResource* res,
+static void StoreDevice(ConfigurationParser* p,
+                        BareosResource* res,
                         LEX* lc,
                         ResourceItem* item,
-                        int index,
-                        int pass,
-                        BareosResource** configuration_resources)
+                        int index)
 {
   int rindex = R_DEVICE;
 
-  if (pass == 1) {
-    LexGetToken(lc, BCT_NAME);
-    if (!configuration_resources[rindex]) {
-      DeviceResource* device_resource = new DeviceResource;
-      device_resource->rcode_ = R_DEVICE;
-      device_resource->resource_name_ = strdup(lc->str);
-      configuration_resources[rindex] = device_resource; /* store first entry */
-      Dmsg3(900, "Inserting first %s res: %s index=%d\n",
-            my_config->ResToStr(R_DEVICE), device_resource->resource_name_,
-            rindex);
-    } else {
-      bool found = false;
-      BareosResource* next;
-      for (next = configuration_resources[rindex]; next->next_;
-           next = next->next_) {
-        if (bstrcmp(next->resource_name_, lc->str)) {
-          found = true;  // already defined
-          break;
-        }
-      }
-      if (!found) {
-        DeviceResource* device_resource = new DeviceResource;
-        device_resource->rcode_ = R_DEVICE;
-        device_resource->resource_name_ = strdup(lc->str);
-        next->next_ = device_resource;
-        Dmsg4(900, "Inserting %s res: %s index=%d pass=%d\n",
-              my_config->ResToStr(R_DEVICE), device_resource->resource_name_,
-              rindex, pass);
-      }
-    }
+  LexGetToken(lc, BCT_NAME);
 
-    ScanToEol(lc);
+  if (p->GetResWithName(R_DEVICE, lc->str) == nullptr) {
+    DeviceResource* device_resource = new DeviceResource;
+    device_resource->rcode_ = R_DEVICE;
+    device_resource->resource_name_ = strdup(lc->str);
+    p->InsertResource(R_DEVICE, device_resource);
+    Dmsg3(900, "Inserting first %s res: %s index=%d\n",
+          my_config->ResToStr(R_DEVICE), device_resource->resource_name_,
+          rindex);
     item->SetPresent(res);
     ClearBit(index, res->inherit_content_);
-  } else {
-    my_config->StoreResource(res, CFG_TYPE_ALIST_RES, lc, item, index, pass);
+
+    auto* devices = GetItemVariablePointer<alist<DeviceResource*>*>(res, *item);
+    devices->append(device_resource);
   }
+  ScanToEol(lc);
 }
 
 // Store Migration/Copy type
-static void StoreMigtype(BareosResource* res,
+static void StoreMigtype(ConfigurationParser*,
+                         BareosResource* res,
                          LEX* lc,
                          ResourceItem* item,
                          int index)
@@ -2569,11 +2547,11 @@ static void StoreMigtype(BareosResource* res,
 }
 
 // Store JobType (backup, verify, restore)
-static void StoreJobtype(BareosResource* res,
+static void StoreJobtype(ConfigurationParser*,
+                         BareosResource* res,
                          LEX* lc,
                          ResourceItem* item,
-                         int index,
-                         int)
+                         int index)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the type both in pass 1 and pass 2
@@ -2596,11 +2574,11 @@ static void StoreJobtype(BareosResource* res,
 }
 
 // Store Protocol (Native, NDMP/NDMP_BAREOS, NDMP_NATIVE)
-static void StoreProtocoltype(BareosResource* res,
+static void StoreProtocoltype(ConfigurationParser*,
+                              BareosResource* res,
                               LEX* lc,
                               ResourceItem* item,
-                              int index,
-                              int)
+                              int index)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the type both in pass 1 and pass 2
@@ -2622,11 +2600,11 @@ static void StoreProtocoltype(BareosResource* res,
   ClearBit(index, res->inherit_content_);
 }
 
-static void StoreReplace(BareosResource* res,
+static void StoreReplace(ConfigurationParser*,
+                         BareosResource* res,
                          LEX* lc,
                          ResourceItem* item,
-                         int index,
-                         int)
+                         int index)
 {
   LexGetToken(lc, BCT_NAME);
   // Scan Replacement options
@@ -2650,11 +2628,11 @@ static void StoreReplace(BareosResource* res,
 }
 
 // Store Auth Protocol (Native, NDMPv2, NDMPv3, NDMPv4)
-static void StoreAuthprotocoltype(BareosResource* res,
+static void StoreAuthprotocoltype(ConfigurationParser*,
+                                  BareosResource* res,
                                   LEX* lc,
                                   ResourceItem* item,
-                                  int index,
-                                  int)
+                                  int index)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the type both in pass 1 and pass 2
@@ -2678,11 +2656,11 @@ static void StoreAuthprotocoltype(BareosResource* res,
 }
 
 // Store authentication type (Mostly for NDMP like clear or MD5).
-static void StoreAuthtype(BareosResource* res,
+static void StoreAuthtype(ConfigurationParser*,
+                          BareosResource* res,
                           LEX* lc,
                           ResourceItem* item,
-                          int index,
-                          int)
+                          int index)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the type both in pass 1 and pass 2
@@ -2706,11 +2684,11 @@ static void StoreAuthtype(BareosResource* res,
 }
 
 // Store Job Level (Full, Incremental, ...)
-static void StoreLevel(BareosResource* res,
+static void StoreLevel(ConfigurationParser*,
+                       BareosResource* res,
                        LEX* lc,
                        ResourceItem* item,
-                       int index,
-                       int)
+                       int index)
 {
   LexGetToken(lc, BCT_NAME);
 
@@ -2737,11 +2715,11 @@ static void StoreLevel(BareosResource* res,
  * Store password either clear if for NDMP and catalog or MD5 hashed for
  * native.
  */
-static void StoreAutopassword(BareosResource* res,
+static void StoreAutopassword(ConfigurationParser* p,
+                              BareosResource* res,
                               LEX* lc,
                               ResourceItem* item,
-                              int index,
-                              int pass)
+                              int index)
 {
   switch (res->rcode_) {
     case R_DIRECTOR:
@@ -2750,12 +2728,10 @@ static void StoreAutopassword(BareosResource* res,
        * and for clear we need a code of 1. */
       switch (item->code) {
         case 1:
-          my_config->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index,
-                                   pass);
+          p->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index);
           break;
         default:
-          my_config->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index,
-                                   pass);
+          p->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index);
           break;
       }
       break;
@@ -2765,12 +2741,10 @@ static void StoreAutopassword(BareosResource* res,
         case APT_NDMPV2:
         case APT_NDMPV3:
         case APT_NDMPV4:
-          my_config->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index,
-                                   pass);
+          p->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index);
           break;
         default:
-          my_config->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index,
-                                   pass);
+          p->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index);
           break;
       }
     } break;
@@ -2780,64 +2754,56 @@ static void StoreAutopassword(BareosResource* res,
         case APT_NDMPV2:
         case APT_NDMPV3:
         case APT_NDMPV4:
-          my_config->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index,
-                                   pass);
+          p->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index);
           break;
         default:
-          my_config->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index,
-                                   pass);
+          p->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index);
           break;
       }
     } break;
     case R_CATALOG:
-      my_config->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index,
-                               pass);
+      p->StoreResource(res, CFG_TYPE_CLEARPASSWORD, lc, item, index);
       break;
     default:
-      my_config->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index,
-                               pass);
+      p->StoreResource(res, CFG_TYPE_MD5PASSWORD, lc, item, index);
       break;
   }
 }
 
-static void StoreAcl(BareosResource* res,
+static void StoreAcl(ConfigurationParser*,
+                     BareosResource* res,
                      LEX* lc,
                      ResourceItem* item,
-                     int index,
-                     int pass)
+                     int index)
 {
   alist<const char*>** alistvalue
       = GetItemVariablePointer<alist<const char*>**>(res, *item);
-  if (pass == 1) {
-    if (!alistvalue[item->code]) {
-      alistvalue[item->code] = new alist<const char*>(10, owned_by_alist);
-      Dmsg1(900, "Defined new ACL alist at %d\n", item->code);
-    }
+  if (!alistvalue[item->code]) {
+    alistvalue[item->code] = new alist<const char*>(10, owned_by_alist);
+    Dmsg1(900, "Defined new ACL alist at %d\n", item->code);
   }
   alist<const char*>* list = alistvalue[item->code];
   std::vector<char> msg(256);
   int token = BCT_COMMA;
   while (token == BCT_COMMA) {
     LexGetToken(lc, BCT_STRING);
-    if (pass == 1) {
-      if (!IsAclEntryValid(lc->str, msg)) {
-        scan_err1(lc, T_("Cannot store Acl: %s"), msg.data());
-        return;
-      }
-      list->append(strdup(lc->str));
-      Dmsg2(900, "Appended to %d %s\n", item->code, lc->str);
+    if (!IsAclEntryValid(lc->str, msg)) {
+      scan_err1(lc, T_("Cannot store Acl: %s"), msg.data());
+      return;
     }
+    list->append(strdup(lc->str));
+    Dmsg2(900, "Appended to %d %s\n", item->code, lc->str);
     token = LexGetToken(lc, BCT_ALL);
   }
   item->SetPresent(res);
   ClearBit(index, res->inherit_content_);
 }
 
-static void StoreAudit(BareosResource* res,
+static void StoreAudit(ConfigurationParser*,
+                       BareosResource* res,
                        LEX* lc,
                        ResourceItem* item,
-                       int index,
-                       int pass)
+                       int index)
 {
   int token;
   alist<const char*>* list;
@@ -2845,16 +2811,14 @@ static void StoreAudit(BareosResource* res,
   alist<const char*>** alistvalue
       = GetItemVariablePointer<alist<const char*>**>(res, *item);
 
-  if (pass == 1) {
-    if (!*alistvalue) {
-      *alistvalue = new alist<const char*>(10, owned_by_alist);
-    }
+  if (!*alistvalue) {
+    *alistvalue = new alist<const char*>(10, owned_by_alist);
   }
   list = *alistvalue;
 
   for (;;) {
     LexGetToken(lc, BCT_STRING);
-    if (pass == 1) { list->append(strdup(lc->str)); }
+    list->append(strdup(lc->str));
     token = LexGetToken(lc, BCT_ALL);
     if (token == BCT_COMMA) { continue; }
     break;
@@ -2863,10 +2827,10 @@ static void StoreAudit(BareosResource* res,
   ClearBit(index, res->inherit_content_);
 }
 
-static void StoreRunscriptWhen(BareosResource* res,
+static void StoreRunscriptWhen(ConfigurationParser*,
+                               BareosResource* res,
                                LEX* lc,
                                ResourceItem* item,
-                               int,
                                int)
 {
   LexGetToken(lc, BCT_NAME);
@@ -2888,107 +2852,114 @@ static void StoreRunscriptWhen(BareosResource* res,
   ScanToEol(lc);
 }
 
-static void StoreRunscriptTarget(BareosResource* res,
+static void StoreRunscriptTarget(ConfigurationParser*,
+                                 BareosResource* res,
                                  LEX* lc,
                                  ResourceItem* item,
-                                 int,
-                                 int pass)
+                                 int)
 {
   LexGetToken(lc, BCT_STRING);
 
-  if (pass == 2) {
-    RunScript* r = GetItemVariablePointer<RunScript*>(res, *item);
-    if (bstrcmp(lc->str, "%c")) {
-      r->SetTarget(lc->str);
-    } else if (Bstrcasecmp(lc->str, "yes")) {
-      r->SetTarget("%c");
-    } else if (Bstrcasecmp(lc->str, "no")) {
-      r->SetTarget("");
-    } else {
-      if (auto* referenced_res = my_config->GetResWithName(R_CLIENT, lc->str);
-          !referenced_res) {
-        scan_err3(lc,
-                  T_("Could not find config Resource %s referenced on line %d "
-                     ": %s\n"),
-                  lc->str, lc->line_no, lc->line);
-        return;
-      }
+  // idea: use a proto runscript that contains normal string target
+  //       and a command vector
+  //       Then create a real alist<runscript> out of that and add the
+  //       required dependencies
+  /* MARKER  */
 
-      r->SetTarget(lc->str);
+  // if (pass == 2)
+  RunScript* r = GetItemVariablePointer<RunScript*>(res, *item);
+  if (bstrcmp(lc->str, "%c")) {
+    r->SetTarget(lc->str);
+  } else if (Bstrcasecmp(lc->str, "yes")) {
+    r->SetTarget("%c");
+  } else if (Bstrcasecmp(lc->str, "no")) {
+    r->SetTarget("");
+  } else {
+    if (auto* referenced_res = my_config->GetResWithName(R_CLIENT, lc->str);
+        !referenced_res) {
+      scan_err3(lc,
+                T_("Could not find config Resource %s referenced on line %d "
+                   ": %s\n"),
+                lc->str, lc->line_no, lc->line);
+      return;
     }
+
+    r->SetTarget(lc->str);
   }
   ScanToEol(lc);
 }
 
-static void StoreRunscriptCmd(BareosResource* res,
+static void StoreRunscriptCmd(ConfigurationParser*,
+                              BareosResource* res,
                               LEX* lc,
                               ResourceItem* item,
-                              int,
-                              int pass)
+                              int)
 {
   LexGetToken(lc, BCT_STRING);
 
-  if (pass == 2) {
-    Dmsg2(100, "runscript cmd=%s type=%c\n", lc->str, item->code);
-    RunScript* r = GetItemVariablePointer<RunScript*>(res, *item);
-    r->temp_parser_command_container.emplace_back(lc->str, item->code);
-  }
+  /* MARKER */
+  // if (pass == 2) {
+  Dmsg2(100, "runscript cmd=%s type=%c\n", lc->str, item->code);
+  RunScript* r = GetItemVariablePointer<RunScript*>(res, *item);
+  r->temp_parser_command_container.emplace_back(lc->str, item->code);
+  //}
   ScanToEol(lc);
 }
 
-static void StoreShortRunscript(BareosResource* res,
+static void StoreShortRunscript(ConfigurationParser*,
+                                BareosResource* res,
                                 LEX* lc,
                                 ResourceItem* item,
-                                int,
-                                int pass)
+                                int)
 {
   LexGetToken(lc, BCT_STRING);
   alist<RunScript*>** runscripts
       = GetItemVariablePointer<alist<RunScript*>**>(res, *item);
 
-  if (pass == 2) {
-    Dmsg0(500, "runscript: creating new RunScript object\n");
-    RunScript* script = new RunScript;
+  /* MARKER */
+  // if (pass == 2) {
+  Dmsg0(500, "runscript: creating new RunScript object\n");
+  RunScript* script = new RunScript;
 
-    script->SetJobCodeCallback(job_code_callback_director);
+  script->SetJobCodeCallback(job_code_callback_director);
 
-    script->SetCommand(lc->str);
-    if (Bstrcasecmp(item->name, "runbeforejob")) {
-      script->when = SCRIPT_Before;
-      script->SetTarget("");
-    } else if (Bstrcasecmp(item->name, "runafterjob")) {
-      script->when = SCRIPT_After;
-      script->on_success = true;
-      script->on_failure = false;
-      script->fail_on_error = false;
-      script->SetTarget("");
-    } else if (Bstrcasecmp(item->name, "clientrunafterjob")) {
-      script->when = SCRIPT_After;
-      script->on_success = true;
-      script->on_failure = false;
-      script->fail_on_error = false;
-      script->SetTarget("%c");
-    } else if (Bstrcasecmp(item->name, "clientrunbeforejob")) {
-      script->when = SCRIPT_Before;
-      script->SetTarget("%c");
-    } else if (Bstrcasecmp(item->name, "runafterfailedjob")) {
-      script->when = SCRIPT_After;
-      script->on_failure = true;
-      script->on_success = false;
-      script->fail_on_error = false;
-      script->SetTarget("");
-    }
-
-    // Remember that the entry was configured in the short runscript form.
-    script->short_form = true;
-
-    if (!*runscripts) {
-      *runscripts = new alist<RunScript*>(10, not_owned_by_alist);
-    }
-
-    (*runscripts)->append(script);
-    script->Debug();
+  script->SetCommand(lc->str);
+  if (Bstrcasecmp(item->name, "runbeforejob")) {
+    script->when = SCRIPT_Before;
+    script->SetTarget("");
+  } else if (Bstrcasecmp(item->name, "runafterjob")) {
+    script->when = SCRIPT_After;
+    script->on_success = true;
+    script->on_failure = false;
+    script->fail_on_error = false;
+    script->SetTarget("");
+  } else if (Bstrcasecmp(item->name, "clientrunafterjob")) {
+    script->when = SCRIPT_After;
+    script->on_success = true;
+    script->on_failure = false;
+    script->fail_on_error = false;
+    script->SetTarget("%c");
+  } else if (Bstrcasecmp(item->name, "clientrunbeforejob")) {
+    script->when = SCRIPT_Before;
+    script->SetTarget("%c");
+  } else if (Bstrcasecmp(item->name, "runafterfailedjob")) {
+    script->when = SCRIPT_After;
+    script->on_failure = true;
+    script->on_success = false;
+    script->fail_on_error = false;
+    script->SetTarget("");
   }
+
+  // Remember that the entry was configured in the short runscript form.
+  script->short_form = true;
+
+  if (!*runscripts) {
+    *runscripts = new alist<RunScript*>(10, not_owned_by_alist);
+  }
+
+  (*runscripts)->append(script);
+  script->Debug();
+  //}
 
   ScanToEol(lc);
 }
@@ -2997,10 +2968,10 @@ static void StoreShortRunscript(BareosResource* res,
  * Store a bool in a bit field without modifing hdr
  * We can also add an option to StoreBool to skip hdr
  */
-static void StoreRunscriptBool(BareosResource* res,
+static void StoreRunscriptBool(ConfigurationParser*,
+                               BareosResource* res,
                                LEX* lc,
                                ResourceItem* item,
-                               int,
                                int)
 {
   LexGetToken(lc, BCT_NAME);
@@ -3022,13 +2993,13 @@ static void StoreRunscriptBool(BareosResource* res,
  * resource.  We treat the RunScript like a sort of
  * mini-resource within the Job resource.
  */
-static void StoreRunscript(BareosResource* res,
+static void StoreRunscript(ConfigurationParser* p,
+                           BareosResource* res,
                            LEX* lc,
                            ResourceItem* item,
-                           int index,
-                           int pass)
+                           int index)
 {
-  Dmsg1(200, "StoreRunscript: begin StoreRunscript pass=%i\n", pass);
+  Dmsg1(200, "StoreRunscript: begin StoreRunscript\n");
 
   int token = LexGetToken(lc, BCT_SKIP_EOL);
 
@@ -3063,16 +3034,16 @@ static void StoreRunscript(BareosResource* res,
         }
         switch (runscript_items[i].type) {
           case CFG_TYPE_RUNSCRIPT_CMD:
-            StoreRunscriptCmd(res, lc, &runscript_items[i], i, pass);
+            StoreRunscriptCmd(p, res, lc, &runscript_items[i], i);
             break;
           case CFG_TYPE_RUNSCRIPT_TARGET:
-            StoreRunscriptTarget(res, lc, &runscript_items[i], i, pass);
+            StoreRunscriptTarget(p, res, lc, &runscript_items[i], i);
             break;
           case CFG_TYPE_RUNSCRIPT_BOOL:
-            StoreRunscriptBool(res, lc, &runscript_items[i], i, pass);
+            StoreRunscriptBool(p, res, lc, &runscript_items[i], i);
             break;
           case CFG_TYPE_RUNSCRIPT_WHEN:
-            StoreRunscriptWhen(res, lc, &runscript_items[i], i, pass);
+            StoreRunscriptWhen(p, res, lc, &runscript_items[i], i);
             break;
           default:
             break;
@@ -3088,7 +3059,9 @@ static void StoreRunscript(BareosResource* res,
     }
   }
 
-  if (pass == 2) {
+  /* MARKER */
+  // if (pass == 2) {
+  if (0) {
     alist<RunScript*>** runscripts
         = GetItemVariablePointer<alist<RunScript*>**>(res, *item);
     if (!*runscripts) {
@@ -3115,6 +3088,7 @@ static void StoreRunscript(BareosResource* res,
       script->Debug();
     }
   }
+  //}
 
 bail_out:
   /* for pass == 1 only delete the memory
@@ -3216,38 +3190,32 @@ std::optional<std::string> job_code_callback_director(JobControlRecord* jcr,
  * callback function for init_resource
  * See ../lib/parse_conf.cc, function InitResource, for more generic handling.
  */
-static void InitResourceCb(BareosResource* res, ResourceItem* item, int pass)
+static void InitResourceCb(BareosResource* res, ResourceItem* item)
 {
-  switch (pass) {
-    case 1:
-      switch (item->type) {
-        case CFG_TYPE_REPLACE:
-          for (int i = 0; ReplaceOptions[i].name; i++) {
-            if (Bstrcasecmp(item->default_value, ReplaceOptions[i].name)) {
-              SetItemVariable<uint32_t>(res, *item, ReplaceOptions[i].token);
-            }
-          }
-          break;
-        case CFG_TYPE_AUTHPROTOCOLTYPE:
-          for (int i = 0; authprotocols[i].name; i++) {
-            if (Bstrcasecmp(item->default_value, authprotocols[i].name)) {
-              SetItemVariable<uint32_t>(res, *item, authprotocols[i].token);
-            }
-          }
-          break;
-        case CFG_TYPE_AUTHTYPE:
-          for (int i = 0; authmethods[i].name; i++) {
-            if (Bstrcasecmp(item->default_value, authmethods[i].name)) {
-              SetItemVariable<uint32_t>(res, *item, authmethods[i].token);
-            }
-          }
-          break;
-        case CFG_TYPE_POOLTYPE:
-          SetItemVariable<char*>(res, *item, strdup(item->default_value));
-          break;
-        default:
-          break;
+  switch (item->type) {
+    case CFG_TYPE_REPLACE:
+      for (int i = 0; ReplaceOptions[i].name; i++) {
+        if (Bstrcasecmp(item->default_value, ReplaceOptions[i].name)) {
+          SetItemVariable<uint32_t>(res, *item, ReplaceOptions[i].token);
+        }
       }
+      break;
+    case CFG_TYPE_AUTHPROTOCOLTYPE:
+      for (int i = 0; authprotocols[i].name; i++) {
+        if (Bstrcasecmp(item->default_value, authprotocols[i].name)) {
+          SetItemVariable<uint32_t>(res, *item, authprotocols[i].token);
+        }
+      }
+      break;
+    case CFG_TYPE_AUTHTYPE:
+      for (int i = 0; authmethods[i].name; i++) {
+        if (Bstrcasecmp(item->default_value, authmethods[i].name)) {
+          SetItemVariable<uint32_t>(res, *item, authmethods[i].token);
+        }
+      }
+      break;
+    case CFG_TYPE_POOLTYPE:
+      SetItemVariable<char*>(res, *item, strdup(item->default_value));
       break;
     default:
       break;
@@ -3258,64 +3226,64 @@ static void InitResourceCb(BareosResource* res, ResourceItem* item, int pass)
  * callback function for parse_config
  * See ../lib/parse_conf.c, function ParseConfig, for more generic handling.
  */
-static void ParseConfigCb(BareosResource* res,
+static void ParseConfigCb(ConfigurationParser* p,
+                          BareosResource* res,
                           LEX* lc,
                           ResourceItem* item,
                           int index,
-                          int pass,
-                          BareosResource** configuration_resources)
+                          BareosResource**)
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
-      StoreAutopassword(res, lc, item, index, pass);
+      StoreAutopassword(p, res, lc, item, index);
       break;
     case CFG_TYPE_ACL:
-      StoreAcl(res, lc, item, index, pass);
+      StoreAcl(p, res, lc, item, index);
       break;
     case CFG_TYPE_AUDIT:
-      StoreAudit(res, lc, item, index, pass);
+      StoreAudit(p, res, lc, item, index);
       break;
     case CFG_TYPE_AUTHPROTOCOLTYPE:
-      StoreAuthprotocoltype(res, lc, item, index, pass);
+      StoreAuthprotocoltype(p, res, lc, item, index);
       break;
     case CFG_TYPE_AUTHTYPE:
-      StoreAuthtype(res, lc, item, index, pass);
+      StoreAuthtype(p, res, lc, item, index);
       break;
     case CFG_TYPE_DEVICE:
-      StoreDevice(res, lc, item, index, pass, configuration_resources);
+      StoreDevice(p, res, lc, item, index);
       break;
     case CFG_TYPE_JOBTYPE:
-      StoreJobtype(res, lc, item, index, pass);
+      StoreJobtype(p, res, lc, item, index);
       break;
     case CFG_TYPE_PROTOCOLTYPE:
-      StoreProtocoltype(res, lc, item, index, pass);
+      StoreProtocoltype(p, res, lc, item, index);
       break;
     case CFG_TYPE_LEVEL:
-      StoreLevel(res, lc, item, index, pass);
+      StoreLevel(p, res, lc, item, index);
       break;
     case CFG_TYPE_REPLACE:
-      StoreReplace(res, lc, item, index, pass);
+      StoreReplace(p, res, lc, item, index);
       break;
     case CFG_TYPE_SHRTRUNSCRIPT:
-      StoreShortRunscript(res, lc, item, index, pass);
+      StoreShortRunscript(p, res, lc, item, index);
       break;
     case CFG_TYPE_RUNSCRIPT:
-      StoreRunscript(res, lc, item, index, pass);
+      StoreRunscript(p, res, lc, item, index);
       break;
     case CFG_TYPE_MIGTYPE:
-      StoreMigtype(res, lc, item, index);
+      StoreMigtype(p, res, lc, item, index);
       break;
     case CFG_TYPE_INCEXC:
-      StoreInc(res, lc, item, index, pass);
+      StoreInc(p, res, lc, item, index);
       break;
     case CFG_TYPE_RUN:
-      StoreRun(res, lc, item, index, pass);
+      StoreRun(p, res, lc, item, index);
       break;
     case CFG_TYPE_ACTIONONPURGE:
-      StoreActiononpurge(res, lc, item, index, pass);
+      StoreActiononpurge(p, res, lc, item, index);
       break;
     case CFG_TYPE_POOLTYPE:
-      StorePooltype(res, lc, item, index, pass);
+      StorePooltype(p, res, lc, item, index);
       break;
     default:
       break;
@@ -3679,7 +3647,7 @@ ConfigurationParser* InitDirConfig(const char* t_configfile, int exit_code)
       t_configfile, nullptr, nullptr, InitResourceCb, ParseConfigCb,
       PrintConfigCb, exit_code, R_NUM, dird_resource_tables,
       default_config_filename.c_str(), "bareos-dir.d", ConfigBeforeCallback,
-      ConfigReadyCallback, SaveResource, DumpResource, FreeResource);
+      ConfigReadyCallback, DumpResource, FreeResource);
   if (config) { config->r_own_ = R_DIRECTOR; }
   return config;
 }
@@ -3962,6 +3930,7 @@ static void FreeResource(BareosResource* res, int type)
   if (next_resource) { my_config->FreeResourceCb_(next_resource, type); }
 }
 
+#if 0
 /**
  * Save the new resource by chaining it into the head list for
  * the resource. If this is pass 2, we update any resource
@@ -3973,6 +3942,7 @@ static bool SaveResource(BareosResource* new_res,
                          ResourceItem* items,
                          int pass)
 {
+  /* MARKER */
   switch (type) {
     case R_DIRECTOR: {
       /* IP Addresses can be set by multiple directives.
@@ -4010,31 +3980,8 @@ static bool SaveResource(BareosResource* new_res,
       }
       break;
   }
-
-  /* During pass 2 in each "store" routine, we looked up pointers
-   * to all the resources referenced in the current resource, now we
-   * must copy their addresses from the static record to the allocated
-   * record. */
-  if (pass == 2) {
-    bool ret = UpdateResourcePointer(new_res, type, items);
-    bool validation = true;
-    switch (type) {
-      case R_JOBDEFS:
-      case R_JOB:
-      case R_DIRECTOR:
-        break;
-      default: {
-        BareosResource* pass1_resource
-            = my_config->GetResWithName(type, new_res->resource_name_);
-        validation = ValidateResource(type, items, pass1_resource);
-      } break;
-    }
-
-    return validation && ret;
-  }
-
-  return my_config->AppendToResourcesChain(new_res, type);
 }
+#endif
 
 std::vector<JobResource*> GetAllJobResourcesByClientName(std::string name)
 {

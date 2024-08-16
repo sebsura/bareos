@@ -56,10 +56,6 @@
 
 static const std::string default_config_filename("tray-monitor.conf");
 
-static bool SaveResource(BareosResource* new_res,
-                         int type,
-                         ResourceItem* items,
-                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* reshdr,
@@ -252,81 +248,6 @@ static void FreeResource(BareosResource* res, int type)
   if (next_resource) { FreeResource(next_resource, type); }
 }
 
-/*
- * Save the new resource by chaining it into the head list for
- * the resource. If this is pass 2, we update any resource
- * pointers because they may not have been defined until
- * later in pass 1.
- */
-static bool SaveResource(BareosResource* new_res,
-                         int type,
-                         ResourceItem* items,
-                         int pass)
-{
-  int i;
-  int error = 0;
-
-  // Ensure that all required items are present
-  for (i = 0; items[i].name; i++) {
-    if (items[i].flags & CFG_ITEM_REQUIRED) {
-      if (!items[i].IsPresent(new_res)) {
-        Emsg2(M_ERROR_TERM, 0,
-              T_("%s item is required in %s resource, but not found.\n"),
-              items[i].name, resource_definitions[type].name);
-      }
-    }
-    /* If this triggers, take a look at lib/parse_conf.h */
-    if (i >= MAX_RES_ITEMS) {
-      Emsg1(M_ERROR_TERM, 0, T_("Too many items in %s resource\n"),
-            resource_definitions[type].name);
-    }
-  }
-
-  /* During pass 2 in each "store" routine, we looked up pointers
-   * to all the resource_definitions referrenced in the current resource, now we
-   * must copy their addresses from the static record to the allocated
-   * record. */
-  if (pass == 2) {
-    switch (type) {
-      case R_MONITOR:
-      case R_CLIENT:
-      case R_STORAGE:
-      case R_DIRECTOR:
-      case R_CONSOLE_FONT:
-        // Resources not containing a resource
-        break;
-      default:
-        Emsg1(M_ERROR, 0, T_("Unknown resource type %d in SaveResource.\n"),
-              type);
-        error = 1;
-        break;
-    }
-
-    /* resource_name_ was already deep copied during 1. pass
-     * as matter of fact the remaining allocated memory is
-     * redundant and would not be freed in the dynamic resource_definitions;
-     *
-     * currently, this is the best place to free that */
-
-    if (new_res) {
-      if (new_res->resource_name_) {
-        free(new_res->resource_name_);
-        new_res->resource_name_ = nullptr;
-      }
-      if (new_res->description_) {
-        free(new_res->description_);
-        new_res->description_ = nullptr;
-      }
-    }
-    return (error == 0);
-  }
-
-  if (!error) {
-    error = my_config->AppendToResourcesChain(new_res, type) ? 0 : 1;
-  }
-  return (error == 0);
-}
-
 static void ConfigBeforeCallback(ConfigurationParser& config)
 {
   std::map<int, std::string> map{
@@ -343,8 +264,7 @@ ConfigurationParser* InitTmonConfig(const char* configfile, int exit_code)
   ConfigurationParser* config = new ConfigurationParser(
       configfile, nullptr, nullptr, nullptr, nullptr, nullptr, exit_code, R_NUM,
       resource_definitions, default_config_filename.c_str(), "tray-monitor.d",
-      ConfigBeforeCallback, ConfigReadyCallback, SaveResource, DumpResource,
-      FreeResource);
+      ConfigBeforeCallback, ConfigReadyCallback, DumpResource, FreeResource);
   if (config) { config->r_own_ = R_MONITOR; }
   return config;
 }
