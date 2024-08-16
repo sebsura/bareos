@@ -199,12 +199,13 @@ bool ConfigurationParser::GetTlsPskByFullyQualifiedResourceName(
  * (WARNING, ERROR, FATAL, INFO, ...) with an appropriate
  * destination (MAIL, FILE, OPERATOR, ...)
  */
-void ConfigurationParser::ScanTypes(LEX* lc,
-                                    MessagesResource* msg,
-                                    MessageDestinationCode dest_code,
-                                    const std::string& where,
-                                    const std::string& cmd,
-                                    const std::string& timestamp_format)
+static void ScanTypes(ConfigurationParser*,
+                      LEX* lc,
+                      MessagesResource* msg,
+                      MessageDestinationCode dest_code,
+                      const std::string& where,
+                      const std::string& cmd,
+                      const std::string& timestamp_format)
 {
   int i;
   bool found, is_not;
@@ -277,9 +278,9 @@ static void StoreMsgs(ConfigurationParser* p,
     case MessageDestinationCode::kStderr:
     case MessageDestinationCode::kConsole:
     case MessageDestinationCode::kCatalog:
-      p->ScanTypes(
-          lc, message_resource, static_cast<MessageDestinationCode>(item->code),
-          std::string(), std::string(), message_resource->timestamp_format_);
+      ScanTypes(p, lc, message_resource,
+                static_cast<MessageDestinationCode>(item->code), std::string(),
+                std::string(), message_resource->timestamp_format_);
       break;
     case MessageDestinationCode::kSyslog: { /* syslog */
       char* current_char;
@@ -315,15 +316,15 @@ static void StoreMsgs(ConfigurationParser* p,
         dest_len = lc->str_len;
         token = LexGetToken(lc, BCT_SKIP_EOL);
 
-        p->ScanTypes(lc, message_resource,
-                     static_cast<MessageDestinationCode>(item->code), dest,
-                     std::string(), std::string());
+        ScanTypes(p, lc, message_resource,
+                  static_cast<MessageDestinationCode>(item->code), dest,
+                  std::string(), std::string());
         FreePoolMemory(dest);
         Dmsg0(900, "done with dest codes\n");
       } else {
-        p->ScanTypes(lc, message_resource,
-                     static_cast<MessageDestinationCode>(item->code),
-                     std::string(), std::string(), std::string());
+        ScanTypes(p, lc, message_resource,
+                  static_cast<MessageDestinationCode>(item->code),
+                  std::string(), std::string(), std::string());
       }
       break;
     }
@@ -362,9 +363,9 @@ static void StoreMsgs(ConfigurationParser* p,
         break;
       }
       Dmsg1(900, "mail_cmd=%s\n", NPRT(cmd));
-      p->ScanTypes(lc, message_resource,
-                   static_cast<MessageDestinationCode>(item->code), dest, cmd,
-                   message_resource->timestamp_format_);
+      ScanTypes(p, lc, message_resource,
+                static_cast<MessageDestinationCode>(item->code), dest, cmd,
+                message_resource->timestamp_format_);
       FreePoolMemory(dest);
       Dmsg0(900, "done with dest codes\n");
       break;
@@ -380,9 +381,9 @@ static void StoreMsgs(ConfigurationParser* p,
         scan_err1(lc, T_("expected an =, got: %s"), lc->str);
         return;
       }
-      p->ScanTypes(
-          lc, message_resource, static_cast<MessageDestinationCode>(item->code),
-          dest_file_path, std::string(), message_resource->timestamp_format_);
+      ScanTypes(p, lc, message_resource,
+                static_cast<MessageDestinationCode>(item->code), dest_file_path,
+                std::string(), message_resource->timestamp_format_);
       Dmsg0(900, "done with dest codes\n");
       break;
     }

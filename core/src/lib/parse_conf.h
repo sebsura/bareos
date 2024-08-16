@@ -437,16 +437,6 @@ class ConfigurationParser {
   bool FindConfigPath(PoolMem& full_path);
   int GetResourceTableIndex(const char* resource_type_name);
 
- public:
-  /* MARKER */
-  void ScanTypes(LEX* lc,
-                 MessagesResource* msg,
-                 MessageDestinationCode dest_code,
-                 const std::string& where,
-                 const std::string& cmd,
-                 const std::string& timestamp_format);
-
- private:
   void lex_error(const char* cf,
                  LEX_ERROR_HANDLER* ScanError,
                  LEX_WARNING_HANDLER* scan_warning) const;
