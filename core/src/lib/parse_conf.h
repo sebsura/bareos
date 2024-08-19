@@ -41,7 +41,6 @@
 #include <map>
 
 struct ResourceItem;
-class ConfigParserStateMachine;
 class ConfigurationParser;
 class ConfigResourcesContainer;
 /* For storing name_addr items in res_items table */
@@ -259,38 +258,13 @@ template <> struct std::hash<dependency_target> {
 
 class ConfigurationParser {
   friend class ConfiguredTlsPolicyGetterPrivate;
-  friend class ConfigParserStateMachine;
 
  public:
-  std::string cf_;                             /* Config file parameter */
-  LEX_ERROR_HANDLER* scan_error_{nullptr};     /* Error handler if non-null */
-  LEX_WARNING_HANDLER* scan_warning_{nullptr}; /* Warning handler if non-null */
-  INIT_RES_HANDLER* init_res_{
-      nullptr}; /* Init resource handler for non default types if non-null */
-  STORE_RES_HANDLER* store_res_{
-      nullptr}; /* Store resource handler for non default types if non-null */
-  PRINT_RES_HANDLER* print_res_{
-      nullptr}; /* Print resource handler for non default types if non-null */
-
-  int32_t err_type_{0};       /* The way to Terminate on failure */
-  bool omit_defaults_{false}; /* Omit config variables with default values when
-                          dumping the config */
-
-  int32_t r_num_{0};                      /* number of daemon resource types */
-  int32_t r_own_{0};                      /* own resource type */
-  BareosResource* own_resource_{nullptr}; /* Pointer to own resource */
-  ResourceTable* resource_definitions_{
-      0}; /* Pointer to table of permitted resources */
-  std::shared_ptr<ConfigResourcesContainer> config_resources_container_;
-  mutable brwlock_t res_lock_; /* Resource lock */
-
-  DumpResourceCb_t DumpResourceCb_{nullptr};
-  FreeResourceCb_t FreeResourceCb_{nullptr};
-
-  bool AddDependency(DependencyStorageType type,
-                     BareosResource* s,
-                     ResourceItem* item,
-                     std::string_view referenced_name);
+  static const char* GetDefaultConfigDir();
+  static bool GetTlsPskByFullyQualifiedResourceName(
+      ConfigurationParser* config,
+      const char* fully_qualified_name,
+      std::string& psk);
 
   ConfigurationParser();
   ConfigurationParser(const char* cf,
@@ -340,6 +314,9 @@ class ConfigurationParser {
                      void* sock,
                      bool hide_sensitive_data = false);
   int GetResourceCode(const char* resource_type);
+  const char* ResToStr(int rcode) const;
+  const char* ResGroupToStr(int rcode) const;
+
   ResourceTable* GetResourceTable(const char* resource_type_name);
   int GetResourceItemIndex(ResourceItem* res_table, const char* item);
   ResourceItem* GetResourceItem(ResourceItem* res_table, const char* item);
@@ -361,30 +338,27 @@ class ConfigurationParser {
                                  bool lock = true) const;
   void b_LockRes(const char* file, int line) const;
   void b_UnlockRes(const char* file, int line) const;
-  const char* ResToStr(int rcode) const;
-  const char* ResGroupToStr(int rcode) const;
   void InsertResource(int resource_type, BareosResource* res);
 
+  bool AddDependency(DependencyStorageType type,
+                     BareosResource* s,
+                     ResourceItem* item,
+                     std::string_view referenced_name);
   bool StoreResource(BareosResource* res,
                      int rcode,
                      LEX* lc,
                      ResourceItem* item,
                      int index);
+
   void InitializeQualifiedResourceNameTypeConverter(
       const std::map<int, std::string>&);
+
   QualifiedResourceNameTypeConverter* GetQualifiedResourceNameTypeConverter()
       const
   {
     return qualified_resource_name_type_converter_.get();
   }
-  static bool GetTlsPskByFullyQualifiedResourceName(
-      ConfigurationParser* config,
-      const char* fully_qualified_name,
-      std::string& psk);
-  bool GetConfiguredTlsPolicyFromCleartextHello(
-      const std::string& r_code,
-      const std::string& name,
-      TlsPolicy& tls_policy_out) const;
+
   std::string CreateOwnQualifiedNameForNetworkDump() const;
 
   void AddWarning(const std::string& warning);
@@ -399,37 +373,32 @@ class ConfigurationParser {
                              LEX* lex,
                              STORE_RES_HANDLER* store);
 
+ public: /* variables */
+  PRINT_RES_HANDLER* print_res_{
+      nullptr}; /* Print resource handler for non default types if non-null */
+
+  int32_t err_type_{0};       /* The way to Terminate on failure */
+  bool omit_defaults_{false}; /* Omit config variables with default values when
+                                 dumping the config */
+
+  int32_t r_num_{0};                      /* number of daemon resource types */
+  int32_t r_own_{0};                      /* own resource type */
+  BareosResource* own_resource_{nullptr}; /* Pointer to own resource */
+  ResourceTable* resource_definitions_{
+      0}; /* Pointer to table of permitted resources */
+  std::shared_ptr<ConfigResourcesContainer> config_resources_container_;
+
+  DumpResourceCb_t DumpResourceCb_{nullptr};
+  FreeResourceCb_t FreeResourceCb_{nullptr};
+
+
  private:
   ConfigurationParser(const ConfigurationParser&) = delete;
   ConfigurationParser operator=(const ConfigurationParser&) = delete;
 
- private:
-  std::string config_default_filename_; /* default config filename, that is
-                                           used, if no filename is given */
-  std::string config_dir_; /* base directory of configuration files */
-  std::string
-      config_include_dir_; /* rel. path to the config include directory
-                               (bareos-dir.d, bareos-sd.d, bareos-fd.d, ...) */
-  bool use_config_include_dir_{false}; /* Use the config include directory */
-  std::string config_include_naming_format_; /* Format string for file paths of
-                                                resources */
-  std::string used_config_path_;             /* Config file that is used. */
-  std::unique_ptr<QualifiedResourceNameTypeConverter>
-      qualified_resource_name_type_converter_;
-  ParseConfigBeforeCb_t ParseConfigBeforeCb_{nullptr};
-  ParseConfigReadyCb_t ParseConfigReadyCb_{nullptr};
-  bool parser_first_run_{true};
-  BStringList warnings_;
-
-
- public:
-  static const char* GetDefaultConfigDir();
-
- private:
   bool ParsingPass(LEX* lex);
   bool FixupPass();
   bool VerifyPass();
-
 
   bool GetConfigFile(PoolMem& full_path,
                      const char* config_dir,
@@ -451,11 +420,37 @@ class ConfigurationParser {
 
 
  private:
+  mutable brwlock_t res_lock_;                 /* Resource lock */
+  std::string cf_;                             /* Config file parameter */
+  LEX_ERROR_HANDLER* scan_error_{nullptr};     /* Error handler if non-null */
+  LEX_WARNING_HANDLER* scan_warning_{nullptr}; /* Warning handler if non-null */
+  INIT_RES_HANDLER* init_res_{
+      nullptr}; /* Init resource handler for non default types if non-null */
+  STORE_RES_HANDLER* store_res_{
+      nullptr}; /* Store resource handler for non default types if non-null */
+
   std::unordered_map<dependency_target, std::string> single_dependencies;
   std::unordered_map<dependency_target, std::vector<std::string>>
       vector_dependencies;
   std::unordered_map<dependency_target, std::vector<std::string>>
       alist_dependencies;
+
+  std::string config_default_filename_; /* default config filename, that is
+                                           used, if no filename is given */
+  std::string config_dir_; /* base directory of configuration files */
+  std::string
+      config_include_dir_; /* rel. path to the config include directory
+                               (bareos-dir.d, bareos-sd.d, bareos-fd.d, ...) */
+  bool use_config_include_dir_{false}; /* Use the config include directory */
+  std::string config_include_naming_format_; /* Format string for file paths of
+                                                resources */
+  std::string used_config_path_;             /* Config file that is used. */
+  std::unique_ptr<QualifiedResourceNameTypeConverter>
+      qualified_resource_name_type_converter_;
+  ParseConfigBeforeCb_t ParseConfigBeforeCb_{nullptr};
+  ParseConfigReadyCb_t ParseConfigReadyCb_{nullptr};
+  bool parser_first_run_{true};
+  BStringList warnings_;
 };
 
 

@@ -843,7 +843,7 @@ bool ConfigurationParser::ParsingPass(LEX* lex)
     //   scan_err0(lex, "SaveResource failed");
     // }
 
-    InsertResource(new_res.code, new_res.res);
+    AppendToResourcesChain(new_res.res, new_res.code);
   }
   Dmsg1(900, "Leave Parsing Pass\n");
   return true;
@@ -851,7 +851,7 @@ bool ConfigurationParser::ParsingPass(LEX* lex)
 
 bool ConfigurationParser::FixupPass()
 {
-  Dmsg1(900, "Enter Parsing Pass\n");
+  Dmsg1(900, "Enter Fixup Pass\n");
 
   for (auto& [tgt, depname] : single_dependencies) {
     auto* destination
@@ -928,7 +928,7 @@ bool ConfigurationParser::FixupPass()
     }
   }
 
-  Dmsg1(900, "Leave Parsing Pass\n");
+  Dmsg1(900, "Leave Fixup Pass\n");
   return true;
 }
 

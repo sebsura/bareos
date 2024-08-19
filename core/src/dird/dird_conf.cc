@@ -2536,7 +2536,7 @@ static void StoreDevice(ConfigurationParser* p,
     DeviceResource* device_resource = new DeviceResource;
     device_resource->rcode_ = R_DEVICE;
     device_resource->resource_name_ = strdup(lc->str);
-    p->InsertResource(R_DEVICE, device_resource);
+    p->AppendToResourcesChain(device_resource, R_DEVICE);
     Dmsg3(900, "Inserting first %s res: %s index=%d\n",
           my_config->ResToStr(R_DEVICE), device_resource->resource_name_,
           rindex);
