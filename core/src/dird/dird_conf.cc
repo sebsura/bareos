@@ -3661,6 +3661,38 @@ static void CreateAndAddUserAgentConsoleResource(ConfigurationParser& t_config)
   t_config.AppendToResourcesChain(c, R_CONSOLE);
 }
 
+struct JobDefMerger : public config_fixuper {
+  bool operator()(ConfigurationParser* p) override
+  {
+    BareosResource* jobdef = nullptr;
+    BareosResource* job = nullptr;
+
+    for (;;) {
+      jobdef = p->GetNextRes(R_JOBDEFS, jobdef);
+      if (!jobdef) { break; }
+
+      auto* real_jobdef = dynamic_cast<JobResource*>(jobdef);
+
+      ASSERT(real_jobdef);
+
+      PropagateJobdefs(R_JOBDEFS, real_jobdef);
+    }
+
+    for (;;) {
+      job = p->GetNextRes(R_JOB, job);
+      if (!job) { break; }
+
+      auto* real_job = dynamic_cast<JobResource*>(job);
+
+      ASSERT(real_job);
+
+      PropagateJobdefs(R_JOB, real_job);
+    }
+
+    return true;
+  }
+};
+
 ConfigurationParser* InitDirConfig(const char* t_configfile, int exit_code)
 {
   ConfigurationParser* config = new ConfigurationParser(
@@ -3668,6 +3700,10 @@ ConfigurationParser* InitDirConfig(const char* t_configfile, int exit_code)
       PrintConfigCb, exit_code, R_NUM, dird_resource_tables,
       default_config_filename.c_str(), "bareos-dir.d", ConfigBeforeCallback,
       ConfigReadyCallback, DumpResource, FreeResource);
+
+  static JobDefMerger merger;
+
+  config->AddFixupCallback(&merger);
   if (config) { config->r_own_ = R_DIRECTOR; }
   return config;
 }
