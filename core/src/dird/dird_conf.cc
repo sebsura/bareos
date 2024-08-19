@@ -2171,241 +2171,6 @@ static void FreeIncludeExcludeItem(IncludeExcludeItem* incexe)
   delete incexe;
 }
 
-// static bool UpdateResourcePointer(BareosResource* res,
-//                                   int type,
-//                                   ResourceItem* items)
-// {
-//   switch (type) {
-//     case R_PROFILE:
-//     case R_CATALOG:
-//     case R_MSGS:
-//     case R_FILESET:
-//     case R_DEVICE:
-//       // Resources not containing a resource
-//       break;
-//     case R_POOL: {
-//       /* Resources containing another resource or alist. First
-//        * look up the resource which contains another resource. It
-//        * was written during pass 1.  Then stuff in the pointers to
-//        * the resources it contains, which were inserted this pass.
-//        * Finally, it will all be stored back.
-//        *
-//        * Find resource saved in pass 1 */
-//       auto* res_pool = dynamic_cast<PoolResource*>(res);
-//       PoolResource* p = dynamic_cast<PoolResource*>(
-//           my_config->GetResWithName(R_POOL, res_pool->resource_name_));
-//       if (!p) {
-//         Emsg1(M_ERROR, 0, T_("Cannot find Pool resource %s\n"),
-//               res_pool->resource_name_);
-//         return false;
-//       } else {
-//         p->NextPool = res_pool->NextPool;
-//         p->RecyclePool = res_pool->RecyclePool;
-//         p->ScratchPool = res_pool->ScratchPool;
-//         p->storage = res_pool->storage;
-//         if (res_pool->catalog || !res_pool->use_catalog) {
-//           p->catalog = res_pool->catalog;
-//         }
-//       }
-//       break;
-//     }
-//     case R_CONSOLE: {
-//       auto* res_con = dynamic_cast<ConsoleResource*>(res);
-//       ConsoleResource* p = dynamic_cast<ConsoleResource*>(
-//           my_config->GetResWithName(R_CONSOLE, res_con->resource_name_));
-//       if (!p) {
-//         Emsg1(M_ERROR, 0, T_("Cannot find Console resource %s\n"),
-//               res_con->resource_name_);
-//         return false;
-//       } else {
-//         p->tls_cert_.allowed_certificate_common_names_
-//             =
-//             std::move(res_con->tls_cert_.allowed_certificate_common_names_);
-//         p->user_acl.profiles = res_con->user_acl.profiles;
-//         p->user_acl.corresponding_resource = p;
-//       }
-//       break;
-//     }
-//     case R_USER: {
-//       auto* res_user = dynamic_cast<UserResource*>(res);
-//       UserResource* p = dynamic_cast<UserResource*>(
-//           my_config->GetResWithName(R_USER, res_user->resource_name_));
-//       if (!p) {
-//         Emsg1(M_ERROR, 0, T_("Cannot find User resource %s\n"),
-//               res_user->resource_name_);
-//         return false;
-//       } else {
-//         p->user_acl.profiles = res_user->user_acl.profiles;
-//         p->user_acl.corresponding_resource = p;
-//       }
-//       break;
-//     }
-//     case R_DIRECTOR: {
-//       auto* res_dir = dynamic_cast<DirectorResource*>(res);
-//       DirectorResource* p = dynamic_cast<DirectorResource*>(
-//           my_config->GetResWithName(R_DIRECTOR, res_dir->resource_name_));
-//       if (!p) {
-//         Emsg1(M_ERROR, 0, T_("Cannot find Director resource %s\n"),
-//               res_dir->resource_name_);
-//         return false;
-//       } else {
-//         p->plugin_names = res_dir->plugin_names;
-//         p->messages = res_dir->messages;
-//         p->tls_cert_.allowed_certificate_common_names_
-//             =
-//             std::move(res_dir->tls_cert_.allowed_certificate_common_names_);
-//       }
-//       break;
-//     }
-//     case R_STORAGE: {
-//       auto* res_store = dynamic_cast<StorageResource*>(res);
-//       StorageResource* p = dynamic_cast<StorageResource*>(
-//           my_config->GetResWithName(type, res_store->resource_name_));
-//       if (!p) {
-//         Emsg1(M_ERROR, 0, T_("Cannot find Storage resource %s\n"),
-//               res_store->resource_name_);
-//         return false;
-//       } else {
-//         p->paired_storage = res_store->paired_storage;
-//         p->tls_cert_.allowed_certificate_common_names_
-//             =
-//             std::move(res_store->tls_cert_.allowed_certificate_common_names_);
-//         p->device = res_store->device;
-//         p->runtime_storage_status
-//             = GetRuntimeStatus<RuntimeStorageStatus>(p->resource_name_);
-//       }
-//       break;
-//     }
-//     case R_JOBDEFS:
-//     case R_JOB: {
-//       auto* res_job = dynamic_cast<JobResource*>(res);
-//       JobResource* p = dynamic_cast<JobResource*>(
-//           my_config->GetResWithName(type, res_job->resource_name_));
-//       if (!p) {
-//         Emsg1(M_ERROR, 0, T_("Cannot find Job resource %s\n"),
-//               res_job->resource_name_);
-//         return false;
-//       } else {
-//         p->messages = res_job->messages;
-//         p->schedule = res_job->schedule;
-//         p->client = res_job->client;
-//         p->fileset = res_job->fileset;
-//         p->storage = res_job->storage;
-//         p->catalog = res_job->catalog;
-//         p->FdPluginOptions = res_job->FdPluginOptions;
-//         p->SdPluginOptions = res_job->SdPluginOptions;
-//         p->DirPluginOptions = res_job->DirPluginOptions;
-//         p->base = res_job->base;
-//         p->pool = res_job->pool;
-//         p->full_pool = res_job->full_pool;
-//         p->vfull_pool = res_job->vfull_pool;
-//         p->inc_pool = res_job->inc_pool;
-//         p->diff_pool = res_job->diff_pool;
-//         p->next_pool = res_job->next_pool;
-//         p->verify_job = res_job->verify_job;
-//         p->jobdefs = res_job->jobdefs;
-//         p->run_cmds = res_job->run_cmds;
-//         p->RunScripts = res_job->RunScripts;
-//         if ((p->RunScripts) && (p->RunScripts->size() > 0)) {
-//           for (int i = 0; items[i].name; i++) {
-//             if (Bstrcasecmp(items[i].name, "RunScript")) {
-//               // SetBit(i, p->item_present_);
-//               ClearBit(i, p->inherit_content_);
-//             }
-//           }
-//         }
-
-//         Dmsg3(200, "job %s RunScript inherited: %i %i\n",
-//               res_job->resource_name_, BitIsSet(69,
-//               res_job->inherit_content_), BitIsSet(69, p->inherit_content_));
-
-//         /* TODO: JobDefs where/regexwhere doesn't work well (but this is not
-//          * very useful) We have to SetBit(index, item_present_); or
-//          * something like that
-//          *
-//          * We take RegexWhere before all other options */
-//         if (!p->RegexWhere
-//             && (p->strip_prefix || p->add_suffix || p->add_prefix)) {
-//           int len = BregexpGetBuildWhereSize(p->strip_prefix, p->add_prefix,
-//                                              p->add_suffix);
-//           p->RegexWhere = (char*)malloc(len * sizeof(char));
-//           bregexp_build_where(p->RegexWhere, len, p->strip_prefix,
-//                               p->add_prefix, p->add_suffix);
-//           // TODO: test bregexp
-//         }
-
-//         if (p->RegexWhere && p->RestoreWhere) {
-//           free(p->RestoreWhere);
-//           p->RestoreWhere = NULL;
-//         }
-
-//         p->rjs = GetRuntimeStatus<RuntimeJobStatus>(p->resource_name_);
-//       }
-//       break;
-//     }
-//     case R_COUNTER: {
-//       auto* res_counter = dynamic_cast<CounterResource*>(res);
-//       CounterResource* p = dynamic_cast<CounterResource*>(
-//           my_config->GetResWithName(type, res_counter->resource_name_));
-//       if (!p) {
-//         Emsg1(M_ERROR, 0, T_("Cannot find Counter resource %s\n"),
-//               res_counter->resource_name_);
-//         return false;
-//       } else {
-//         p->Catalog = res_counter->Catalog;
-//         p->WrapCounter = res_counter->WrapCounter;
-//       }
-//       break;
-//     }
-//     case R_CLIENT: {
-//       auto* res_client = dynamic_cast<ClientResource*>(res);
-//       ClientResource* p = dynamic_cast<ClientResource*>(
-//           my_config->GetResWithName(type, res_client->resource_name_));
-//       if (!p) {
-//         Emsg1(M_ERROR, 0, T_("Cannot find Client resource %s\n"),
-//               res_client->resource_name_);
-//         return false;
-//       } else {
-//         if (res_client->catalog) {
-//           p->catalog = res_client->catalog;
-//         } else {
-//           // No catalog overwrite given use the first catalog definition.
-//           p->catalog = (CatalogResource*)my_config->GetNextRes(R_CATALOG,
-//           NULL);
-//         }
-//         p->tls_cert_.allowed_certificate_common_names_ = std::move(
-//             res_client->tls_cert_.allowed_certificate_common_names_);
-
-//         p->rcs = GetRuntimeStatus<RuntimeClientStatus>(p->resource_name_);
-//       }
-//       break;
-//     }
-//     case R_SCHEDULE: {
-//       auto* res_sch = dynamic_cast<ScheduleResource*>(res);
-//       /* Schedule is a bit different in that it contains a RunResource record
-//        * chain which isn't a "named" resource. This chain was linked
-//        * in by run_conf.c during pass 2, so here we jam the pointer
-//        * into the Schedule resource. */
-//       ScheduleResource* p = dynamic_cast<ScheduleResource*>(
-//           my_config->GetResWithName(type, res_sch->resource_name_));
-//       if (!p) {
-//         Emsg1(M_ERROR, 0, T_("Cannot find Schedule resource %s\n"),
-//               res_sch->resource_name_);
-//         return false;
-//       } else {
-//         p->run = res_sch->run;
-//       }
-//       break;
-//     }
-//     default:
-//       Emsg1(M_ERROR, 0, T_("Unknown resource type %d in SaveResource.\n"),
-//             type);
-//       return false;
-//   }
-
-//   return true;
-// }
-
 bool PropagateJobdefs(int res_type, JobResource* res)
 {
   JobResource* jobdefs = NULL;
@@ -3697,6 +3462,100 @@ struct JobDefMerger : public config_fixuper {
   }
 };
 
+struct DirectorFixuper : public config_fixuper {
+  bool operator()(ConfigurationParser* p) override
+  {
+    auto* default_catalog
+        = dynamic_cast<CatalogResource*>(p->GetNextRes(R_CATALOG, nullptr));
+
+    if (!default_catalog) {
+      // error
+      return false;
+    }
+
+    for (ClientResource* client = nullptr;;) {
+      client = dynamic_cast<ClientResource*>(p->GetNextRes(R_CLIENT, client));
+
+      if (!client->catalog) { client->catalog = default_catalog; }
+
+      client->rcs
+          = GetRuntimeStatus<RuntimeClientStatus>(client->resource_name_);
+    }
+
+    for (StorageResource* storage = nullptr;;) {
+      storage
+          = dynamic_cast<StorageResource*>(p->GetNextRes(R_CLIENT, storage));
+
+      storage->runtime_storage_status
+          = GetRuntimeStatus<RuntimeStorageStatus>(storage->resource_name_);
+    }
+
+    for (UserResource* user = nullptr;;) {
+      user = dynamic_cast<UserResource*>(p->GetNextRes(R_CLIENT, user));
+
+      user->user_acl.corresponding_resource = user;
+    }
+    /* MARKER */
+    //         if (res_pool->catalog || !res_pool->use_catalog) {
+    //           p->catalog = res_pool->catalog;
+    //         }
+
+    for (ConsoleResource* console = nullptr;;) {
+      console
+          = dynamic_cast<ConsoleResource*>(p->GetNextRes(R_CLIENT, console));
+
+      console->user_acl.corresponding_resource = console;
+    }
+
+    for (StorageResource* storage = nullptr;;) {
+      storage
+          = dynamic_cast<StorageResource*>(p->GetNextRes(R_CLIENT, storage));
+
+      storage->runtime_storage_status
+          = GetRuntimeStatus<RuntimeStorageStatus>(storage->resource_name_);
+    }
+
+    for (JobResource* job = nullptr;;) {
+      job = dynamic_cast<JobResource*>(p->GetNextRes(R_JOB, job));
+
+      //         if ((p->RunScripts) && (p->RunScripts->size() > 0)) {
+      //           for (int i = 0; items[i].name; i++) {
+      //             if (Bstrcasecmp(items[i].name, "RunScript")) {
+      //               // SetBit(i, p->item_present_);
+      //               ClearBit(i, p->inherit_content_);
+      //             }
+      //           }
+      //         }
+
+      //         Dmsg3(200, "job %s RunScript inherited: %i %i\n",
+      //               res_job->resource_name_, BitIsSet(69,
+      //               res_job->inherit_content_), BitIsSet(69,
+      //               p->inherit_content_));
+
+      //         /* TODO: JobDefs where/regexwhere doesn't work well (but this
+      //         is not
+      //          * very useful) We have to SetBit(index, item_present_); or
+      //          * something like that
+      //          *
+      //          * We take RegexWhere before all other options */
+      //         if (!p->RegexWhere
+      //             && (p->strip_prefix || p->add_suffix || p->add_prefix)) {
+      //           int len = BregexpGetBuildWhereSize(p->strip_prefix,
+      //           p->add_prefix,
+      //                                              p->add_suffix);
+      //           p->RegexWhere = (char*)malloc(len * sizeof(char));
+      //           bregexp_build_where(p->RegexWhere, len, p->strip_prefix,
+      //                               p->add_prefix, p->add_suffix);
+      //           // TODO: test bregexp
+      //         }
+
+      job->rjs = GetRuntimeStatus<RuntimeJobStatus>(job->resource_name_);
+    }
+
+    return true;
+  }
+};
+
 ConfigurationParser* InitDirConfig(const char* t_configfile, int exit_code)
 {
   ConfigurationParser* config = new ConfigurationParser(
@@ -3706,8 +3565,11 @@ ConfigurationParser* InitDirConfig(const char* t_configfile, int exit_code)
       ConfigReadyCallback, DumpResource, FreeResource);
 
   static JobDefMerger merger;
+  static DirectorFixuper dfixer;
 
   config->AddFixupCallback(&merger);
+  config->AddFixupCallback(&dfixer);
+
   if (config) { config->r_own_ = R_DIRECTOR; }
   return config;
 }
