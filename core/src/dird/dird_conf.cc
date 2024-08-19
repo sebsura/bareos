@@ -314,6 +314,13 @@ static ResourceItem cat_items[] = {
      "This directive is used by the experimental database pooling functionality. Only use this for non production sites. This sets the validation timeout after which the database connection is polled to see if its still alive." },
   {}
 };
+enum {
+  SRS_RUN_BEFORE,
+  SRS_RUN_AFTER,
+  SRS_RUN_AFTER_FAILED,
+  SRS_CLIENT_RUN_BEFORE,
+  SRS_CLIENT_RUN_AFTER,
+};
 
 ResourceItem job_items[] = {
   { "Name", CFG_TYPE_NAME, ITEM(JobResource, resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL,
@@ -374,11 +381,11 @@ ResourceItem job_items[] = {
   { "SpoolSize", CFG_TYPE_SIZE64, ITEM(JobResource, spool_size), 0, 0, NULL, NULL, NULL },
   { "RerunFailedLevels", CFG_TYPE_BOOL, ITEM(JobResource, rerun_failed_levels), 0, CFG_ITEM_DEFAULT, "false", NULL, NULL },
   { "PreferMountedVolumes", CFG_TYPE_BOOL, ITEM(JobResource, PreferMountedVolumes), 0, CFG_ITEM_DEFAULT, "true", NULL, NULL },
-  { "RunBeforeJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(JobResource, RunScripts), 0, 0, NULL, NULL, NULL },
-  { "RunAfterJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(JobResource, RunScripts), 0, 0, NULL, NULL, NULL },
-  { "RunAfterFailedJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(JobResource, RunScripts), 0, 0, NULL, NULL, NULL },
-  { "ClientRunBeforeJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(JobResource, RunScripts), 0, 0, NULL, NULL, NULL },
-  { "ClientRunAfterJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(JobResource, RunScripts), 0, 0, NULL, NULL, NULL },
+  { "RunBeforeJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(JobResource, RunScripts), SRS_RUN_BEFORE, 0, NULL, NULL, NULL },
+  { "RunAfterJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(JobResource, RunScripts), SRS_RUN_AFTER, 0, NULL, NULL, NULL },
+  { "RunAfterFailedJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(JobResource, RunScripts), SRS_RUN_AFTER_FAILED, 0, NULL, NULL, NULL },
+  { "ClientRunBeforeJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(JobResource, RunScripts), SRS_CLIENT_RUN_BEFORE, 0, NULL, NULL, NULL },
+  { "ClientRunAfterJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(JobResource, RunScripts), SRS_CLIENT_RUN_AFTER, 0, NULL, NULL, NULL },
   { "MaximumConcurrentJobs", CFG_TYPE_PINT32, ITEM(JobResource, MaxConcurrentJobs), 0, CFG_ITEM_DEFAULT, "1", NULL, NULL },
   { "RescheduleOnError", CFG_TYPE_BOOL, ITEM(JobResource, RescheduleOnError), 0, CFG_ITEM_DEFAULT, "false", NULL, NULL },
   { "RescheduleInterval", CFG_TYPE_TIME, ITEM(JobResource, RescheduleInterval), 0, CFG_ITEM_DEFAULT, "1800" /* 30 minutes */, NULL, NULL },
@@ -2951,30 +2958,38 @@ static void StoreShortRunscript(ConfigurationParser*,
   script->SetJobCodeCallback(job_code_callback_director);
 
   script->SetCommand(lc->str);
-  if (Bstrcasecmp(item->name, "runbeforejob")) {
-    script->when = SCRIPT_Before;
-    script->SetTarget("");
-  } else if (Bstrcasecmp(item->name, "runafterjob")) {
-    script->when = SCRIPT_After;
-    script->on_success = true;
-    script->on_failure = false;
-    script->fail_on_error = false;
-    script->SetTarget("");
-  } else if (Bstrcasecmp(item->name, "clientrunafterjob")) {
-    script->when = SCRIPT_After;
-    script->on_success = true;
-    script->on_failure = false;
-    script->fail_on_error = false;
-    script->SetTarget("%c");
-  } else if (Bstrcasecmp(item->name, "clientrunbeforejob")) {
-    script->when = SCRIPT_Before;
-    script->SetTarget("%c");
-  } else if (Bstrcasecmp(item->name, "runafterfailedjob")) {
-    script->when = SCRIPT_After;
-    script->on_failure = true;
-    script->on_success = false;
-    script->fail_on_error = false;
-    script->SetTarget("");
+  switch (item->code) {
+    case SRS_RUN_BEFORE: {
+      script->when = SCRIPT_Before;
+      script->SetTarget("");
+    } break;
+    case SRS_RUN_AFTER: {
+      script->when = SCRIPT_After;
+      script->on_success = true;
+      script->on_failure = false;
+      script->fail_on_error = false;
+      script->SetTarget("");
+    } break;
+    case SRS_RUN_AFTER_FAILED: {
+      script->when = SCRIPT_After;
+      script->on_success = true;
+      script->on_failure = false;
+      script->fail_on_error = false;
+      script->SetTarget("%c");
+    } break;
+    case SRS_CLIENT_RUN_BEFORE: {
+      script->when = SCRIPT_Before;
+      script->SetTarget("%c");
+    } break;
+    case SRS_CLIENT_RUN_AFTER: {
+      script->when = SCRIPT_After;
+      script->on_failure = true;
+      script->on_success = false;
+      script->fail_on_error = false;
+      script->SetTarget("");
+    } break;
+    default:
+      ASSERT(!"Unknown short runscript type");
   }
 
   // Remember that the entry was configured in the short runscript form.
@@ -2986,7 +3001,6 @@ static void StoreShortRunscript(ConfigurationParser*,
 
   (*runscripts)->append(script);
   script->Debug();
-  //}
 
   ScanToEol(lc);
 }
@@ -2999,7 +3013,7 @@ static void StoreRunscriptBool(ConfigurationParser*,
                                BareosResource* res,
                                LEX* lc,
                                ResourceItem* item,
-                               int)
+                               int index)
 {
   LexGetToken(lc, BCT_NAME);
   if (Bstrcasecmp(lc->str, "yes") || Bstrcasecmp(lc->str, "true")) {
@@ -3011,6 +3025,8 @@ static void StoreRunscriptBool(ConfigurationParser*,
               lc->str); /* YES and NO must not be translated */
   }
   ScanToEol(lc);
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
 }
 
 /**
