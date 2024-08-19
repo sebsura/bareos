@@ -200,7 +200,8 @@ bail_out:
   return 1;
 }
 
-void RunScript::SetCommand(const std::string& cmd, int acmd_type)
+void RunScript::SetCommand(const std::string& cmd,
+                           run_script_executor acmd_type)
 {
   Dmsg1(500, "runscript: setting command = %s\n", NSTDPRNT(cmd));
 
@@ -217,6 +218,17 @@ void RunScript::SetTarget(const std::string& client_name)
   target = client_name;
 }
 
+const char* executor_name(run_script_executor exc)
+{
+  switch (exc) {
+    case run_script_executor::Shell:
+      return "shell command";
+    case run_script_executor::Console:
+      return "console command";
+  }
+  ASSERT(!"Unknown executor type");
+}
+
 bool RunScript::Run(JobControlRecord* jcr, const char* name)
 {
   Dmsg1(100, "runscript: running a RunScript object type=%d\n", cmd_type);
@@ -228,11 +240,11 @@ bool RunScript::Run(JobControlRecord* jcr, const char* name)
   ecmd
       = edit_job_codes(jcr, ecmd, command.c_str(), "", this->job_code_callback);
   Dmsg1(100, "runscript: running '%s'...\n", ecmd);
-  Jmsg(jcr, M_INFO, 0, T_("%s: run %s \"%s\"\n"),
-       cmd_type == SHELL_CMD ? "shell command" : "console command", name, ecmd);
+  Jmsg(jcr, M_INFO, 0, T_("%s: run %s \"%s\"\n"), executor_name(cmd_type), name,
+       ecmd);
 
   switch (cmd_type) {
-    case SHELL_CMD:
+    case run_script_executor::Shell: {
       bpipe = OpenBpipe(ecmd, 0, "r");
 
       if (bpipe == NULL) {
@@ -258,14 +270,14 @@ bool RunScript::Run(JobControlRecord* jcr, const char* name)
       }
 
       Dmsg0(100, "runscript OK\n");
-      break;
-    case CONSOLE_CMD:
+    } break;
+    case run_script_executor::Console: {
       if (console_command) {               /* can we run console command? */
         if (!console_command(jcr, ecmd)) { /* yes, do so */
           goto bail_out;
         }
       }
-      break;
+    } break;
   }
   FreePoolMemory(ecmd);
   return true;
@@ -289,10 +301,13 @@ void RunScript::Debug() const
 {
   Dmsg0(200, "runscript: debug\n");
   Dmsg0(200, T_(" --> RunScript\n"));
-  if (cmd_type == SHELL_CMD) {
-    Dmsg1(200, T_("  --> Command=%s\n"), NSTDPRNT(command));
-  } else {
-    Dmsg1(200, T_("  --> Console=%s\n"), NSTDPRNT(command));
+  switch (cmd_type) {
+    case run_script_executor::Shell: {
+      Dmsg1(200, T_("  --> Command=%s\n"), NSTDPRNT(command));
+    } break;
+    case run_script_executor::Console: {
+      Dmsg1(200, T_("  --> Console=%s\n"), NSTDPRNT(command));
+    } break;
   }
   Dmsg1(200, T_("  --> Target=%s\n"), NSTDPRNT(target));
   Dmsg1(200, T_("  --> RunOnSuccess=%u\n"), on_success);

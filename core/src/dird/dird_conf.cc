@@ -522,6 +522,11 @@ static ResourceTable dird_resource_tables[] = {
  * name handler value code flags default_value
  */
 
+enum {
+  SHELL_CMD,
+  CONSOLE_CMD,
+};
+
 struct ParsedRunscript : public BareosResource {
   struct command {
     int type;
@@ -1330,7 +1335,7 @@ static void PrintConfigRunscript(OutputFormatterResource& send,
 
       bool command_runscript = true;
       char* cmdstring = (char*)"Command"; /* '|' */
-      if (runscript->cmd_type == CONSOLE_CMD) {
+      if (runscript->cmd_type == run_script_executor::Console) {
         cmdstring = (char*)"Console";
         command_runscript = false;
       }
@@ -1397,7 +1402,6 @@ static void PrintConfigRunscript(OutputFormatterResource& send,
 
   send.ArrayEnd(item.name, inherited, "");
 }
-
 
 static std::string PrintConfigRun(RunResource* run)
 {
@@ -3077,7 +3081,9 @@ static void StoreRunscript(ConfigurationParser* p,
     RunScript* script = new RunScript();
 
     script->SetJobCodeCallback(job_code_callback_director);
-    script->SetCommand(command.text, command.type);
+    script->SetCommand(command.text, command.type == SHELL_CMD
+                                         ? run_script_executor::Shell
+                                         : run_script_executor::Console);
     if (!pr.target.empty() && command.type == SHELL_CMD) {
       script->SetTarget(pr.target);
     }

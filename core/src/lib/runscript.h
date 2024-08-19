@@ -56,10 +56,10 @@ enum
   SCRIPT_INVALID = 0xff
 };
 
-enum
+enum class run_script_executor : int
 {
-  SHELL_CMD = '|',
-  CONSOLE_CMD = '@'
+  Shell = '|',
+  Console = '@'
 };
 
 class RunScript : public BareosResource {
@@ -68,23 +68,25 @@ class RunScript : public BareosResource {
   virtual ~RunScript() = default;
   RunScript(const RunScript& other) = default;
 
-  std::string command;       /* Command string */
-  std::string target;        /* Host target. Values:
-                                Empty string: run locally.
-                                "%c": (Client’s name). Run on client. */
-  int when = SCRIPT_Never;   /* SCRIPT_Before|Script_After BEFORE/AFTER JOB*/
-  int cmd_type = 0;          /* Command type -- Shell, Console */
-  char level = 0;            /* Base|Full|Incr...|All (NYI) */
-  bool short_form = false;   /* Run Script in short form */
-  bool from_jobdef = false;  /* This RUN script comes from JobDef */
-  bool on_success = true;    /* Execute command on job success (After) */
-  bool on_failure = false;   /* Execute command on job failure (After) */
-  bool fail_on_error = true; /* Abort job on error (Before) */
+  std::string command;     /* Command string */
+  std::string target;      /* Host target. Values:
+                              Empty string: run locally.
+                              "%c": (Client’s name). Run on client. */
+  int when = SCRIPT_Never; /* SCRIPT_Before|Script_After BEFORE/AFTER JOB*/
+  run_script_executor cmd_type
+      = run_script_executor::Shell; /* Command type -- Shell, Console */
+  char level = 0;                   /* Base|Full|Incr...|All (NYI) */
+  bool short_form = false;          /* Run Script in short form */
+  bool from_jobdef = false;         /* This RUN script comes from JobDef */
+  bool on_success = true;           /* Execute command on job success (After) */
+  bool on_failure = false;          /* Execute command on job failure (After) */
+  bool fail_on_error = true;        /* Abort job on error (Before) */
   job_code_callback_t job_code_callback = nullptr;
   bool Run(JobControlRecord* job,
            const char* name
            = ""); /* name must contain "Before" or "After" keyword */
-  void SetCommand(const std::string& cmd, int cmd_type = SHELL_CMD);
+  void SetCommand(const std::string& cmd,
+                  run_script_executor cmd_type = run_script_executor::Shell);
   void SetTarget(const std::string& client_name);
   bool IsLocal() const { return target.empty(); } /* true if no target host */
   void Debug() const;
