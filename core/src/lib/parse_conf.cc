@@ -928,6 +928,10 @@ bool ConfigurationParser::FixupPass()
     }
   }
 
+  for (auto* cb : fixup_cbs) {
+    if (!(*cb)(this)) { return false; }
+  }
+
   Dmsg1(900, "Leave Fixup Pass\n");
   return true;
 }
@@ -1025,4 +1029,9 @@ void ConfigurationParser::InsertResource(int resource_type, BareosResource* res)
   while (resources->next_) { resources = resources->next_; }
 
   resources->next_ = res;
+}
+
+void ConfigurationParser::AddFixupCallback(config_fixuper* cb)
+{
+  fixup_cbs.push_back(cb);
 }

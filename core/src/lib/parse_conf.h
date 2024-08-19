@@ -220,6 +220,9 @@ typedef void(PRINT_RES_HANDLER)(BareosResource* res,
                                 bool inherited,
                                 bool verbose);
 
+struct config_fixuper {
+  virtual bool operator()(ConfigurationParser* p) = 0;
+};
 
 class QualifiedResourceNameTypeConverter;
 
@@ -313,6 +316,9 @@ class ConfigurationParser {
   void DumpResources(bool sendit(void* sock, const char* fmt, ...),
                      void* sock,
                      bool hide_sensitive_data = false);
+
+  void AddFixupCallback(config_fixuper* cb);
+
   int GetResourceCode(const char* resource_type);
   const char* ResToStr(int rcode) const;
   const char* ResGroupToStr(int rcode) const;
@@ -434,6 +440,8 @@ class ConfigurationParser {
       vector_dependencies;
   std::unordered_map<dependency_target, std::vector<std::string>>
       alist_dependencies;
+
+  std::vector<config_fixuper*> fixup_cbs;
 
   std::string config_default_filename_; /* default config filename, that is
                                            used, if no filename is given */
