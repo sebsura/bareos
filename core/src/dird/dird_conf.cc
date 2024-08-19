@@ -2543,8 +2543,12 @@ static void StoreDevice(ConfigurationParser* p,
     item->SetPresent(res);
     ClearBit(index, res->inherit_content_);
 
-    auto* devices = GetItemVariablePointer<alist<DeviceResource*>*>(res, *item);
-    devices->append(device_resource);
+    auto* devices
+        = GetItemVariablePointer<alist<DeviceResource*>**>(res, *item);
+    if (!*devices) {
+      *devices = new alist<DeviceResource*>(10, not_owned_by_alist);
+    }
+    (*devices)->append(device_resource);
   }
   ScanToEol(lc);
 }
