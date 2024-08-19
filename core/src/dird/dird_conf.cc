@@ -521,17 +521,33 @@ static ResourceTable dird_resource_tables[] = {
  * new RunScript items
  * name handler value code flags default_value
  */
+
+struct ParsedRunscript : public BareosResource {
+  struct command {
+    int type;
+    std::string text;
+  };
+  std::vector<command> commands;
+  std::string target;
+
+  bool on_success = true;    /* Execute command on job success (After) */
+  bool on_failure = false;   /* Execute command on job failure (After) */
+  bool fail_on_error = true; /* Abort job on error (Before) */
+
+  int when = SCRIPT_Never;
+};
+
 static ResourceItem runscript_items[] = {
- { "Command", CFG_TYPE_RUNSCRIPT_CMD, ITEMC(RunScript), SHELL_CMD, 0, NULL, NULL, NULL },
- { "Console", CFG_TYPE_RUNSCRIPT_CMD, ITEMC(RunScript), CONSOLE_CMD, 0, NULL, NULL, NULL },
- { "Target", CFG_TYPE_RUNSCRIPT_TARGET, ITEMC(RunScript), 0, 0, NULL, NULL, NULL },
- { "RunsOnSuccess", CFG_TYPE_RUNSCRIPT_BOOL, ITEM(RunScript,on_success), 0, 0, NULL, NULL, NULL },
- { "RunsOnFailure", CFG_TYPE_RUNSCRIPT_BOOL, ITEM(RunScript,on_failure), 0, 0, NULL, NULL, NULL },
- { "FailJobOnError", CFG_TYPE_RUNSCRIPT_BOOL, ITEM(RunScript,fail_on_error), 0, 0, NULL, NULL, NULL },
- { "AbortJobOnError", CFG_TYPE_RUNSCRIPT_BOOL, ITEM(RunScript,fail_on_error), 0, 0, NULL, NULL, NULL },
- { "RunsWhen", CFG_TYPE_RUNSCRIPT_WHEN, ITEM(RunScript,when), 0, 0, NULL, NULL, NULL },
- { "RunsOnClient", CFG_TYPE_RUNSCRIPT_TARGET, ITEMC(RunScript), 0, 0, NULL, NULL, NULL },
- {}
+  { "Command", CFG_TYPE_RUNSCRIPT_CMD, ITEM(ParsedRunscript, commands), SHELL_CMD, 0, NULL, NULL, NULL },
+  { "Console", CFG_TYPE_RUNSCRIPT_CMD, ITEM(ParsedRunscript, commands), CONSOLE_CMD, 0, NULL, NULL, NULL },
+  { "Target", CFG_TYPE_RUNSCRIPT_TARGET, ITEM(ParsedRunscript, target), 0, 0, NULL, NULL, NULL },
+  { "RunsOnSuccess", CFG_TYPE_RUNSCRIPT_BOOL, ITEM(ParsedRunscript,on_success), 0, 0, NULL, NULL, NULL },
+  { "RunsOnFailure", CFG_TYPE_RUNSCRIPT_BOOL, ITEM(ParsedRunscript,on_failure), 0, 0, NULL, NULL, NULL },
+  { "FailJobOnError", CFG_TYPE_RUNSCRIPT_BOOL, ITEM(ParsedRunscript,fail_on_error), 0, 0, NULL, NULL, NULL },
+  { "AbortJobOnError", CFG_TYPE_RUNSCRIPT_BOOL, ITEM(ParsedRunscript,fail_on_error), 0, 0, NULL, NULL, NULL },
+  { "RunsWhen", CFG_TYPE_RUNSCRIPT_WHEN, ITEM(ParsedRunscript,when), 0, 0, NULL, NULL, NULL },
+  { "RunsOnClient", CFG_TYPE_RUNSCRIPT_TARGET, ITEM(ParsedRunscript, target), 0, 0, NULL, NULL, NULL },
+  {}
 };
 
 /* clang-format on */
@@ -2856,36 +2872,38 @@ static void StoreRunscriptTarget(ConfigurationParser*,
                                  BareosResource* res,
                                  LEX* lc,
                                  ResourceItem* item,
-                                 int)
+                                 int index)
 {
   LexGetToken(lc, BCT_STRING);
 
-  // idea: use a proto runscript that contains normal string target
-  //       and a command vector
-  //       Then create a real alist<runscript> out of that and add the
-  //       required dependencies
-  /* MARKER  */
+  auto* target = GetItemVariablePointer<std::string*>(res, *item);
 
-  // if (pass == 2)
-  RunScript* r = GetItemVariablePointer<RunScript*>(res, *item);
-  if (bstrcmp(lc->str, "%c")) {
-    r->SetTarget(lc->str);
-  } else if (Bstrcasecmp(lc->str, "yes")) {
-    r->SetTarget("%c");
-  } else if (Bstrcasecmp(lc->str, "no")) {
-    r->SetTarget("");
-  } else {
-    if (auto* referenced_res = my_config->GetResWithName(R_CLIENT, lc->str);
-        !referenced_res) {
-      scan_err3(lc,
-                T_("Could not find config Resource %s referenced on line %d "
-                   ": %s\n"),
-                lc->str, lc->line_no, lc->line);
-      return;
-    }
-
-    r->SetTarget(lc->str);
+  if (item->IsPresent(res)) {
+    scan_err1(lc, "Cannot override already set %s", item->name);
   }
+
+  if (bstrcmp(lc->str, "%c")) {
+    target->assign(lc->str);
+  } else if (Bstrcasecmp(lc->str, "yes")) {
+    target->assign("%c");
+  } else if (Bstrcasecmp(lc->str, "no")) {
+    target->assign("");
+  } else {
+    /* MARKER */
+    // Add to validate pass:
+    // if (auto* referenced_res = my_config->GetResWithName(R_CLIENT, lc->str);
+    //     !referenced_res) {
+    //   scan_err3(lc,
+    //             T_("Could not find config Resource %s referenced on line %d "
+    //                ": %s\n"),
+    //             lc->str, lc->line_no, lc->line);
+    //   return;
+    // }
+
+    target->assign(lc->str);
+  }
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
   ScanToEol(lc);
 }
 
@@ -2893,16 +2911,21 @@ static void StoreRunscriptCmd(ConfigurationParser*,
                               BareosResource* res,
                               LEX* lc,
                               ResourceItem* item,
-                              int)
+                              int index)
 {
   LexGetToken(lc, BCT_STRING);
 
-  /* MARKER */
-  // if (pass == 2) {
-  Dmsg2(100, "runscript cmd=%s type=%c\n", lc->str, item->code);
-  RunScript* r = GetItemVariablePointer<RunScript*>(res, *item);
-  r->temp_parser_command_container.emplace_back(lc->str, item->code);
-  //}
+
+  auto* commands
+      = GetItemVariablePointer<std::vector<ParsedRunscript::command>*>(res,
+                                                                       *item);
+
+  Dmsg3(100, "runscript cmd=%s type=%s (%d)\n", lc->str,
+        (item->code == SHELL_CMD) ? "SHELL" : "CONSOLE", item->code);
+  commands->push_back({item->code, lc->str});
+
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
   ScanToEol(lc);
 }
 
@@ -2993,6 +3016,32 @@ static void StoreRunscriptBool(ConfigurationParser*,
  * resource.  We treat the RunScript like a sort of
  * mini-resource within the Job resource.
  */
+
+static void ParseRunscriptCb(ConfigurationParser* p,
+                             BareosResource* res,
+                             LEX* lc,
+                             ResourceItem* item,
+                             int index)
+{
+  switch (item->type) {
+    case CFG_TYPE_RUNSCRIPT_CMD:
+      StoreRunscriptCmd(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_RUNSCRIPT_TARGET:
+      StoreRunscriptTarget(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_RUNSCRIPT_BOOL:
+      StoreRunscriptBool(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_RUNSCRIPT_WHEN:
+      StoreRunscriptWhen(p, res, lc, item, index);
+      break;
+    default:
+      scan_err1(lc, "Unknown item: %s", item->name);
+      break;
+  }
+}
+
 static void StoreRunscript(ConfigurationParser* p,
                            BareosResource* res,
                            LEX* lc,
@@ -3001,100 +3050,46 @@ static void StoreRunscript(ConfigurationParser* p,
 {
   Dmsg1(200, "StoreRunscript: begin StoreRunscript\n");
 
-  int token = LexGetToken(lc, BCT_SKIP_EOL);
+  ParsedRunscript pr;
 
-  if (token != BCT_BOB) {
-    scan_err1(lc, T_("Expecting open brace. Got %s"), lc->str);
+  auto result = p->ParseResource(&pr, runscript_items, lc, ParseRunscriptCb);
+  if (!result) {
+    scan_err1(lc, T_("Could not parse Runscript block: %s\n"),
+              result.strerror());
     return;
   }
 
-  auto* res_runscript = new RunScript();
-
-  /* Run on client by default.
-   * Set this here, instead of in the class constructor,
-   * as the class is also used by other daemon,
-   * where the default differs. */
-  if (res_runscript->target.empty()) { res_runscript->SetTarget("%c"); }
-
-  while ((token = LexGetToken(lc, BCT_SKIP_EOL)) != BCT_EOF) {
-    if (token == BCT_EOB) { break; }
-
-    if (token != BCT_IDENTIFIER) {
-      scan_err1(lc, T_("Expecting keyword, got: %s\n"), lc->str);
-      goto bail_out;
-    }
-
-    bool keyword_ok = false;
-    for (int i = 0; runscript_items[i].name; i++) {
-      if (Bstrcasecmp(runscript_items[i].name, lc->str)) {
-        token = LexGetToken(lc, BCT_SKIP_EOL);
-        if (token != BCT_EQUALS) {
-          scan_err1(lc, T_("Expected an equals, got: %s"), lc->str);
-          goto bail_out;
-        }
-        switch (runscript_items[i].type) {
-          case CFG_TYPE_RUNSCRIPT_CMD:
-            StoreRunscriptCmd(p, res, lc, &runscript_items[i], i);
-            break;
-          case CFG_TYPE_RUNSCRIPT_TARGET:
-            StoreRunscriptTarget(p, res, lc, &runscript_items[i], i);
-            break;
-          case CFG_TYPE_RUNSCRIPT_BOOL:
-            StoreRunscriptBool(p, res, lc, &runscript_items[i], i);
-            break;
-          case CFG_TYPE_RUNSCRIPT_WHEN:
-            StoreRunscriptWhen(p, res, lc, &runscript_items[i], i);
-            break;
-          default:
-            break;
-        }
-        keyword_ok = true;
-        break;
-      }
-    }
-
-    if (!keyword_ok) {
-      scan_err1(lc, T_("Keyword %s not permitted in this resource"), lc->str);
-      goto bail_out;
-    }
+  if (pr.commands.size() == 0) {
+    scan_err0(lc,
+              T_("Could not parse Runscript block: No commands specified\n"));
+    return;
   }
 
-  /* MARKER */
-  // if (pass == 2) {
-  if (0) {
-    alist<RunScript*>** runscripts
-        = GetItemVariablePointer<alist<RunScript*>**>(res, *item);
-    if (!*runscripts) {
-      *runscripts = new alist<RunScript*>(10, not_owned_by_alist);
-    }
-
-    res_runscript->SetJobCodeCallback(job_code_callback_director);
-
-    for (TempParserCommand cmd : res_runscript->temp_parser_command_container) {
-      RunScript* script = new RunScript(*res_runscript);
-      script->command = cmd.command_;
-      script->cmd_type = cmd.code_;
-
-      // each shell runscript object have a copy of target.
-      // console runscripts are always executed on the Director.
-      script->target.clear();
-      if (!res_runscript->target.empty() && (script->cmd_type == SHELL_CMD)) {
-        script->SetTarget(res_runscript->target);
-      }
-
-      script->short_form = false;
-
-      (*runscripts)->append(script);
-      script->Debug();
-    }
+  alist<RunScript*>** runscripts_loc
+      = GetItemVariablePointer<alist<RunScript*>**>(res, *item);
+  if (!*runscripts_loc) {
+    *runscripts_loc = new alist<RunScript*>(10, not_owned_by_alist);
   }
-  //}
 
-bail_out:
-  /* for pass == 1 only delete the memory
-     because it is only used while parsing */
-  delete res_runscript;
-  res_runscript = nullptr;
+  auto* runscripts = *runscripts_loc;
+
+  for (auto& command : pr.commands) {
+    RunScript* script = new RunScript();
+
+    script->SetJobCodeCallback(job_code_callback_director);
+    script->SetCommand(command.text, command.type);
+    if (!pr.target.empty() && command.type == SHELL_CMD) {
+      script->SetTarget(pr.target);
+    }
+
+    script->on_success = pr.on_success;
+    script->on_failure = pr.on_failure;
+    script->fail_on_error = pr.fail_on_error;
+    script->short_form = false;
+
+    script->Debug();
+    runscripts->append(script);
+  }
 
   ScanToEol(lc);
   item->SetPresent(res);
