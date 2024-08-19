@@ -422,8 +422,8 @@ static ResourceItem fs_items[] = {
   { "Name", CFG_TYPE_NAME, ITEM(FilesetResource, resource_name_), 0, CFG_ITEM_REQUIRED, NULL, NULL,
      "The name of the resource." },
   { "Description", CFG_TYPE_STR, ITEM(FilesetResource, description_), 0, 0, NULL, NULL, NULL },
-  { "Include", CFG_TYPE_INCEXC, ITEMC(FilesetResource), 0, CFG_ITEM_NO_EQUALS, NULL, NULL, NULL },
-  { "Exclude", CFG_TYPE_INCEXC, ITEMC(FilesetResource), 1, CFG_ITEM_NO_EQUALS, NULL, NULL, NULL },
+  { "Include", CFG_TYPE_INCEXC, ITEM(FilesetResource, include_items), 0, CFG_ITEM_NO_EQUALS, NULL, NULL, NULL },
+  { "Exclude", CFG_TYPE_INCEXC, ITEM(FilesetResource, exclude_items), 1, CFG_ITEM_NO_EQUALS, NULL, NULL, NULL },
   { "IgnoreFileSetChanges", CFG_TYPE_BOOL, ITEM(FilesetResource, ignore_fs_changes), 0, CFG_ITEM_DEFAULT, "false", NULL, NULL },
   { "EnableVSS", CFG_TYPE_BOOL, ITEM(FilesetResource, enable_vss), 0, CFG_ITEM_DEFAULT, "true", NULL, NULL },
   {}

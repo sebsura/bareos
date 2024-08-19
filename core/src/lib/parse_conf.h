@@ -131,6 +131,7 @@ enum
   CFG_TYPE_STR_VECTOR = 32,         /* std::vector<std::string> of any string */
   CFG_TYPE_STR_VECTOR_OF_DIRS = 33, /* std::vector<std::string> of directories */
   CFG_TYPE_DIR_OR_CMD = 34,         /* Directory or command (starting with "|") */
+  CFG_TYPE_ALIST_NAME = 35,         /* Names, stored in alist */
   /* clang-format on */
 
   // Director resource types. handlers in dird_conf.
@@ -158,16 +159,16 @@ enum
   // Director fileset options. handlers in dird_conf.
   CFG_TYPE_FNAME = 80,      /* Filename */
   CFG_TYPE_PLUGINNAME = 81, /* Pluginname */
-  CFG_TYPE_EXCLUDEDIR = 82, /* Exclude directory */
-  CFG_TYPE_OPTIONS = 83,    /* Options block */
-  CFG_TYPE_OPTION = 84,     /* Option of Options block */
-  CFG_TYPE_REGEX = 85,      /* Regular Expression */
-  CFG_TYPE_BASE = 86,       /* Basejob Expression */
-  CFG_TYPE_WILD = 87,       /* Wildcard Expression */
-  CFG_TYPE_PLUGIN = 88,     /* Plugin definition */
-  CFG_TYPE_FSTYPE = 89,     /* FileSytem match criterium (UNIX)*/
-  CFG_TYPE_DRIVETYPE = 90,  /* DriveType match criterium (Windows) */
-  CFG_TYPE_META = 91,       /* Meta tag */
+  // CFG_TYPE_EXCLUDEDIR = 82, /* Exclude directory (unused) */
+  CFG_TYPE_OPTIONS = 83, /* Options block */
+  CFG_TYPE_OPTION = 84,  /* Option of Options block */
+  CFG_TYPE_REGEX = 85,   /* Regular Expression */
+  // CFG_TYPE_BASE = 86,       /* Basejob Expression (unused) */
+  CFG_TYPE_WILD = 87, /* Wildcard Expression */
+  // CFG_TYPE_PLUGIN = 88,     /* Plugin definition (unused) */
+  CFG_TYPE_FSTYPE = 89,    /* FileSytem match criterium (UNIX)*/
+  CFG_TYPE_DRIVETYPE = 90, /* DriveType match criterium (Windows) */
+  CFG_TYPE_META = 91,      /* Meta tag */
 
   // Storage daemon resource types
   // CFG_TYPE_DEVTYPE = 201,      /* Device Type */
@@ -395,7 +396,8 @@ class ConfigurationParser {
 
   parse_result ParseResource(BareosResource* res,
                              ResourceItem* items,
-                             LEX* lex);
+                             LEX* lex,
+                             STORE_RES_HANDLER* store);
 
  private:
   ConfigurationParser(const ConfigurationParser&) = delete;

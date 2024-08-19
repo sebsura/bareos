@@ -710,6 +710,44 @@ static void StoreAlistStr(ConfigurationParser*,
   ClearBit(index, res->inherit_content_);
 }
 
+// Store a name in an alist.
+static void StoreAlistName(ConfigurationParser*,
+                           BareosResource* res,
+                           LEX* lc,
+                           ResourceItem* item,
+                           int index)
+{
+  alist<const char*>** alistvalue
+      = GetItemVariablePointer<alist<const char*>**>(res, *item);
+  if (!*alistvalue) {
+    *alistvalue = new alist<const char*>(10, owned_by_alist);
+  }
+  alist<const char*>* list = *alistvalue;
+
+  LexGetToken(lc, BCT_NAME); /* scan next item */
+
+  Dmsg4(900, "Append %s to alist %p size=%d %s\n", lc->str, list, list->size(),
+        item->name);
+
+  /* See if we need to drop the default value from the alist.
+   *
+   * We first check to see if the config item has the CFG_ITEM_DEFAULT
+   * flag set and currently has exactly one entry. */
+  if (!item->IsPresent(res)) {
+    if ((item->flags & CFG_ITEM_DEFAULT) && list->size() == 1) {
+      char* entry = (char*)list->first();
+      if (bstrcmp(entry, item->default_value)) {
+        list->destroy();
+        list->init(10, owned_by_alist);
+      }
+    }
+  }
+  list->append(strdup(lc->str));
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
+  ScanToEol(lc);
+}
+
 /*
  * Store a directory name at specified address in an alist.
  * Note, we do shell expansion except if the string begins
@@ -1342,6 +1380,9 @@ bool ConfigurationParser::StoreResource(BareosResource* res,
       break;
     case CFG_TYPE_ALIST_STR:
       StoreAlistStr(this, res, lc, item, index);
+      break;
+    case CFG_TYPE_ALIST_NAME:
+      StoreAlistName(this, res, lc, item, index);
       break;
     case CFG_TYPE_STR_VECTOR:
     case CFG_TYPE_STR_VECTOR_OF_DIRS:
@@ -2138,13 +2179,10 @@ static DatatypeName datatype_names[] = {
     // Director fileset options. handlers in dird_conf.
     {CFG_TYPE_FNAME, "FILENAME", "Filename"},
     {CFG_TYPE_PLUGINNAME, "PLUGIN_NAME", "Pluginname"},
-    {CFG_TYPE_EXCLUDEDIR, "EXCLUDE_DIRECTORY", "Exclude directory"},
     {CFG_TYPE_OPTIONS, "OPTIONS", "Options block"},
     {CFG_TYPE_OPTION, "OPTION", "Option of Options block"},
     {CFG_TYPE_REGEX, "REGEX", "Regular Expression"},
-    {CFG_TYPE_BASE, "BASEJOB", "Basejob Expression"},
     {CFG_TYPE_WILD, "WILDCARD", "Wildcard Expression"},
-    {CFG_TYPE_PLUGIN, "PLUGIN", "Plugin definition"},
     {CFG_TYPE_FSTYPE, "FILESYSTEM_TYPE", "FileSystem match criterium (UNIX)"},
     {CFG_TYPE_DRIVETYPE, "DRIVE_TYPE", "DriveType match criterium (Windows)"},
     {CFG_TYPE_META, "META_TAG", "Meta tag"},

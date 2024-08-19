@@ -509,11 +509,16 @@ class JobResource : public BareosResource {
 #define MAX_FOPTS 40
 
 // File options structure
-struct FileOptions {
+/* MARKER */
+// think about how to not have this reliance on BareosResource for parsing
+struct FileOptions : public BareosResource {
+  using options = char[MAX_FOPTS];
+
+
   FileOptions() = default;
   virtual ~FileOptions() = default;
 
-  char opts[MAX_FOPTS] = {0};   /**< Options string */
+  options opts = {0};           /**< Options string */
   alist<const char*> regex;     /**< Regex string(s) */
   alist<const char*> regexdir;  /**< Regex string(s) for directories */
   alist<const char*> regexfile; /**< Regex string(s) for files */
@@ -531,7 +536,8 @@ struct FileOptions {
 };
 
 // This is either an include item or an exclude item
-class IncludeExcludeItem {
+/* MARKER : think about how to not rely on BareosResource here */
+class IncludeExcludeItem : public BareosResource {
  public:
   IncludeExcludeItem() = default;
   virtual ~IncludeExcludeItem() = default;

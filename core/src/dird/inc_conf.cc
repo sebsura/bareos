@@ -100,37 +100,6 @@ enum
  * the INC_KW code could be put into the "code" field of the
  * options given above.
  */
-static struct s_kw FS_option_kw[]
-    = {{"compression", INC_KW_COMPRESSION},
-       {"signature", INC_KW_DIGEST},
-       {"encryption", INC_KW_ENCRYPTION},
-       {"verify", INC_KW_VERIFY},
-       {"basejob", INC_KW_BASEJOB},
-       {"accurate", INC_KW_ACCURATE},
-       {"onefs", INC_KW_ONEFS},
-       {"recurse", INC_KW_RECURSE},
-       {"sparse", INC_KW_SPARSE},
-       {"hardlinks", INC_KW_HARDLINK},
-       {"replace", INC_KW_REPLACE},
-       {"readfifo", INC_KW_READFIFO},
-       {"portable", INC_KW_PORTABLE},
-       {"mtimeonly", INC_KW_MTIMEONLY},
-       {"keepatime", INC_KW_KEEPATIME},
-       {"exclude", INC_KW_EXCLUDE},
-       {"aclsupport", INC_KW_ACL},
-       {"ignorecase", INC_KW_IGNORECASE},
-       {"hfsplussupport", INC_KW_HFSPLUS},
-       {"noatime", INC_KW_NOATIME},
-       {"enhancedwild", INC_KW_ENHANCEDWILD},
-       {"checkfilechanges", INC_KW_CHKCHANGES},
-       {"strippath", INC_KW_STRIPPATH},
-       {"honornodumpflag", INC_KW_HONOR_NODUMP},
-       {"xattrsupport", INC_KW_XATTR},
-       {"size", INC_KW_SIZE},
-       {"shadowing", INC_KW_SHADOWING},
-       {"autoexclude", INC_KW_AUTO_EXCLUDE},
-       {"forceencryption", INC_KW_FORCE_ENCRYPTION},
-       {NULL, 0}};
 
 // Options for FileSet keywords
 struct s_fs_opt {
@@ -226,63 +195,71 @@ static struct s_fs_opt FS_options[]
 // Imported subroutines
 extern void StoreInc(LEX* lc, ResourceItem* item, int index, int pass);
 
-/* We build the current new Include and Exclude items here */
-static IncludeExcludeItem* res_incexe;
-
 /* clang-format off */
 
 /* new Include/Exclude items
  * name handler value code flags default_value */
 ResourceItem newinc_items[] = {
-  { "File", CFG_TYPE_FNAME, 0, 0, 0, NULL, NULL, NULL },
-  { "Plugin", CFG_TYPE_PLUGINNAME, 0, 0, 0, NULL, NULL, NULL },
-  { "ExcludeDirContaining", CFG_TYPE_EXCLUDEDIR,  0, 0, 0, NULL, NULL, NULL },
-  { "Options", CFG_TYPE_OPTIONS, 0, 0, 0, NULL, NULL, NULL },
+  { "File", CFG_TYPE_FNAME, ITEM(IncludeExcludeItem, name_list), 0, 0, NULL, NULL, NULL },
+  { "Plugin", CFG_TYPE_PLUGINNAME, ITEM(IncludeExcludeItem, plugin_list), 0, 0, NULL, NULL, NULL },
+  { "ExcludeDirContaining", CFG_TYPE_ALIST_NAME, ITEM(IncludeExcludeItem, ignoredir), 0, 0, NULL, NULL, NULL },
+  { "Options", CFG_TYPE_OPTIONS, ITEM(IncludeExcludeItem, file_options_list), 0, CFG_ITEM_NO_EQUALS, NULL, NULL, NULL },
+  {}
+};
+
+ResourceItem newexc_items[] = {
+  { "File", CFG_TYPE_FNAME, ITEM(IncludeExcludeItem, name_list), 0, 0, NULL, NULL, NULL },
   {}
 };
 
 /* Items that are valid in an Options resource
  * name handler value code flags default_value */
+
 ResourceItem options_items[] = {
-  { "Compression", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Signature", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "BaseJob", CFG_TYPE_OPTION, 0, 0, CFG_ITEM_DEPRECATED, NULL, NULL, NULL },
-  { "Accurate", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Verify", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "OneFs", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Recurse", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Sparse", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "HardLinks", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "ReadFifo", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Replace", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Portable", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "MtimeOnly", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "KeepAtime", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Regex", CFG_TYPE_REGEX, 0, 0, 0, NULL, NULL, NULL },
-  { "RegexDir", CFG_TYPE_REGEX, 0, 1, 0, NULL, NULL, NULL },
-  { "RegexFile", CFG_TYPE_REGEX, 0, 2, 0, NULL, NULL, NULL },
-  { "Base", CFG_TYPE_BASE, 0, 0, CFG_ITEM_DEPRECATED, NULL, NULL, NULL },
-  { "Wild", CFG_TYPE_WILD, 0, 0, 0, NULL, NULL, NULL },
-  { "WildDir", CFG_TYPE_WILD, 0, 1, 0, NULL, NULL, NULL },
-  { "WildFile", CFG_TYPE_WILD, 0, 2, 0, NULL, NULL, NULL },
-  { "Exclude", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "AclSupport", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Plugin", CFG_TYPE_PLUGIN, 0, 0, 0, NULL, NULL, NULL },
-  { "IgnoreCase", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "FsType", CFG_TYPE_FSTYPE, 0, 0, 0, NULL, NULL, NULL },
-  { "HfsPlusSupport", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "NoAtime", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "EnhancedWild", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "DriveType", CFG_TYPE_DRIVETYPE, 0, 0, 0, NULL, NULL, NULL },
-  { "CheckFileChanges", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "StripPath", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "HonornoDumpFlag", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "XAttrSupport", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Size", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Shadowing", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "AutoExclude", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "ForceEncryption", CFG_TYPE_OPTION, 0, 0, 0, NULL, NULL, NULL },
-  { "Meta", CFG_TYPE_META, 0, 0, 0, 0, NULL, NULL },
+  { "Accurate", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_ACCURATE, 0, NULL, NULL, NULL },
+  { "AclSupport", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_ACL, 0, NULL, NULL, NULL },
+  { "AutoExclude", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_AUTO_EXCLUDE, 0, NULL, NULL, NULL },
+  { "BaseJob", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_BASEJOB, CFG_ITEM_DEPRECATED, NULL, NULL, NULL },
+  { "CheckFileChanges", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_CHKCHANGES, 0, NULL, NULL, NULL },
+  { "Compression", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_COMPRESSION, 0, NULL, NULL, NULL },
+  /* MARKER */ // missing encryption ?
+  { "Encryption", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_ENCRYPTION, 0, NULL, NULL, NULL },
+  { "EnhancedWild", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_ENHANCEDWILD, 0, NULL, NULL, NULL },
+  { "Exclude", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_EXCLUDE, 0, NULL, NULL, NULL },
+  { "ForceEncryption", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_FORCE_ENCRYPTION, 0, NULL, NULL, NULL },
+  { "HardLinks", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_HARDLINK, 0, NULL, NULL, NULL },
+  { "HfsPlusSupport", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_HFSPLUS, 0, NULL, NULL, NULL },
+  { "HonornoDumpFlag", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_HONOR_NODUMP, 0, NULL, NULL, NULL },
+  { "IgnoreCase", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_IGNORECASE, 0, NULL, NULL, NULL },
+  { "KeepAtime", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_KEEPATIME, 0, NULL, NULL, NULL },
+  { "MtimeOnly", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_MTIMEONLY, 0, NULL, NULL, NULL },
+  { "NoAtime", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_NOATIME, 0, NULL, NULL, NULL },
+  { "OneFs", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_ONEFS, 0, NULL, NULL, NULL },
+  { "Portable", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_PORTABLE, 0, NULL, NULL, NULL },
+  { "ReadFifo", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_READFIFO, 0, NULL, NULL, NULL },
+  { "Recurse", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_RECURSE, 0, NULL, NULL, NULL },
+  { "Replace", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_REPLACE, 0, NULL, NULL, NULL },
+  { "Shadowing", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_SHADOWING, 0, NULL, NULL, NULL },
+  { "Signature", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_DIGEST, 0, NULL, NULL, NULL },
+  { "Size", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_SIZE, 0, NULL, NULL, NULL },
+  { "Sparse", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_SPARSE, 0, NULL, NULL, NULL },
+  { "StripPath", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_STRIPPATH, 0, NULL, NULL, NULL },
+  { "Verify", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_VERIFY, 0, NULL, NULL, NULL },
+  { "XAttrSupport", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_XATTR, 0, NULL, NULL, NULL },
+
+  { "Regex", CFG_TYPE_REGEX, ITEM(FileOptions, regex), 0, 0, NULL, NULL, NULL },
+  { "RegexDir", CFG_TYPE_REGEX, ITEM(FileOptions, regexdir), 1, 0, NULL, NULL, NULL },
+  { "RegexFile", CFG_TYPE_REGEX, ITEM(FileOptions, regexfile), 2, 0, NULL, NULL, NULL },
+  /* MARKER */
+  // find out if Base is WildBase or Base
+  { "Base", CFG_TYPE_ALIST_NAME, ITEM(FileOptions, base), 0, CFG_ITEM_DEPRECATED, NULL, NULL, NULL },
+  { "Wild", CFG_TYPE_WILD, ITEM(FileOptions, wild), 0, 0, NULL, NULL, NULL },
+  { "WildDir", CFG_TYPE_WILD, ITEM(FileOptions, wilddir), 1, 0, NULL, NULL, NULL },
+  { "WildFile", CFG_TYPE_WILD, ITEM(FileOptions, wildfile), 2, 0, NULL, NULL, NULL },
+  { "Plugin", CFG_TYPE_ALIST_NAME, ITEM(FileOptions, plugin), 0, 0, NULL, NULL, NULL },
+  { "FsType", CFG_TYPE_FSTYPE, ITEM(FileOptions, fstype), 0, 0, NULL, NULL, NULL },
+  { "DriveType", CFG_TYPE_DRIVETYPE, ITEM(FileOptions, Drivetype), 0, 0, NULL, NULL, NULL },
+  { "Meta", CFG_TYPE_META, ITEM(FileOptions, meta), 0, 0, 0, NULL, NULL },
   {}
 };
 
@@ -451,232 +428,209 @@ static void ScanIncludeOptions(LEX* lc, int keyword, char* opts, int optlen)
 }
 
 // Store regex info
-static void StoreRegex(LEX* lc, ResourceItem* item, int pass)
+static void StoreRegex(ConfigurationParser*,
+                       BareosResource* res,
+                       LEX* lc,
+                       ResourceItem* item,
+                       int index)
 {
-  int token, rc;
+  int rc;
   regex_t preg{};
   char prbuf[500];
-  const char* type;
-  int newsize;
 
-  token = LexGetToken(lc, BCT_SKIP_EOL);
-  if (pass == 1) {
-    /* Pickup regex string
-     */
-    switch (token) {
-      case BCT_IDENTIFIER:
-      case BCT_UNQUOTED_STRING:
-      case BCT_QUOTED_STRING:
-        rc = regcomp(&preg, lc->str, REG_EXTENDED);
-        if (rc != 0) {
-          regerror(rc, &preg, prbuf, sizeof(prbuf));
-          regfree(&preg);
-          scan_err1(lc, T_("Regex compile error. ERR=%s\n"), prbuf);
-          return;
-        }
+  auto* regex_loc = GetItemVariablePointer<alist<char*>**>(res, *item);
+  if (!*regex_loc) { *regex_loc = new alist<char*>(10, not_owned_by_alist); }
+  auto* regex = *regex_loc;
+
+  int token = LexGetToken(lc, BCT_SKIP_EOL);
+  /* Pickup regex string
+   */
+  switch (token) {
+    case BCT_IDENTIFIER:
+    case BCT_UNQUOTED_STRING:
+    case BCT_QUOTED_STRING:
+      rc = regcomp(&preg, lc->str, REG_EXTENDED);
+      if (rc != 0) {
+        regerror(rc, &preg, prbuf, sizeof(prbuf));
         regfree(&preg);
-        if (item->code == 1) {
-          type = "regexdir";
-          res_incexe->current_opts->regexdir.append(strdup(lc->str));
-          newsize = res_incexe->current_opts->regexdir.size();
-        } else if (item->code == 2) {
-          type = "regexfile";
-          res_incexe->current_opts->regexfile.append(strdup(lc->str));
-          newsize = res_incexe->current_opts->regexfile.size();
-        } else {
-          type = "regex";
-          res_incexe->current_opts->regex.append(strdup(lc->str));
-          newsize = res_incexe->current_opts->regex.size();
-        }
-        Dmsg4(900, "set %s %p size=%d %s\n", type, res_incexe->current_opts,
-              newsize, lc->str);
-        break;
-      default:
-        scan_err1(lc, T_("Expected a regex string, got: %s\n"), lc->str);
+        scan_err1(lc, T_("Regex compile error. ERR=%s\n"), prbuf);
         return;
-    }
+      }
+      regfree(&preg);
+      regex->append(strdup(lc->str));
+      Dmsg4(900, "set %s (%p) size=%d %s\n", item->name, regex_loc,
+            regex->size(), lc->str);
+      break;
+    default:
+      scan_err1(lc, T_("Expected a regex string, got: %s\n"), lc->str);
+      return;
   }
-  ScanToEol(lc);
-}
-
-// Store Base info
-static void StoreBase(LEX* lc, ResourceItem*, int pass)
-{
-  LexGetToken(lc, BCT_NAME);
-  if (pass == 1) {
-    // Pickup Base Job Name
-    res_incexe->current_opts->base.append(strdup(lc->str));
-  }
-  ScanToEol(lc);
-}
-
-// Store reader info
-static void StorePlugin(LEX* lc, ResourceItem*, int pass)
-{
-  LexGetToken(lc, BCT_NAME);
-  if (pass == 1) {
-    // Pickup plugin command
-    res_incexe->current_opts->plugin = strdup(lc->str);
-  }
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
   ScanToEol(lc);
 }
 
 // Store Wild-card info
-static void StoreWild(LEX* lc, ResourceItem* item, int pass)
+static void StoreWild(ConfigurationParser*,
+                      BareosResource* res,
+                      LEX* lc,
+                      ResourceItem* item,
+                      int index)
 {
-  int token;
-  const char* type;
-  int newsize;
+  auto* wild_loc = GetItemVariablePointer<alist<const char*>**>(res, *item);
+  if (!*wild_loc) { *wild_loc = new alist<const char*>(10, owned_by_alist); }
 
-  token = LexGetToken(lc, BCT_SKIP_EOL);
-  if (pass == 1) {
-    // Pickup Wild-card string
-    switch (token) {
-      case BCT_IDENTIFIER:
-      case BCT_UNQUOTED_STRING:
-      case BCT_QUOTED_STRING:
-        if (item->code == 1) {
-          type = "wilddir";
-          res_incexe->current_opts->wilddir.append(strdup(lc->str));
-          newsize = res_incexe->current_opts->wilddir.size();
-        } else if (item->code == 2) {
-          if (strpbrk(lc->str, "/\\") != NULL) {
-            type = "wildfile";
-            res_incexe->current_opts->wildfile.append(strdup(lc->str));
-            newsize = res_incexe->current_opts->wildfile.size();
-          } else {
-            type = "wildbase";
-            res_incexe->current_opts->wildbase.append(strdup(lc->str));
-            newsize = res_incexe->current_opts->wildbase.size();
-          }
-        } else {
-          type = "wild";
-          res_incexe->current_opts->wild.append(strdup(lc->str));
-          newsize = res_incexe->current_opts->wild.size();
-        }
-        Dmsg4(9, "set %s %p size=%d %s\n", type, res_incexe->current_opts,
-              newsize, lc->str);
-        break;
-      default:
-        scan_err1(lc, T_("Expected a wild-card string, got: %s\n"), lc->str);
-        return;
-    }
+  auto* wild = *wild_loc;
+
+  int token = LexGetToken(lc, BCT_SKIP_EOL);
+  // Pickup Wild-card string
+  switch (token) {
+    case BCT_IDENTIFIER:
+    case BCT_UNQUOTED_STRING:
+    case BCT_QUOTED_STRING:
+      wild->append(strdup(lc->str));
+      Dmsg4(9, "set %s (%p) size=%d %s\n", item->name, wild_loc, wild->size(),
+            lc->str);
+      break;
+    default:
+      scan_err1(lc, T_("Expected a wild-card string, got: %s\n"), lc->str);
+      return;
   }
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
   ScanToEol(lc);
 }
 
 // Store fstype info
-static void StoreFstype(LEX* lc, ResourceItem*, int pass)
+static void StoreFstype(ConfigurationParser*,
+                        BareosResource* res,
+                        LEX* lc,
+                        ResourceItem* item,
+                        int index)
 {
-  int token;
-
-  token = LexGetToken(lc, BCT_SKIP_EOL);
-  if (pass == 1) {
-    /* Pickup fstype string */
-    switch (token) {
-      case BCT_IDENTIFIER:
-      case BCT_UNQUOTED_STRING:
-      case BCT_QUOTED_STRING:
-        res_incexe->current_opts->fstype.append(strdup(lc->str));
-        Dmsg3(900, "set fstype %p size=%d %s\n", res_incexe->current_opts,
-              res_incexe->current_opts->fstype.size(), lc->str);
-        break;
-      default:
-        scan_err1(lc, T_("Expected a fstype string, got: %s\n"), lc->str);
-        return;
-    }
+  auto* fstype_loc = GetItemVariablePointer<alist<const char*>**>(res, *item);
+  if (!*fstype_loc) {
+    *fstype_loc = new alist<const char*>(10, owned_by_alist);
   }
+
+  auto* fstype = *fstype_loc;
+
+  int token = LexGetToken(lc, BCT_SKIP_EOL);
+  /* Pickup fstype string */
+  switch (token) {
+    case BCT_IDENTIFIER:
+    case BCT_UNQUOTED_STRING:
+    case BCT_QUOTED_STRING:
+      fstype->append(strdup(lc->str));
+      Dmsg3(900, "set fstype %s %p size=%d %s\n", item->name, fstype_loc,
+            fstype->size(), lc->str);
+      break;
+    default:
+      scan_err1(lc, T_("Expected a fstype string, got: %s\n"), lc->str);
+      return;
+  }
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
   ScanToEol(lc);
 }
 
 // Store Drivetype info
-static void StoreDrivetype(LEX* lc, ResourceItem*, int pass)
+static void StoreDrivetype(ConfigurationParser*,
+                           BareosResource* res,
+                           LEX* lc,
+                           ResourceItem* item,
+                           int index)
 {
-  int token;
-
-  token = LexGetToken(lc, BCT_SKIP_EOL);
-  if (pass == 1) {
-    /* Pickup Drivetype string */
-    switch (token) {
-      case BCT_IDENTIFIER:
-      case BCT_UNQUOTED_STRING:
-      case BCT_QUOTED_STRING:
-        res_incexe->current_opts->Drivetype.append(strdup(lc->str));
-        Dmsg3(900, "set Drivetype %p size=%d %s\n", res_incexe->current_opts,
-              res_incexe->current_opts->Drivetype.size(), lc->str);
-        break;
-      default:
-        scan_err1(lc, T_("Expected a Drivetype string, got: %s\n"), lc->str);
-        return;
-    }
+  auto* drivetype_loc
+      = GetItemVariablePointer<alist<const char*>**>(res, *item);
+  if (!*drivetype_loc) {
+    *drivetype_loc = new alist<const char*>(10, owned_by_alist);
   }
+
+  auto* drivetype = *drivetype_loc;
+
+  int token = LexGetToken(lc, BCT_SKIP_EOL);
+  /* Pickup Drivetype string */
+  switch (token) {
+    case BCT_IDENTIFIER:
+    case BCT_UNQUOTED_STRING:
+    case BCT_QUOTED_STRING:
+      drivetype->append(strdup(lc->str));
+      Dmsg3(900, "set Drivetype %s (%p) size=%d %s\n", item->name,
+            drivetype_loc, drivetype->size(), lc->str);
+      break;
+    default:
+      scan_err1(lc, T_("Expected a Drivetype string, got: %s\n"), lc->str);
+      return;
+  }
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
   ScanToEol(lc);
 }
 
-static void StoreMeta(LEX* lc, ResourceItem*, int pass)
+static void StoreMeta(ConfigurationParser*,
+                      BareosResource* res,
+                      LEX* lc,
+                      ResourceItem* item,
+                      int index)
 {
-  int token;
+  auto* meta_loc = GetItemVariablePointer<alist<const char*>**>(res, *item);
+  if (!*meta_loc) { *meta_loc = new alist<const char*>(10, owned_by_alist); }
 
-  token = LexGetToken(lc, BCT_SKIP_EOL);
-  if (pass == 1) {
-    /* Pickup fstype string */
-    switch (token) {
-      case BCT_IDENTIFIER:
-      case BCT_UNQUOTED_STRING:
-      case BCT_QUOTED_STRING:
-        res_incexe->current_opts->meta.append(strdup(lc->str));
-        Dmsg3(900, "set meta %p size=%d %s\n", res_incexe->current_opts,
-              res_incexe->current_opts->meta.size(), lc->str);
-        break;
-      default:
-        scan_err1(lc, T_("Expected a meta string, got: %s\n"), lc->str);
-        return;
-    }
+  auto* meta = *meta_loc;
+
+  int token = LexGetToken(lc, BCT_SKIP_EOL);
+  /* Pickup Drivetype string */
+  switch (token) {
+    case BCT_IDENTIFIER:
+    case BCT_UNQUOTED_STRING:
+    case BCT_QUOTED_STRING:
+      meta->append(strdup(lc->str));
+      Dmsg3(900, "set meta %s (%p) size=%d %s\n", item->name, meta_loc,
+            meta->size(), lc->str);
+      break;
+    default:
+      scan_err1(lc, T_("Expected a meta string, got: %s\n"), lc->str);
+      return;
   }
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
   ScanToEol(lc);
 }
 
 // New style options come here
 static void StoreOption(
+    ConfigurationParser*,
+    BareosResource* res,
     LEX* lc,
-    ResourceItem* item,
-    int pass,
-    std::map<int, options_default_value_s>& option_default_values)
+    ResourceItem*
+        item /*,
+               std::map<int, options_default_value_s>& option_default_values */
+    ,
+    int index)
 {
-  int i;
-  int keyword;
-  char inc_opts[100];
+  auto* opts = GetItemVariablePointer<FileOptions::options*>(res, *item);
 
-  inc_opts[0] = 0;
-  keyword = INC_KW_NONE;
+  // FileOptions::options inc_opts = {};
 
-  // Look up the keyword
-  for (i = 0; FS_option_kw[i].name; i++) {
-    if (Bstrcasecmp(item->name, FS_option_kw[i].name)) {
-      keyword = FS_option_kw[i].token;
-      if (option_default_values.find(keyword) != option_default_values.end()) {
-        option_default_values[keyword].configured = true;
-      }
-      break;
-    }
-  }
+  int keyword = item->code;
 
-  if (keyword == INC_KW_NONE) {
-    scan_err1(lc, T_("Expected a FileSet keyword, got: %s"), lc->str);
-    return;
-  }
+  // if (option_default_values.find(keyword) != option_default_values.end()) {
+  //   option_default_values[keyword].configured = true;
+  // }
+
 
   // Now scan for the value
-  ScanIncludeOptions(lc, keyword, inc_opts, sizeof(inc_opts));
-  if (pass == 1) {
-    bstrncat(res_incexe->current_opts->opts, inc_opts, MAX_FOPTS);
-    Dmsg2(900, "new pass=%d incexe opts=%s\n", pass,
-          res_incexe->current_opts->opts);
-  }
+  ScanIncludeOptions(lc, keyword, *opts, sizeof(*opts));
+  Dmsg2(900, "new incexe opts=%s\n", opts);
 
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
   ScanToEol(lc);
 }
 
+#if 0
+/* MARKER */
 // If current_opts not defined, create first entry
 static void SetupCurrentOpts(void)
 {
@@ -717,17 +671,40 @@ static void StoreDefaultOptions()
   SetupCurrentOpts();
   ApplyDefaultValuesForUnsetOptions(OptionsDefaultValues{});
 }
+#endif
+
+static void ParseConfigCb(ConfigurationParser* p,
+                          BareosResource* res,
+                          LEX* lc,
+                          ResourceItem* item,
+                          int index);
 
 // Come here when Options seen in Include/Exclude
-static void StoreOptionsRes(LEX* lc, ResourceItem*, int pass, bool exclude)
+static void StoreOptionsRes(ConfigurationParser* p,
+                            BareosResource* res,
+                            LEX* lc,
+                            ResourceItem* item,
+                            int index)
 {
+#if 1
+  auto& opts_loc = GetItemVariable<std::vector<FileOptions*>&>(res, *item);
+
+  auto* new_opt = new FileOptions;
+
+  auto parse_res = p->ParseResource(new_opt, options_items, lc, ParseConfigCb);
+  if (!parse_res) {
+    // error
+    delete new_opt;
+    return;
+  }
+
+  opts_loc.push_back(new_opt);
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
+#else
   int token;
   OptionsDefaultValues default_values;
 
-  if (exclude) {
-    scan_err0(lc, T_("Options section not permitted in Exclude\n"));
-    return;
-  }
   token = LexGetToken(lc, BCT_SKIP_EOL);
   if (token != BCT_BOB) {
     scan_err1(lc, T_("Expecting open brace. Got %s"), lc->str);
@@ -760,14 +737,8 @@ static void StoreOptionsRes(LEX* lc, ResourceItem*, int pass, bool exclude)
           case CFG_TYPE_REGEX:
             StoreRegex(lc, &options_items[i], pass);
             break;
-          case CFG_TYPE_BASE:
-            StoreBase(lc, &options_items[i], pass);
-            break;
           case CFG_TYPE_WILD:
             StoreWild(lc, &options_items[i], pass);
-            break;
-          case CFG_TYPE_PLUGIN:
-            StorePlugin(lc, &options_items[i], pass);
             break;
           case CFG_TYPE_FSTYPE:
             StoreFstype(lc, &options_items[i], pass);
@@ -792,6 +763,7 @@ static void StoreOptionsRes(LEX* lc, ResourceItem*, int pass, bool exclude)
   }
 
   if (pass == 1) { ApplyDefaultValuesForUnsetOptions(default_values); }
+#endif
 }
 
 /**
@@ -799,49 +771,52 @@ static void StoreOptionsRes(LEX* lc, ResourceItem*, int pass, bool exclude)
  * always increase the name buffer by 10 items because we expect
  * to add more entries.
  */
-static void StoreFname(FilesetResource* res_fs,
+static void StoreFname(ConfigurationParser*,
+                       BareosResource* res,
                        LEX* lc,
-                       ResourceItem*,
-                       int pass,
-                       bool)
+                       ResourceItem* item,
+                       int index)
 {
-  int token;
+  int token = LexGetToken(lc, BCT_SKIP_EOL);
 
-  token = LexGetToken(lc, BCT_SKIP_EOL);
-  if (pass == 1) {
-    /* Pickup Filename string
-     */
-    switch (token) {
-      case BCT_IDENTIFIER:
-      case BCT_UNQUOTED_STRING:
-        if (strchr(lc->str, '\\')) {
-          scan_err1(lc,
-                    T_("Backslash found. Use forward slashes or quote the "
-                       "string.: %s\n"),
-                    lc->str);
-          return;
-        }
-        FALLTHROUGH_INTENDED;
-      case BCT_QUOTED_STRING: {
-        if (res_fs->have_MD5) {
-          IGNORE_DEPRECATED_ON;
-          MD5_Update(&res_fs->md5c, (unsigned char*)lc->str, lc->str_len);
-          IGNORE_DEPRECATED_OFF;
-        }
+  auto* fname_loc = GetItemVariablePointer<alist<const char*>**>(res, *item);
 
-        if (res_incexe->name_list.size() == 0) {
-          res_incexe->name_list.init(10, true);
-        }
-        res_incexe->name_list.append(strdup(lc->str));
-        Dmsg1(900, "Add to name_list %s\n", lc->str);
-        break;
-      }
-      default:
-        scan_err1(lc, T_("Expected a filename, got: %s"), lc->str);
+  if (!*fname_loc) { *fname_loc = new alist<const char*>(10, owned_by_alist); }
+
+  auto* fname = *fname_loc;
+
+  /* Pickup Filename string */
+  switch (token) {
+    case BCT_IDENTIFIER:
+    case BCT_UNQUOTED_STRING:
+      if (strchr(lc->str, '\\')) {
+        scan_err1(lc,
+                  T_("Backslash found. Use forward slashes or quote the "
+                     "string.: %s\n"),
+                  lc->str);
         return;
+      }
+      [[fallthrough]];
+    case BCT_QUOTED_STRING: {
+      /* MARKER */
+      // if (res_fs->have_MD5) {
+      //   IGNORE_DEPRECATED_ON;
+      //   MD5_Update(&res_fs->md5c, (unsigned char*)lc->str, lc->str_len);
+      //   IGNORE_DEPRECATED_OFF;
+      // }
+
+      fname->append(lc->str);
+
+      Dmsg1(900, "Add to name_list %s\n", lc->str);
+      break;
     }
+    default:
+      scan_err1(lc, T_("Expected a filename, got: %s"), lc->str);
+      return;
   }
   ScanToEol(lc);
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
 }
 
 /**
@@ -849,18 +824,59 @@ static void StoreFname(FilesetResource* res_fs,
  * always increase the name buffer by 10 items because we expect
  * to add more entries.
  */
-static void StorePluginName(FilesetResource* res_fs,
+static void StorePluginName(ConfigurationParser*,
+                            BareosResource* res,
                             LEX* lc,
-                            ResourceItem*,
-                            int pass,
-                            bool exclude)
+                            ResourceItem* item,
+                            int index)
 {
+#if 1
+  int token = LexGetToken(lc, BCT_SKIP_EOL);
+
+  auto* plugin_name_loc
+      = GetItemVariablePointer<alist<const char*>**>(res, *item);
+
+  if (!*plugin_name_loc) {
+    *plugin_name_loc = new alist<const char*>(10, owned_by_alist);
+  }
+
+  auto* plugin_name = *plugin_name_loc;
+
+  /* Pickup Filename string */
+  switch (token) {
+    case BCT_IDENTIFIER:
+    case BCT_UNQUOTED_STRING:
+      if (strchr(lc->str, '\\')) {
+        scan_err1(lc,
+                  T_("Backslash found. Use forward slashes or quote the "
+                     "string.: %s\n"),
+                  lc->str);
+        return;
+      }
+      [[fallthrough]];
+    case BCT_QUOTED_STRING: {
+      /* MARKER */
+      // if (res_fs->have_MD5) {
+      //   IGNORE_DEPRECATED_ON;
+      //   MD5_Update(&res_fs->md5c, (unsigned char*)lc->str, lc->str_len);
+      //   IGNORE_DEPRECATED_OFF;
+      // }
+
+      plugin_name->append(lc->str);
+
+      Dmsg1(900, "Add to name_list %s\n", lc->str);
+      break;
+    }
+    default:
+      scan_err1(lc, T_("Expected a filename, got: %s"), lc->str);
+      return;
+  }
+  ScanToEol(lc);
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
+#else
   int token;
 
-  if (exclude) {
-    scan_err0(lc, T_("Plugin directive not permitted in Exclude\n"));
-    return;
-  }
   token = LexGetToken(lc, BCT_SKIP_EOL);
   if (pass == 1) {
     // Pickup Filename string
@@ -894,26 +910,46 @@ static void StorePluginName(FilesetResource* res_fs,
     }
   }
   ScanToEol(lc);
+#endif
 }
 
-// Store exclude directory containing info
-static void StoreExcludedir(LEX* lc, ResourceItem*, int pass, bool exclude)
+static void ParseConfigCb(ConfigurationParser* p,
+                          BareosResource* res,
+                          LEX* lc,
+                          ResourceItem* item,
+                          int index)
 {
-  if (exclude) {
-    scan_err0(lc,
-              T_("ExcludeDirContaining directive not permitted in Exclude.\n"));
-    return;
+  switch (item->type) {
+    case CFG_TYPE_FNAME:
+      StoreFname(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_PLUGINNAME:
+      StorePluginName(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_OPTIONS:
+      StoreOptionsRes(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_OPTION:
+      StoreOption(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_REGEX:
+      StoreRegex(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_WILD:
+      StoreWild(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_FSTYPE:
+      StoreFstype(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_DRIVETYPE:
+      StoreDrivetype(p, res, lc, item, index);
+      break;
+    case CFG_TYPE_META:
+      StoreMeta(p, res, lc, item, index);
+      break;
+    default:
+      break;
   }
-
-  LexGetToken(lc, BCT_NAME);
-  if (pass == 1) {
-    if (res_incexe->ignoredir.size() == 0) {
-      res_incexe->ignoredir.init(10, true);
-    }
-    res_incexe->ignoredir.append(strdup(lc->str));
-    Dmsg1(900, "Add to ignoredir_list %s\n", lc->str);
-  }
-  ScanToEol(lc);
 }
 
 /**
@@ -923,116 +959,63 @@ static void StoreExcludedir(LEX* lc, ResourceItem*, int pass, bool exclude)
  *  resource.  We treat the Include/Exclude like a sort of
  *  mini-resource within the FileSet resource.
  */
-static void StoreNewinc(BareosResource* res,
+static void StoreNewinc(ConfigurationParser* p,
+                        BareosResource* res,
                         LEX* lc,
                         ResourceItem* item,
-                        int index,
-                        int pass)
+                        int index)
 {
-  FilesetResource* res_fs = dynamic_cast<FilesetResource*>(res);
+  auto* list
+      = GetItemVariablePointer<std::vector<IncludeExcludeItem*>*>(res, *item);
 
-  // Store.. functions below only store in pass = 1
-  if (pass == 1) { res_incexe = new IncludeExcludeItem; }
+  IncludeExcludeItem* incexe = new IncludeExcludeItem;
 
-  if (!res_fs->have_MD5) {
-    IGNORE_DEPRECATED_ON;
-    MD5_Init(&res_fs->md5c);
-    IGNORE_DEPRECATED_OFF;
-    res_fs->have_MD5 = true;
-  }
-  res_fs->new_include = true;
-  int token;
-  bool has_options = false;
-  while ((token = LexGetToken(lc, BCT_SKIP_EOL)) != BCT_EOF) {
-    if (token == BCT_EOB) { break; }
-    if (token != BCT_IDENTIFIER) {
-      scan_err1(lc, T_("Expecting keyword, got: %s\n"), lc->str);
-      return;
-    }
-    bool found = false;
-    for (int i = 0; newinc_items[i].name; i++) {
-      bool options = Bstrcasecmp(lc->str, "options");
-      if (Bstrcasecmp(newinc_items[i].name, lc->str)) {
-        if (!options) {
-          token = LexGetToken(lc, BCT_SKIP_EOL);
-          if (token != BCT_EQUALS) {
-            scan_err1(lc, T_("expected an equals, got: %s"), lc->str);
-            return;
-          }
-        }
-        switch (newinc_items[i].type) {
-          case CFG_TYPE_FNAME:
-            StoreFname(res_fs, lc, &newinc_items[i], pass, item->code);
-            break;
-          case CFG_TYPE_PLUGINNAME:
-            StorePluginName(res_fs, lc, &newinc_items[i], pass, item->code);
-            break;
-          case CFG_TYPE_EXCLUDEDIR:
-            StoreExcludedir(lc, &newinc_items[i], pass, item->code);
-            break;
-          case CFG_TYPE_OPTIONS:
-            StoreOptionsRes(lc, &newinc_items[i], pass, item->code);
-            has_options = true;
-            break;
-          default:
-            break;
-        }
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      scan_err1(lc, T_("Keyword %s not permitted in this resource"), lc->str);
-      return;
-    }
+  ResourceItem* items = (item->code) ? newexc_items : newinc_items;
+
+  auto result = p->ParseResource(incexe, items, lc, ParseConfigCb);
+
+  if (!result) {
+    scan_err1(lc, T_("Could not parse Include/Exclude block: %s\n"),
+              result.strerror());
+    return;
   }
 
-  if (!has_options) {
-    if (pass == 1) { StoreDefaultOptions(); }
+  if (!res->IsMemberPresent("Options")) {
+    /* MARKER */
+    // how to do this ?
+    // if (pass == 1) { StoreDefaultOptions(); }
   }
 
-  if (pass == 1) {
-    // store the pointer from res_incexe in each appropriate container
-    if (item->code == 0) { /* include */
-      res_fs->include_items.push_back(res_incexe);
-      Dmsg1(900, "num_includes=%d\n", res_fs->include_items.size());
-    } else { /* exclude */
-      res_fs->exclude_items.push_back(res_incexe);
-      Dmsg1(900, "num_excludes=%d\n", res_fs->exclude_items.size());
-    }
-    res_incexe = nullptr;
-  }
-
-  // all pointers must push_back above
-  ASSERT(!res_incexe);
-
-  ScanToEol(lc);
+  list->push_back(incexe);
   item->SetPresent(res);
   ClearBit(index, res->inherit_content_);
+  ScanToEol(lc);
 }
 
 /**
  * Store FileSet Include/Exclude info
  *  new style includes are handled in StoreNewinc()
  */
-void StoreInc(ConfigurationParser*,
+void StoreInc(ConfigurationParser* p,
               BareosResource* res,
               LEX* lc,
               ResourceItem* item,
               int index)
 {
-  int token;
+  StoreNewinc(p, res, lc, item, index);
+  /* MARKER */
+  // TODO: can we still check for this ?
+  // int token;
 
-  /* Decide if we are doing a new Include or an old include. The
-   *  new Include is followed immediately by open brace, whereas the
-   *  old include has options following the Include. */
-  token = LexGetToken(lc, BCT_SKIP_EOL);
-  if (token == BCT_BOB) {
-    /* MARKER */
-    StoreNewinc(res, lc, item, index, 0);
-    return;
-  }
-  scan_err0(lc, T_("Old style Include/Exclude not supported\n"));
+  // /* Decide if we are doing a new Include or an old include. The
+  //  *  new Include is followed immediately by open brace, whereas the
+  //  *  old include has options following the Include. */
+  // token = LexGetToken(lc, BCT_SKIP_EOL);
+  // if (token == BCT_BOB) {
+  //   StoreNewinc(p, res, lc, item, index);
+  //   return;
+  // }
+  // scan_err0(lc, T_("Old style Include/Exclude not supported\n"));
 }
 
 json_t* json_incexc(const int type)

@@ -732,7 +732,8 @@ auto ConfigurationParser::NextResourceIdentifier(LEX* lex)
 
 parse_result ConfigurationParser::ParseResource(BareosResource* res,
                                                 ResourceItem* items,
-                                                LEX* lex)
+                                                LEX* lex,
+                                                STORE_RES_HANDLER* store)
 {
   int open_blocks = 0;
   for (;;) {
@@ -786,9 +787,7 @@ parse_result ConfigurationParser::ParseResource(BareosResource* res,
         Dmsg1(800, "calling handler for %s\n", item->name);
 
         if (!StoreResource(res, item->type, lex, item, resource_item_index)) {
-          if (store_res_) {
-            store_res_(this, res, lex, item, resource_item_index);
-          }
+          if (store) { store(this, res, lex, item, resource_item_index); }
         }
       } break;
       case BCT_EOL: {
@@ -834,7 +833,7 @@ bool ConfigurationParser::ParsingPass(LEX* lex)
       return false;
     }
 
-    auto parse_res = ParseResource(new_res.res, new_res.items, lex);
+    auto parse_res = ParseResource(new_res.res, new_res.items, lex, store_res_);
     if (!parse_res) {
       scan_err1(lex, "%s", parse_res.strerror());
       return false;
