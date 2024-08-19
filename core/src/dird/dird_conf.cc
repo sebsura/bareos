@@ -494,6 +494,10 @@ static ResourceItem counter_items[] = {
   {}
 };
 
+static ResourceItem dev_items[] = {
+  {}
+};
+
 #include "lib/messages_resource_items.h"
 
 /**
@@ -519,7 +523,7 @@ static ResourceTable dird_resource_tables[] = {
   { "Counter", "Counters", counter_items, R_COUNTER, ResourceFactory<CounterResource> },
   { "Profile", "Profiles", profile_items, R_PROFILE, ResourceFactory<ProfileResource> },
   { "Console", "Consoles", con_items, R_CONSOLE, ResourceFactory<ConsoleResource> },
-  { "Device", "Devices", NULL, R_DEVICE, ResourceFactory<DeviceResource> },
+  { "Device", "Devices", dev_items, R_DEVICE, ResourceFactory<DeviceResource> },
   { "User", "Users", user_items, R_USER, ResourceFactory<UserResource> },
   {}
 };
