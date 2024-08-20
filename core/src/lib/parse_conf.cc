@@ -888,7 +888,8 @@ bool ConfigurationParser::FixupPass()
     }
 
     if (!*destination) {
-      *destination = new alist<BareosResource*>(deps.size(), owned_by_alist);
+      *destination
+          = new alist<BareosResource*>(deps.size(), not_owned_by_alist);
     }
 
     for (auto& depname : deps) {
@@ -942,9 +943,11 @@ static bool CheckRequired(BareosResource* res, ResourceTable* tbl)
 
   while (current->name) {
     if ((current->flags & CFG_ITEM_REQUIRED) && (!current->IsPresent(res))) {
-      // Emsg2(M_ERROR, 0,
-      //       T_("%s item is required in %s resource, but not found.\n"),
-      //       items[0].name, dird_resource_tables[type].name);
+      /* MARKER */
+      // how to do this with scan_err, when we have no lexer ?
+      Emsg2(M_ERROR, 0,
+            T_("%s item is required in %s resource, but not found (%s).\n"),
+            current->name, tbl->name, res->resource_name_);
       return false;
     }
 

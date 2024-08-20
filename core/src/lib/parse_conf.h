@@ -154,6 +154,7 @@ enum
   CFG_TYPE_RUN = 67,              /* Schedule Run Command */
   CFG_TYPE_ACTIONONPURGE = 68,    /* Action to perform on Purge */
   CFG_TYPE_POOLTYPE = 69,         /* Pool Type */
+  CFG_TYPE_SCHEDULE = 70,         /* Schedule Type */
 
   // Director fileset options. handlers in dird_conf.
   CFG_TYPE_FNAME = 80,      /* Filename */
