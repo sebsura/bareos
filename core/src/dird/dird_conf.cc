@@ -3016,11 +3016,11 @@ static void InitResourceCb(BareosResource* res, ResourceItem* item)
  * callback function for parse_config
  * See ../lib/parse_conf.c, function ParseConfig, for more generic handling.
  */
-static void ParseConfigCb(ConfigurationParser* p,
-                          BareosResource* res,
-                          LEX* lc,
-                          ResourceItem* item,
-                          int index)
+void DirdConfigCb(ConfigurationParser* p,
+                  BareosResource* res,
+                  LEX* lc,
+                  ResourceItem* item,
+                  int index)
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
@@ -3474,7 +3474,10 @@ struct DirectorFixuper : public config_fixuper {
     }
 
     for (ClientResource* client = nullptr;;) {
-      client = dynamic_cast<ClientResource*>(p->GetNextRes(R_CLIENT, client));
+      auto* res = p->GetNextRes(R_CLIENT, client);
+      if (!res) { break; }
+      client = dynamic_cast<ClientResource*>(res);
+      ASSERT(client);
 
       if (!client->catalog) { client->catalog = default_catalog; }
 
@@ -3483,15 +3486,20 @@ struct DirectorFixuper : public config_fixuper {
     }
 
     for (StorageResource* storage = nullptr;;) {
-      storage
-          = dynamic_cast<StorageResource*>(p->GetNextRes(R_CLIENT, storage));
+      auto* res = p->GetNextRes(R_STORAGE, storage);
+      if (!res) { break; }
+      storage = dynamic_cast<StorageResource*>(res);
+      ASSERT(storage);
 
       storage->runtime_storage_status
           = GetRuntimeStatus<RuntimeStorageStatus>(storage->resource_name_);
     }
 
     for (UserResource* user = nullptr;;) {
-      user = dynamic_cast<UserResource*>(p->GetNextRes(R_CLIENT, user));
+      auto* res = p->GetNextRes(R_USER, user);
+      if (!res) { break; }
+      user = dynamic_cast<UserResource*>(res);
+      ASSERT(user);
 
       user->user_acl.corresponding_resource = user;
     }
@@ -3501,22 +3509,19 @@ struct DirectorFixuper : public config_fixuper {
     //         }
 
     for (ConsoleResource* console = nullptr;;) {
-      console
-          = dynamic_cast<ConsoleResource*>(p->GetNextRes(R_CLIENT, console));
+      auto* res = p->GetNextRes(R_CONSOLE, console);
+      if (!res) { break; }
+      console = dynamic_cast<ConsoleResource*>(res);
+      ASSERT(console);
 
       console->user_acl.corresponding_resource = console;
     }
 
-    for (StorageResource* storage = nullptr;;) {
-      storage
-          = dynamic_cast<StorageResource*>(p->GetNextRes(R_CLIENT, storage));
-
-      storage->runtime_storage_status
-          = GetRuntimeStatus<RuntimeStorageStatus>(storage->resource_name_);
-    }
-
     for (JobResource* job = nullptr;;) {
-      job = dynamic_cast<JobResource*>(p->GetNextRes(R_JOB, job));
+      auto* res = p->GetNextRes(R_JOB, job);
+      if (!res) { break; }
+      job = dynamic_cast<JobResource*>(res);
+      ASSERT(job);
 
       //         if ((p->RunScripts) && (p->RunScripts->size() > 0)) {
       //           for (int i = 0; items[i].name; i++) {
@@ -3559,7 +3564,7 @@ struct DirectorFixuper : public config_fixuper {
 ConfigurationParser* InitDirConfig(const char* t_configfile, int exit_code)
 {
   ConfigurationParser* config = new ConfigurationParser(
-      t_configfile, nullptr, nullptr, InitResourceCb, ParseConfigCb,
+      t_configfile, nullptr, nullptr, InitResourceCb, DirdConfigCb,
       PrintConfigCb, exit_code, R_NUM, dird_resource_tables,
       default_config_filename.c_str(), "bareos-dir.d", ConfigBeforeCallback,
       ConfigReadyCallback, DumpResource, FreeResource);
