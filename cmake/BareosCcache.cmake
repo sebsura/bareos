@@ -20,7 +20,7 @@
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
   set(CCACHE_CMDLINE "${CCACHE_PROGRAM}")
-  list(APPEND CCACHE_CMDLINE "base_dir=${CMAKE_SOURCE_DIR}")
+  # list(APPEND CCACHE_CMDLINE "base_dir=${CMAKE_SOURCE_DIR}")
   list(APPEND CCACHE_CMDLINE "hash_dir=true")
   list(APPEND CCACHE_CMDLINE "namespace=bareos")
   set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_CMDLINE}")
