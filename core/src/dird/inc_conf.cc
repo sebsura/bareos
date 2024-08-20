@@ -438,9 +438,7 @@ static void StoreRegex(ConfigurationParser*,
   regex_t preg{};
   char prbuf[500];
 
-  auto* regex_loc = GetItemVariablePointer<alist<char*>**>(res, *item);
-  if (!*regex_loc) { *regex_loc = new alist<char*>(10, not_owned_by_alist); }
-  auto* regex = *regex_loc;
+  auto* regex = GetItemVariablePointer<alist<char*>*>(res, *item);
 
   int token = LexGetToken(lc, BCT_SKIP_EOL);
   /* Pickup regex string
@@ -458,8 +456,8 @@ static void StoreRegex(ConfigurationParser*,
       }
       regfree(&preg);
       regex->append(strdup(lc->str));
-      Dmsg4(900, "set %s (%p) size=%d %s\n", item->name, regex_loc,
-            regex->size(), lc->str);
+      Dmsg4(900, "set %s (%p) size=%d %s\n", item->name, regex, regex->size(),
+            lc->str);
       break;
     default:
       scan_err1(lc, T_("Expected a regex string, got: %s\n"), lc->str);
@@ -477,10 +475,7 @@ static void StoreWild(ConfigurationParser*,
                       ResourceItem* item,
                       int index)
 {
-  auto* wild_loc = GetItemVariablePointer<alist<const char*>**>(res, *item);
-  if (!*wild_loc) { *wild_loc = new alist<const char*>(10, owned_by_alist); }
-
-  auto* wild = *wild_loc;
+  auto* wild = GetItemVariablePointer<alist<const char*>*>(res, *item);
 
   int token = LexGetToken(lc, BCT_SKIP_EOL);
   // Pickup Wild-card string
@@ -489,7 +484,7 @@ static void StoreWild(ConfigurationParser*,
     case BCT_UNQUOTED_STRING:
     case BCT_QUOTED_STRING:
       wild->append(strdup(lc->str));
-      Dmsg4(9, "set %s (%p) size=%d %s\n", item->name, wild_loc, wild->size(),
+      Dmsg4(9, "set %s (%p) size=%d %s\n", item->name, wild, wild->size(),
             lc->str);
       break;
     default:
@@ -508,12 +503,7 @@ static void StoreFstype(ConfigurationParser*,
                         ResourceItem* item,
                         int index)
 {
-  auto* fstype_loc = GetItemVariablePointer<alist<const char*>**>(res, *item);
-  if (!*fstype_loc) {
-    *fstype_loc = new alist<const char*>(10, owned_by_alist);
-  }
-
-  auto* fstype = *fstype_loc;
+  auto* fstype = GetItemVariablePointer<alist<const char*>*>(res, *item);
 
   int token = LexGetToken(lc, BCT_SKIP_EOL);
   /* Pickup fstype string */
@@ -522,7 +512,7 @@ static void StoreFstype(ConfigurationParser*,
     case BCT_UNQUOTED_STRING:
     case BCT_QUOTED_STRING:
       fstype->append(strdup(lc->str));
-      Dmsg3(900, "set fstype %s %p size=%d %s\n", item->name, fstype_loc,
+      Dmsg3(900, "set fstype %s %p size=%d %s\n", item->name, fstype,
             fstype->size(), lc->str);
       break;
     default:
@@ -541,13 +531,7 @@ static void StoreDrivetype(ConfigurationParser*,
                            ResourceItem* item,
                            int index)
 {
-  auto* drivetype_loc
-      = GetItemVariablePointer<alist<const char*>**>(res, *item);
-  if (!*drivetype_loc) {
-    *drivetype_loc = new alist<const char*>(10, owned_by_alist);
-  }
-
-  auto* drivetype = *drivetype_loc;
+  auto* drivetype = GetItemVariablePointer<alist<const char*>*>(res, *item);
 
   int token = LexGetToken(lc, BCT_SKIP_EOL);
   /* Pickup Drivetype string */
@@ -556,8 +540,8 @@ static void StoreDrivetype(ConfigurationParser*,
     case BCT_UNQUOTED_STRING:
     case BCT_QUOTED_STRING:
       drivetype->append(strdup(lc->str));
-      Dmsg3(900, "set Drivetype %s (%p) size=%d %s\n", item->name,
-            drivetype_loc, drivetype->size(), lc->str);
+      Dmsg3(900, "set Drivetype %s (%p) size=%d %s\n", item->name, drivetype,
+            drivetype->size(), lc->str);
       break;
     default:
       scan_err1(lc, T_("Expected a Drivetype string, got: %s\n"), lc->str);
@@ -574,10 +558,7 @@ static void StoreMeta(ConfigurationParser*,
                       ResourceItem* item,
                       int index)
 {
-  auto* meta_loc = GetItemVariablePointer<alist<const char*>**>(res, *item);
-  if (!*meta_loc) { *meta_loc = new alist<const char*>(10, owned_by_alist); }
-
-  auto* meta = *meta_loc;
+  auto* meta = GetItemVariablePointer<alist<const char*>*>(res, *item);
 
   int token = LexGetToken(lc, BCT_SKIP_EOL);
   /* Pickup Drivetype string */
@@ -586,7 +567,7 @@ static void StoreMeta(ConfigurationParser*,
     case BCT_UNQUOTED_STRING:
     case BCT_QUOTED_STRING:
       meta->append(strdup(lc->str));
-      Dmsg3(900, "set meta %s (%p) size=%d %s\n", item->name, meta_loc,
+      Dmsg3(900, "set meta %s (%p) size=%d %s\n", item->name, meta,
             meta->size(), lc->str);
       break;
     default:
@@ -599,26 +580,15 @@ static void StoreMeta(ConfigurationParser*,
 }
 
 // New style options come here
-static void StoreOption(
-    ConfigurationParser*,
-    BareosResource* res,
-    LEX* lc,
-    ResourceItem*
-        item /*,
-               std::map<int, options_default_value_s>& option_default_values */
-    ,
-    int index)
+static void StoreOption(ConfigurationParser*,
+                        BareosResource* res,
+                        LEX* lc,
+                        ResourceItem* item,
+                        int index)
 {
   auto* opts = GetItemVariablePointer<FileOptions::options*>(res, *item);
 
-  // FileOptions::options inc_opts = {};
-
   int keyword = item->code;
-
-  // if (option_default_values.find(keyword) != option_default_values.end()) {
-  //   option_default_values[keyword].configured = true;
-  // }
-
 
   // Now scan for the value
   ScanIncludeOptions(lc, keyword, *opts, sizeof(*opts));
@@ -629,27 +599,23 @@ static void StoreOption(
   ScanToEol(lc);
 }
 
+FileOptions::FileOptions()
+{
+  regex.init(1, true);
+  regexdir.init(1, true);
+  regexfile.init(1, true);
+  wild.init(1, true);
+  wilddir.init(1, true);
+  wildfile.init(1, true);
+  wildbase.init(1, true);
+  base.init(1, true);
+  fstype.init(1, true);
+  Drivetype.init(1, true);
+  meta.init(1, true);
+}
 #if 0
 /* MARKER */
 // If current_opts not defined, create first entry
-static void SetupCurrentOpts(void)
-{
-  FileOptions* fo = new FileOptions;
-  fo->regex.init(1, true);
-  fo->regexdir.init(1, true);
-  fo->regexfile.init(1, true);
-  fo->wild.init(1, true);
-  fo->wilddir.init(1, true);
-  fo->wildfile.init(1, true);
-  fo->wildbase.init(1, true);
-  fo->base.init(1, true);
-  fo->fstype.init(1, true);
-  fo->Drivetype.init(1, true);
-  fo->meta.init(1, true);
-  res_incexe->current_opts = fo;
-  res_incexe->file_options_list.push_back(fo);
-}
-
 static void ApplyDefaultValuesForUnsetOptions(
     OptionsDefaultValues default_values)
 {
@@ -779,11 +745,7 @@ static void StoreFname(ConfigurationParser*,
 {
   int token = LexGetToken(lc, BCT_SKIP_EOL);
 
-  auto* fname_loc = GetItemVariablePointer<alist<const char*>**>(res, *item);
-
-  if (!*fname_loc) { *fname_loc = new alist<const char*>(10, owned_by_alist); }
-
-  auto* fname = *fname_loc;
+  auto* fname = GetItemVariablePointer<alist<const char*>*>(res, *item);
 
   /* Pickup Filename string */
   switch (token) {
@@ -805,7 +767,7 @@ static void StoreFname(ConfigurationParser*,
       //   IGNORE_DEPRECATED_OFF;
       // }
 
-      fname->append(lc->str);
+      fname->append(strdup(lc->str));
 
       Dmsg1(900, "Add to name_list %s\n", lc->str);
       break;
@@ -833,14 +795,7 @@ static void StorePluginName(ConfigurationParser*,
 #if 1
   int token = LexGetToken(lc, BCT_SKIP_EOL);
 
-  auto* plugin_name_loc
-      = GetItemVariablePointer<alist<const char*>**>(res, *item);
-
-  if (!*plugin_name_loc) {
-    *plugin_name_loc = new alist<const char*>(10, owned_by_alist);
-  }
-
-  auto* plugin_name = *plugin_name_loc;
+  auto* plugin_name = GetItemVariablePointer<alist<const char*>*>(res, *item);
 
   /* Pickup Filename string */
   switch (token) {

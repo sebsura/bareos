@@ -515,7 +515,7 @@ struct FileOptions : public BareosResource {
   using options = char[MAX_FOPTS];
 
 
-  FileOptions() = default;
+  FileOptions();
   virtual ~FileOptions() = default;
 
   options opts = {0};           /**< Options string */
