@@ -567,12 +567,8 @@ static bool SendFileset(JobControlRecord* jcr, FilesetResource* fileset)
 bool SendIncludeExcludeLists(JobControlRecord* jcr)
 {
   BareosSocket* fd = jcr->file_bsock;
-  if (jcr->dir_impl->res.fileset->new_include) {
-    fd->fsend(filesetcmd,
-              jcr->dir_impl->res.fileset->enable_vss ? " vss=1" : "");
-    return SendFileset(jcr, jcr->dir_impl->res.fileset);
-  }
-  return true;
+  fd->fsend(filesetcmd, jcr->dir_impl->res.fileset->enable_vss ? " vss=1" : "");
+  return SendFileset(jcr, jcr->dir_impl->res.fileset);
 }
 
 // This checks to see if there are any non local runscripts for this job.

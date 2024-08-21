@@ -555,7 +555,6 @@ class FilesetResource : public BareosResource {
   FilesetResource() = default;
   virtual ~FilesetResource() = default;
 
-  bool new_include = false; /**< Set if new include used */
   std::vector<IncludeExcludeItem*> include_items;
   std::vector<IncludeExcludeItem*> exclude_items;
   bool have_MD5 = false;          /**< Set if MD5 initialized */
