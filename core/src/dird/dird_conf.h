@@ -597,7 +597,7 @@ struct FileOptions : public BareosResource {
   bool recurse{};
   bool sparse{};
   bool hardlink{true};
-  uint32_t replace{};
+  uint32_t replace{REPLACE_IFOLDER};
   bool readfifo{};
   bool portable{};
   bool mtimeonly{};

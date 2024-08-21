@@ -111,7 +111,7 @@ struct s_fs_opt {
 template <typename T> struct fsopt {
   T type;
   const char* name;
-  const char* option;
+  const char* code;
 };
 
 template <typename T> struct fsopts {};
@@ -181,14 +181,14 @@ template <> struct fsopts<shadowing_option> {
   };
 };
 
-template <typename T> const char* option_name(T opt)
+template <typename T> const fsopt<T>& option_def(T opt)
 {
   auto res = std::find_if(std::begin(fsopts_v<T>), std::end(fsopts_v<T>),
                           [opt](const auto l) { return l.type == opt; });
 
   ASSERT(res != std::end(fsopts_v<T>));
 
-  return res->name;
+  return *res;
 }
 
 /*
@@ -389,7 +389,7 @@ bool FindUsedCompressalgos(PoolMem* compressalgos, JobControlRecord* jcr)
         } else {
           compressalgos->strcat(" (");
         }
-        compressalgos->strcat(option_name(compression));
+        compressalgos->strcat(option_def(compression).name);
       }
     }
   }
@@ -669,11 +669,74 @@ FileOptions::FileOptions()
   meta.init(1, true);
 }
 
+void FormatFileCmp(std::string& out, const file_compare_options& opt)
+{
+  if (opt.inodes) { out += 'i'; }
+  if (opt.permissions) { out += 'p'; }
+  if (opt.num_links) { out += 'n'; }
+  if (opt.user_id) { out += 'u'; }
+  if (opt.group_id) { out += 'g'; }
+  if (opt.size) { out += 's'; }
+  if (opt.atime) { out += 'a'; }
+  if (opt.mtime) { out += 'm'; }
+  if (opt.ctime) { out += 'c'; }
+  if (opt.size_decrease) { out += 'd'; }
+  if (opt.md5) { out += '5'; }
+  if (opt.sha1) { out += '1'; }
+  if (opt.always) { out += 'A'; }
+}
+
 std::string FileOptions::format_options()
 {
-  if (size) {}
+  std::string formatted;
+  if (size) {
+    formatted += 'z';
+    // todo
+  }
+  if (strip_path) {
+    formatted += 'P';
+    // todo
+  }
+  if (replace != REPLACE_IFOLDER) {
+    // replace already has the right format
+    formatted += replace;
+  }
+  formatted += option_def(compression).code;
+  formatted += option_def(encryption).code;
+  formatted += option_def(checksum).code;
+  formatted += option_def(shadowing).code;
 
-  return {};
+  formatted += 'C';
+  FormatFileCmp(formatted, accurate);
+  formatted += ':';
+  formatted += 'J';
+  FormatFileCmp(formatted, basejob);
+  formatted += ':';
+  formatted += 'V';
+  FormatFileCmp(formatted, verify);
+  formatted += ':';
+
+  if (!onefs) { formatted += "f"; }
+  if (!recurse) { formatted += "h"; }
+  if (sparse) { formatted += "s"; }
+  if (!hardlink) { formatted += "Q"; }
+  if (readfifo) { formatted += "r"; }
+  if (portable) { formatted += "p"; }
+  if (mtimeonly) { formatted += "m"; }
+  if (keepatime) { formatted += "k"; }
+  if (exclude) { formatted += "e"; }
+  if (acl) { formatted += "a"; }
+  if (ignorecase) { formatted += "i"; }
+  if (hfsplus) { formatted += "R"; }
+  if (noatime) { formatted += "K"; }
+  if (enhancedwild) { formatted += "K"; }
+  if (chkchanges) { formatted += "c"; }
+  if (honor_nodump) { formatted += "N"; }
+  if (xattr) { formatted += "X"; }
+  if (!auto_exclude) { formatted += "x"; }
+  if (force_encryption) { formatted += "Ef"; }
+
+  return formatted;
 }
 
 #if 0
