@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-Copyright (C) 2023-2023 Bareos GmbH & Co. KG
+Copyright (C) 2023-2024 Bareos GmbH & Co. KG
 
 This program is Free Software; you can redistribute it and/or
 modify it under the terms of version three of the GNU Affero General Public
@@ -115,44 +115,19 @@ static void SendFilesetOptions(JobControlRecord* jcr,
   BareosSocket* fd = jcr->file_bsock;
 
   for (auto file_option : include_exclude_item->file_options_list) {
-    bool enhanced_wild = false;
-    if (strchr(file_option->opts, 'W')) { enhanced_wild = true; }
+    bool enhanced_wild = file_option->enhancedwild;
 
     // Strip out compression option Zn if disallowed for this Storage
     if (store && !store->AllowCompress) {
-      char newopts[MAX_FOPTS];
-      bool done = false; /* print warning only if compression enabled in FS */
-      int l = 0;
-
-      for (int k = 0; file_option->opts[k] != '\0'; k++) {
-        /* Z compress option is followed by the single-digit compress level
-         * or 'o' For fastlz its Zf with a single char selecting the actual
-         * compression algo. */
-        if (file_option->opts[k] == 'Z' && file_option->opts[k + 1] == 'f') {
-          done = true;
-          k += 2; /* skip option */
-        } else if (file_option->opts[k] == 'Z') {
-          done = true;
-          k++; /* skip option and level */
-        } else {
-          newopts[l] = file_option->opts[k];
-          l++;
-        }
-      }
-      newopts[l] = '\0';
-
-      if (done) {
+      if (file_option->compression != compression_type::None) {
         Jmsg(jcr, M_INFO, 0,
              T_("FD compression disabled for this Job because "
                 "AllowCompress=No in Storage resource.\n"));
+        file_option->compression = compression_type::None;
       }
-
-      // Send the new trimmed option set without overwriting fo->opts
-      fd->fsend("O %s\n", newopts);
-    } else {
-      // Send the original options
-      fd->fsend("O %s\n", file_option->opts);
     }
+
+    fd->fsend("O %s\n", file_option->format_options().c_str());
 
     for (int k = 0; k < file_option->regex.size(); k++) {
       fd->fsend("R %s\n", file_option->regex.get(k));

@@ -108,12 +108,96 @@ struct s_fs_opt {
   const char* option;
 };
 
+template <typename T> struct fsopt {
+  T type;
+  const char* name;
+  const char* option;
+};
+
+template <typename T> struct fsopts {};
+
+template <typename T, size_t N> constexpr auto array_of(const T (&arr)[N])
+{
+  std::array<T, N> res{};
+  for (size_t i = 0; i < N; ++i) { res[i] = arr[i]; }
+  return res;
+}
+
+template <typename T> constexpr auto fsopts_v = array_of(fsopts<T>::value);
+
+template <> struct fsopts<compression_type> {
+  static constexpr fsopt<compression_type> value[] = {
+      {compression_type::None, "none", ""},
+      {compression_type::Gzip1, "gzip1", "Z1"},
+      {compression_type::Gzip2, "gzip2", "Z2"},
+      {compression_type::Gzip3, "gzip3", "Z3"},
+      {compression_type::Gzip4, "gzip4", "Z4"},
+      {compression_type::Gzip5, "gzip5", "Z5"},
+      {compression_type::Gzip6, "gzip6", "Z6"},
+      {compression_type::Gzip7, "gzip7", "Z7"},
+      {compression_type::Gzip8, "gzip8", "Z8"},
+      {compression_type::Gzip9, "gzip9", "Z9"},
+      {compression_type::Lzo, "lzo", "Zo"},
+      {compression_type::Lzfast, "lzfast", "Zff"},
+      {compression_type::Lz4, "lz4", "Zf4"},
+      {compression_type::Lz4hc, "lz4hc", "Zfh"},
+  };
+};
+
+template <> struct fsopts<encryption_type> {
+  static constexpr fsopt<encryption_type> value[] = {
+      {encryption_type::None, "none", ""},
+      {encryption_type::Blowfish, "blowfish", "Eb"},
+      {encryption_type::TDes, "3des", "E3"},
+      {encryption_type::Aes128, "aes128", "Ea1"},
+      {encryption_type::Aes192, "aes192", "Ea2"},
+      {encryption_type::Aes256, "aes256", "Ea3"},
+      {encryption_type::Camellia128, "camellia128", "Ec1"},
+      {encryption_type::Camellia192, "camellia192", "Ec2"},
+      {encryption_type::Camellia256, "camellia256", "Ec3"},
+      {encryption_type::Aes128hmacsha1, "aes128hmacsha1", "Eh1"},
+      {encryption_type::Aes256hmacsha1, "aes256hmacsha1", "Eh2"},
+  };
+};
+
+template <> struct fsopts<checksum_type> {
+  static constexpr fsopt<checksum_type> value[] = {
+      {checksum_type::None, "none", ""},
+      {checksum_type::Md5, "md5", "M"},
+      {checksum_type::Sha1, "sha1", "S"},
+      {checksum_type::Sha256, "sha256", "S2"},
+      {checksum_type::Sha512, "sha512", "S3"},
+      {checksum_type::XxHash128, "xxh128", "S4"},
+  };
+};
+
+template <> struct fsopts<shadowing_option> {
+  static constexpr fsopt<shadowing_option> value[] = {
+      {shadowing_option::None, "none", "0"},
+      {shadowing_option::WarnLocally, "localwarn", "d1"},
+      {shadowing_option::RemoveLocally, "localremove", "d2"},
+      {shadowing_option::WarnGlobally, "globalwarn", "d3"},
+      {shadowing_option::RemoveGlobally, "globalremove", "d4"},
+  };
+};
+
+template <typename T> const char* option_name(T opt)
+{
+  auto res = std::find_if(std::begin(fsopts_v<T>), std::end(fsopts_v<T>),
+                          [opt](const auto l) { return l.type == opt; });
+
+  ASSERT(res != std::end(fsopts_v<T>));
+
+  return res->name;
+}
+
 /*
  * Options permitted for each keyword and resulting value.
  * The output goes into opts, which are then transmitted to
  * the FD for application as options to the following list of
  * included files.
  */
+#if 0
 static struct s_fs_opt FS_options[]
     = {{"md5", INC_KW_DIGEST, "M"},
        {"sha1", INC_KW_DIGEST, "S"},
@@ -191,6 +275,7 @@ static struct s_fs_opt FS_options[]
        {"yes", INC_KW_FORCE_ENCRYPTION, "Ef"},
        {"no", INC_KW_FORCE_ENCRYPTION, "0"},
        {NULL, 0, 0}};
+#endif
 
 // Imported subroutines
 extern void StoreInc(LEX* lc, ResourceItem* item, int index, int pass);
@@ -285,7 +370,6 @@ bool FindUsedCompressalgos(PoolMem* compressalgos, JobControlRecord* jcr)
   IncludeExcludeItem* inc;
   FileOptions* fopts;
   FilesetResource* fs;
-  struct s_fs_opt* fs_opt;
 
   if (!jcr->dir_impl->res.job || !jcr->dir_impl->res.job->fileset) {
     return false;
@@ -298,28 +382,14 @@ bool FindUsedCompressalgos(PoolMem* compressalgos, JobControlRecord* jcr)
     for (std::size_t j = 0; j < inc->file_options_list.size(); j++) {
       fopts = inc->file_options_list[j];
 
-      for (char* k = fopts->opts; *k; k++) { /* Try to find one request */
-        switch (*k) {
-          case 'Z': /* Compression */
-            for (fs_opt = FS_options; fs_opt->name; fs_opt++) {
-              if (fs_opt->keyword != INC_KW_COMPRESSION) { continue; }
-
-              if (bstrncmp(k, fs_opt->option, strlen(fs_opt->option))) {
-                if (cnt > 0) {
-                  compressalgos->strcat(",");
-                } else {
-                  compressalgos->strcat(" (");
-                }
-                compressalgos->strcat(fs_opt->name);
-                k += strlen(fs_opt->option) - 1;
-                cnt++;
-                continue;
-              }
-            }
-            break;
-          default:
-            break;
+      auto compression = fopts->compression;
+      if (compression != compression_type::None) {
+        if (cnt > 0) {
+          compressalgos->strcat(",");
+        } else {
+          compressalgos->strcat(" (");
         }
+        compressalgos->strcat(option_name(compression));
       }
     }
   }
@@ -598,6 +668,14 @@ FileOptions::FileOptions()
   Drivetype.init(1, true);
   meta.init(1, true);
 }
+
+std::string FileOptions::format_options()
+{
+  if (size) {}
+
+  return {};
+}
+
 #if 0
 /* MARKER */
 // If current_opts not defined, create first entry
@@ -865,35 +943,16 @@ static void StoreCompression(ConfigurationParser*,
 
   auto* compression = GetItemVariablePointer<compression_type*>(res, *item);
 
-  if (Bstrcasecmp(lc->str, "gzip")) {
-    *compression = compression_type::Gzip;
-  } else if (Bstrcasecmp(lc->str, "gzip1")) {
-    *compression = compression_type::Gzip1;
-  } else if (Bstrcasecmp(lc->str, "gzip2")) {
-    *compression = compression_type::Gzip2;
-  } else if (Bstrcasecmp(lc->str, "gzip3")) {
-    *compression = compression_type::Gzip3;
-  } else if (Bstrcasecmp(lc->str, "gzip4")) {
-    *compression = compression_type::Gzip4;
-  } else if (Bstrcasecmp(lc->str, "gzip5")) {
-    *compression = compression_type::Gzip5;
-  } else if (Bstrcasecmp(lc->str, "gzip6")) {
-    *compression = compression_type::Gzip6;
-  } else if (Bstrcasecmp(lc->str, "gzip7")) {
-    *compression = compression_type::Gzip7;
-  } else if (Bstrcasecmp(lc->str, "gzip8")) {
-    *compression = compression_type::Gzip8;
-  } else if (Bstrcasecmp(lc->str, "gzip9")) {
-    *compression = compression_type::Gzip9;
-  } else if (Bstrcasecmp(lc->str, "lzo")) {
-    *compression = compression_type::Lzo;
-  } else if (Bstrcasecmp(lc->str, "lzfast")) {
-    *compression = compression_type::Lzfast;
-  } else if (Bstrcasecmp(lc->str, "lz4")) {
-    *compression = compression_type::Lz4;
-  } else if (Bstrcasecmp(lc->str, "lz4hc")) {
-    *compression = compression_type::Lz4hc;
-  } else {
+  bool found = false;
+  for (auto& opt : fsopts_v<compression_type>) {
+    if (Bstrcasecmp(lc->str, opt.name)) {
+      *compression = opt.type;
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
     scan_err1(lc, T_("Expected a compression type, got: %s:"), lc->str);
     return;
   }
@@ -916,28 +975,16 @@ static void StoreEncryption(ConfigurationParser*,
 
   auto* encryption = GetItemVariablePointer<encryption_type*>(res, *item);
 
-  if (Bstrcasecmp(lc->str, "blowfish")) {
-    *encryption = encryption_type::Blowfish;
+  bool found = false;
+  for (auto& opt : fsopts_v<encryption_type>) {
+    if (Bstrcasecmp(lc->str, opt.name)) {
+      *encryption = opt.type;
+      found = true;
+      break;
+    }
   }
-  if (Bstrcasecmp(lc->str, "tdes")) { *encryption = encryption_type::TDes; }
-  if (Bstrcasecmp(lc->str, "aes128")) { *encryption = encryption_type::Aes128; }
-  if (Bstrcasecmp(lc->str, "aes192")) { *encryption = encryption_type::Aes192; }
-  if (Bstrcasecmp(lc->str, "aes256")) { *encryption = encryption_type::Aes256; }
-  if (Bstrcasecmp(lc->str, "camellia128")) {
-    *encryption = encryption_type::Camellia128;
-  }
-  if (Bstrcasecmp(lc->str, "camellia192")) {
-    *encryption = encryption_type::Camellia192;
-  }
-  if (Bstrcasecmp(lc->str, "camellia256")) {
-    *encryption = encryption_type::Camellia256;
-  }
-  if (Bstrcasecmp(lc->str, "aes128hmacsha1")) {
-    *encryption = encryption_type::Aes128hmacsha1;
-  }
-  if (Bstrcasecmp(lc->str, "aes256hmacsha1")) {
-    *encryption = encryption_type::Aes256hmacsha1;
-  } else {
+
+  if (!found) {
     scan_err1(lc, T_("Expected an encryption type, got: %s:"), lc->str);
     return;
   }
@@ -960,17 +1007,17 @@ static void StoreShadowing(ConfigurationParser*,
 
   auto* shadowing = GetItemVariablePointer<shadowing_option*>(res, *item);
 
-  if (Bstrcasecmp(lc->str, "none")) {
-    *shadowing = shadowing_option::None;
-  } else if (Bstrcasecmp(lc->str, "localwarn")) {
-    *shadowing = shadowing_option::WarnLocally;
-  } else if (Bstrcasecmp(lc->str, "localremove")) {
-    *shadowing = shadowing_option::RemoveLocally;
-  } else if (Bstrcasecmp(lc->str, "globalwarn")) {
-    *shadowing = shadowing_option::WarnGlobally;
-  } else if (Bstrcasecmp(lc->str, "globalremove")) {
-    *shadowing = shadowing_option::RemoveGlobally;
-  } else {
+
+  bool found = false;
+  for (auto& opt : fsopts_v<shadowing_option>) {
+    if (Bstrcasecmp(lc->str, opt.name)) {
+      *shadowing = opt.type;
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
     scan_err1(lc, T_("Expected a shadowing option, got: %s:"), lc->str);
     return;
   }
@@ -993,18 +1040,16 @@ static void StoreChecksum(ConfigurationParser*,
 
   auto* chksum = GetItemVariablePointer<checksum_type*>(res, *item);
 
+  bool found = false;
+  for (auto& opt : fsopts_v<checksum_type>) {
+    if (Bstrcasecmp(lc->str, opt.name)) {
+      *chksum = opt.type;
+      found = true;
+      break;
+    }
+  }
 
-  if (Bstrcasecmp(lc->str, "md5")) {
-    *chksum = checksum_type::Md5;
-  } else if (Bstrcasecmp(lc->str, "sha1")) {
-    *chksum = checksum_type::Sha1;
-  } else if (Bstrcasecmp(lc->str, "sha256")) {
-    *chksum = checksum_type::Sha256;
-  } else if (Bstrcasecmp(lc->str, "sha512")) {
-    *chksum = checksum_type::Sha512;
-  } else if (Bstrcasecmp(lc->str, "xxh128")) {
-    *chksum = checksum_type::XxHash128;
-  } else {
+  if (!found) {
     scan_err1(lc, T_("Expected a checksum type, got: %s:"), lc->str);
     return;
   }

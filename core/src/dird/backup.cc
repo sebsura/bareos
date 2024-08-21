@@ -242,7 +242,6 @@ static bool IsChecksumNeededByFileset(JobControlRecord* jcr)
   IncludeExcludeItem* inc;
   FileOptions* fopts;
   FilesetResource* fs;
-  bool in_block = false;
   bool have_basejob_option = false;
 
   if (!jcr->dir_impl->res.job || !jcr->dir_impl->res.job->fileset) {
@@ -256,30 +255,15 @@ static bool IsChecksumNeededByFileset(JobControlRecord* jcr)
     for (std::size_t j = 0; j < inc->file_options_list.size(); j++) {
       fopts = inc->file_options_list[j];
 
-      for (char* k = fopts->opts; *k; k++) { /* Try to find one request */
-        switch (*k) {
-          case 'V':                                /* verify */
-            in_block = jcr->is_JobType(JT_VERIFY); /* not used now */
-            break;
-          case 'J': /* Basejob keyword */
-            have_basejob_option = in_block = jcr->HasBase;
-            break;
-          case 'C': /* Accurate keyword */
-            in_block = !jcr->is_JobLevel(L_FULL);
-            break;
-          case ':': /* End of keyword */
-            in_block = false;
-            break;
-          case '5': /* MD5  */
-          case '1': /* SHA1 */
-            if (in_block) {
-              Dmsg0(50, "Checksum will be sent to FD\n");
-              return true;
-            }
-            break;
-          default:
-            break;
-        }
+      if (jcr->is_JobType(JT_VERIFY) && fopts->IsMemberPresent("Verify")) {
+        if (fopts->verify.md5 || fopts->verify.sha1) { return true; }
+      }
+      if (jcr->HasBase && fopts->IsMemberPresent("BaseJob")) {
+        have_basejob_option = true;
+        if (fopts->basejob.md5 || fopts->basejob.sha1) { return true; }
+      }
+      if (!jcr->is_JobLevel(L_FULL) && fopts->IsMemberPresent("Accurate")) {
+        if (fopts->accurate.md5 || fopts->accurate.sha1) { return true; }
       }
     }
   }

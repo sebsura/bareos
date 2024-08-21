@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -130,15 +130,7 @@ bool FillBackupEnvironment(JobControlRecord* jcr,
 
     // See if this is a INCLUDE or EXCLUDE block.
     if (cnt > 0) {
-      exclude = false;
-      for (j = 0; fo->opts[j] != '\0'; j++) {
-        if (fo->opts[j] == 'e') {
-          exclude = true;
-          break;
-        }
-      }
-
-      if (exclude) {
+      if (fo->exclude) {
         pv.name = ndmp_env_keywords[NDMP_ENV_KW_EXCLUDE];
       } else {
         pv.name = ndmp_env_keywords[NDMP_ENV_KW_INCLUDE];

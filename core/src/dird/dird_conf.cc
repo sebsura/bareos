@@ -1844,175 +1844,177 @@ void FilesetResource::PrintConfigIncludeExcludeOptions(
 {
   send.SubResourceStart(NULL, false, "Options {\n");
 
-  for (const char* p = &fo->opts[0]; *p; p++) {
-    switch (*p) {
-      case '0': /* no option */
-        break;
-      case 'a': /* alway replace */
-        send.KeyQuotedString("Replace", "Always");
-        break;
-      case 'C': /* */
-        send.KeyQuotedString("Accurate", GetOptionValue(&p));
-        break;
-      case 'c':
-        send.KeyBool("CheckFileChanges", true);
-        break;
-      case 'd':
-        switch (*(p + 1)) {
-          case '1':
-            send.KeyQuotedString("Shadowing", "LocalWarn");
-            break;
-          case '2':
-            send.KeyQuotedString("Shadowing", "LocalRemove");
-            break;
-          case '3':
-            send.KeyQuotedString("Shadowing", "GlobalWarn");
-            break;
-          case '4':
-            send.KeyQuotedString("Shadowing", "GlobalRemove");
-            break;
-        }
-        p++;
-        break;
-      case 'e':
-        send.KeyBool("Exclude", true);
-        break;
-      case 'f':
-        send.KeyBool("OneFS", false);
-        break;
-      case 'h': /* no recursion */
-        send.KeyBool("Recurse", false);
-        break;
-      case 'H': /* no hard link handling */
-        send.KeyBool("HardLinks", false);
-        break;
-      case 'i':
-        send.KeyBool("IgnoreCase", true);
-        break;
-      case 'J': /* Base Job */
-        send.KeyQuotedString("BaseJob", GetOptionValue(&p));
-        break;
-      case 'M': /* MD5 */
-        send.KeyQuotedString("Signature", "MD5");
-        break;
-      case 'n':
-        send.KeyQuotedString("Replace", "Never");
-        break;
-      case 'p': /* use portable data format */
-        send.KeyBool("Portable", true);
-        break;
-      case 'P': /* strip path */
-        send.KeyQuotedString("Strip", GetOptionValue(&p));
-        break;
-      case 'R': /* Resource forks and Finder Info */
-        send.KeyBool("HfsPlusSupport", true);
-        break;
-      case 'r': /* read fifo */
-        send.KeyBool("ReadFifo", true);
-        break;
-      case 'S':
-        switch (*(p + 1)) {
-#ifdef HAVE_SHA2
-          case '2':
-            send.KeyQuotedString("Signature", "SHA256");
-            p++;
-            break;
-          case '3':
-            send.KeyQuotedString("Signature", "SHA512");
-            p++;
-            break;
-#endif
-          case '4':
-            send.KeyQuotedString("Signature", "XXH128");
-            p++;
-            break;
-          default:
-            send.KeyQuotedString("Signature", "SHA1");
-            break;
-        }
-        break;
-      case 's':
-        send.KeyBool("Sparse", true);
-        break;
-      case 'm':
-        send.KeyBool("MtimeOnly", true);
-        break;
-      case 'k':
-        send.KeyBool("KeepAtime", true);
-        break;
-      case 'K':
-        send.KeyBool("NoAtime", true);
-        break;
-      case 'A':
-        send.KeyBool("AclSupport", true);
-        break;
-      case 'V': /* verify options */
-        send.KeyQuotedString("Verify", GetOptionValue(&p));
-        break;
-      case 'w':
-        send.KeyQuotedString("Replace", "IfNewer");
-        break;
-      case 'W':
-        send.KeyBool("EnhancedWild", true);
-        break;
-      case 'z': /* size */
-        send.KeyString("Size", GetOptionValue(&p));
-        break;
-      case 'Z': /* compression */
-        p++;    /* skip Z */
-        switch (*p) {
-          case '0':
-          case '1':
-          case '2':
-          case '3':
-          case '4':
-          case '5':
-          case '6':
-          case '7':
-          case '8':
-          case '9':
-            send.KeyQuotedString("Compression", std::string("GZIP") + *p);
-            break;
-          case 'o':
-            send.KeyQuotedString("Compression", "LZO");
-            break;
-          case 'f':
-            p++; /* skip f */
-            switch (*p) {
-              case 'f':
-                send.KeyQuotedString("Compression", "LZFAST");
-                break;
-              case '4':
-                send.KeyQuotedString("Compression", "LZ4");
-                break;
-              case 'h':
-                send.KeyQuotedString("Compression", "LZ4HC");
-                break;
-              default:
-                Emsg1(M_ERROR, 0,
-                      T_("Unknown compression include/exclude option: "
-                         "%c\n"),
-                      *p);
-                break;
-            }
-            break;
-          default:
-            Emsg1(M_ERROR, 0,
-                  T_("Unknown compression include/exclude option: %c\n"), *p);
-            break;
-        }
-        break;
-      case 'X':
-        send.KeyBool("XattrSupport", true);
-        break;
-      case 'x':
-        send.KeyBool("AutoExclude", false);
-        break;
-      default:
-        Emsg1(M_ERROR, 0, T_("Unknown include/exclude option: %c\n"), *p);
-        break;
-    }
-  }
+  /* MARKER */
+  //   for (const char* p = &fo->opts[0]; *p; p++) {
+  //     switch (*p) {
+  //       case '0': /* no option */
+  //         break;
+  //       case 'a': /* alway replace */
+  //         send.KeyQuotedString("Replace", "Always");
+  //         break;
+  //       case 'C': /* */
+  //         send.KeyQuotedString("Accurate", GetOptionValue(&p));
+  //         break;
+  //       case 'c':
+  //         send.KeyBool("CheckFileChanges", true);
+  //         break;
+  //       case 'd':
+  //         switch (*(p + 1)) {
+  //           case '1':
+  //             send.KeyQuotedString("Shadowing", "LocalWarn");
+  //             break;
+  //           case '2':
+  //             send.KeyQuotedString("Shadowing", "LocalRemove");
+  //             break;
+  //           case '3':
+  //             send.KeyQuotedString("Shadowing", "GlobalWarn");
+  //             break;
+  //           case '4':
+  //             send.KeyQuotedString("Shadowing", "GlobalRemove");
+  //             break;
+  //         }
+  //         p++;
+  //         break;
+  //       case 'e':
+  //         send.KeyBool("Exclude", true);
+  //         break;
+  //       case 'f':
+  //         send.KeyBool("OneFS", false);
+  //         break;
+  //       case 'h': /* no recursion */
+  //         send.KeyBool("Recurse", false);
+  //         break;
+  //       case 'H': /* no hard link handling */
+  //         send.KeyBool("HardLinks", false);
+  //         break;
+  //       case 'i':
+  //         send.KeyBool("IgnoreCase", true);
+  //         break;
+  //       case 'J': /* Base Job */
+  //         send.KeyQuotedString("BaseJob", GetOptionValue(&p));
+  //         break;
+  //       case 'M': /* MD5 */
+  //         send.KeyQuotedString("Signature", "MD5");
+  //         break;
+  //       case 'n':
+  //         send.KeyQuotedString("Replace", "Never");
+  //         break;
+  //       case 'p': /* use portable data format */
+  //         send.KeyBool("Portable", true);
+  //         break;
+  //       case 'P': /* strip path */
+  //         send.KeyQuotedString("Strip", GetOptionValue(&p));
+  //         break;
+  //       case 'R': /* Resource forks and Finder Info */
+  //         send.KeyBool("HfsPlusSupport", true);
+  //         break;
+  //       case 'r': /* read fifo */
+  //         send.KeyBool("ReadFifo", true);
+  //         break;
+  //       case 'S':
+  //         switch (*(p + 1)) {
+  // #ifdef HAVE_SHA2
+  //           case '2':
+  //             send.KeyQuotedString("Signature", "SHA256");
+  //             p++;
+  //             break;
+  //           case '3':
+  //             send.KeyQuotedString("Signature", "SHA512");
+  //             p++;
+  //             break;
+  // #endif
+  //           case '4':
+  //             send.KeyQuotedString("Signature", "XXH128");
+  //             p++;
+  //             break;
+  //           default:
+  //             send.KeyQuotedString("Signature", "SHA1");
+  //             break;
+  //         }
+  //         break;
+  //       case 's':
+  //         send.KeyBool("Sparse", true);
+  //         break;
+  //       case 'm':
+  //         send.KeyBool("MtimeOnly", true);
+  //         break;
+  //       case 'k':
+  //         send.KeyBool("KeepAtime", true);
+  //         break;
+  //       case 'K':
+  //         send.KeyBool("NoAtime", true);
+  //         break;
+  //       case 'A':
+  //         send.KeyBool("AclSupport", true);
+  //         break;
+  //       case 'V': /* verify options */
+  //         send.KeyQuotedString("Verify", GetOptionValue(&p));
+  //         break;
+  //       case 'w':
+  //         send.KeyQuotedString("Replace", "IfNewer");
+  //         break;
+  //       case 'W':
+  //         send.KeyBool("EnhancedWild", true);
+  //         break;
+  //       case 'z': /* size */
+  //         send.KeyString("Size", GetOptionValue(&p));
+  //         break;
+  //       case 'Z': /* compression */
+  //         p++;    /* skip Z */
+  //         switch (*p) {
+  //           case '0':
+  //           case '1':
+  //           case '2':
+  //           case '3':
+  //           case '4':
+  //           case '5':
+  //           case '6':
+  //           case '7':
+  //           case '8':
+  //           case '9':
+  //             send.KeyQuotedString("Compression", std::string("GZIP") + *p);
+  //             break;
+  //           case 'o':
+  //             send.KeyQuotedString("Compression", "LZO");
+  //             break;
+  //           case 'f':
+  //             p++; /* skip f */
+  //             switch (*p) {
+  //               case 'f':
+  //                 send.KeyQuotedString("Compression", "LZFAST");
+  //                 break;
+  //               case '4':
+  //                 send.KeyQuotedString("Compression", "LZ4");
+  //                 break;
+  //               case 'h':
+  //                 send.KeyQuotedString("Compression", "LZ4HC");
+  //                 break;
+  //               default:
+  //                 Emsg1(M_ERROR, 0,
+  //                       T_("Unknown compression include/exclude option: "
+  //                          "%c\n"),
+  //                       *p);
+  //                 break;
+  //             }
+  //             break;
+  //           default:
+  //             Emsg1(M_ERROR, 0,
+  //                   T_("Unknown compression include/exclude option: %c\n"),
+  //                   *p);
+  //             break;
+  //         }
+  //         break;
+  //       case 'X':
+  //         send.KeyBool("XattrSupport", true);
+  //         break;
+  //       case 'x':
+  //         send.KeyBool("AutoExclude", false);
+  //         break;
+  //       default:
+  //         Emsg1(M_ERROR, 0, T_("Unknown include/exclude option: %c\n"), *p);
+  //         break;
+  //     }
+  //   }
 
   send.KeyMultipleStringsOnePerLine("Regex", std::addressof(fo->regex));
   send.KeyMultipleStringsOnePerLine("RegexDir", std::addressof(fo->regexdir));

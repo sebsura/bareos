@@ -530,7 +530,7 @@ enum class checksum_type
 
 enum class compression_type
 {
-  Gzip,
+  None,
   Gzip1,
   Gzip2,
   Gzip3,
@@ -548,6 +548,7 @@ enum class compression_type
 
 enum class encryption_type
 {
+  None,
   Blowfish,
   TDes,
   Aes128,
@@ -580,19 +581,15 @@ struct file_compare_options {
 /* MARKER */
 // think about how to not have this reliance on BareosResource for parsing
 struct FileOptions : public BareosResource {
-  using options = char[MAX_FOPTS];
-
-
   FileOptions();
   virtual ~FileOptions() = default;
 
-  options opts = {0}; /**< Options string */
-
   /* MARKER */  // todo: check if you can only have 1 size defined
-  s_sz_matching size;
+  std::optional<s_sz_matching> size;
   checksum_type checksum{};
   compression_type compression{};
   encryption_type encryption{};
+  shadowing_option shadowing{};
   file_compare_options accurate;
   file_compare_options basejob;
   file_compare_options verify;
@@ -614,11 +611,9 @@ struct FileOptions : public BareosResource {
   bool chkchanges{};
   bool honor_nodump{};
   bool xattr{true};
-  shadowing_option shadowing{};
   bool auto_exclude{};
   bool force_encryption{};
   uint32_t strip_path{0};
-
 
   alist<const char*> regex;     /**< Regex string(s) */
   alist<const char*> regexdir;  /**< Regex string(s) for directories */
@@ -634,6 +629,8 @@ struct FileOptions : public BareosResource {
   char* reader = nullptr;       /**< Reader program */
   char* writer = nullptr;       /**< Writer program */
   char* plugin = nullptr;       /**< Plugin program */
+
+  std::string format_options();
 };
 
 // This is either an include item or an exclude item
