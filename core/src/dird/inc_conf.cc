@@ -817,7 +817,7 @@ static void StorePluginName(ConfigurationParser*,
       //   IGNORE_DEPRECATED_OFF;
       // }
 
-      plugin_name->append(lc->str);
+      plugin_name->append(strdup(lc->str));
 
       Dmsg1(900, "Add to name_list %s\n", lc->str);
       break;
