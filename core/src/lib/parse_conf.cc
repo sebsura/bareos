@@ -234,13 +234,19 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
   lex_ptr lexer = LexFile(config_file_name, caller_ctx, err_type_, scan_error,
                           scan_warning);
 
-  if (!ParsingPass(lexer.get()) || !FixupPass() || !VerifyPass()) {
-    return false;
-  }
+  bool error = !ParsingPass(lexer.get()) || !FixupPass() || !VerifyPass();
 
+  CleanupParsing();
 
-  Dmsg0(900, "Leave ParseConfigFile()\n");
-  return true;
+  Dmsg0(900, "Leave ParseConfigFile(error = %s)\n", error ? "Yes" : "No");
+  return !error;
+}
+
+void ConfigurationParser::CleanupParsing()
+{
+  single_dependencies.clear();
+  vector_dependencies.clear();
+  alist_dependencies.clear();
 }
 
 bool ConfigurationParser::AppendToResourcesChain(BareosResource* new_resource,

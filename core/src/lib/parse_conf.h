@@ -406,6 +406,7 @@ class ConfigurationParser {
   bool ParsingPass(LEX* lex);
   bool FixupPass();
   bool VerifyPass();
+  void CleanupParsing();
 
   bool GetConfigFile(PoolMem& full_path,
                      const char* config_dir,
