@@ -2293,29 +2293,27 @@ static void StoreDevice(ConfigurationParser* p,
                         ResourceItem* item,
                         int index)
 {
-  int rindex = R_DEVICE;
-
   LexGetToken(lc, BCT_NAME);
-
-  if (p->GetResWithName(R_DEVICE, lc->str) == nullptr) {
-    DeviceResource* device_resource = new DeviceResource;
-    device_resource->rcode_ = R_DEVICE;
-    device_resource->resource_name_ = strdup(lc->str);
-    p->AppendToResourcesChain(device_resource, R_DEVICE);
+  BareosResource* dev = p->GetResWithName(R_DEVICE, lc->str);
+  if (dev == nullptr) {
+    dev = new DeviceResource;
+    dev->rcode_ = R_DEVICE;
+    dev->resource_name_ = strdup(lc->str);
+    p->AppendToResourcesChain(dev, R_DEVICE);
     Dmsg3(900, "Inserting first %s res: %s index=%d\n",
-          my_config->ResToStr(R_DEVICE), device_resource->resource_name_,
-          rindex);
-    item->SetPresent(res);
-    ClearBit(index, res->inherit_content_);
-
-    auto* devices
-        = GetItemVariablePointer<alist<DeviceResource*>**>(res, *item);
-    if (!*devices) {
-      *devices = new alist<DeviceResource*>(10, not_owned_by_alist);
-    }
-    (*devices)->append(device_resource);
+          my_config->ResToStr(R_DEVICE), dev->resource_name_, R_DEVICE);
   }
+  auto* devices = GetItemVariablePointer<alist<DeviceResource*>**>(res, *item);
+  if (!*devices) {
+    *devices = new alist<DeviceResource*>(10, not_owned_by_alist);
+  }
+
+  DeviceResource* dres = dynamic_cast<DeviceResource*>(dev);
+  ASSERT(dres);
+  (*devices)->append(dres);
   ScanToEol(lc);
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
 }
 
 // Store Migration/Copy type
@@ -3470,6 +3468,7 @@ struct DirectorFixuper : public config_fixuper {
 
     if (!default_catalog) {
       // error
+      /* MARKER */
       return false;
     }
 
