@@ -161,14 +161,20 @@ enum
   CFG_TYPE_PLUGINNAME = 81, /* Pluginname */
   // CFG_TYPE_EXCLUDEDIR = 82, /* Exclude directory (unused) */
   CFG_TYPE_OPTIONS = 83, /* Options block */
-  CFG_TYPE_OPTION = 84,  /* Option of Options block */
-  CFG_TYPE_REGEX = 85,   /* Regular Expression */
+  // CFG_TYPE_OPTION = 84,  /* Option of Options block */
+  CFG_TYPE_REGEX = 85, /* Regular Expression */
   // CFG_TYPE_BASE = 86,       /* Basejob Expression (unused) */
   CFG_TYPE_WILD = 87, /* Wildcard Expression */
   // CFG_TYPE_PLUGIN = 88,     /* Plugin definition (unused) */
   CFG_TYPE_FSTYPE = 89,    /* FileSytem match criterium (UNIX)*/
   CFG_TYPE_DRIVETYPE = 90, /* DriveType match criterium (Windows) */
   CFG_TYPE_META = 91,      /* Meta tag */
+  CFG_TYPE_COMPRESSION = 92,
+  CFG_TYPE_ENCRYPTION = 93,
+  CFG_TYPE_SHADOWING = 94,
+  CFG_TYPE_CHKSUM = 95,
+  CFG_TYPE_FILECMP = 96,
+  CFG_TYPE_SZMATCH = 97,
 
   // Storage daemon resource types
   // CFG_TYPE_DEVTYPE = 201,      /* Device Type */

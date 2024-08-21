@@ -216,36 +216,40 @@ ResourceItem newexc_items[] = {
  * name handler value code flags default_value */
 
 ResourceItem options_items[] = {
-  { "Accurate", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_ACCURATE, 0, NULL, NULL, NULL },
-  { "AclSupport", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_ACL, 0, NULL, NULL, NULL },
-  { "AutoExclude", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_AUTO_EXCLUDE, 0, NULL, NULL, NULL },
-  { "BaseJob", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_BASEJOB, CFG_ITEM_DEPRECATED, NULL, NULL, NULL },
-  { "CheckFileChanges", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_CHKCHANGES, 0, NULL, NULL, NULL },
-  { "Compression", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_COMPRESSION, 0, NULL, NULL, NULL },
-  /* MARKER */ // missing encryption ?
-  { "Encryption", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_ENCRYPTION, 0, NULL, NULL, NULL },
-  { "EnhancedWild", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_ENHANCEDWILD, 0, NULL, NULL, NULL },
-  { "Exclude", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_EXCLUDE, 0, NULL, NULL, NULL },
-  { "ForceEncryption", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_FORCE_ENCRYPTION, 0, NULL, NULL, NULL },
-  { "HardLinks", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_HARDLINK, 0, NULL, NULL, NULL },
-  { "HfsPlusSupport", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_HFSPLUS, 0, NULL, NULL, NULL },
-  { "HonornoDumpFlag", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_HONOR_NODUMP, 0, NULL, NULL, NULL },
-  { "IgnoreCase", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_IGNORECASE, 0, NULL, NULL, NULL },
-  { "KeepAtime", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_KEEPATIME, 0, NULL, NULL, NULL },
-  { "MtimeOnly", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_MTIMEONLY, 0, NULL, NULL, NULL },
-  { "NoAtime", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_NOATIME, 0, NULL, NULL, NULL },
-  { "OneFs", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_ONEFS, 0, NULL, NULL, NULL },
-  { "Portable", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_PORTABLE, 0, NULL, NULL, NULL },
-  { "ReadFifo", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_READFIFO, 0, NULL, NULL, NULL },
-  { "Recurse", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_RECURSE, 0, NULL, NULL, NULL },
-  { "Replace", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_REPLACE, 0, NULL, NULL, NULL },
-  { "Shadowing", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_SHADOWING, 0, NULL, NULL, NULL },
-  { "Signature", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_DIGEST, 0, NULL, NULL, NULL },
-  { "Size", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_SIZE, 0, NULL, NULL, NULL },
-  { "Sparse", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_SPARSE, 0, NULL, NULL, NULL },
-  { "StripPath", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_STRIPPATH, 0, NULL, NULL, NULL },
-  { "Verify", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_VERIFY, 0, NULL, NULL, NULL },
-  { "XAttrSupport", CFG_TYPE_OPTION, ITEM(FileOptions, opts), INC_KW_XATTR, 0, NULL, NULL, NULL },
+  { "Accurate", CFG_TYPE_FILECMP, ITEM(FileOptions, accurate), 0, 0, NULL, NULL, NULL },
+  { "BaseJob", CFG_TYPE_FILECMP, ITEM(FileOptions, basejob), 0, CFG_ITEM_DEPRECATED, NULL, NULL, NULL },
+  { "Verify", CFG_TYPE_FILECMP, ITEM(FileOptions, verify), 0, 0, NULL, NULL, NULL },
+  { "Size", CFG_TYPE_SZMATCH, ITEM(FileOptions, size), 0, 0, NULL, NULL, NULL },
+
+  { "Compression", CFG_TYPE_COMPRESSION, ITEM(FileOptions, compression), 0, 0, NULL, NULL, NULL },
+  /* MARKER */ // missing encryption before ?
+  { "Encryption", CFG_TYPE_ENCRYPTION, ITEM(FileOptions, encryption), 0, 0, NULL, NULL, NULL },
+  { "Shadowing", CFG_TYPE_SHADOWING, ITEM(FileOptions, shadowing), 0, 0, NULL, NULL, NULL },
+  /* MARKER */ // does this make sense here ? Its not documented
+  { "Replace", CFG_TYPE_REPLACE, ITEM(FileOptions, replace), 0, 0, NULL, NULL, NULL },
+  { "Signature", CFG_TYPE_CHKSUM, ITEM(FileOptions, checksum), 0, 0, NULL, NULL, NULL },
+  { "CheckFileChanges", CFG_TYPE_BOOL, ITEM(FileOptions, chkchanges), 0, 0, NULL, NULL, NULL },
+
+  { "AclSupport", CFG_TYPE_BOOL, ITEM(FileOptions, acl), 0, 0, NULL, NULL, NULL },
+  { "AutoExclude", CFG_TYPE_BOOL, ITEM(FileOptions, auto_exclude), 0, 0, NULL, NULL, NULL },
+  { "EnhancedWild", CFG_TYPE_BOOL, ITEM(FileOptions, enhancedwild), 0, 0, NULL, NULL, NULL },
+  { "Exclude", CFG_TYPE_BOOL, ITEM(FileOptions, exclude), 0, 0, NULL, NULL, NULL },
+  { "ForceEncryption", CFG_TYPE_BOOL, ITEM(FileOptions, force_encryption), 0, 0, NULL, NULL, NULL },
+  { "HardLinks", CFG_TYPE_BOOL, ITEM(FileOptions, hardlink), 0, 0, NULL, NULL, NULL },
+  { "HfsPlusSupport", CFG_TYPE_BOOL, ITEM(FileOptions, hfsplus), INC_KW_HFSPLUS, 0, NULL, NULL, NULL },
+  { "HonornoDumpFlag", CFG_TYPE_BOOL, ITEM(FileOptions, honor_nodump), INC_KW_HONOR_NODUMP, 0, NULL, NULL, NULL },
+  { "IgnoreCase", CFG_TYPE_BOOL, ITEM(FileOptions, ignorecase), INC_KW_IGNORECASE, 0, NULL, NULL, NULL },
+  { "KeepAtime", CFG_TYPE_BOOL, ITEM(FileOptions, keepatime), INC_KW_KEEPATIME, 0, NULL, NULL, NULL },
+  { "MtimeOnly", CFG_TYPE_BOOL, ITEM(FileOptions, mtimeonly), INC_KW_MTIMEONLY, 0, NULL, NULL, NULL },
+  { "NoAtime", CFG_TYPE_BOOL, ITEM(FileOptions, noatime), INC_KW_NOATIME, 0, NULL, NULL, NULL },
+  { "OneFs", CFG_TYPE_BOOL, ITEM(FileOptions, onefs), 0, 0, NULL, NULL, NULL },
+  { "Portable", CFG_TYPE_BOOL, ITEM(FileOptions, portable), 0, 0, NULL, NULL, NULL },
+  { "ReadFifo", CFG_TYPE_BOOL, ITEM(FileOptions, readfifo), 0, 0, NULL, NULL, NULL },
+  { "Recurse", CFG_TYPE_BOOL, ITEM(FileOptions, recurse), 0, 0, NULL, NULL, NULL },
+  { "Sparse", CFG_TYPE_BOOL, ITEM(FileOptions, sparse), 0, 0, NULL, NULL, NULL },
+  { "XAttrSupport", CFG_TYPE_BOOL, ITEM(FileOptions, xattr), 0, 0, NULL, NULL, NULL },
+
+  { "StripPath", CFG_TYPE_PINT32, ITEM(FileOptions, strip_path), 0, 0, NULL, NULL, NULL },
 
   { "Regex", CFG_TYPE_REGEX, ITEM(FileOptions, regex), 0, 0, NULL, NULL, NULL },
   { "RegexDir", CFG_TYPE_REGEX, ITEM(FileOptions, regexdir), 1, 0, NULL, NULL, NULL },
@@ -349,83 +353,84 @@ static inline void IsInPermittedSet(LEX* lc,
   }
 }
 
-/**
- * Scan for right hand side of Include options (keyword=option) is
- * converted into one or two characters. Verifyopts=xxxx is Vxxxx:
- * Whatever is found is concatenated to the opts string.
- *
- * This code is also used inside an Options resource.
- */
-static void ScanIncludeOptions(LEX* lc, int keyword, char* opts, int optlen)
-{
-  int i;
-  char option[64];
-  int lcopts = lc->options;
-  struct s_sz_matching size_matching;
+// /**
+//  * Scan for right hand side of Include options (keyword=option) is
+//  * converted into one or two characters. Verifyopts=xxxx is Vxxxx:
+//  * Whatever is found is concatenated to the opts string.
+//  *
+//  * This code is also used inside an Options resource.
+//  */
+// static void ScanIncludeOptions(LEX* lc, int keyword, char* opts, int optlen)
+// {
+//   int i;
+//   char option[64];
+//   int lcopts = lc->options;
+//   struct s_sz_matching size_matching;
 
-  memset(option, 0, sizeof(option));
-  lc->options |= LOPT_STRING;     /* force string */
-  LexGetToken(lc, BCT_STRING);    /* expect at least one option */
-  if (keyword == INC_KW_VERIFY) { /* special case */
-    IsInPermittedSet(lc, T_("verify"), PERMITTED_VERIFY_OPTIONS);
-    bstrncat(opts, "V", optlen); /* indicate Verify */
-    bstrncat(opts, lc->str, optlen);
-    bstrncat(opts, ":", optlen); /* Terminate it */
-    Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
-  } else if (keyword == INC_KW_ACCURATE) { /* special case */
-    IsInPermittedSet(lc, T_("accurate"), PERMITTED_ACCURATE_OPTIONS);
-    bstrncat(opts, "C", optlen); /* indicate Accurate */
-    bstrncat(opts, lc->str, optlen);
-    bstrncat(opts, ":", optlen); /* Terminate it */
-    Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
-  } else if (keyword == INC_KW_BASEJOB) { /* special case */
-    IsInPermittedSet(lc, T_("base job"), PERMITTED_BASEJOB_OPTIONS);
-    bstrncat(opts, "J", optlen); /* indicate BaseJob */
-    bstrncat(opts, lc->str, optlen);
-    bstrncat(opts, ":", optlen); /* Terminate it */
-    Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
-  } else if (keyword == INC_KW_STRIPPATH) { /* special case */
-    if (!IsAnInteger(lc->str)) {
-      scan_err1(lc, T_("Expected a strip path positive integer, got: %s:"),
-                lc->str);
-      return;
-    }
-    bstrncat(opts, "P", optlen); /* indicate strip path */
-    bstrncat(opts, lc->str, optlen);
-    bstrncat(opts, ":", optlen); /* Terminate it */
-    Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
-  } else if (keyword == INC_KW_SIZE) { /* special case */
-    if (!ParseSizeMatch(lc->str, &size_matching)) {
-      scan_err1(lc, T_("Expected a parseable size, got: %s:"), lc->str);
-      return;
-    }
-    bstrncat(opts, "z", optlen); /* indicate size */
-    bstrncat(opts, lc->str, optlen);
-    bstrncat(opts, ":", optlen); /* Terminate it */
-    Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
-  } else {
-    // Standard keyword options for Include/Exclude
-    for (i = 0; FS_options[i].name; i++) {
-      if (FS_options[i].keyword == keyword
-          && Bstrcasecmp(lc->str, FS_options[i].name)) {
-        bstrncpy(option, FS_options[i].option, sizeof(option));
-        i = 0;
-        break;
-      }
-    }
-    if (i != 0) {
-      scan_err1(lc, T_("Expected a FileSet option keyword, got: %s:"), lc->str);
-      return;
-    } else { /* add option */
-      bstrncat(opts, option, optlen);
-      Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
-    }
-  }
-  lc->options = lcopts;
+//   memset(option, 0, sizeof(option));
+//   lc->options |= LOPT_STRING;     /* force string */
+//   LexGetToken(lc, BCT_STRING);    /* expect at least one option */
+//   if (keyword == INC_KW_VERIFY) { /* special case */
+//     IsInPermittedSet(lc, T_("verify"), PERMITTED_VERIFY_OPTIONS);
+//     bstrncat(opts, "V", optlen); /* indicate Verify */
+//     bstrncat(opts, lc->str, optlen);
+//     bstrncat(opts, ":", optlen); /* Terminate it */
+//     Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
+//   } else if (keyword == INC_KW_ACCURATE) { /* special case */
+//     IsInPermittedSet(lc, T_("accurate"), PERMITTED_ACCURATE_OPTIONS);
+//     bstrncat(opts, "C", optlen); /* indicate Accurate */
+//     bstrncat(opts, lc->str, optlen);
+//     bstrncat(opts, ":", optlen); /* Terminate it */
+//     Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
+//   } else if (keyword == INC_KW_BASEJOB) { /* special case */
+//     IsInPermittedSet(lc, T_("base job"), PERMITTED_BASEJOB_OPTIONS);
+//     bstrncat(opts, "J", optlen); /* indicate BaseJob */
+//     bstrncat(opts, lc->str, optlen);
+//     bstrncat(opts, ":", optlen); /* Terminate it */
+//     Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
+//   } else if (keyword == INC_KW_STRIPPATH) { /* special case */
+//     if (!IsAnInteger(lc->str)) {
+//       scan_err1(lc, T_("Expected a strip path positive integer, got: %s:"),
+//                 lc->str);
+//       return;
+//     }
+//     bstrncat(opts, "P", optlen); /* indicate strip path */
+//     bstrncat(opts, lc->str, optlen);
+//     bstrncat(opts, ":", optlen); /* Terminate it */
+//     Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
+//   } else if (keyword == INC_KW_SIZE) { /* special case */
+//     if (!ParseSizeMatch(lc->str, &size_matching)) {
+//       scan_err1(lc, T_("Expected a parseable size, got: %s:"), lc->str);
+//       return;
+//     }
+//     bstrncat(opts, "z", optlen); /* indicate size */
+//     bstrncat(opts, lc->str, optlen);
+//     bstrncat(opts, ":", optlen); /* Terminate it */
+//     Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
+//   } else {
+//     // Standard keyword options for Include/Exclude
+//     for (i = 0; FS_options[i].name; i++) {
+//       if (FS_options[i].keyword == keyword
+//           && Bstrcasecmp(lc->str, FS_options[i].name)) {
+//         bstrncpy(option, FS_options[i].option, sizeof(option));
+//         i = 0;
+//         break;
+//       }
+//     }
+//     if (i != 0) {
+//       scan_err1(lc, T_("Expected a FileSet option keyword, got: %s:"),
+//       lc->str); return;
+//     } else { /* add option */
+//       bstrncat(opts, option, optlen);
+//       Dmsg3(900, "Catopts=%s option=%s optlen=%d\n", opts, option, optlen);
+//     }
+//   }
+//   lc->options = lcopts;
 
-  // If option terminated by comma, eat it
-  if (lc->ch == ',') { LexGetToken(lc, BCT_ALL); /* yes, eat comma */ }
-}
+//   // If option terminated by comma, eat it
+/* MARKER */  // we still need to do this comma parsing
+//   if (lc->ch == ',') { LexGetToken(lc, BCT_ALL); /* yes, eat comma */ }
+// }
 
 // Store regex info
 static void StoreRegex(ConfigurationParser*,
@@ -574,26 +579,6 @@ static void StoreMeta(ConfigurationParser*,
       scan_err1(lc, T_("Expected a meta string, got: %s\n"), lc->str);
       return;
   }
-  item->SetPresent(res);
-  ClearBit(index, res->inherit_content_);
-  ScanToEol(lc);
-}
-
-// New style options come here
-static void StoreOption(ConfigurationParser*,
-                        BareosResource* res,
-                        LEX* lc,
-                        ResourceItem* item,
-                        int index)
-{
-  auto* opts = GetItemVariablePointer<FileOptions::options*>(res, *item);
-
-  int keyword = item->code;
-
-  // Now scan for the value
-  ScanIncludeOptions(lc, keyword, *opts, sizeof(*opts));
-  Dmsg2(900, "new incexe opts=%s\n", opts);
-
   item->SetPresent(res);
   ClearBit(index, res->inherit_content_);
   ScanToEol(lc);
@@ -868,6 +853,258 @@ static void StorePluginName(ConfigurationParser*,
 #endif
 }
 
+static void StoreCompression(ConfigurationParser*,
+                             BareosResource* res,
+                             LEX* lc,
+                             ResourceItem* item,
+                             int index)
+{
+  int lcopts = lc->options;
+  lc->options |= LOPT_STRING;  /* force string */
+  LexGetToken(lc, BCT_STRING); /* expect at least one option */
+
+  auto* compression = GetItemVariablePointer<compression_type*>(res, *item);
+
+  if (Bstrcasecmp(lc->str, "gzip")) {
+    *compression = compression_type::Gzip;
+  } else if (Bstrcasecmp(lc->str, "gzip1")) {
+    *compression = compression_type::Gzip1;
+  } else if (Bstrcasecmp(lc->str, "gzip2")) {
+    *compression = compression_type::Gzip2;
+  } else if (Bstrcasecmp(lc->str, "gzip3")) {
+    *compression = compression_type::Gzip3;
+  } else if (Bstrcasecmp(lc->str, "gzip4")) {
+    *compression = compression_type::Gzip4;
+  } else if (Bstrcasecmp(lc->str, "gzip5")) {
+    *compression = compression_type::Gzip5;
+  } else if (Bstrcasecmp(lc->str, "gzip6")) {
+    *compression = compression_type::Gzip6;
+  } else if (Bstrcasecmp(lc->str, "gzip7")) {
+    *compression = compression_type::Gzip7;
+  } else if (Bstrcasecmp(lc->str, "gzip8")) {
+    *compression = compression_type::Gzip8;
+  } else if (Bstrcasecmp(lc->str, "gzip9")) {
+    *compression = compression_type::Gzip9;
+  } else if (Bstrcasecmp(lc->str, "lzo")) {
+    *compression = compression_type::Lzo;
+  } else if (Bstrcasecmp(lc->str, "lzfast")) {
+    *compression = compression_type::Lzfast;
+  } else if (Bstrcasecmp(lc->str, "lz4")) {
+    *compression = compression_type::Lz4;
+  } else if (Bstrcasecmp(lc->str, "lz4hc")) {
+    *compression = compression_type::Lz4hc;
+  } else {
+    scan_err1(lc, T_("Expected a compression type, got: %s:"), lc->str);
+    return;
+  }
+
+  lc->options = lcopts;
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
+  ScanToEol(lc);
+}
+
+static void StoreEncryption(ConfigurationParser*,
+                            BareosResource* res,
+                            LEX* lc,
+                            ResourceItem* item,
+                            int index)
+{
+  int lcopts = lc->options;
+  lc->options |= LOPT_STRING;  /* force string */
+  LexGetToken(lc, BCT_STRING); /* expect at least one option */
+
+  auto* encryption = GetItemVariablePointer<encryption_type*>(res, *item);
+
+  if (Bstrcasecmp(lc->str, "blowfish")) {
+    *encryption = encryption_type::Blowfish;
+  }
+  if (Bstrcasecmp(lc->str, "tdes")) { *encryption = encryption_type::TDes; }
+  if (Bstrcasecmp(lc->str, "aes128")) { *encryption = encryption_type::Aes128; }
+  if (Bstrcasecmp(lc->str, "aes192")) { *encryption = encryption_type::Aes192; }
+  if (Bstrcasecmp(lc->str, "aes256")) { *encryption = encryption_type::Aes256; }
+  if (Bstrcasecmp(lc->str, "camellia128")) {
+    *encryption = encryption_type::Camellia128;
+  }
+  if (Bstrcasecmp(lc->str, "camellia192")) {
+    *encryption = encryption_type::Camellia192;
+  }
+  if (Bstrcasecmp(lc->str, "camellia256")) {
+    *encryption = encryption_type::Camellia256;
+  }
+  if (Bstrcasecmp(lc->str, "aes128hmacsha1")) {
+    *encryption = encryption_type::Aes128hmacsha1;
+  }
+  if (Bstrcasecmp(lc->str, "aes256hmacsha1")) {
+    *encryption = encryption_type::Aes256hmacsha1;
+  } else {
+    scan_err1(lc, T_("Expected an encryption type, got: %s:"), lc->str);
+    return;
+  }
+
+  lc->options = lcopts;
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
+  ScanToEol(lc);
+}
+
+static void StoreShadowing(ConfigurationParser*,
+                           BareosResource* res,
+                           LEX* lc,
+                           ResourceItem* item,
+                           int index)
+{
+  int lcopts = lc->options;
+  lc->options |= LOPT_STRING;  /* force string */
+  LexGetToken(lc, BCT_STRING); /* expect at least one option */
+
+  auto* shadowing = GetItemVariablePointer<shadowing_option*>(res, *item);
+
+  if (Bstrcasecmp(lc->str, "none")) {
+    *shadowing = shadowing_option::None;
+  } else if (Bstrcasecmp(lc->str, "localwarn")) {
+    *shadowing = shadowing_option::WarnLocally;
+  } else if (Bstrcasecmp(lc->str, "localremove")) {
+    *shadowing = shadowing_option::RemoveLocally;
+  } else if (Bstrcasecmp(lc->str, "globalwarn")) {
+    *shadowing = shadowing_option::WarnGlobally;
+  } else if (Bstrcasecmp(lc->str, "globalremove")) {
+    *shadowing = shadowing_option::RemoveGlobally;
+  } else {
+    scan_err1(lc, T_("Expected a shadowing option, got: %s:"), lc->str);
+    return;
+  }
+
+  lc->options = lcopts;
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
+  ScanToEol(lc);
+}
+
+static void StoreChecksum(ConfigurationParser*,
+                          BareosResource* res,
+                          LEX* lc,
+                          ResourceItem* item,
+                          int index)
+{
+  int lcopts = lc->options;
+  lc->options |= LOPT_STRING;  /* force string */
+  LexGetToken(lc, BCT_STRING); /* expect at least one option */
+
+  auto* chksum = GetItemVariablePointer<checksum_type*>(res, *item);
+
+
+  if (Bstrcasecmp(lc->str, "md5")) {
+    *chksum = checksum_type::Md5;
+  } else if (Bstrcasecmp(lc->str, "sha1")) {
+    *chksum = checksum_type::Sha1;
+  } else if (Bstrcasecmp(lc->str, "sha256")) {
+    *chksum = checksum_type::Sha256;
+  } else if (Bstrcasecmp(lc->str, "sha512")) {
+    *chksum = checksum_type::Sha512;
+  } else if (Bstrcasecmp(lc->str, "xxh128")) {
+    *chksum = checksum_type::XxHash128;
+  } else {
+    scan_err1(lc, T_("Expected a checksum type, got: %s:"), lc->str);
+    return;
+  }
+
+  lc->options = lcopts;
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
+  ScanToEol(lc);
+}
+
+static void StoreFileCompare(ConfigurationParser*,
+                             BareosResource* res,
+                             LEX* lc,
+                             ResourceItem* item,
+                             int index)
+{
+  int lcopts = lc->options;
+  lc->options |= LOPT_STRING;  /* force string */
+  LexGetToken(lc, BCT_STRING); /* expect at least one option */
+
+  auto* opts = GetItemVariablePointer<file_compare_options*>(res, *item);
+
+  for (auto* current = lc->str; *current; current += 1) {
+    switch (*current) {
+      case 'i': {
+        opts->inodes = true;
+      } break;
+      case 'p': {
+        opts->permissions = true;
+      } break;
+      case 'n': {
+        opts->num_links = true;
+      } break;
+      case 'u': {
+        opts->user_id = true;
+      } break;
+      case 'g': {
+        opts->group_id = true;
+      } break;
+      case 's': {
+        opts->size = true;
+      } break;
+      case 'a': {
+        opts->atime = true;
+      } break;
+      case 'm': {
+        opts->mtime = true;
+      } break;
+      case 'c': {
+        opts->ctime = true;
+      } break;
+      case 'd': {
+        opts->size_decrease = true;
+      } break;
+      case '5': {
+        opts->md5 = true;
+      } break;
+      case '1': {
+        opts->sha1 = true;
+      } break;
+        /* MARKER */  // todo: this is only allowed for accurate resource
+        // add a verifier
+      case 'A': {
+        opts->always = true;
+      } break;
+      default: {
+        scan_err1(lc, T_("expected a file compare option, got: '%c':"),
+                  *current);
+      } break;
+    }
+  }
+
+  lc->options = lcopts;
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
+  ScanToEol(lc);
+}
+static void StoreSizeMatch(ConfigurationParser*,
+                           BareosResource* res,
+                           LEX* lc,
+                           ResourceItem* item,
+                           int index)
+{
+  int lcopts = lc->options;
+  auto* size = GetItemVariablePointer<s_sz_matching*>(res, *item);
+
+  lc->options |= LOPT_STRING;  /* force string */
+  LexGetToken(lc, BCT_STRING); /* expect at least one option */
+
+  if (!ParseSizeMatch(lc->str, size)) {
+    scan_err1(lc, T_("Expected a parseable size, got: %s:"), lc->str);
+    return;
+  }
+
+  lc->options = lcopts;
+  item->SetPresent(res);
+  ClearBit(index, res->inherit_content_);
+  ScanToEol(lc);
+}
+
 static void ParseConfigCb(ConfigurationParser* p,
                           BareosResource* res,
                           LEX* lc,
@@ -881,11 +1118,29 @@ static void ParseConfigCb(ConfigurationParser* p,
     case CFG_TYPE_PLUGINNAME:
       StorePluginName(p, res, lc, item, index);
       break;
+
+
+    case CFG_TYPE_COMPRESSION: {
+      StoreCompression(p, res, lc, item, index);
+    } break;
+    case CFG_TYPE_ENCRYPTION: {
+      StoreEncryption(p, res, lc, item, index);
+    } break;
+    case CFG_TYPE_SHADOWING: {
+      StoreShadowing(p, res, lc, item, index);
+    } break;
+    case CFG_TYPE_CHKSUM: {
+      StoreChecksum(p, res, lc, item, index);
+    } break;
+    case CFG_TYPE_FILECMP: {
+      StoreFileCompare(p, res, lc, item, index);
+    } break;
+    case CFG_TYPE_SZMATCH: {
+      StoreSizeMatch(p, res, lc, item, index);
+    } break;
+
     case CFG_TYPE_OPTIONS:
       StoreOptionsRes(p, res, lc, item, index);
-      break;
-    case CFG_TYPE_OPTION:
-      StoreOption(p, res, lc, item, index);
       break;
     case CFG_TYPE_REGEX:
       StoreRegex(p, res, lc, item, index);

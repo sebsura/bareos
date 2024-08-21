@@ -2180,12 +2180,17 @@ static DatatypeName datatype_names[] = {
     {CFG_TYPE_FNAME, "FILENAME", "Filename"},
     {CFG_TYPE_PLUGINNAME, "PLUGIN_NAME", "Pluginname"},
     {CFG_TYPE_OPTIONS, "OPTIONS", "Options block"},
-    {CFG_TYPE_OPTION, "OPTION", "Option of Options block"},
     {CFG_TYPE_REGEX, "REGEX", "Regular Expression"},
     {CFG_TYPE_WILD, "WILDCARD", "Wildcard Expression"},
     {CFG_TYPE_FSTYPE, "FILESYSTEM_TYPE", "FileSystem match criterium (UNIX)"},
     {CFG_TYPE_DRIVETYPE, "DRIVE_TYPE", "DriveType match criterium (Windows)"},
     {CFG_TYPE_META, "META_TAG", "Meta tag"},
+    {CFG_TYPE_COMPRESSION, "CFG_TYPE_COMPRESSION", "Compression type"},
+    {CFG_TYPE_ENCRYPTION, "CFG_TYPE_ENCRYPTION", "Encryption type"},
+    {CFG_TYPE_SHADOWING, "CFG_TYPE_SHADOWING", "Shadowing option"},
+    {CFG_TYPE_CHKSUM, "CFG_TYPE_CHKSUM", "Checksum type"},
+    {CFG_TYPE_FILECMP, "CFG_TYPE_FILECMP", "File compare criteriums"},
+    {CFG_TYPE_SZMATCH, "CFG_TYPE_SZMATCH", "File size match criterium"},
 
     // Storage daemon resource types
     //{CFG_TYPE_DEVTYPE, "DEVICE_TYPE", "Device Type"},

@@ -33,6 +33,7 @@
 
 #include "dird/client_connection_handshake_mode.h"
 #include "dird/date_time_bitfield.h"
+#include "findlib/find.h"
 #include "lib/alist.h"
 #include "lib/messages_resource.h"
 #include "lib/resource_item.h"
@@ -508,6 +509,73 @@ class JobResource : public BareosResource {
 #undef MAX_FOPTS
 #define MAX_FOPTS 40
 
+enum class shadowing_option
+{
+  None,
+  WarnLocally,
+  RemoveLocally,
+  WarnGlobally,
+  RemoveGlobally,
+};
+
+enum class checksum_type
+{
+  None,
+  Md5,
+  Sha1,
+  Sha256,
+  Sha512,
+  XxHash128,
+};
+
+enum class compression_type
+{
+  Gzip,
+  Gzip1,
+  Gzip2,
+  Gzip3,
+  Gzip4,
+  Gzip5,
+  Gzip6,
+  Gzip7,
+  Gzip8,
+  Gzip9,
+  Lzo,
+  Lzfast,
+  Lz4,
+  Lz4hc,
+};
+
+enum class encryption_type
+{
+  Blowfish,
+  TDes,
+  Aes128,
+  Aes192,
+  Aes256,
+  Camellia128,
+  Camellia192,
+  Camellia256,
+  Aes128hmacsha1,
+  Aes256hmacsha1,
+};
+
+struct file_compare_options {
+  bool inodes{};
+  bool permissions{};
+  bool num_links{};
+  bool user_id{};
+  bool group_id{};
+  bool size{};
+  bool atime{};
+  bool mtime{};
+  bool ctime{};
+  bool size_decrease{};
+  bool md5{};
+  bool sha1{};
+  bool always{};
+};
+
 // File options structure
 /* MARKER */
 // think about how to not have this reliance on BareosResource for parsing
@@ -518,7 +586,40 @@ struct FileOptions : public BareosResource {
   FileOptions();
   virtual ~FileOptions() = default;
 
-  options opts = {0};           /**< Options string */
+  options opts = {0}; /**< Options string */
+
+  /* MARKER */  // todo: check if you can only have 1 size defined
+  s_sz_matching size;
+  checksum_type checksum{};
+  compression_type compression{};
+  encryption_type encryption{};
+  file_compare_options accurate;
+  file_compare_options basejob;
+  file_compare_options verify;
+  bool onefs{};
+  bool recurse{};
+  bool sparse{};
+  bool hardlink{true};
+  uint32_t replace{};
+  bool readfifo{};
+  bool portable{};
+  bool mtimeonly{};
+  bool keepatime{};
+  bool exclude{};
+  bool acl{true};
+  bool ignorecase{};
+  bool hfsplus{};
+  bool noatime{};
+  bool enhancedwild{};
+  bool chkchanges{};
+  bool honor_nodump{};
+  bool xattr{true};
+  shadowing_option shadowing{};
+  bool auto_exclude{};
+  bool force_encryption{};
+  uint32_t strip_path{0};
+
+
   alist<const char*> regex;     /**< Regex string(s) */
   alist<const char*> regexdir;  /**< Regex string(s) for directories */
   alist<const char*> regexfile; /**< Regex string(s) for files */
