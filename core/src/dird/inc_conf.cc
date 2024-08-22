@@ -692,10 +692,12 @@ std::string FileOptions::format_options()
   if (size) {
     formatted += 'z';
     // todo
+    /* MARKER */
   }
   if (strip_path) {
     formatted += 'P';
     // todo
+    /* MARKER */
   }
   if (replace != REPLACE_IFOLDER) {
     // replace already has the right format
