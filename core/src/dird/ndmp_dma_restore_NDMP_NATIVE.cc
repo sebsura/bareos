@@ -149,8 +149,9 @@ static inline bool fill_restore_environment_ndmp_native(
     // At least one member shall be supplied.
     // If original_path is the null string, the server shall recover all data
     // contained in the backup image.
-    AddToNamelist(job, nullptr, /* original_path */
-                  restore_prefix, (char*)"", (char*)"", 0, 0);
+    AddToNamelist(job, (char*)"", destination_path.c_str(), (char*)"",
+                  (char*)"", NDMP_INVALID_U_QUAD, NDMP_INVALID_U_QUAD,
+                  me->ndmp_fhinfo_set_zero_for_invalid_u_quad);
   }
   return true;
 }
