@@ -36,17 +36,16 @@ class RestoreForm extends Form
     protected $jobids;
     public $backups;
 
-    public function __construct($restore_params = null, $restore_source_clients = null, $restorejobresources = null, $jobids = null, $backups = null, $restore_target_clients = null, $restore_jobid = null)
+    public function __construct($restore_params = null, $restore_source_clients = null, $restore_target_clients = null, $restorejobresources = null, $jobids = null, $backups = null)
     {
         parent::__construct('restore');
 
         $this->restore_params = $restore_params;
         $this->restore_source_clients = $this->getNameOptionsMap($restore_source_clients);
+        $this->restore_target_clients = $this->getNameOptionsMap($restore_target_clients);
         $this->restorejobresources = $restorejobresources;
         $this->jobids = $jobids;
         $this->backups = $backups;
-        $this->restore_target_clients = $this->getNameOptionsMap($restore_target_clients);
-        $this->restore_jobid = $restore_jobid;
 
         // Client
         $this->add(array(

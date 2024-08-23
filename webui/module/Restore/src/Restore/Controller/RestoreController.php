@@ -133,10 +133,10 @@ class RestoreController extends AbstractActionController
         $form = new RestoreForm(
             $this->restore_params,
             $restore_source_clients,
+            $restore_target_clients,
             $restorejobresources,
             $this->restore_params['jobids'],
-            $backups,
-            $restore_target_clients
+            $backups
         );
 
         // copy parameter for switching
