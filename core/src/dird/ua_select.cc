@@ -160,7 +160,7 @@ int FindClientArgFromDatabase(UaContext* ua)
 {
   ClientDbRecord cr;
   int i = FindArgWithValue(ua, NT_("client"));
-  assert(i != 0);
+  ASSERT(i != 0);
   if (i >= 0) {
     if (!IsNameValid(ua->argv[i], ua->errmsg)) {
       ua->ErrorMsg("%s argument: %s", ua->argk[i], ua->errmsg.c_str());
