@@ -514,7 +514,7 @@ struct ListCmdOptions {
 
 static bool ListMedia(UaContext* ua,
                       e_list_type llist,
-                      ListCmdOptions& optionslist)
+                      const ListCmdOptions& optionslist)
 {
   JobDbRecord jr;
   std::string query_range;
