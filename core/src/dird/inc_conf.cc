@@ -27,6 +27,7 @@
  * Exclude records
  */
 
+#include <charconv>
 #include "include/bareos.h"
 #include "dird.h"
 #include "dird/dird_globals.h"
@@ -128,6 +129,7 @@ template <typename T> constexpr auto fsopts_v = array_of(fsopts<T>::value);
 template <> struct fsopts<compression_type> {
   static constexpr fsopt<compression_type> value[] = {
       {compression_type::None, "none", ""},
+      {compression_type::Gzip6, "gzip", "Z6"},
       {compression_type::Gzip1, "gzip1", "Z1"},
       {compression_type::Gzip2, "gzip2", "Z2"},
       {compression_type::Gzip3, "gzip3", "Z3"},
@@ -173,7 +175,7 @@ template <> struct fsopts<checksum_type> {
 
 template <> struct fsopts<shadowing_option> {
   static constexpr fsopt<shadowing_option> value[] = {
-      {shadowing_option::None, "none", "0"},
+      {shadowing_option::None, "none", ""},
       {shadowing_option::WarnLocally, "localwarn", "d1"},
       {shadowing_option::RemoveLocally, "localremove", "d2"},
       {shadowing_option::WarnGlobally, "globalwarn", "d3"},
@@ -686,19 +688,55 @@ void FormatFileCmp(std::string& out, const file_compare_options& opt)
   if (opt.always) { out += 'A'; }
 }
 
+template <typename Int> static void AppendInt(std::string& s, Int val)
+{
+  char buffer[100];
+
+  auto res = std::to_chars(std::begin(buffer), std::end(buffer), val);
+
+  ASSERT(res.ec == std::errc());
+
+  std::string_view number_as_str(buffer, res.ptr - &buffer[0]);
+
+  s += number_as_str;
+}
+
 std::string FileOptions::format_options()
 {
   std::string formatted;
-  if (size) {
+  if (size && size->type != size_match_none) {
     formatted += 'z';
-    // todo
-    /* MARKER */
+
+    switch (size->type) {
+      case size_match_none: {
+      } break;
+      case size_match_approx: {
+        AppendInt(formatted, size->begin_size);
+      } break;
+      case size_match_smaller: {
+        formatted += "<";
+        AppendInt(formatted, size->begin_size);
+      } break;
+      case size_match_greater: {
+        formatted += ">";
+        AppendInt(formatted, size->begin_size);
+      } break;
+      case size_match_range: {
+        AppendInt(formatted, size->begin_size);
+        formatted += "-";
+        AppendInt(formatted, size->end_size);
+      } break;
+    }
+
+    formatted += ':';
   }
+
   if (strip_path) {
     formatted += 'P';
-    // todo
-    /* MARKER */
+    AppendInt(formatted, strip_path);
+    formatted += ":";
   }
+
   if (replace != REPLACE_IFOLDER) {
     // replace already has the right format
     formatted += replace;
@@ -721,7 +759,7 @@ std::string FileOptions::format_options()
   if (!onefs) { formatted += "f"; }
   if (!recurse) { formatted += "h"; }
   if (sparse) { formatted += "s"; }
-  if (!hardlink) { formatted += "Q"; }
+  if (!hardlink) { formatted += "H"; }
   if (readfifo) { formatted += "r"; }
   if (portable) { formatted += "p"; }
   if (mtimeonly) { formatted += "m"; }

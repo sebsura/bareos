@@ -593,10 +593,10 @@ struct FileOptions : public BareosResource {
   file_compare_options accurate;
   file_compare_options basejob;
   file_compare_options verify;
-  bool onefs{};
-  bool recurse{};
+  bool onefs{true};
+  bool recurse{true};
   bool sparse{};
-  bool hardlink{true};
+  bool hardlink{false};
   uint32_t replace{REPLACE_IFOLDER};
   bool readfifo{};
   bool portable{};
@@ -611,7 +611,7 @@ struct FileOptions : public BareosResource {
   bool chkchanges{};
   bool honor_nodump{};
   bool xattr{true};
-  bool auto_exclude{};
+  bool auto_exclude{true};
   bool force_encryption{};
   uint32_t strip_path{0};
 
