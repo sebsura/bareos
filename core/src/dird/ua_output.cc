@@ -480,7 +480,7 @@ struct ListCmdOptions {
   bool count;
   bool last;
   bool current;
-  bool enabled;
+  bool enabled{};
   bool disabled;
   // jobstatus=X,Y,Z....
   std::vector<char> jobstatuslist;
