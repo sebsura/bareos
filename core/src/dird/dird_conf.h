@@ -590,7 +590,11 @@ struct FileOptions : public BareosResource {
   compression_type compression{};
   encryption_type encryption{};
   shadowing_option shadowing{};
-  file_compare_options accurate;
+  file_compare_options accurate{
+      .size = true,
+      .mtime = true,
+      .ctime = true,
+  };
   file_compare_options basejob;
   file_compare_options verify;
   bool onefs{true};

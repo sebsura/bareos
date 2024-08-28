@@ -303,7 +303,7 @@ ResourceItem newexc_items[] = {
  * name handler value code flags default_value */
 
 ResourceItem options_items[] = {
-  { "Accurate", CFG_TYPE_FILECMP, ITEM(FileOptions, accurate), 0, 0, NULL, NULL, NULL },
+  { "Accurate", CFG_TYPE_FILECMP, ITEM(FileOptions, accurate), 0, 0, "mcs", NULL, NULL },
   { "BaseJob", CFG_TYPE_FILECMP, ITEM(FileOptions, basejob), 0, CFG_ITEM_DEPRECATED, NULL, NULL, NULL },
   { "Verify", CFG_TYPE_FILECMP, ITEM(FileOptions, verify), 0, 0, NULL, NULL, NULL },
   { "Size", CFG_TYPE_SZMATCH, ITEM(FileOptions, size), 0, 0, NULL, NULL, NULL },
@@ -1174,6 +1174,10 @@ static void StoreFileCompare(ConfigurationParser*,
   LexGetToken(lc, BCT_STRING); /* expect at least one option */
 
   auto* opts = GetItemVariablePointer<file_compare_options*>(res, *item);
+
+  /* MARKER */
+  // should we always drop the old value, or just when its the default one ?
+  *opts = {};
 
   for (auto* current = lc->str; *current; current += 1) {
     switch (*current) {
