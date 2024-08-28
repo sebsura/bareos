@@ -765,7 +765,7 @@ std::string FileOptions::format_options()
   if (mtimeonly) { formatted += "m"; }
   if (keepatime) { formatted += "k"; }
   if (exclude) { formatted += "e"; }
-  if (acl) { formatted += "a"; }
+  if (acl) { formatted += "A"; }
   if (ignorecase) { formatted += "i"; }
   if (hfsplus) { formatted += "R"; }
   if (noatime) { formatted += "K"; }
