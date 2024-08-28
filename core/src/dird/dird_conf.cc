@@ -3470,19 +3470,22 @@ struct DirectorFixuper : public config_fixuper {
     auto* default_catalog
         = dynamic_cast<CatalogResource*>(p->GetNextRes(R_CATALOG, nullptr));
 
-    if (!default_catalog) {
-      // error
-      /* MARKER */
-      return false;
-    }
-
     for (ClientResource* client = nullptr;;) {
       auto* res = p->GetNextRes(R_CLIENT, client);
       if (!res) { break; }
       client = dynamic_cast<ClientResource*>(res);
       ASSERT(client);
 
-      if (!client->catalog) { client->catalog = default_catalog; }
+      if (!client->catalog) {
+        if (!default_catalog) {
+          // error
+          /* MARKER */
+
+          return false;
+        }
+
+        client->catalog = default_catalog;
+      }
 
       client->rcs
           = GetRuntimeStatus<RuntimeClientStatus>(client->resource_name_);
