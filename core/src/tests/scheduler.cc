@@ -89,7 +89,7 @@ TEST_F(SchedulerTest, terminate)
   my_config = InitDirConfig(path_to_config_file.c_str(), M_ERROR_TERM);
   ASSERT_TRUE(my_config);
 
-  my_config->ParseConfig();
+  ASSERT_TRUE(my_config->ParseConfig());
 
   std::thread scheduler_canceler(StopScheduler, std::chrono::milliseconds(200));
 
@@ -185,7 +185,7 @@ TEST_F(SchedulerTest, hourly)
 
   if (debug) { std::cout << "Parse config" << std::endl; }
 
-  my_config->ParseConfig();
+  ASSERT_TRUE(my_config->ParseConfig());
   ASSERT_TRUE(PopulateDefs());
 
   list_of_job_execution_time_stamps.clear();
@@ -240,7 +240,7 @@ static void TestWithConfig(std::string path_to_config_file,
 
   if (debug) { std::cout << "Parse config" << std::endl; }
 
-  my_config->ParseConfig();
+  ASSERT_TRUE(my_config->ParseConfig());
   ASSERT_TRUE(PopulateDefs());
 
   list_of_job_execution_time_stamps.clear();
@@ -313,7 +313,7 @@ TEST_F(SchedulerTest, add_job_with_no_run_resource_to_queue)
 
   if (debug) { std::cout << "Parse config" << std::endl; }
 
-  my_config->ParseConfig();
+  ASSERT_TRUE(my_config->ParseConfig());
   ASSERT_TRUE(PopulateDefs());
 
   counter_of_number_of_jobs_run = 0;
