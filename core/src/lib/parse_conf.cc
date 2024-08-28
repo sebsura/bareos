@@ -212,9 +212,9 @@ parsable_resource ConfigurationParser::make_resource(const char* name)
   if (!table || !table->items) { return {}; }
 
   BareosResource* res = table->make();
-
   ASSERT(res);
 
+  res->manually_added_ = false;
   InitResource(table->rcode, table->items, res);
 
   res->rcode_str_
@@ -984,7 +984,7 @@ bool ConfigurationParser::VerifyPass()
     while (*current) {
       // do not check manually added resources or resources with this check
       // disabled
-      if (!tbl->ignore_required) {
+      if (!tbl->ignore_required && !(*current)->manually_added_) {
         // every resource has to pass validation, but we also want to validate
         // all of them before returning, so do not return here just yet
         ok &= CheckRequired(*current, tbl);
