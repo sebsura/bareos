@@ -214,5 +214,128 @@ lex_ptr LexFile(const char* file,
                 LEX_ERROR_HANDLER* err,
                 LEX_WARNING_HANDLER* warn);
 
+namespace lex {
+struct source {
+  std::string path;
+  std::string data;
+};
+
+struct source_point {
+  size_t byte_offset;
+  uint32_t line;
+  uint32_t col;
+};
+
+struct source_state {
+  source_point current_pos() const { return {byte_offset, line, col}; }
+
+  // returns nullptr on EOF
+  std::optional<char> read(const std::vector<source>& sources);
+  void reset_to(size_t file_index, source_point p)
+  {
+    current_index = file_index;
+    byte_offset = p.byte_offset;
+    line = p.line;
+    col = p.col;
+    line_offset = 0;  // ??
+  }
+  size_t current_index{};
+  size_t line_offset{};
+  size_t byte_offset{};
+  uint32_t line{}, col{};
+};
+
+struct options {
+  bool no_identifiers{};
+  bool force_string{};
+  bool disable_includes{};
+};
+
+enum class lex_state
+{
+  None,
+  Comment,
+  Number,
+  Ident,
+  String,
+  QuotedString,
+  Include,
+  IncludeQuoted,
+  Utf8Bom,  /* we are parsing out a utf8 byte order mark */
+  Utf16Bom, /* we are parsing out a utf-16 (little endian) byte order
+               mark */
+};
+
+
+enum class token_type
+{
+  FileEnd,
+  Number,
+  IpAddr,
+  Identifier,
+  UnquotedString,
+  QuotedString,
+  OpenBlock,
+  CloseBlock,
+  Eq,
+  Comma,
+  LineEnd,
+  Err,
+  Utf8_BOM,
+  Utf16_BOM,
+};
+
+enum class expected_type
+{
+  SkipEol,
+  PosInt16,
+  PosInt32,
+  PosInt32Range,
+  PosInt64,
+  PosInt64Range,
+  Int16,
+  Int32,
+  Int64,
+  Name,
+  String,
+};
+
+struct source_location {
+  size_t source_index;
+  source_point start, end;
+};
+
+struct token {
+  token_type type;
+  source_location loc;
+};
+
+struct lexer {
+  token next_token();
+
+  bool finished() const { return current_index == sources.size(); }
+
+  std::vector<source> sources{};
+
+  options opts;
+
+  // index of current source we are working on
+  size_t current_index{0};
+
+  // state of the current source
+  source_state source{};
+  lex_state internal_state{};
+
+  std::string buffer;
+};
+
+lexer open_files(const char* path);
+
+std::string format_comment(LEX* lex,
+                           source_location loc,
+                           std::string_view comment);
+
+};  // namespace lex
+
 
 #endif  // BAREOS_LIB_LEX_H_

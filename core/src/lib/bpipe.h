@@ -45,7 +45,7 @@ class Bpipe {
   FILE* wfd;
 };
 
-Bpipe* OpenBpipe(char* prog,
+Bpipe* OpenBpipe(const char* prog,
                  int wait,
                  const char* mode,
                  bool dup_stderr = true);

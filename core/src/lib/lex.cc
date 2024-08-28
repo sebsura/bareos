@@ -33,6 +33,7 @@
 #include "lib/berrno.h"
 #include "lib/bpipe.h"
 #include <glob.h>
+#include "lib/parse_err.h"
 
 extern int debug_level;
 
@@ -1050,3 +1051,364 @@ lex_ptr LexFile(const char* file,
 
   return p;
 }
+
+namespace lex {
+
+namespace {
+
+std::optional<std::string> read_fd(FILE* f)
+{
+  auto size = 64 * 1024;
+  auto buffer = std::make_unique<char[]>(size);
+  ASSERT(buffer);
+
+  std::string res;
+  for (;;) {
+    auto bytes_read = fread(buffer.get(), size, 1, f);
+
+    if (bytes_read == 0) {
+      if (ferror(f)) { return std::nullopt; }
+
+      return res;
+    }
+
+    res += std::string_view{buffer.get(), bytes_read};
+  }
+}
+
+source read_pipe(const char* cmd)
+{
+  auto* pipe = OpenBpipe(cmd, 0, "rb");
+
+  if (!pipe) { throw parse_error("Could not execute cmd '%s'", cmd); }
+
+
+  auto content = read_fd(pipe->rfd);
+
+  CloseBpipe(pipe);
+
+  if (!content) {
+    throw parse_error("An error occured while reading from command '%s'", cmd);
+  }
+
+  return {cmd, std::move(content).value()};
+}
+
+source read_file(const char* path)
+{
+  auto fd = fopen(path, "rb");
+  if (!fd) { throw parse_error("Could not open file '%s'", path); }
+
+  auto content = read_fd(fd);
+  fclose(fd);
+
+  if (!content) {
+    throw parse_error("An error occured while reading from file '%s'", path);
+  }
+
+  return {path, std::move(content).value()};
+}
+
+static constexpr token Err = {.type = token_type::Err};
+
+token simple_token(token_type t,
+                   size_t current_index,
+                   source_point start,
+                   source_point end)
+{
+  source_location loc{current_index, start, end};
+  return token{t, loc};
+}
+}  // namespace
+
+void read_files(std::vector<source>& sources, const char* path)
+{
+#ifdef HAVE_GLOB
+  glob_t fileglob;
+
+  /* Flag GLOB_NOMAGIC is a GNU extension, therefore manually check if string
+   * is a wildcard string. */
+
+  // Clear fileglob at least required for mingw version of glob()
+  memset(&fileglob, 0, sizeof(fileglob));
+  int globrc = glob(path, 0, NULL, &fileglob);
+
+  if ((globrc == GLOB_NOMATCH) && (IsWildcardString(path))) {
+    return;
+  } else if (globrc != 0) {
+    throw parse_error("Could not find file '%s'", path);
+  }
+
+  Dmsg2(100, "glob %s: %i files\n", path, fileglob.gl_pathc);
+  for (size_t i = 0; i < fileglob.gl_pathc; i++) {
+    const char* filename_expanded = fileglob.gl_pathv[i];
+    sources.emplace_back(read_file(filename_expanded));
+  }
+  globfree(&fileglob);
+#else
+  sources.emplace_back(read_file(path));
+#endif
+}
+
+lexer open_files(const char* path)
+{
+  lexer res;
+
+  if (path[0] == '|') {
+    // get contents from pipe
+    source s = read_pipe(path + 1);
+
+    res.sources.emplace_back(std::move(s));
+  } else {
+    read_files(res.sources, path);
+  }
+  return res;
+}
+
+std::optional<char> source_state::read(const std::vector<source>& sources)
+{
+  if (current_index == sources.size()) {
+    throw parse_error("trying to read past eof of all sources");
+  }
+
+  auto& source = sources[current_index];
+
+  ASSERT(byte_offset <= sources.size());
+
+  if (byte_offset == sources.size()) {
+    current_index += 1;
+    line_offset = 0;
+    byte_offset = 0;
+    line = 0;
+    col = 0;
+
+    // reached eof
+    return std::nullopt;
+  }
+
+  char c = source.data[byte_offset++];
+
+  if (c == '\n') {
+    line += 1;
+  } else {
+    col += 1;
+  }
+
+  return c;
+}
+
+token lexer::next_token()
+{
+  buffer.clear();
+
+  auto file_index = source.current_index;
+  auto start = source.current_pos();
+
+  bool continue_string = false;
+  bool skip_eol = false;
+  bool escape_next = false;
+
+  for (;;) {
+    auto current = source.current_pos();
+    auto c = source.read(sources);
+
+    // Dmsg3(debuglevel, "state = %d, char = %c (%d)\n", (int) internal_state,
+    // c, (int) c);
+
+    switch (internal_state) {
+      case lex_state::None: {
+        if (!c) {
+          /* MARKER */
+          return Err;
+        }
+        auto ch = *c;
+
+        if (B_ISSPACE(ch)) {
+          // we just ignore space
+          break;
+        }
+
+        if (B_ISALPHA(ch)) {
+          if (opts.no_identifiers || opts.force_string) {
+            internal_state = lex_state::String;
+          } else {
+            internal_state = lex_state::Ident;
+          }
+
+          buffer.push_back(ch);
+          break;
+        }
+
+        if (B_ISDIGIT(ch)) {
+          if (opts.force_string) {
+            internal_state = lex_state::String;
+          } else {
+            internal_state = lex_state::Number;
+          }
+
+          buffer.push_back(ch);
+
+          break;
+        }
+
+        switch (ch) {
+          case '#': {
+            internal_state = lex_state::Comment;
+          } break;
+          case '{': {
+            return simple_token(token_type::OpenBlock, file_index, start,
+                                current);
+          } break;
+          case '}': {
+            return simple_token(token_type::CloseBlock, file_index, start,
+                                current);
+          } break;
+
+          case ' ': {
+          } break;
+          case '"': {
+            internal_state = lex_state::QuotedString;
+            // if (!continue_string) { } ??
+          } break;
+          case '=': {
+            return simple_token(token_type::Eq, file_index, start, current);
+          } break;
+          case ',': {
+            return simple_token(token_type::Comma, file_index, start, current);
+          } break;
+          case ';': {
+            if (!skip_eol) {
+              return simple_token(token_type::LineEnd, file_index, start,
+                                  current);
+            }
+          } break;
+          case '\n': {
+            if (continue_string) {
+              continue;
+            } else {
+              return simple_token(token_type::LineEnd, file_index, start,
+                                  current);
+            }
+          } break;
+          case '@': {
+            if (opts.disable_includes) {
+              internal_state = lex_state::String;
+              buffer.push_back(ch);
+            } else {
+              internal_state = lex_state::Include;
+            }
+          } break;
+          case 0xEF:
+            [[fallthrough]];
+          case 0xFF:
+            [[fallthrough]];
+          case 0xFE: {
+            /* MARKER */
+            return Err;
+          } break;
+        }
+      }
+      case lex_state::Comment: {
+        if (!c) { return Err; }
+        auto ch = *c;
+        if (ch == '\n') {
+          internal_state = lex_state::None;
+          if (!skip_eol) {
+            return simple_token(token_type::LineEnd, file_index, start,
+                                current);
+          }
+        }
+      } break;
+      case lex_state::Number: {
+        if (!c) { return Err; }
+
+        auto ch = *c;
+        if (B_ISDIGIT(ch)) {
+          buffer.push_back(ch);
+        } else if (B_ISSPACE(ch) || ch == '\n' || ch == ',' || ch == ';') {
+          /* A valid number can be terminated by the following */
+          internal_state = lex_state::None;
+
+          return simple_token(token_type::Number, file_index, start, current);
+        } else {
+          internal_state = lex_state::String;
+          source.reset_to(file_index, current);
+        }
+      } break;
+      case lex_state::String: {
+        if (!c) { return Err; }
+
+        auto ch = *c;
+
+        if (ch == '\n' || ch == L_EOL || ch == '=' || ch == '}' || ch == '{'
+            || ch == '\r' || ch == ';' || ch == ',' || ch == '#'
+            || (B_ISSPACE(ch)) || ch == '"') {
+          source.reset_to(file_index, current);
+          internal_state = lex_state::None;
+
+          return simple_token(token_type::UnquotedString, file_index, start,
+                              current);
+        }
+
+        buffer.push_back(ch);
+      } break;
+      case lex_state::Ident: {
+        if (!c) { return Err; }
+
+        auto ch = *c;
+
+        if (B_ISALPHA(ch)) {
+          buffer.push_back(ch);
+        } else if (B_ISSPACE(ch)) {
+          // ignore
+        } else if (ch == '\n' || ch == L_EOL || ch == '=' || ch == '}'
+                   || ch == '{' || ch == '\r' || ch == ';' || ch == ','
+                   || ch == '"' || ch == '#') {
+          source.reset_to(file_index, current);
+          internal_state = lex_state::None;
+
+          return simple_token(token_type::Identifier, file_index, start,
+                              current);
+        }
+        /* Some non-alpha character => string */
+        internal_state = lex_state::String;
+        buffer.push_back(ch);
+      } break;
+      case lex_state::QuotedString: {
+        if (!c) { return Err; }
+        auto ch = *c;
+
+        if (ch == '\n') {
+          escape_next = false;
+        } else if (escape_next) {
+          buffer.push_back(ch);
+          escape_next = false;
+        } else if (ch == '\\') {
+          escape_next = true;
+        } else if (ch == '"') {
+          // todo: continuations
+
+          internal_state = lex_state::None;
+
+          return simple_token(token_type::QuotedString, file_index, start,
+                              current);
+        } else {
+          continue_string = false;
+          buffer.push_back(ch);
+        }
+      } break;
+      case lex_state::Include: {
+      } break;
+      case lex_state::IncludeQuoted: {
+        if (!c) { return Err; }
+        auto ch = *c;
+      } break;
+      case lex_state::Utf8Bom:
+      case lex_state::Utf16Bom:
+        break;
+    }
+  }
+
+  return Err;
+}
+}  // namespace lex
