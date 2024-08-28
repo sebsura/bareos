@@ -3,7 +3,7 @@
 
    Copyright (C) 2001-2006 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -65,6 +65,11 @@ bool QueryCmd(UaContext* ua, const char*)
   char* prompt[9];
   int nprompt = 0;
   char* query_file = me->query_file;
+
+  if (!query_file) {
+    ua->ErrorMsg(T_("No query file defined\n"), query_file);
+    goto bail_out;
+  }
 
   if (!OpenClientDb(ua, true)) { goto bail_out; }
   if ((fd = fopen(query_file, "rb")) == NULL) {
