@@ -582,6 +582,34 @@ static void ConfigReadyCallback(ConfigurationParser& config)
   CheckDropletDevices(config);
 }
 
+struct AutochangerFixuper : public config_fixuper {
+  bool operator()(ConfigurationParser* p) override
+  {
+    for (AutochangerResource* changer = nullptr;;) {
+      auto* res = p->GetNextRes(R_AUTOCHANGER, changer);
+      if (!res) { break; }
+      changer = dynamic_cast<AutochangerResource*>(res);
+      ASSERT(changer);
+
+      for (auto* device : changer->device_resources) {
+        device->changer_res = changer;
+      }
+
+      int errstat;
+      if ((errstat = RwlInit(&changer->changer_lock, PRIO_SD_ACH_ACCESS))
+          != 0) {
+        BErrNo be;
+        Jmsg1(NULL, M_ERROR_TERM, 0, T_("Unable to init lock: ERR=%s\n"),
+              be.bstrerror(errstat));
+
+        return false;
+      }
+    }
+
+    return true;
+  }
+};
+
 ConfigurationParser* InitSdConfig(const char* t_configfile, int exit_code)
 {
   ConfigurationParser* config = new ConfigurationParser(
@@ -590,6 +618,10 @@ ConfigurationParser* InitSdConfig(const char* t_configfile, int exit_code)
       "bareos-sd.d", ConfigBeforeCallback, ConfigReadyCallback, DumpResource,
       FreeResource);
   if (config) { config->r_own_ = R_STORAGE; }
+
+  static AutochangerFixuper autochanger_fixer;
+
+  config->AddFixupCallback(&autochanger_fixer);
   return config;
 }
 
