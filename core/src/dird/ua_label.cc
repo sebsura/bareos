@@ -581,7 +581,6 @@ static int do_label(UaContext* ua, const char*, bool relabel)
   ok = SendLabelRequest(ua, store.store, &mr, &omr, &pr, media_record_exists,
                         relabel, drive, mr.Slot);
   if (ok) {
-    sd = ua->jcr->store_bsock;
     if (relabel) {
       // Delete the old media record
       if (!ua->db->DeleteMediaRecord(ua->jcr, &omr)) {
@@ -597,7 +596,10 @@ static int do_label(UaContext* ua, const char*, bool relabel)
         }
       }
     }
-    if (ua->automount) {
+    sd = ua->jcr->store_bsock;
+    // sd is only set when native labeling. During ndmp labeling it is not set
+    // and we should not automount anything.
+    if (ua->automount && sd) {
       bstrncpy(dev_name, store.store->dev_name(), sizeof(dev_name));
       ua->InfoMsg(T_("Requesting to mount %s ...\n"), dev_name);
       BashSpaces(dev_name);
