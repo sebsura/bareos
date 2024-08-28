@@ -158,7 +158,7 @@ static void check_addresses_list(std::string path_to_config,
   std::vector<std::string> director_addresses;
 
   PConfigParser director_config(DirectorPrepareResources(path_to_config));
-  EXPECT_TRUE(director_config);
+  ASSERT_TRUE(director_config);
 
   foreach_dlist (addr, directordaemon::me->DIRaddrs) {
     addr->build_address_str(buff, sizeof(buff), true);
