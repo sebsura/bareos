@@ -234,6 +234,12 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
   lex_ptr lexer = LexFile(config_file_name, caller_ctx, err_type_, scan_error,
                           scan_warning);
 
+
+  if (!lexer) {
+    // error: could not read file
+    return false;
+  }
+
   bool error = !ParsingPass(lexer.get()) || !FixupPass() || !VerifyPass();
 
   CleanupParsing();
