@@ -2881,6 +2881,7 @@ static void StoreRunscript(ConfigurationParser* p,
     script->on_failure = pr.on_failure;
     script->fail_on_error = pr.fail_on_error;
     script->short_form = false;
+    script->when = pr.when;
 
     script->Debug();
     runscripts->append(script);
