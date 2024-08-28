@@ -63,6 +63,7 @@ struct ResourceTable {
   const char* groupname; /* Resource name in plural form */
   ResourceItem* items;   /* List of resource keywords */
   uint32_t rcode;        /* Code if needed */
+  bool ignore_required;  /* ignore CFG_ITEM_REQUIRED */
 
   BareosResource* (*make)();
 };

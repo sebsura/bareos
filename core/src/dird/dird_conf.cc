@@ -510,21 +510,21 @@ static ResourceItem dev_items[] = {
  * name handler value code flags default_value
  */
 static ResourceTable dird_resource_tables[] = {
-  { "Director", "Directors", dir_items, R_DIRECTOR, ResourceFactory<DirectorResource> },
-  { "Client", "Clients", client_items, R_CLIENT, ResourceFactory<ClientResource> },
-  { "JobDefs", "JobDefs", job_items, R_JOBDEFS, ResourceFactory<JobResource> },
-  { "Job", "Jobs", job_items, R_JOB, ResourceFactory<JobResource> },
-  { "Storage", "Storages", store_items, R_STORAGE, ResourceFactory<StorageResource> },
-  { "Catalog", "Catalogs", cat_items, R_CATALOG, ResourceFactory<CatalogResource> },
-  { "Schedule", "Schedules", sch_items, R_SCHEDULE, ResourceFactory<ScheduleResource> },
-  { "FileSet", "FileSets", fs_items, R_FILESET, ResourceFactory<FilesetResource> },
-  { "Pool", "Pools", pool_items, R_POOL, ResourceFactory<PoolResource> },
-  { "Messages", "Messages", msgs_items, R_MSGS, ResourceFactory<MessagesResource> },
-  { "Counter", "Counters", counter_items, R_COUNTER, ResourceFactory<CounterResource> },
-  { "Profile", "Profiles", profile_items, R_PROFILE, ResourceFactory<ProfileResource> },
-  { "Console", "Consoles", con_items, R_CONSOLE, ResourceFactory<ConsoleResource> },
-  { "Device", "Devices", dev_items, R_DEVICE, ResourceFactory<DeviceResource> },
-  { "User", "Users", user_items, R_USER, ResourceFactory<UserResource> },
+  { "Director", "Directors", dir_items, R_DIRECTOR, false, ResourceFactory<DirectorResource> },
+  { "Client", "Clients", client_items, R_CLIENT, false, ResourceFactory<ClientResource> },
+  { "JobDefs", "JobDefs", job_items, R_JOBDEFS, true, ResourceFactory<JobResource> },
+  { "Job", "Jobs", job_items, R_JOB, false, ResourceFactory<JobResource> },
+  { "Storage", "Storages", store_items, R_STORAGE, false, ResourceFactory<StorageResource> },
+  { "Catalog", "Catalogs", cat_items, R_CATALOG, false, ResourceFactory<CatalogResource> },
+  { "Schedule", "Schedules", sch_items, R_SCHEDULE, false, ResourceFactory<ScheduleResource> },
+  { "FileSet", "FileSets", fs_items, R_FILESET, false, ResourceFactory<FilesetResource> },
+  { "Pool", "Pools", pool_items, R_POOL, false, ResourceFactory<PoolResource> },
+  { "Messages", "Messages", msgs_items, R_MSGS, false, ResourceFactory<MessagesResource> },
+  { "Counter", "Counters", counter_items, R_COUNTER, false, ResourceFactory<CounterResource> },
+  { "Profile", "Profiles", profile_items, R_PROFILE, false, ResourceFactory<ProfileResource> },
+  { "Console", "Consoles", con_items, R_CONSOLE, false, ResourceFactory<ConsoleResource> },
+  { "Device", "Devices", dev_items, R_DEVICE, false, ResourceFactory<DeviceResource> },
+  { "User", "Users", user_items, R_USER, false, ResourceFactory<UserResource> },
   {}
 };
 

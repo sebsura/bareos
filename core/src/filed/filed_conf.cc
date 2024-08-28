@@ -140,10 +140,10 @@ static ResourceItem dir_items[] = {
 #include "lib/messages_resource_items.h"
 
 static ResourceTable resources[] = {
-  {"Director", "Directors", dir_items, R_DIRECTOR, ResourceFactory<DirectorResource> },
-  {"FileDaemon", "FileDaemons", cli_items, R_CLIENT, ResourceFactory<ClientResource> },
-  {"Client", "Clients", cli_items, R_CLIENT, ResourceFactory<ClientResource> }, /* alias for filedaemon */
-  {"Messages", "Messages", msgs_items, R_MSGS, ResourceFactory<MessagesResource> },
+  {"Director", "Directors", dir_items, R_DIRECTOR, false, ResourceFactory<DirectorResource> },
+  {"FileDaemon", "FileDaemons", cli_items, R_CLIENT, false, ResourceFactory<ClientResource> },
+  {"Client", "Clients", cli_items, R_CLIENT, false, ResourceFactory<ClientResource> }, /* alias for filedaemon */
+  {"Messages", "Messages", msgs_items, R_MSGS, false, ResourceFactory<MessagesResource> },
   {}
 };
 

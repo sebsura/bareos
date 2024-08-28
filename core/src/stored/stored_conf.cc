@@ -220,12 +220,12 @@ static ResourceItem autochanger_items[] = {
 };
 
 static ResourceTable resources[] = {
-  {"Director", "Directors", dir_items, R_DIRECTOR, ResourceFactory<DirectorResource> },
-  {"Ndmp", "Ndmp", ndmp_items, R_NDMP, ResourceFactory<NdmpResource> },
-  {"Storage", "Storages", store_items, R_STORAGE, ResourceFactory<StorageResource> },
-  {"Device", "Devices", dev_items, R_DEVICE, ResourceFactory<DeviceResource> },
-  {"Messages", "Messages", msgs_items, R_MSGS, ResourceFactory<MessagesResource>},
-  {"Autochanger", "Autochangers", autochanger_items, R_AUTOCHANGER, ResourceFactory<AutochangerResource> },
+  {"Director", "Directors", dir_items, R_DIRECTOR, false, ResourceFactory<DirectorResource> },
+  {"Ndmp", "Ndmp", ndmp_items, R_NDMP, false, ResourceFactory<NdmpResource> },
+  {"Storage", "Storages", store_items, R_STORAGE, false, ResourceFactory<StorageResource> },
+  {"Device", "Devices", dev_items, R_DEVICE, false, ResourceFactory<DeviceResource> },
+  {"Messages", "Messages", msgs_items, R_MSGS, false, ResourceFactory<MessagesResource>},
+  {"Autochanger", "Autochangers", autochanger_items, R_AUTOCHANGER, false, ResourceFactory<AutochangerResource> },
   {}
 };
 

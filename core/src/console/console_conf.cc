@@ -73,8 +73,8 @@ static ResourceItem dir_items[] = {
 };
 
 static ResourceTable resources[] = {
-  { "Console", "Consoles", cons_items, R_CONSOLE, ResourceFactory<ConsoleResource> },
-  { "Director", "Directors", dir_items, R_DIRECTOR, ResourceFactory<DirectorResource> },
+  { "Console", "Consoles", cons_items, R_CONSOLE, false, ResourceFactory<ConsoleResource> },
+  { "Director", "Directors", dir_items, R_DIRECTOR, false, ResourceFactory<DirectorResource> },
   {}
 };
 

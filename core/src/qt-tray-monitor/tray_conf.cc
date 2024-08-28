@@ -155,11 +155,11 @@ static ResourceItem con_font_items[] = {
  *  name items rcode configuration_resources
  */
 static ResourceTable resource_definitions[] = {
-  {"Monitor", "Monitors", mon_items, R_MONITOR, ResourceFactory<MonitorResource> },
-  {"Director", "Directors", dir_items, R_DIRECTOR, ResourceFactory<DirectorResource> },
-  {"Client", "Clients", client_items, R_CLIENT, ResourceFactory<ClientResource> },
-  {"Storage", "Storages", store_items, R_STORAGE, ResourceFactory<StorageResource> },
-  {"ConsoleFont", "ConsoleFonts", con_font_items, R_CONSOLE_FONT, ResourceFactory<ConsoleFontResource> },
+  {"Monitor", "Monitors", mon_items, R_MONITOR, false, ResourceFactory<MonitorResource> },
+  {"Director", "Directors", dir_items, R_DIRECTOR, false, ResourceFactory<DirectorResource> },
+  {"Client", "Clients", client_items, R_CLIENT, false, ResourceFactory<ClientResource> },
+  {"Storage", "Storages", store_items, R_STORAGE, false, ResourceFactory<StorageResource> },
+  {"ConsoleFont", "ConsoleFonts", con_font_items, R_CONSOLE_FONT, false, ResourceFactory<ConsoleFontResource> },
   {}
 };
 

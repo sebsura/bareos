@@ -982,9 +982,14 @@ bool ConfigurationParser::VerifyPass()
     ResourceTable* tbl = &resource_definitions_[i];
 
     while (*current) {
-      // every resource has to pass validation, but we also want to validate
-      // all of them before returning
-      ok &= CheckRequired(*current, tbl);
+      // do not check manually added resources or resources with this check
+      // disabled
+      if (!tbl->ignore_required) {
+        // every resource has to pass validation, but we also want to validate
+        // all of them before returning, so do not return here just yet
+        ok &= CheckRequired(*current, tbl);
+      }
+
       current = &(*current)->next_;
     }
   }
