@@ -543,8 +543,9 @@ struct ParsedRunscript : public BareosResource {
     int type;
     std::string text;
   };
+
   std::vector<command> commands;
-  std::string target;
+  std::string target{"%c"};  /* by default we run on the client */
 
   bool on_success = true;    /* Execute command on job success (After) */
   bool on_failure = false;   /* Execute command on job failure (After) */
@@ -2843,7 +2844,7 @@ static void StoreRunscript(ConfigurationParser* p,
 {
   Dmsg1(200, "StoreRunscript: begin StoreRunscript\n");
 
-  ParsedRunscript pr;
+  ParsedRunscript pr{};
 
   auto result = p->ParseResource(&pr, runscript_items, lc, ParseRunscriptCb);
   if (!result) {
