@@ -73,7 +73,7 @@ void RunOnIncomingConnectIntervalTest::SetUp()
   std::string path_to_config_file
       = std::string("configs/run-on-incoming-connect-interval/");
   my_config = InitDirConfig(path_to_config_file.c_str(), M_ERROR_TERM);
-  my_config->ParseConfig();
+  ASSERT_TRUE(my_config->ParseConfig());
 }
 
 void RunOnIncomingConnectIntervalTest::TearDown() { delete my_config; }
