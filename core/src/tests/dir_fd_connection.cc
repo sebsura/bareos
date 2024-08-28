@@ -34,7 +34,6 @@ TEST(DirectorToClientConnection, DoesNotConnectWhenDisabled)
 
   PConfigParser director_config(DirectorPrepareResources(path_to_config));
 
-
   JobControlRecord* jcr
       = directordaemon::NewDirectorJcr(directordaemon::DirdFreeJcr);
 
@@ -44,6 +43,9 @@ TEST(DirectorToClientConnection, DoesNotConnectWhenDisabled)
   directordaemon::UaContext* ua = nullptr;
 
   EXPECT_FALSE(ConnectToFileDaemon(jcr, 0, 0, false, ua));
+
+  FreeJcr(jcr);
+  TermMsg();
 }
 
 TEST(DirectorToClientConnection, DoesNotDowngradeToClearTextWhenTlsRequired)
