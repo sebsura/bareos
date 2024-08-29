@@ -203,12 +203,12 @@ LEX* LexCloseFile(LEX* lf)
 }
 
 // Add lex structure for an included config file.
-static inline LEX* lex_add(LEX* lf,
-                           const char* filename,
-                           FILE* fd,
-                           Bpipe* bpipe,
-                           LEX_ERROR_HANDLER* ScanError,
-                           LEX_WARNING_HANDLER* scan_warning)
+LEX* lex_add(LEX* lf,
+             const char* filename,
+             FILE* fd,
+             Bpipe* bpipe,
+             LEX_ERROR_HANDLER* ScanError,
+             LEX_WARNING_HANDLER* scan_warning)
 {
   LEX* nf;
 
@@ -1064,7 +1064,7 @@ std::optional<std::string> read_fd(FILE* f)
 
   std::string res;
   for (;;) {
-    auto bytes_read = fread(buffer.get(), size, 1, f);
+    auto bytes_read = fread(buffer.get(), 1, size, f);
 
     if (bytes_read == 0) {
       if (ferror(f)) { return std::nullopt; }

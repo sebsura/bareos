@@ -20,6 +20,7 @@ message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
 
 include(BareosConfigureFile)
 bareos_configure_file(GLOB_RECURSE "configs/*")
+bareos_configure_file(GLOB_RECURSE "include/*")
 
 include_directories(${OPENSSL_INCLUDE_DIR})
 
@@ -524,3 +525,6 @@ endif()
 
 bareoscopydllstobindir()
 include(DebugEdit)
+
+add_executable(tokenizer tokenizer.cc)
+target_link_libraries(tokenizer bareos)
