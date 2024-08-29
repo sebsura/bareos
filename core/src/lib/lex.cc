@@ -1222,13 +1222,6 @@ std::optional<char> lexed_source::read()
 
 token lexer::next_token()
 {
-  // local parsing state
-  lex_state internal_state{lex_state::None};
-  bool continue_string = false;
-  bool skip_eol = false;
-  bool escape_next = false;
-  size_t bom_bytes_seen = 0;
-
   buffer.clear();
 
   ASSERT(source_queue.size() > 0);
@@ -1239,8 +1232,13 @@ token lexer::next_token()
 
   auto& current_source = sources[file_index];
 
+  // local parsing state
+  lex_state internal_state{lex_state::None};
+  bool continue_string = false;
+  bool skip_eol = false;
+  bool escape_next = false;
+  size_t bom_bytes_seen = 0;
   auto start = current_source.current_pos();
-
 
   for (;;) {
     auto current = current_source.current_pos();
@@ -1249,8 +1247,13 @@ token lexer::next_token()
     if (!c) {
       Dmsg3(debuglevel, "state = %s, char = 'EOF' (-1)\n",
             state_name(internal_state));
-      if (internal_state == lex_state::None) {
-        source_queue.pop_front();  // we are done with this file
+      source_queue.pop_front();
+
+      if (source_queue.size() > 0) {
+        /* MARKER */
+        // this in not completely correct as we dont transfer the state
+        return next_token();
+      } else if (internal_state == lex_state::None) {
         return simple_token(token_type::FileEnd, file_index, start, current);
       } else {
         throw parse_error("Hit unexpected end of file while reading %s\n",
@@ -1265,11 +1268,6 @@ token lexer::next_token()
 
     switch (internal_state) {
       case lex_state::None: {
-        if (B_ISSPACE(ch)) {
-          // we just ignore space
-          break;
-        }
-
         if (B_ISALPHA(ch)) {
           if (opts.no_identifiers || opts.force_string) {
             internal_state = lex_state::String;
@@ -1348,11 +1346,23 @@ token lexer::next_token()
             /* MARKER */
             return Err;
           } break;
+          default: {
+            if (B_ISSPACE(ch)) {
+              // we just ignore space
+            } else {
+              internal_state = lex_state::String;
+              buffer.push_back(ch);
+            }
+          } break;
         }
+
       } break;
       case lex_state::Comment: {
         if (ch == '\n') {
           internal_state = lex_state::None;
+
+          current_source.reset_to(current);
+
           if (!skip_eol) {
             return simple_token(token_type::LineEnd, file_index, start,
                                 current);
@@ -1364,6 +1374,9 @@ token lexer::next_token()
           buffer.push_back(ch);
         } else if (B_ISSPACE(ch) || ch == '\n' || ch == ',' || ch == ';') {
           /* A valid number can be terminated by the following */
+
+          current_source.reset_to(current);
+
           return simple_token(token_type::Number, file_index, start, current);
         } else {
           internal_state = lex_state::String;
@@ -1371,9 +1384,9 @@ token lexer::next_token()
         }
       } break;
       case lex_state::String: {
-        if (ch == '\n' || ch == L_EOL || ch == '=' || ch == '}' || ch == '{'
-            || ch == '\r' || ch == ';' || ch == ',' || ch == '#'
-            || (B_ISSPACE(ch)) || ch == '"') {
+        if (ch == '\n' || ch == '=' || ch == '}' || ch == '{' || ch == '\r'
+            || ch == ';' || ch == ',' || ch == '#' || (B_ISSPACE(ch))
+            || ch == '"') {
           current_source.reset_to(current);
           return simple_token(token_type::UnquotedString, file_index, start,
                               current);
@@ -1386,9 +1399,9 @@ token lexer::next_token()
           buffer.push_back(ch);
         } else if (B_ISSPACE(ch)) {
           // ignore
-        } else if (ch == '\n' || ch == L_EOL || ch == '=' || ch == '}'
-                   || ch == '{' || ch == '\r' || ch == ';' || ch == ','
-                   || ch == '"' || ch == '#') {
+        } else if (ch == '\n' || ch == '=' || ch == '}' || ch == '{'
+                   || ch == '\r' || ch == ';' || ch == ',' || ch == '"'
+                   || ch == '#') {
           current_source.reset_to(current);
           return simple_token(token_type::Identifier, file_index, start,
                               current);
@@ -1451,6 +1464,7 @@ token lexer::next_token()
           internal_state = lex_state::IncludeQuoted;
         } else if (B_ISSPACE(ch) || ch == '\n' || ch == '}' || ch == '{'
                    || ch == ';' || ch == ',' || ch == '"' || ch == '#') {
+          current_source.reset_to(current);
           try {
             auto new_lex = open_files(buffer.c_str());
             auto offset = sources.size();
