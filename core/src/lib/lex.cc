@@ -1203,9 +1203,9 @@ std::optional<char> source_state::read(const std::vector<source>& sources)
 
   auto& source = sources[current_index];
 
-  ASSERT(byte_offset <= sources.size());
+  ASSERT(byte_offset <= source.data.size());
 
-  if (byte_offset == sources.size()) {
+  if (byte_offset == source.data.size()) {
     current_index += 1;
     line_offset = 0;
     byte_offset = 0;
