@@ -1409,13 +1409,34 @@ token lexer::next_token()
         } else if (ch == '\\') {
           escape_next = true;
         } else if (ch == '"') {
-          /* MARKER */
-          // todo: continuations
+          auto now = current_source.current_pos();
 
-          internal_state = lex_state::None;
+          bool cont = false;
 
-          return simple_token(token_type::QuotedString, file_index, start,
-                              current);
+          for (;;) {
+            auto next = current_source.read(sources);
+            if (!next) {
+              current_source.reset_to(file_index, now);
+              break;
+            } else if (B_ISSPACE(*next)) {
+              continue;
+            } else if (*next == '"') {
+              cont = true;
+              break;
+            } else {
+              cont = false;
+              break;
+            }
+          }
+
+          if (cont) {
+            continue_string = true;
+          } else {
+            current_source.reset_to(file_index, now);
+            internal_state = lex_state::None;
+            return simple_token(token_type::QuotedString, file_index, start,
+                                current);
+          }
         } else {
           continue_string = false;
           buffer.push_back(ch);
