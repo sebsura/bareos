@@ -36,20 +36,20 @@
 TEST(lexer, EmptyInput)
 {
   lex::lexer lex;
-  lex.sources.push_back(lex::source{
+  lex.append_source(lex::source{
       .path = "string",
       .data = "",
   });
 
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
-  // EXPECT_TRUE(lex.finished());
+  EXPECT_TRUE(lex.finished());
 }
 
-TEST(lexer, QuotedString)
+TEST(QuotedString, simple)
 {
   lex::lexer lex;
-  lex.sources.push_back(lex::source{
+  lex.append_source(lex::source{
       .path = "string",
       .data =
           R"MULTILINE(
@@ -67,13 +67,13 @@ TEST(lexer, QuotedString)
   // lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
-  // EXPECT_TRUE(lex.finished());
+  EXPECT_TRUE(lex.finished());
 }
 
-TEST(lexer, QuotedStringContinuation)
+TEST(QuotedString, Continuation)
 {
   lex::lexer lex;
-  lex.sources.push_back(lex::source{
+  lex.append_source(lex::source{
       .path = "string",
       .data =
           R"MULTILINE(
@@ -92,13 +92,43 @@ TEST(lexer, QuotedStringContinuation)
   // lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
-  // EXPECT_TRUE(lex.finished());
+  EXPECT_TRUE(lex.finished());
 }
 
-TEST(lexer, Number)
+TEST(QuotedString, NonContinuation)
 {
   lex::lexer lex;
-  lex.sources.push_back(lex::source{
+  lex.append_source(lex::source{
+      .path = "string",
+      .data =
+          R"MULTILINE(
+"Hallo"
+1234
+)MULTILINE",
+  });
+
+  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
+  // lex::token_type::LineEnd));
+  EXPECT_THAT(
+      lex.next_token(),
+      ::testing::Field(&lex::token::type, lex::token_type::QuotedString));
+  EXPECT_EQ(lex.buffer, "Hallo");
+  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
+  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::Number));
+  EXPECT_EQ(lex.buffer, "1234");
+  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
+  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
+  EXPECT_TRUE(lex.finished());
+}
+
+TEST(Number, SimpleDecimal)
+{
+  lex::lexer lex;
+  lex.append_source(lex::source{
       .path = "string",
       .data =
           R"MULTILINE(
@@ -115,5 +145,32 @@ TEST(lexer, Number)
   // lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
-  // EXPECT_TRUE(lex.finished());
+  EXPECT_TRUE(lex.finished());
+}
+
+TEST(Include, Number)
+{
+  lex::lexer lex;
+  lex.append_source(lex::source{
+      .path = "string",
+      .data =
+          R"MULTILINE(
+@include/Number.inc
+)MULTILINE",
+  });
+
+  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
+  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::Number));
+  EXPECT_EQ(lex.buffer, "1234");
+  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
+  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
+  // do we really want this to be the case ?
+  // todo: check how it was previously
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
+  EXPECT_TRUE(lex.finished());
 }
