@@ -1119,6 +1119,36 @@ token simple_token(token_type t,
   source_location loc{current_index, start, end};
   return token{t, loc};
 }
+
+const char* state_name(lex_state state)
+{
+  switch (state) {
+    case lex_state::None:
+      return "Nothing";
+    case lex_state::Comment:
+      return "Comment";
+    case lex_state::Number:
+      return "Number";
+    case lex_state::Ident:
+      return "Identifier";
+    case lex_state::String:
+      return "String";
+    case lex_state::QuotedString:
+      return "Quoted String";
+    case lex_state::Include:
+      return "Include Directive";
+    case lex_state::IncludeQuoted:
+      return "Quoted Include Directive";
+    case lex_state::Utf8Bom:
+      return "Byte-Order-Mark (Utf8)";
+    case lex_state::Utf16Bom:
+      return "Byte-Order-Mark (Utf16)";
+  }
+
+  return "Unknown";
+}
+
+
 }  // namespace
 
 void read_files(std::vector<source>& sources, const char* path)
@@ -1214,17 +1244,24 @@ token lexer::next_token()
     auto current = current_source.current_pos();
     auto c = current_source.read(sources);
 
-    // Dmsg3(debuglevel, "state = %d, char = %c (%d)\n", (int) internal_state,
-    // c, (int) c);
+    if (!c) {
+      Dmsg3(debuglevel, "state = %s, char = 'EOF' (-1)\n",
+            state_name(internal_state));
+      if (internal_state == lex_state::None) {
+        return simple_token(token_type::FileEnd, file_index, start, current);
+      } else {
+        throw parse_error("Hit unexpected end of file while reading %s\n",
+                          state_name(internal_state));
+      }
+    }
+
+    auto ch = *c;
+
+    Dmsg3(debuglevel, "state = %s, char = '%c' (%d)\n",
+          state_name(internal_state), ch, (int)ch);
 
     switch (internal_state) {
       case lex_state::None: {
-        if (!c) {
-          /* MARKER */
-          return Err;
-        }
-        auto ch = *c;
-
         if (B_ISSPACE(ch)) {
           // we just ignore space
           break;
@@ -1311,8 +1348,6 @@ token lexer::next_token()
         }
       } break;
       case lex_state::Comment: {
-        if (!c) { return Err; }
-        auto ch = *c;
         if (ch == '\n') {
           internal_state = lex_state::None;
           if (!skip_eol) {
@@ -1322,9 +1357,6 @@ token lexer::next_token()
         }
       } break;
       case lex_state::Number: {
-        if (!c) { return Err; }
-
-        auto ch = *c;
         if (B_ISDIGIT(ch)) {
           buffer.push_back(ch);
         } else if (B_ISSPACE(ch) || ch == '\n' || ch == ',' || ch == ';') {
@@ -1338,10 +1370,6 @@ token lexer::next_token()
         }
       } break;
       case lex_state::String: {
-        if (!c) { return Err; }
-
-        auto ch = *c;
-
         if (ch == '\n' || ch == L_EOL || ch == '=' || ch == '}' || ch == '{'
             || ch == '\r' || ch == ';' || ch == ',' || ch == '#'
             || (B_ISSPACE(ch)) || ch == '"') {
@@ -1355,10 +1383,6 @@ token lexer::next_token()
         buffer.push_back(ch);
       } break;
       case lex_state::Ident: {
-        if (!c) { return Err; }
-
-        auto ch = *c;
-
         if (B_ISALPHA(ch)) {
           buffer.push_back(ch);
         } else if (B_ISSPACE(ch)) {
@@ -1377,9 +1401,6 @@ token lexer::next_token()
         buffer.push_back(ch);
       } break;
       case lex_state::QuotedString: {
-        if (!c) { return Err; }
-        auto ch = *c;
-
         if (ch == '\n') {
           escape_next = false;
         } else if (escape_next) {
@@ -1401,12 +1422,14 @@ token lexer::next_token()
         }
       } break;
       case lex_state::Include: {
-        if (!c) { return Err; }
-
-        auto ch = *c;
         if (ch == '"') {
           /* MARKER */  // this does not make sense.
                         // this should only be possible as the first character
+
+          // maybe this was done to support things like
+          //    @/my/path/"with a space"
+          // ? But also isnt great as this does not work as expected:
+          //    @/my/path/"with a space"/and/some/subdirs
 
           internal_state = lex_state::IncludeQuoted;
         } else if (B_ISSPACE(ch) || ch == '\n' || ch == '}' || ch == '{'
@@ -1437,9 +1460,6 @@ token lexer::next_token()
         }
       } break;
       case lex_state::IncludeQuoted: {
-        if (!c) { return Err; }
-        auto ch = *c;
-
         if (escape_next) {
           buffer.push_back(ch);
           escape_next = false;
@@ -1471,9 +1491,6 @@ token lexer::next_token()
         }
       } break;
       case lex_state::Utf8Bom: {
-        if (!c) { return Err; }
-        auto ch = *c;
-
         if ((std::byte)ch == (std::byte)0xBB && bom_bytes_seen == 1) {
           bom_bytes_seen += 1;
         } else if ((std::byte)ch == (std::byte)0xBB && bom_bytes_seen == 2) {
@@ -1485,9 +1502,6 @@ token lexer::next_token()
 
       } break;
       case lex_state::Utf16Bom: {
-        if (!c) { return Err; }
-        auto ch = *c;
-
         if ((std::byte)ch == (std::byte)0xBB && bom_bytes_seen == 1) {
           bom_bytes_seen += 1;
         } else if ((std::byte)ch == (std::byte)0xBB && bom_bytes_seen == 2) {
