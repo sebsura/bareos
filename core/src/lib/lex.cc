@@ -1229,6 +1229,8 @@ std::optional<char> source_state::read(const std::vector<source>& sources)
 
 token lexer::next_token()
 {
+  lex_state internal_state{lex_state::None};
+
   buffer.clear();
 
   auto file_index = current_source.current_index;
@@ -1361,8 +1363,6 @@ token lexer::next_token()
           buffer.push_back(ch);
         } else if (B_ISSPACE(ch) || ch == '\n' || ch == ',' || ch == ';') {
           /* A valid number can be terminated by the following */
-          internal_state = lex_state::None;
-
           return simple_token(token_type::Number, file_index, start, current);
         } else {
           internal_state = lex_state::String;
@@ -1374,8 +1374,6 @@ token lexer::next_token()
             || ch == '\r' || ch == ';' || ch == ',' || ch == '#'
             || (B_ISSPACE(ch)) || ch == '"') {
           current_source.reset_to(file_index, current);
-          internal_state = lex_state::None;
-
           return simple_token(token_type::UnquotedString, file_index, start,
                               current);
         }
@@ -1391,8 +1389,6 @@ token lexer::next_token()
                    || ch == '{' || ch == '\r' || ch == ';' || ch == ','
                    || ch == '"' || ch == '#') {
           current_source.reset_to(file_index, current);
-          internal_state = lex_state::None;
-
           return simple_token(token_type::Identifier, file_index, start,
                               current);
         }
@@ -1433,7 +1429,6 @@ token lexer::next_token()
             continue_string = true;
           } else {
             current_source.reset_to(file_index, now);
-            internal_state = lex_state::None;
             return simple_token(token_type::QuotedString, file_index, start,
                                 current);
           }

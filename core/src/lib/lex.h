@@ -325,7 +325,6 @@ struct lexer {
 
   // state of the current source
   source_state current_source{};
-  lex_state internal_state{};
 
   std::string buffer;
 };
