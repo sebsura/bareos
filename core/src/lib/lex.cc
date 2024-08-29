@@ -1151,7 +1151,7 @@ const char* state_name(lex_state state)
 
 }  // namespace
 
-void read_files(std::vector<source>& sources, const char* path)
+void read_files(lexer& lex, const char* path)
 {
 #ifdef HAVE_GLOB
   glob_t fileglob;
@@ -1172,7 +1172,7 @@ void read_files(std::vector<source>& sources, const char* path)
   Dmsg2(100, "glob %s: %i files\n", path, fileglob.gl_pathc);
   for (size_t i = 0; i < fileglob.gl_pathc; i++) {
     const char* filename_expanded = fileglob.gl_pathv[i];
-    sources.emplace_back(read_file(filename_expanded));
+    lex.append_source(read_file(filename_expanded));
   }
   globfree(&fileglob);
 #else
@@ -1188,35 +1188,28 @@ lexer open_files(const char* path)
     // get contents from pipe
     source s = read_pipe(path + 1);
 
-    res.sources.emplace_back(std::move(s));
+    res.append_source(std::move(s));
   } else {
-    read_files(res.sources, path);
+    read_files(res, path);
   }
   return res;
 }
 
-std::optional<char> source_state::read(const std::vector<source>& sources)
+std::optional<char> lexed_source::read()
 {
-  if (current_index == sources.size()) {
-    throw parse_error("trying to read past eof of all sources");
+  auto& data = content.data;
+  ASSERT(byte_offset <= data.size());
+
+  if (byte_offset > data.size()) {
+    throw parse_error("Tried to read past eof");
   }
 
-  auto& source = sources[current_index];
-
-  ASSERT(byte_offset <= source.data.size());
-
-  if (byte_offset == source.data.size()) {
-    current_index += 1;
-    line_offset = 0;
-    byte_offset = 0;
-    line = 0;
-    col = 0;
-
-    // reached eof
+  if (byte_offset == data.size()) {
+    byte_offset += 1;  // make sure next read is an error
     return std::nullopt;
   }
 
-  char c = source.data[byte_offset++];
+  char c = data[byte_offset++];
 
   if (c == '\n') {
     line += 1;
@@ -1229,27 +1222,35 @@ std::optional<char> source_state::read(const std::vector<source>& sources)
 
 token lexer::next_token()
 {
+  // local parsing state
   lex_state internal_state{lex_state::None};
-
-  buffer.clear();
-
-  auto file_index = current_source.current_index;
-  auto start = current_source.current_pos();
-
   bool continue_string = false;
   bool skip_eol = false;
   bool escape_next = false;
-
   size_t bom_bytes_seen = 0;
+
+  buffer.clear();
+
+  ASSERT(source_queue.size() > 0);
+
+  auto file_index = source_queue.front();
+
+  ASSERT(file_index < sources.size());
+
+  auto& current_source = sources[file_index];
+
+  auto start = current_source.current_pos();
+
 
   for (;;) {
     auto current = current_source.current_pos();
-    auto c = current_source.read(sources);
+    auto c = current_source.read();
 
     if (!c) {
       Dmsg3(debuglevel, "state = %s, char = 'EOF' (-1)\n",
             state_name(internal_state));
       if (internal_state == lex_state::None) {
+        source_queue.pop_front();  // we are done with this file
         return simple_token(token_type::FileEnd, file_index, start, current);
       } else {
         throw parse_error("Hit unexpected end of file while reading %s\n",
@@ -1366,14 +1367,14 @@ token lexer::next_token()
           return simple_token(token_type::Number, file_index, start, current);
         } else {
           internal_state = lex_state::String;
-          current_source.reset_to(file_index, current);
+          current_source.reset_to(current);
         }
       } break;
       case lex_state::String: {
         if (ch == '\n' || ch == L_EOL || ch == '=' || ch == '}' || ch == '{'
             || ch == '\r' || ch == ';' || ch == ',' || ch == '#'
             || (B_ISSPACE(ch)) || ch == '"') {
-          current_source.reset_to(file_index, current);
+          current_source.reset_to(current);
           return simple_token(token_type::UnquotedString, file_index, start,
                               current);
         }
@@ -1388,7 +1389,7 @@ token lexer::next_token()
         } else if (ch == '\n' || ch == L_EOL || ch == '=' || ch == '}'
                    || ch == '{' || ch == '\r' || ch == ';' || ch == ','
                    || ch == '"' || ch == '#') {
-          current_source.reset_to(file_index, current);
+          current_source.reset_to(current);
           return simple_token(token_type::Identifier, file_index, start,
                               current);
         }
@@ -1410,9 +1411,9 @@ token lexer::next_token()
           bool cont = false;
 
           for (;;) {
-            auto next = current_source.read(sources);
+            auto next = current_source.read();
             if (!next) {
-              current_source.reset_to(file_index, now);
+              current_source.reset_to(now);
               break;
             } else if (B_ISSPACE(*next)) {
               continue;
@@ -1428,7 +1429,7 @@ token lexer::next_token()
           if (cont) {
             continue_string = true;
           } else {
-            current_source.reset_to(file_index, now);
+            current_source.reset_to(now);
             return simple_token(token_type::QuotedString, file_index, start,
                                 current);
           }
@@ -1452,11 +1453,15 @@ token lexer::next_token()
                    || ch == ';' || ch == ',' || ch == '"' || ch == '#') {
           try {
             auto new_lex = open_files(buffer.c_str());
-
             auto offset = sources.size();
-            (void)offset;
-            for (auto& new_source : new_lex.sources) {
-              sources.push_back(new_source);
+
+            // we need to insert them backwards to preserve the order
+            // in the queue
+
+            auto last = new_lex.sources.size() - 1;
+            for (size_t i = 0; i < new_lex.sources.size(); ++i) {
+              sources.push_back(std::move(new_lex.sources[last - i]));
+              source_queue.push_front(offset + i);
             }
           } catch (parse_error& s) {
             source_location loc{file_index, start, current};
@@ -1465,12 +1470,7 @@ token lexer::next_token()
             throw s;
           }
 
-          /* MARKER */
-          // actually switch to the new sources
-          // we probably need a parser state per source
-
-          internal_state = lex_state::None;
-
+          return next_token();
         } else {
           buffer.push_back(ch);
         }
@@ -1484,11 +1484,15 @@ token lexer::next_token()
         } else if (ch == '"') {
           try {
             auto new_lex = open_files(buffer.c_str());
-
             auto offset = sources.size();
-            (void)offset;
-            for (auto& new_source : new_lex.sources) {
-              sources.push_back(new_source);
+
+            // we need to insert them backwards to preserve the order
+            // in the queue
+
+            auto last = new_lex.sources.size() - 1;
+            for (size_t i = 0; i < new_lex.sources.size(); ++i) {
+              sources.push_back(std::move(new_lex.sources[last - i]));
+              source_queue.push_front(offset + i);
             }
           } catch (parse_error& s) {
             source_location loc{file_index, start, current};
@@ -1497,11 +1501,7 @@ token lexer::next_token()
             throw s;
           }
 
-          /* MARKER */
-          // actually switch to the new sources
-          // we probably need a parser state per source
-
-          internal_state = lex_state::None;
+          return next_token();
         } else {
           buffer.push_back(ch);
         }
@@ -1532,9 +1532,12 @@ token lexer::next_token()
   }
 }
 
-std::string lexer::format_comment(source_location loc, std::string_view comment)
+std::string lexed_source::format_comment(source_point start,
+                                         source_point end,
+                                         std::string_view comment)
 {
-  (void)loc;
+  (void)start;
+  (void)end;
   (void)comment;
   return {};
 }

@@ -28,6 +28,7 @@
 #ifndef BAREOS_LIB_LEX_H_
 #define BAREOS_LIB_LEX_H_
 
+#include <deque>
 #include <memory>
 #include "include/bareos.h"
 
@@ -226,25 +227,6 @@ struct source_point {
   uint32_t col;
 };
 
-struct source_state {
-  source_point current_pos() const { return {byte_offset, line, col}; }
-
-  // returns nullptr on EOF
-  std::optional<char> read(const std::vector<source>& sources);
-  void reset_to(size_t file_index, source_point p)
-  {
-    current_index = file_index;
-    byte_offset = p.byte_offset;
-    line = p.line;
-    col = p.col;
-    line_offset = 0;  // ??
-  }
-  size_t current_index{};
-  size_t line_offset{};
-  size_t byte_offset{};
-  uint32_t line{}, col{};
-};
-
 struct options {
   bool no_identifiers{};
   bool force_string{};
@@ -310,21 +292,60 @@ struct token {
   source_location loc;
 };
 
+struct lexed_source {
+  lexed_source(source&& s) : content{std::move(s)} {}
+
+  source_point current_pos() const { return {byte_offset, line, col}; }
+
+  // returns nullptr on EOF
+  std::optional<char> read();
+  void reset_to(source_point p)
+  {
+    byte_offset = p.byte_offset;
+    line = p.line;
+    col = p.col;
+  }
+
+  std::string format_comment(source_point start,
+                             source_point end,
+                             std::string_view comment);
+
+
+  source content;
+  size_t byte_offset{};
+  uint32_t line{}, col{};
+};
+
 struct lexer {
   token next_token();
-  bool finished() const { return current_index == sources.size(); }
-  std::string format_comment(source_location loc, std::string_view comment);
+  bool finished() const { return source_queue.size() == 0; }
 
+  void append_source(source&& s)
+  {
+    auto sindex = sources.size();
+    sources.emplace_back(std::move(s));
+    source_queue.push_back(sindex);
+  }
 
-  std::vector<source> sources{};
+  void prepend_source(source&& s)
+  {
+    auto sindex = sources.size();
+    sources.emplace_back(std::move(s));
+    source_queue.push_front(sindex);
+  }
+
+  std::string format_comment(source_location loc, std::string_view comment)
+  {
+    ASSERT(loc.source_index < sources.size());
+    return sources[loc.source_index].format_comment(loc.start, loc.end,
+                                                    comment);
+  }
+
+  std::vector<lexed_source> sources{};
+
+  std::deque<size_t> source_queue{};
 
   options opts;
-
-  // index of current source we are working on
-  size_t current_index{0};
-
-  // state of the current source
-  source_state current_source{};
 
   std::string buffer;
 };
