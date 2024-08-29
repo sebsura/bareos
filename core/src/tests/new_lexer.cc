@@ -57,14 +57,14 @@ TEST(QuotedString, simple)
 )MULTILINE",
   });
 
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(
       lex.next_token(),
       ::testing::Field(&lex::token::type, lex::token_type::QuotedString));
   EXPECT_EQ(lex.buffer, "Hallo");
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
   EXPECT_TRUE(lex.finished());
@@ -82,14 +82,14 @@ TEST(QuotedString, Continuation)
 )MULTILINE",
   });
 
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(
       lex.next_token(),
       ::testing::Field(&lex::token::type, lex::token_type::QuotedString));
   EXPECT_EQ(lex.buffer, "HalloHallo");
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
   EXPECT_TRUE(lex.finished());
@@ -107,19 +107,19 @@ TEST(QuotedString, NonContinuation)
 )MULTILINE",
   });
 
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(
       lex.next_token(),
       ::testing::Field(&lex::token::type, lex::token_type::QuotedString));
   EXPECT_EQ(lex.buffer, "Hallo");
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::Number));
   EXPECT_EQ(lex.buffer, "1234");
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
   EXPECT_TRUE(lex.finished());
@@ -136,13 +136,13 @@ TEST(Number, SimpleDecimal)
 )MULTILINE",
   });
 
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::Number));
   EXPECT_EQ(lex.buffer, "1234");
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
   EXPECT_TRUE(lex.finished());
@@ -159,17 +159,15 @@ TEST(Include, Number)
 )MULTILINE",
   });
 
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::Number));
   EXPECT_EQ(lex.buffer, "1234");
-  // EXPECT_THAT(lex.next_token(), ::testing::Field(&lex::token::type,
-  // lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
-              ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
-  // do we really want this to be the case ?
-  // todo: check how it was previously
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
   EXPECT_THAT(lex.next_token(),
               ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
   EXPECT_TRUE(lex.finished());
