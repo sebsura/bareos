@@ -215,8 +215,8 @@ static inline LEX* lex_add(LEX* lf,
   Dmsg1(100, "open config file: %s\n", filename);
   nf = (LEX*)malloc(sizeof(LEX));
   if (lf) {
-    memcpy(nf, lf, sizeof(LEX));
-    memset(lf, 0, sizeof(LEX));
+    *nf = *lf;
+    *lf = {};
     lf->next = nf;             /* if have lf, push it behind new one */
     lf->options = nf->options; /* preserve user options */
     /* preserve err_type to prevent bareos exiting on 'reload'
@@ -1109,7 +1109,7 @@ source read_file(const char* path)
   return {path, std::move(content).value()};
 }
 
-static constexpr token Err = {.type = token_type::Err};
+static constexpr token Err = {.type = token_type::Err, .loc = {}};
 
 token simple_token(token_type t,
                    size_t current_index,
@@ -1201,16 +1201,18 @@ token lexer::next_token()
 {
   buffer.clear();
 
-  auto file_index = source.current_index;
-  auto start = source.current_pos();
+  auto file_index = current_source.current_index;
+  auto start = current_source.current_pos();
 
   bool continue_string = false;
   bool skip_eol = false;
   bool escape_next = false;
 
+  size_t bom_bytes_seen = 0;
+
   for (;;) {
-    auto current = source.current_pos();
-    auto c = source.read(sources);
+    auto current = current_source.current_pos();
+    auto c = current_source.read(sources);
 
     // Dmsg3(debuglevel, "state = %d, char = %c (%d)\n", (int) internal_state,
     // c, (int) c);
@@ -1298,16 +1300,16 @@ token lexer::next_token()
               internal_state = lex_state::Include;
             }
           } break;
-          case 0xEF:
+          case (char)0xEF:
             [[fallthrough]];
-          case 0xFF:
+          case (char)0xFF:
             [[fallthrough]];
-          case 0xFE: {
+          case (char)0xFE: {
             /* MARKER */
             return Err;
           } break;
         }
-      }
+      } break;
       case lex_state::Comment: {
         if (!c) { return Err; }
         auto ch = *c;
@@ -1332,7 +1334,7 @@ token lexer::next_token()
           return simple_token(token_type::Number, file_index, start, current);
         } else {
           internal_state = lex_state::String;
-          source.reset_to(file_index, current);
+          current_source.reset_to(file_index, current);
         }
       } break;
       case lex_state::String: {
@@ -1343,7 +1345,7 @@ token lexer::next_token()
         if (ch == '\n' || ch == L_EOL || ch == '=' || ch == '}' || ch == '{'
             || ch == '\r' || ch == ';' || ch == ',' || ch == '#'
             || (B_ISSPACE(ch)) || ch == '"') {
-          source.reset_to(file_index, current);
+          current_source.reset_to(file_index, current);
           internal_state = lex_state::None;
 
           return simple_token(token_type::UnquotedString, file_index, start,
@@ -1364,7 +1366,7 @@ token lexer::next_token()
         } else if (ch == '\n' || ch == L_EOL || ch == '=' || ch == '}'
                    || ch == '{' || ch == '\r' || ch == ';' || ch == ','
                    || ch == '"' || ch == '#') {
-          source.reset_to(file_index, current);
+          current_source.reset_to(file_index, current);
           internal_state = lex_state::None;
 
           return simple_token(token_type::Identifier, file_index, start,
@@ -1386,6 +1388,7 @@ token lexer::next_token()
         } else if (ch == '\\') {
           escape_next = true;
         } else if (ch == '"') {
+          /* MARKER */
           // todo: continuations
 
           internal_state = lex_state::None;
@@ -1398,17 +1401,111 @@ token lexer::next_token()
         }
       } break;
       case lex_state::Include: {
+        if (!c) { return Err; }
+
+        auto ch = *c;
+        if (ch == '"') {
+          /* MARKER */  // this does not make sense.
+                        // this should only be possible as the first character
+
+          internal_state = lex_state::IncludeQuoted;
+        } else if (B_ISSPACE(ch) || ch == '\n' || ch == '}' || ch == '{'
+                   || ch == ';' || ch == ',' || ch == '"' || ch == '#') {
+          try {
+            auto new_lex = open_files(buffer.c_str());
+
+            auto offset = sources.size();
+            (void)offset;
+            for (auto& new_source : new_lex.sources) {
+              sources.push_back(new_source);
+            }
+          } catch (parse_error& s) {
+            source_location loc{file_index, start, current};
+            s.add_context(
+                format_comment(loc, "File included from here").c_str());
+            throw s;
+          }
+
+          /* MARKER */
+          // actually switch to the new sources
+          // we probably need a parser state per source
+
+          internal_state = lex_state::None;
+
+        } else {
+          buffer.push_back(ch);
+        }
       } break;
       case lex_state::IncludeQuoted: {
         if (!c) { return Err; }
         auto ch = *c;
+
+        if (escape_next) {
+          buffer.push_back(ch);
+          escape_next = false;
+        } else if (ch == '\\') {
+          escape_next = true;
+        } else if (ch == '"') {
+          try {
+            auto new_lex = open_files(buffer.c_str());
+
+            auto offset = sources.size();
+            (void)offset;
+            for (auto& new_source : new_lex.sources) {
+              sources.push_back(new_source);
+            }
+          } catch (parse_error& s) {
+            source_location loc{file_index, start, current};
+            s.add_context(
+                format_comment(loc, "File included from here").c_str());
+            throw s;
+          }
+
+          /* MARKER */
+          // actually switch to the new sources
+          // we probably need a parser state per source
+
+          internal_state = lex_state::None;
+        } else {
+          buffer.push_back(ch);
+        }
       } break;
-      case lex_state::Utf8Bom:
-      case lex_state::Utf16Bom:
-        break;
+      case lex_state::Utf8Bom: {
+        if (!c) { return Err; }
+        auto ch = *c;
+
+        if ((std::byte)ch == (std::byte)0xBB && bom_bytes_seen == 1) {
+          bom_bytes_seen += 1;
+        } else if ((std::byte)ch == (std::byte)0xBB && bom_bytes_seen == 2) {
+          internal_state = lex_state::None;
+          return simple_token(token_type::Utf8_BOM, file_index, start, current);
+        } else {
+          return Err;
+        }
+
+      } break;
+      case lex_state::Utf16Bom: {
+        if (!c) { return Err; }
+        auto ch = *c;
+
+        if ((std::byte)ch == (std::byte)0xBB && bom_bytes_seen == 1) {
+          bom_bytes_seen += 1;
+        } else if ((std::byte)ch == (std::byte)0xBB && bom_bytes_seen == 2) {
+          internal_state = lex_state::None;
+          return simple_token(token_type::Utf16_BOM, file_index, start,
+                              current);
+        } else {
+          return Err;
+        }
+      } break;
     }
   }
+}
 
-  return Err;
+std::string lexer::format_comment(source_location loc, std::string_view comment)
+{
+  (void)loc;
+  (void)comment;
+  return {};
 }
 }  // namespace lex

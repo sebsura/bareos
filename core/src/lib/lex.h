@@ -312,8 +312,9 @@ struct token {
 
 struct lexer {
   token next_token();
-
   bool finished() const { return current_index == sources.size(); }
+  std::string format_comment(source_location loc, std::string_view comment);
+
 
   std::vector<source> sources{};
 
@@ -323,17 +324,13 @@ struct lexer {
   size_t current_index{0};
 
   // state of the current source
-  source_state source{};
+  source_state current_source{};
   lex_state internal_state{};
 
   std::string buffer;
 };
 
 lexer open_files(const char* path);
-
-std::string format_comment(LEX* lex,
-                           source_location loc,
-                           std::string_view comment);
 
 };  // namespace lex
 
