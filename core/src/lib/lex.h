@@ -283,14 +283,25 @@ enum class expected_type
 };
 
 struct source_location {
-  size_t source_index;
-  source_point start, end;
+  size_t global_start, global_end;
 };
 
 struct token {
   token_type type;
   source_location loc;
 };
+
+struct source_translation {
+  size_t global_start_offset;  // this inclusion begins at this global offset
+  size_t source_index;         // index of the source inside the sources array
+  size_t start_offset;  // offset to adjust the global byteoffset to the one
+                        // inside the source
+  size_t start_line;    // the inclusion starts at this line
+  size_t start_col;     // the inclusion starts at this column
+};
+
+/* this vector is always sorted by source_translation::global_start_offset */
+using source_map = std::vector<source_translation>;
 
 struct lexed_source {
   lexed_source(source&& s) : content{std::move(s)} {}
@@ -305,11 +316,6 @@ struct lexed_source {
     line = p.line;
     col = p.col;
   }
-
-  std::string format_comment(source_point start,
-                             source_point end,
-                             std::string_view comment);
-
 
   source content;
   size_t byte_offset{};
@@ -334,18 +340,18 @@ struct lexer {
     source_queue.push_front(sindex);
   }
 
-  std::string format_comment(source_location loc, std::string_view comment)
-  {
-    ASSERT(loc.source_index < sources.size());
-    return sources[loc.source_index].format_comment(loc.start, loc.end,
-                                                    comment);
-  }
+  std::string format_comment(source_location loc,
+                             std::string_view comment) const;
 
+  void reset_global_offset_to(size_t old_offset);
   std::vector<lexed_source> sources{};
 
   std::deque<size_t> source_queue{};
 
   options opts;
+
+  size_t current_global_offset{};
+  source_map translations{};
 
   std::string buffer;
 };

@@ -35,6 +35,8 @@
 #include <glob.h>
 #include "lib/parse_err.h"
 
+#include <sstream>
+
 extern int debug_level;
 
 /* Debug level for this source file */
@@ -1111,12 +1113,9 @@ source read_file(const char* path)
 
 static constexpr token Err = {.type = token_type::Err, .loc = {}};
 
-token simple_token(token_type t,
-                   size_t current_index,
-                   source_point start,
-                   source_point end)
+token simple_token(token_type t, size_t global_start, size_t global_end)
 {
-  source_location loc{current_index, start, end};
+  source_location loc{global_start, global_end};
   return token{t, loc};
 }
 
@@ -1220,6 +1219,17 @@ std::optional<char> lexed_source::read()
   return c;
 }
 
+void lexer::reset_global_offset_to(size_t global_offset)
+{
+  for (size_t i = 0; i < translations.size(); ++i) {
+    if (translations[i].global_start_offset > global_offset) {
+      translations.resize(i);
+      break;
+    }
+  }
+  current_global_offset = global_offset;
+}
+
 token lexer::next_token()
 {
   buffer.clear();
@@ -1238,10 +1248,11 @@ token lexer::next_token()
   bool skip_eol = false;
   bool escape_next = false;
   size_t bom_bytes_seen = 0;
-  auto start = current_source.current_pos();
+  auto start = current_global_offset;
 
   for (;;) {
-    auto current = current_source.current_pos();
+    auto local_pos = current_source.current_pos();
+    auto current = current_global_offset;
     auto c = current_source.read();
 
     if (!c) {
@@ -1254,12 +1265,29 @@ token lexer::next_token()
         // this in not completely correct as we dont transfer the state
         return next_token();
       } else if (internal_state == lex_state::None) {
-        return simple_token(token_type::FileEnd, file_index, start, current);
+        return simple_token(token_type::FileEnd, start, current);
       } else {
         throw parse_error("Hit unexpected end of file while reading %s\n",
                           state_name(internal_state));
       }
     }
+
+    // if we actually read a character, we need to update the global_offset ...
+    current_global_offset += 1;
+
+    // ... and update the translation map in case we changed files
+    if (translations.size() == 0
+        || translations.back().source_index != file_index) {
+      // we cant have advanced more bytes locally than we did globally
+      translations.push_back({
+          .global_start_offset = current,
+          .source_index = file_index,
+          .start_offset = local_pos.byte_offset,
+          .start_line = local_pos.line,
+          .start_col = local_pos.col,
+      });
+    }
+
 
     auto ch = *c;
 
@@ -1296,12 +1324,10 @@ token lexer::next_token()
             internal_state = lex_state::Comment;
           } break;
           case '{': {
-            return simple_token(token_type::OpenBlock, file_index, start,
-                                current);
+            return simple_token(token_type::OpenBlock, start, current);
           } break;
           case '}': {
-            return simple_token(token_type::CloseBlock, file_index, start,
-                                current);
+            return simple_token(token_type::CloseBlock, start, current);
           } break;
 
           case ' ': {
@@ -1311,23 +1337,21 @@ token lexer::next_token()
             // if (!continue_string) { } ??
           } break;
           case '=': {
-            return simple_token(token_type::Eq, file_index, start, current);
+            return simple_token(token_type::Eq, start, current);
           } break;
           case ',': {
-            return simple_token(token_type::Comma, file_index, start, current);
+            return simple_token(token_type::Comma, start, current);
           } break;
           case ';': {
             if (!skip_eol) {
-              return simple_token(token_type::LineEnd, file_index, start,
-                                  current);
+              return simple_token(token_type::LineEnd, start, current);
             }
           } break;
           case '\n': {
             if (continue_string) {
               continue;
             } else {
-              return simple_token(token_type::LineEnd, file_index, start,
-                                  current);
+              return simple_token(token_type::LineEnd, start, current);
             }
           } break;
           case '@': {
@@ -1361,11 +1385,11 @@ token lexer::next_token()
         if (ch == '\n') {
           internal_state = lex_state::None;
 
-          current_source.reset_to(current);
+          reset_global_offset_to(current);
+          current_source.reset_to(local_pos);
 
           if (!skip_eol) {
-            return simple_token(token_type::LineEnd, file_index, start,
-                                current);
+            return simple_token(token_type::LineEnd, start, current);
           }
         }
       } break;
@@ -1375,21 +1399,24 @@ token lexer::next_token()
         } else if (B_ISSPACE(ch) || ch == '\n' || ch == ',' || ch == ';') {
           /* A valid number can be terminated by the following */
 
-          current_source.reset_to(current);
+          reset_global_offset_to(current);
+          current_source.reset_to(local_pos);
 
-          return simple_token(token_type::Number, file_index, start, current);
+          return simple_token(token_type::Number, start, current);
         } else {
           internal_state = lex_state::String;
-          current_source.reset_to(current);
+
+          reset_global_offset_to(current);
+          current_source.reset_to(local_pos);
         }
       } break;
       case lex_state::String: {
         if (ch == '\n' || ch == '=' || ch == '}' || ch == '{' || ch == '\r'
             || ch == ';' || ch == ',' || ch == '#' || (B_ISSPACE(ch))
             || ch == '"') {
-          current_source.reset_to(current);
-          return simple_token(token_type::UnquotedString, file_index, start,
-                              current);
+          reset_global_offset_to(current);
+          current_source.reset_to(local_pos);
+          return simple_token(token_type::UnquotedString, start, current);
         }
 
         buffer.push_back(ch);
@@ -1397,18 +1424,19 @@ token lexer::next_token()
       case lex_state::Ident: {
         if (B_ISALPHA(ch)) {
           buffer.push_back(ch);
-        } else if (B_ISSPACE(ch)) {
-          // ignore
         } else if (ch == '\n' || ch == '=' || ch == '}' || ch == '{'
                    || ch == '\r' || ch == ';' || ch == ',' || ch == '"'
                    || ch == '#') {
-          current_source.reset_to(current);
-          return simple_token(token_type::Identifier, file_index, start,
-                              current);
+          reset_global_offset_to(current);
+          current_source.reset_to(local_pos);
+          return simple_token(token_type::Identifier, start, current);
+        } else if (B_ISSPACE(ch)) {
+          // ignore
+        } else {
+          /* Some non-alpha character => string */
+          internal_state = lex_state::String;
+          buffer.push_back(ch);
         }
-        /* Some non-alpha character => string */
-        internal_state = lex_state::String;
-        buffer.push_back(ch);
       } break;
       case lex_state::QuotedString: {
         if (ch == '\n') {
@@ -1421,30 +1449,38 @@ token lexer::next_token()
         } else if (ch == '"') {
           auto now = current_source.current_pos();
 
-          bool cont = false;
+          // we want to continue this string if the next line
+          // essentially starts with '"'
+          size_t bytes_read = 0;
+          bool cont = [&] {
+            for (;;) {
+              auto next = current_source.read();
+              bytes_read += 1;
+              if (next && *next == '"') {
+                // we found '"', so we continue reading the string
+                return true;
+              } else if (next && B_ISSPACE(*next)) {
+                // we ignore space
+                continue;
+              }
 
-          for (;;) {
-            auto next = current_source.read();
-            if (!next) {
-              current_source.reset_to(now);
-              break;
-            } else if (B_ISSPACE(*next)) {
-              continue;
-            } else if (*next == '"') {
-              cont = true;
-              break;
-            } else {
-              cont = false;
-              break;
+              // either we reached the eof or
+              // we found something that is neither space nor '"', so we stop
+              return false;
             }
-          }
+          }();
 
           if (cont) {
+            // we do not need to reset the position now because we already
+            // are at the start of the next string, but we need to update
+            // the global offset
+            current_global_offset += bytes_read;
             continue_string = true;
           } else {
+            // as we read stuff that does not belong to us, we need to
+            // reset the position
             current_source.reset_to(now);
-            return simple_token(token_type::QuotedString, file_index, start,
-                                current);
+            return simple_token(token_type::QuotedString, start, current);
           }
         } else {
           continue_string = false;
@@ -1464,7 +1500,11 @@ token lexer::next_token()
           internal_state = lex_state::IncludeQuoted;
         } else if (B_ISSPACE(ch) || ch == '\n' || ch == '}' || ch == '{'
                    || ch == ';' || ch == ',' || ch == '"' || ch == '#') {
-          current_source.reset_to(current);
+          current_source.reset_to(local_pos);
+          /* MARKER */
+          // TODO: we need to update the global offset & translation map
+          // as well!
+
           try {
             auto new_lex = open_files(buffer.c_str());
             auto offset = sources.size();
@@ -1478,7 +1518,7 @@ token lexer::next_token()
               source_queue.push_front(offset + i);
             }
           } catch (parse_error& s) {
-            source_location loc{file_index, start, current};
+            source_location loc{start, current};
             s.add_context(
                 format_comment(loc, "File included from here").c_str());
             throw s;
@@ -1509,7 +1549,7 @@ token lexer::next_token()
               source_queue.push_front(offset + i);
             }
           } catch (parse_error& s) {
-            source_location loc{file_index, start, current};
+            source_location loc{start, current};
             s.add_context(
                 format_comment(loc, "File included from here").c_str());
             throw s;
@@ -1525,7 +1565,7 @@ token lexer::next_token()
           bom_bytes_seen += 1;
         } else if ((std::byte)ch == (std::byte)0xBB && bom_bytes_seen == 2) {
           internal_state = lex_state::None;
-          return simple_token(token_type::Utf8_BOM, file_index, start, current);
+          return simple_token(token_type::Utf8_BOM, start, current);
         } else {
           return Err;
         }
@@ -1536,8 +1576,7 @@ token lexer::next_token()
           bom_bytes_seen += 1;
         } else if ((std::byte)ch == (std::byte)0xBB && bom_bytes_seen == 2) {
           internal_state = lex_state::None;
-          return simple_token(token_type::Utf16_BOM, file_index, start,
-                              current);
+          return simple_token(token_type::Utf16_BOM, start, current);
         } else {
           return Err;
         }
@@ -1546,13 +1585,188 @@ token lexer::next_token()
   }
 }
 
-std::string lexed_source::format_comment(source_point start,
-                                         source_point end,
-                                         std::string_view comment)
+using sm_iter = source_map::const_iterator;
+
+static sm_iter translation_for_offset(const source_map& map,
+                                      size_t global_offset)
 {
-  (void)start;
-  (void)end;
-  (void)comment;
-  return {};
+  return std::lower_bound(map.begin(), map.end(), global_offset,
+                          [](const source_translation& tl, size_t offset) {
+                            return tl.global_start_offset < offset;
+                          });
+}
+
+static size_t inclusion_size(const source_map& map, sm_iter translation)
+{
+  if (translation + 1 == map.end()) {
+    // no known end
+    return std::numeric_limits<size_t>::max();
+  }
+
+  auto start = translation->global_start_offset;
+  auto end = (translation + 1)->global_start_offset;
+
+  // each inclusion is at least 1 char big
+  ASSERT(start < end);
+
+  return end - start;
+}
+
+static std::tuple<size_t, size_t, size_t> get_line_bounds(const lexed_source& s,
+                                                          size_t byte_offset)
+{
+  // TODO: create lookup table
+
+  const std::string& data = s.content.data;
+
+  ASSERT(byte_offset < data.size());
+
+  // we have to start looking from the one before byte_offset in case
+  // byte_offset points to an '\n' as otherwise we just find byte_offset again
+  auto prev_end
+      = (byte_offset == 0) ? data.npos : data.rfind('\n', byte_offset - 1);
+  auto end = data.find('\n', byte_offset);
+
+  if (end == data.npos) {
+    end = data.size();
+  } else {
+    // end should be one past the last character
+    end += 1;
+  }
+
+  auto start = (prev_end == data.npos) ? 0 : (prev_end + 1);
+
+  return {0, start, end};
+}
+
+std::string lexer::format_comment(source_location loc,
+                                  std::string_view comment) const
+{
+  auto start = translation_for_offset(translations, loc.global_start);
+  auto end = translation_for_offset(translations, loc.global_end);
+
+  std::stringstream res;
+
+
+  res << comment << '\n';
+
+  auto current = start;
+
+  struct printed_line {
+    std::string_view source;
+    size_t linum;
+
+    std::string_view content;
+
+    size_t highlight_start;
+    size_t highlight_end;
+  };
+
+  std::vector<printed_line> lines;
+
+  std::string highlight;
+
+  for (size_t global_offset = loc.global_start;
+       global_offset < loc.global_end;) {
+    if (current == translations.end()) {
+      // somebody gave us a source_location with an end that is too big
+      // just ignore the rest
+      res << "[missing " << std::to_string(loc.global_end - global_offset)
+          << " bytes]\n";
+      break;
+    }
+
+    ASSERT(current != end);
+
+    const lexed_source& current_source = sources[current->source_index];
+
+    size_t max_size = loc.global_end - global_offset;
+    size_t total_local_size = inclusion_size(translations, current);
+    size_t inclusion_offset = global_offset - current->global_start_offset;
+
+    size_t local_start = current->start_offset + inclusion_offset;
+    size_t local_size = std::min(max_size, total_local_size);
+    size_t local_end = local_start + local_size;
+
+    for (size_t local_current = local_start; local_current < local_end;) {
+      auto [num, line_start, line_end]
+          = get_line_bounds(current_source, local_current);
+      ASSERT(line_start <= local_current);
+      ASSERT(line_end > local_current);
+
+      auto print_end = std::min(line_end, local_end);
+
+      // we should probably only print to print_end and highlight to max_size
+      // (and overshooting max size for 1 line)
+      auto line = std::string_view{current_source.content.data}.substr(
+          line_start, line_end - line_start);
+
+      lines.push_back({
+          .source = current_source.content.path,
+          .linum = num,
+          .content = line,
+          .highlight_start = local_current - line_start,
+          .highlight_end = print_end - line_start,
+      });
+
+      local_current = line_end;
+    }
+
+    global_offset += local_size;
+    current += 1;
+  }
+
+  size_t max_num = 0;
+  size_t max_source_len = 0;
+  for (auto& line : lines) {
+    max_source_len = std::max(max_source_len, line.source.size());
+    max_num = std::max(max_num, line.linum);
+  }
+
+  // add 1 for ':'
+  auto max_prefix_size = max_source_len + std::to_string(max_num).size() + 1;
+
+  auto old_width = res.width();
+  auto old_fill = res.fill();
+
+  for (auto& line : lines) {
+    res.fill(' ');
+    res.width(0);
+
+    size_t prefix_size = 0;
+    if (line.source.size() > 0) {
+      auto num_str = std::to_string(line.linum);
+      prefix_size = line.source.size() + num_str.size() + 1;
+      res << line.source << ":" << num_str;
+    }
+
+
+    res.width(max_prefix_size - prefix_size + 1);
+    res << "";
+    res.width(0);
+
+    res << line.content;
+
+    if (line.highlight_start != line.highlight_end) {
+      res.width(max_prefix_size + 1);
+      res << "";
+      res.width(0);
+
+      res.width(line.highlight_start);
+      res << "";
+
+      res.fill('~');
+      res.width(line.highlight_end - line.highlight_start);
+      res << "";
+      res.width(0);
+
+      res << "\n";
+    }
+  }
+
+  res.width(old_width);
+  res.fill(old_fill);
+
+  return res.str();
 }
 }  // namespace lex
