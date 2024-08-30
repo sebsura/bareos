@@ -172,3 +172,92 @@ TEST(Include, Number)
               ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
   EXPECT_TRUE(lex.finished());
 }
+
+TEST(QuotedInclude, Number)
+{
+  lex::lexer lex;
+  lex.append_source(lex::source{
+      .path = "string",
+      .data =
+          R"MULTILINE(
+@"include/Number.inc"
+)MULTILINE",
+  });
+
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::Number));
+  EXPECT_EQ(lex.buffer, "1234");
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::LineEnd));
+  EXPECT_THAT(lex.next_token(),
+              ::testing::Field(&lex::token::type, lex::token_type::FileEnd));
+  EXPECT_TRUE(lex.finished());
+}
+
+static void parse_all(lex::lexer& lex)
+{
+  while (!lex.finished()) { (void)lex.next_token(); }
+}
+
+TEST(Comment, simple)
+{
+  lex::lexer lex;
+  auto path = "string";
+  auto data = R"MULTILINE(
+Hallo
+1234
+)MULTILINE";
+  lex.append_source(lex::source{
+      .path = path,
+      .data = data,
+  });
+
+  parse_all(lex);
+
+  auto start = size_t{0};
+  auto end = lex.current_global_offset;
+
+  lex::source_location all = {start, end};
+
+  std::string_view comment = "something went wrong";
+
+
+  auto str = lex.format_comment(all, comment);
+
+  std::cout << str << std::endl;
+
+  // TODO: think about how to test this reliably
+  EXPECT_EQ(1, 0);
+}
+
+TEST(Comment, include)
+{
+  lex::lexer lex;
+  lex.append_source(lex::source{
+      .path = "string",
+      .data =
+          R"MULTILINE(
+Hallo
+@"include/Number.inc"
+1234
+)MULTILINE",
+  });
+
+  parse_all(lex);
+
+  auto start = size_t{0};
+  auto end = lex.current_global_offset;
+
+  lex::source_location all = {start, end};
+
+  auto str = lex.format_comment(all, "something went wrong");
+
+  std::cout << str << std::endl;
+
+  // TODO: think about how to test this reliably
+  EXPECT_EQ(1, 0);
+}
