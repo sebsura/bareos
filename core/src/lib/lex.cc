@@ -1232,16 +1232,6 @@ void lexer::reset_global_offset_to(size_t global_offset)
 
 token lexer::next_token()
 {
-  buffer.clear();
-
-  ASSERT(source_queue.size() > 0);
-
-  auto file_index = source_queue.front();
-
-  ASSERT(file_index < sources.size());
-
-  auto& current_source = sources[file_index];
-
   // local parsing state
   lex_state internal_state{lex_state::None};
   bool continue_string = false;
@@ -1250,7 +1240,21 @@ token lexer::next_token()
   size_t bom_bytes_seen = 0;
   auto start = current_global_offset;
 
+  buffer.clear();
+
+  if (source_queue.size() == 0) {
+    return simple_token(token_type::FileEnd, current_global_offset,
+                        current_global_offset);
+  }
+
+
   for (;;) {
+    auto file_index = source_queue.front();
+
+    ASSERT(file_index < sources.size());
+
+    auto& current_source = sources[file_index];
+
     auto local_pos = current_source.current_pos();
     auto current = current_global_offset;
     auto c = current_source.read();
@@ -1261,9 +1265,7 @@ token lexer::next_token()
       source_queue.pop_front();
 
       if (source_queue.size() > 0) {
-        /* MARKER */
-        // this in not completely correct as we dont transfer the state
-        return next_token();
+        continue;
       } else if (internal_state == lex_state::None) {
         return simple_token(token_type::FileEnd, start, current);
       } else {
@@ -1449,6 +1451,12 @@ token lexer::next_token()
         } else if (ch == '"') {
           auto now = current_source.current_pos();
 
+          /* MARKER */
+          // this is not completely correct.  We need to allow this
+          // to span files
+          // Maybe this should not be allowed and we should always
+          // treat file change as a complete token divider ?
+
           // we want to continue this string if the next line
           // essentially starts with '"'
           size_t bytes_read = 0;
@@ -1524,7 +1532,9 @@ token lexer::next_token()
             throw s;
           }
 
-          return next_token();
+          buffer.clear();
+          internal_state = lex_state::None;
+          continue;
         } else {
           buffer.push_back(ch);
         }
@@ -1555,7 +1565,9 @@ token lexer::next_token()
             throw s;
           }
 
-          return next_token();
+          buffer.clear();
+          internal_state = lex_state::None;
+          continue;
         } else {
           buffer.push_back(ch);
         }
