@@ -1247,7 +1247,6 @@ token lexer::next_token(bool skip_eol)
                         current_global_offset);
   }
 
-
   for (;;) {
     auto file_index = source_queue.front();
 
@@ -1599,10 +1598,9 @@ token lexer::next_token(bool skip_eol)
 
 using sm_iter = source_map::const_iterator;
 
-static sm_iter translation_for_offset(const source_map& map,
-                                      size_t global_offset)
+static sm_iter translation_for_offset(const source_map& map, lex_point p)
 {
-  return std::lower_bound(map.begin(), map.end(), global_offset,
+  return std::lower_bound(map.begin(), map.end(), p.offset,
                           [](const source_translation& tl, size_t offset) {
                             return tl.global_start_offset < offset;
                           });
@@ -1654,8 +1652,8 @@ static std::tuple<size_t, size_t, size_t> get_line_bounds(const lexed_source& s,
 std::string lexer::format_comment(source_location loc,
                                   std::string_view comment) const
 {
-  auto start = translation_for_offset(translations, loc.global_start);
-  auto end = translation_for_offset(translations, loc.global_end);
+  auto start = translation_for_offset(translations, loc.start);
+  auto end = translation_for_offset(translations, loc.end);
 
   std::stringstream res;
 
@@ -1678,12 +1676,12 @@ std::string lexer::format_comment(source_location loc,
 
   std::string highlight;
 
-  for (size_t global_offset = loc.global_start;
-       global_offset < loc.global_end;) {
+  for (size_t global_offset = loc.start.offset;
+       global_offset < loc.end.offset;) {
     if (current == translations.end()) {
       // somebody gave us a source_location with an end that is too big
       // just ignore the rest
-      res << "[missing " << std::to_string(loc.global_end - global_offset)
+      res << "[missing " << std::to_string(loc.end.offset - global_offset)
           << " bytes]\n";
       break;
     }
@@ -1692,7 +1690,7 @@ std::string lexer::format_comment(source_location loc,
 
     const lexed_source& current_source = sources[current->source_index];
 
-    size_t max_size = loc.global_end - global_offset;
+    size_t max_size = loc.end.offset - global_offset;
     size_t total_local_size = inclusion_size(translations, current);
     size_t inclusion_offset = global_offset - current->global_start_offset;
 

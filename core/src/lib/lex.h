@@ -281,8 +281,12 @@ enum class expected_type
   String,
 };
 
+struct lex_point {
+  size_t offset;
+};
+
 struct source_location {
-  size_t global_start, global_end;
+  lex_point start, end;
 };
 
 struct token {
