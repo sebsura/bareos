@@ -1114,9 +1114,9 @@ source read_file(const char* path)
 
 static constexpr token Err = {.type = token_type::Err, .loc = {}};
 
-token simple_token(token_type t, size_t global_start, size_t global_end)
+token simple_token(token_type t, lex_point start, lex_point end)
 {
-  source_location loc{global_start, global_end};
+  source_location loc{start, end};
   return token{t, loc};
 }
 
@@ -1220,15 +1220,15 @@ std::optional<char> lexed_source::read()
   return c;
 }
 
-void lexer::reset_global_offset_to(size_t global_offset)
+void lexer::reset_global_offset_to(lex_point p)
 {
   for (size_t i = 0; i < translations.size(); ++i) {
-    if (translations[i].global_start_offset > global_offset) {
+    if (translations[i].start.offset > p.offset) {
       translations.resize(i);
       break;
     }
   }
-  current_global_offset = global_offset;
+  current_offset = p;
 }
 
 token lexer::next_token(bool skip_eol)
@@ -1238,13 +1238,12 @@ token lexer::next_token(bool skip_eol)
   bool continue_string = false;
   bool escape_next = false;
   size_t bom_bytes_seen = 0;
-  auto start = current_global_offset;
+  auto start = current_offset;
 
   buffer.clear();
 
   if (source_queue.size() == 0) {
-    return simple_token(token_type::FileEnd, current_global_offset,
-                        current_global_offset);
+    return simple_token(token_type::FileEnd, current_offset, current_offset);
   }
 
   for (;;) {
@@ -1255,7 +1254,7 @@ token lexer::next_token(bool skip_eol)
     auto& current_source = sources[file_index];
 
     auto local_pos = current_source.current_pos();
-    auto current = current_global_offset;
+    auto current = this->current_offset;
     auto c = current_source.read();
 
     if (!c) {
@@ -1274,14 +1273,14 @@ token lexer::next_token(bool skip_eol)
     }
 
     // if we actually read a character, we need to update the global_offset ...
-    current_global_offset += 1;
+    this->current_offset.offset += 1;
 
     // ... and update the translation map in case we changed files
     if (translations.size() == 0
         || translations.back().source_index != file_index) {
       // we cant have advanced more bytes locally than we did globally
       translations.push_back({
-          .global_start_offset = current,
+          .start = current,
           .source_index = file_index,
           .start_offset = local_pos.byte_offset,
           .start_line = local_pos.line,
@@ -1481,7 +1480,7 @@ token lexer::next_token(bool skip_eol)
             // we do not need to reset the position now because we already
             // are at the start of the next string, but we need to update
             // the global offset
-            current_global_offset += bytes_read;
+            current_offset.offset += bytes_read;
             continue_string = true;
           } else {
             // as we read stuff that does not belong to us, we need to
@@ -1602,8 +1601,25 @@ static sm_iter translation_for_offset(const source_map& map, lex_point p)
 {
   return std::lower_bound(map.begin(), map.end(), p.offset,
                           [](const source_translation& tl, size_t offset) {
-                            return tl.global_start_offset < offset;
+                            return tl.start.offset < offset;
                           });
+}
+
+void lexer::reset_to(lex_point p)
+{
+  auto iter = translation_for_offset(translations, p);
+
+  ASSERT(iter != translations.end());
+
+
+  translations.erase(iter + 1, translations.end());
+
+  auto& translation = *iter;
+  (void) translation;
+
+  // translation.global_start_offset;
+
+
 }
 
 static size_t inclusion_size(const source_map& map, sm_iter translation)
@@ -1613,13 +1629,13 @@ static size_t inclusion_size(const source_map& map, sm_iter translation)
     return std::numeric_limits<size_t>::max();
   }
 
-  auto start = translation->global_start_offset;
-  auto end = (translation + 1)->global_start_offset;
+  auto start = translation->start;
+  auto end = (translation + 1)->start;
 
   // each inclusion is at least 1 char big
-  ASSERT(start < end);
+  ASSERT(start.offset < end.offset);
 
-  return end - start;
+  return end.offset - start.offset;
 }
 
 static std::tuple<size_t, size_t, size_t> get_line_bounds(const lexed_source& s,
@@ -1692,7 +1708,7 @@ std::string lexer::format_comment(source_location loc,
 
     size_t max_size = loc.end.offset - global_offset;
     size_t total_local_size = inclusion_size(translations, current);
-    size_t inclusion_offset = global_offset - current->global_start_offset;
+    size_t inclusion_offset = global_offset - current->start.offset;
 
     size_t local_start = current->start_offset + inclusion_offset;
     size_t local_size = std::min(max_size, total_local_size);

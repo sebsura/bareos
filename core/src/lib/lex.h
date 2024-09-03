@@ -295,8 +295,8 @@ struct token {
 };
 
 struct source_translation {
-  size_t global_start_offset;  // this inclusion begins at this global offset
-  size_t source_index;         // index of the source inside the sources array
+  lex_point start;      // this inclusion begins at this global offset
+  size_t source_index;  // index of the source inside the sources array
   size_t start_offset;  // offset to adjust the global byteoffset to the one
                         // inside the source
   size_t start_line;    // the inclusion starts at this line
@@ -329,6 +329,8 @@ struct lexer {
   token next_token(bool skip_eol = false);
   bool finished() const { return source_queue.size() == 0; }
 
+  void reset_to(lex_point p);
+
   void append_source(source&& s)
   {
     auto sindex = sources.size();
@@ -346,14 +348,14 @@ struct lexer {
   std::string format_comment(source_location loc,
                              std::string_view comment) const;
 
-  void reset_global_offset_to(size_t old_offset);
+  void reset_global_offset_to(lex_point p);
   std::vector<lexed_source> sources{};
 
   std::deque<size_t> source_queue{};
 
   options opts;
 
-  size_t current_global_offset{};
+  lex_point current_offset{};
   source_map translations{};
 
   std::string buffer;

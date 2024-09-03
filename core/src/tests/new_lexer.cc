@@ -218,8 +218,8 @@ Hallo
 
   parse_all(lex);
 
-  auto start = size_t{0};
-  auto end = lex.current_global_offset;
+  auto start = lex::lex_point{};
+  auto end = lex.current_offset;
 
   lex::source_location all = {start, end};
 
@@ -249,8 +249,8 @@ Hallo
 
   parse_all(lex);
 
-  auto start = size_t{0};
-  auto end = lex.current_global_offset;
+  auto start = lex::lex_point{};
+  auto end = lex.current_offset;
 
   lex::source_location all = {start, end};
 
