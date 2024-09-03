@@ -35,6 +35,7 @@
 #include <glob.h>
 #include "lib/parse_err.h"
 
+#include <charconv>
 #include <sstream>
 
 extern int debug_level;
@@ -1230,12 +1231,11 @@ void lexer::reset_global_offset_to(size_t global_offset)
   current_global_offset = global_offset;
 }
 
-token lexer::next_token()
+token lexer::next_token(bool skip_eol)
 {
   // local parsing state
   lex_state internal_state{lex_state::None};
   bool continue_string = false;
-  bool skip_eol = false;
   bool escape_next = false;
   size_t bom_bytes_seen = 0;
   auto start = current_global_offset;
@@ -1781,4 +1781,183 @@ std::string lexer::format_comment(source_location loc,
 
   return res.str();
 }
+
+const char* token_type_name(token_type t)
+{
+  switch (t) {
+    case token_type::FileEnd:
+      return "end of file";
+    case token_type::Number:
+      return "number";
+    case token_type::Identifier:
+      return "identifier";
+    case token_type::UnquotedString:
+      return "unquoted string";
+    case token_type::QuotedString:
+      return "quoted string";
+    case token_type::OpenBlock:
+      return "opening brace";
+    case token_type::CloseBlock:
+      return "closing brace";
+    case token_type::Eq:
+      return "equality sign";
+    case token_type::Comma:
+      return "comma";
+    case token_type::LineEnd:
+      return "end of line";
+    case token_type::Err:
+      return "error";
+    case token_type::Utf8_BOM:
+      return "byte order mark (utf8)";
+    case token_type::Utf16_BOM:
+      return "byte order mark (utf16)";
+  }
+
+  return "<unknown>";
+}
+
+template <> std::string GetValue(lexer* lex)
+{
+  auto token = lex->next_token();
+  switch (token.type) {
+    case token_type::Identifier:
+    case token_type::QuotedString:
+    case token_type::UnquotedString: {
+      return lex->buffer;
+    }
+    default: {
+      throw parse_error(
+          "Expected a string, got %s:\n%s", token_type_name(token.type),
+          lex->format_comment(token.loc, "Expected string").c_str());
+    }
+  }
+}
+
+template <> name_t GetValue(lexer* lex)
+{
+  auto token = lex->next_token();
+  auto str = [&] {
+    switch (token.type) {
+      case token_type::Identifier:
+      case token_type::QuotedString:
+      case token_type::UnquotedString: {
+        return lex->buffer;
+      }
+      default: {
+        throw parse_error(
+            "Expected a string, got %s:\n%s", token_type_name(token.type),
+            lex->format_comment(token.loc, "Expected string").c_str());
+      }
+    }
+  }();
+
+  if (str.size() > MAX_NAME_LENGTH) {
+    throw parse_error("Name is too long (%zu > %zu).\n%s", str.size(),
+                      MAX_NAME_LENGTH,
+                      lex->format_comment(token.loc, "defined here").c_str());
+  }
+  return {std::move(str)};
+}
+
+template <> quoted_string_t GetValue(lexer* lex)
+{
+  auto token = lex->next_token();
+  if (token.type != token_type::QuotedString) {
+    throw parse_error(
+        "Expected a quoted string, got %s:\n%s", token_type_name(token.type),
+        lex->format_comment(token.loc, "Expected quoted string here").c_str());
+  }
+  return {lex->buffer};
+}
+
+template <typename Int> Int GetIntValue(lexer* lex)
+{
+  Int value{};
+
+  auto token = lex->next_token();
+
+  const char* begin = lex->buffer.c_str();
+  const char* end = lex->buffer.c_str() + lex->buffer.size();
+
+  auto result = std::from_chars(begin, end, value);
+
+  if (result.ec != std::errc()) {
+    throw parse_error(
+        "Expected a number here\n%s",
+        lex->format_comment(token.loc,
+                            make_error_condition(result.ec).message())
+            .c_str());
+  } else if (result.ptr != end) {
+    throw parse_error(
+        "Expected a number here\n%s",
+        lex->format_comment(token.loc,
+                            make_error_condition(result.ec).message())
+            .c_str());
+  }
+
+  return value;
+}
+
+template <typename Int> std::pair<Int, Int> GetIntRangeValue(lexer* lex)
+{
+  std::pair<Int, Int> value{};
+
+  auto token = lex->next_token();
+
+  const char* begin = lex->buffer.c_str();
+  const char* end = lex->buffer.c_str() + lex->buffer.size();
+
+  auto result_left = std::from_chars(begin, end, value.first);
+
+  if (result_left.ec != std::errc()) {
+    throw parse_error(
+        "Expected a number here\n%s",
+        lex->format_comment(token.loc,
+                            make_error_condition(result_left.ec).message())
+            .c_str());
+  }
+
+  if (result_left.ptr == end) { return value; }
+
+  const char* right = strchr(result_left.ptr, '-');
+
+  if (!right) {
+    throw parse_error("Expected range here\n%s",
+                      lex->format_comment(token.loc, "").c_str());
+  }
+
+  auto result_right = std::from_chars(right + 1, end, value.second);
+
+  if (result_right.ec != std::errc()) {
+    throw parse_error(
+        "Expected a number here\n%s",
+        lex->format_comment(token.loc,
+                            make_error_condition(result_right.ec).message())
+            .c_str());
+  }
+
+  if (result_right.ptr != end) {
+    throw parse_error("Expected range here\n%s",
+                      lex->format_comment(token.loc, "").c_str());
+  }
+
+  return value;
+}
+
+template <> int16_t GetValue(lexer* lex) { return GetIntValue<int16_t>(lex); }
+template <> int32_t GetValue(lexer* lex) { return GetIntValue<int32_t>(lex); }
+template <> int64_t GetValue(lexer* lex) { return GetIntValue<int64_t>(lex); }
+template <> uint16_t GetValue(lexer* lex) { return GetIntValue<uint16_t>(lex); }
+template <> uint32_t GetValue(lexer* lex) { return GetIntValue<uint32_t>(lex); }
+template <> uint64_t GetValue(lexer* lex) { return GetIntValue<uint64_t>(lex); }
+template <> range32 GetValue(lexer* lex)
+{
+  return {GetIntRangeValue<uint32_t>(lex)};
+}
+template <> range64 GetValue(lexer* lex)
+{
+  return {GetIntRangeValue<uint64_t>(lex)};
+}
+
+
 }  // namespace lex

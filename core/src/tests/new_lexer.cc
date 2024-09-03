@@ -30,7 +30,7 @@
 #  include "include/bareos.h"
 #endif
 
-
+#include "lib/parse_err.h"
 #include "lib/lex.h"
 
 TEST(lexer, EmptyInput)
@@ -260,4 +260,69 @@ Hallo
 
   // TODO: think about how to test this reliably
   EXPECT_EQ(1, 0);
+}
+
+lex::lexer simple_lex(std::string_view v)
+{
+  lex::lexer lex;
+  lex.append_source(lex::source{
+      .path = "string",
+      .data = std::string{v},
+  });
+
+  return lex;
+}
+
+template <typename Int> struct SignedFixture : public ::testing::Test {
+  using type = Int;
+};
+
+template <typename Int> struct UnsignedFixture : public ::testing::Test {
+  using type = Int;
+};
+
+using SignedTypes = ::testing::Types<int16_t, int32_t, int64_t>;
+using UnsignedTypes = ::testing::Types<uint16_t, uint32_t, uint64_t>;
+
+struct IntNames {
+  template <typename Int> static std::string GetName(int)
+  {
+    std::string name;
+    if constexpr (std::is_signed_v<Int>) {
+      name += "int";
+    } else {
+      name += "uint";
+    }
+
+    name += std::to_string(sizeof(Int) * 4);
+
+    return name;
+  }
+};
+
+TYPED_TEST_SUITE(SignedFixture, SignedTypes, IntNames);
+TYPED_TEST_SUITE(UnsignedFixture, UnsignedTypes, IntNames);
+
+TYPED_TEST(SignedFixture, simple)
+{
+  {
+    auto lex = simple_lex("1234\n");
+    EXPECT_EQ(lex::GetValue<typename TestFixture::type>(&lex), 1234);
+  }
+  {
+    auto lex = simple_lex("-1234\n");
+    EXPECT_EQ(lex::GetValue<typename TestFixture::type>(&lex), -1234);
+  }
+}
+
+TYPED_TEST(UnsignedFixture, simple)
+{
+  {
+    auto lex = simple_lex("1234\n");
+    EXPECT_EQ(lex::GetValue<typename TestFixture::type>(&lex), 1234);
+  }
+  {
+    auto lex = simple_lex("-1234\n");
+    EXPECT_THROW(lex::GetValue<typename TestFixture::type>(&lex), parse_error);
+  }
 }

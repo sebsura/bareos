@@ -253,7 +253,6 @@ enum class token_type
 {
   FileEnd,
   Number,
-  IpAddr,
   Identifier,
   UnquotedString,
   QuotedString,
@@ -323,7 +322,7 @@ struct lexed_source {
 };
 
 struct lexer {
-  token next_token();
+  token next_token(bool skip_eol = false);
   bool finished() const { return source_queue.size() == 0; }
 
   void append_source(source&& s)
@@ -357,6 +356,28 @@ struct lexer {
 };
 
 lexer open_files(const char* path);
+
+template <typename T> T GetValue(lexer* lex);
+
+struct name_t : std::string {};
+struct quoted_string_t : std::string {};
+struct range32 : std::pair<std::uint32_t, std::uint32_t> {};
+struct range64 : std::pair<std::uint64_t, std::uint64_t> {};
+
+const char* token_type_name(token_type t);
+
+template <> std::string GetValue(lexer* lex);
+template <> name_t GetValue(lexer* lex);
+template <> quoted_string_t GetValue(lexer* lex);
+template <> int16_t GetValue(lexer* lex);
+template <> int32_t GetValue(lexer* lex);
+template <> int64_t GetValue(lexer* lex);
+template <> uint16_t GetValue(lexer* lex);
+template <> uint32_t GetValue(lexer* lex);
+template <> uint64_t GetValue(lexer* lex);
+template <> range32 GetValue(lexer* lex);
+template <> range64 GetValue(lexer* lex);
+
 
 };  // namespace lex
 
