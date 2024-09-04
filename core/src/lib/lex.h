@@ -299,8 +299,8 @@ struct source_translation {
   size_t source_index;  // index of the source inside the sources array
   size_t start_offset;  // offset to adjust the global byteoffset to the one
                         // inside the source
-  size_t start_line;    // the inclusion starts at this line
-  size_t start_col;     // the inclusion starts at this column
+  uint32_t start_line;  // the inclusion starts at this line
+  uint32_t start_col;   // the inclusion starts at this column
 };
 
 /* this vector is always sorted by source_translation::global_start_offset */

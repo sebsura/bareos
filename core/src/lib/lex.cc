@@ -1254,7 +1254,8 @@ token lexer::next_token(bool skip_eol)
     auto& current_source = sources[file_index];
 
     auto local_pos = current_source.current_pos();
-    auto current = this->current_offset;
+    auto current = current_offset;
+
     auto c = current_source.read();
 
     if (!c) {
@@ -1265,7 +1266,7 @@ token lexer::next_token(bool skip_eol)
       if (source_queue.size() > 0) {
         continue;
       } else if (internal_state == lex_state::None) {
-        return simple_token(token_type::FileEnd, start, current);
+        return simple_token(token_type::FileEnd, start, current_offset);
       } else {
         throw parse_error("Hit unexpected end of file while reading %s\n",
                           state_name(internal_state));
@@ -1273,7 +1274,7 @@ token lexer::next_token(bool skip_eol)
     }
 
     // if we actually read a character, we need to update the global_offset ...
-    this->current_offset.offset += 1;
+    current_offset.offset += 1;
 
     // ... and update the translation map in case we changed files
     if (translations.size() == 0
@@ -1385,8 +1386,7 @@ token lexer::next_token(bool skip_eol)
         if (ch == '\n') {
           internal_state = lex_state::None;
 
-          reset_global_offset_to(current);
-          current_source.reset_to(local_pos);
+          reset_to(current);
 
           if (!skip_eol) {
             return simple_token(token_type::LineEnd, start, current);
@@ -1399,8 +1399,7 @@ token lexer::next_token(bool skip_eol)
         } else if (B_ISSPACE(ch) || ch == '\n' || ch == ',' || ch == ';') {
           /* A valid number can be terminated by the following */
 
-          reset_global_offset_to(current);
-          current_source.reset_to(local_pos);
+          reset_to(current);
 
           return simple_token(token_type::Number, start, current);
         } else {
@@ -1414,8 +1413,7 @@ token lexer::next_token(bool skip_eol)
         if (ch == '\n' || ch == '=' || ch == '}' || ch == '{' || ch == '\r'
             || ch == ';' || ch == ',' || ch == '#' || (B_ISSPACE(ch))
             || ch == '"') {
-          reset_global_offset_to(current);
-          current_source.reset_to(local_pos);
+          reset_to(current);
           return simple_token(token_type::UnquotedString, start, current);
         }
 
@@ -1427,8 +1425,7 @@ token lexer::next_token(bool skip_eol)
         } else if (ch == '\n' || ch == '=' || ch == '}' || ch == '{'
                    || ch == '\r' || ch == ';' || ch == ',' || ch == '"'
                    || ch == '#') {
-          reset_global_offset_to(current);
-          current_source.reset_to(local_pos);
+          reset_to(current);
           return simple_token(token_type::Identifier, start, current);
         } else if (B_ISSPACE(ch)) {
           // ignore
@@ -1506,7 +1503,8 @@ token lexer::next_token(bool skip_eol)
           internal_state = lex_state::IncludeQuoted;
         } else if (B_ISSPACE(ch) || ch == '\n' || ch == '}' || ch == '{'
                    || ch == ';' || ch == ',' || ch == '"' || ch == '#') {
-          current_source.reset_to(local_pos);
+          reset_to(current);
+          // current_source.reset_to(local_pos);
           /* MARKER */
           // TODO: we need to update the global offset & translation map
           // as well!
@@ -1526,7 +1524,7 @@ token lexer::next_token(bool skip_eol)
           } catch (parse_error& s) {
             source_location loc{start, current};
             s.add_context(
-                format_comment(loc, "File included from here").c_str());
+                "%s", format_comment(loc, "File included from here").c_str());
             throw s;
           }
 
@@ -1559,7 +1557,7 @@ token lexer::next_token(bool skip_eol)
           } catch (parse_error& s) {
             source_location loc{start, current};
             s.add_context(
-                format_comment(loc, "File included from here").c_str());
+                "%s", format_comment(loc, "File included from here").c_str());
             throw s;
           }
 
@@ -1599,10 +1597,31 @@ using sm_iter = source_map::const_iterator;
 
 static sm_iter translation_for_offset(const source_map& map, lex_point p)
 {
-  return std::lower_bound(map.begin(), map.end(), p.offset,
-                          [](const source_translation& tl, size_t offset) {
-                            return tl.start.offset < offset;
-                          });
+  for (sm_iter i = map.end(); i != map.begin();) {
+    i--;
+
+    if (i->start.offset <= p.offset) { return i; }
+  }
+
+  return map.end();
+
+  // return std::upper_bound(map.rbegin(), map.rend(), p.offset,
+  //                         [](const source_translation& tl, size_t offset) {
+  //                           return tl.start.offset > offset;
+  //                         }).base() - 1;
+}
+
+static void advance_to_point(lexed_source& source,
+                             source_point start,
+                             size_t offset)
+{
+  source.reset_to(start);
+
+  for (size_t i = 0; i < offset; ++i) {
+    if (!source.read()) {
+      // throw parse_error(could not advance script)
+    }
+  }
 }
 
 void lexer::reset_to(lex_point p)
@@ -1611,15 +1630,23 @@ void lexer::reset_to(lex_point p)
 
   ASSERT(iter != translations.end());
 
-
   translations.erase(iter + 1, translations.end());
 
   auto& translation = *iter;
-  (void) translation;
 
-  // translation.global_start_offset;
+  auto diff = p.offset - translation.start.offset;
 
+  source_point start = {
+      .byte_offset = translation.start_offset,
+      .line = translation.start_line,
+      .col = translation.start_col,
+  };
 
+  auto& source = sources[translation.source_index];
+
+  advance_to_point(source, start, diff);
+
+  current_offset = p;
 }
 
 static size_t inclusion_size(const source_map& map, sm_iter translation)
@@ -1669,7 +1696,7 @@ std::string lexer::format_comment(source_location loc,
                                   std::string_view comment) const
 {
   auto start = translation_for_offset(translations, loc.start);
-  auto end = translation_for_offset(translations, loc.end);
+  // auto end = translation_for_offset(translations, loc.end);
 
   std::stringstream res;
 
@@ -1702,7 +1729,7 @@ std::string lexer::format_comment(source_location loc,
       break;
     }
 
-    ASSERT(current != end);
+    // auto current_block = translation_for_offset(translations, );
 
     const lexed_source& current_source = sources[current->source_index];
 
@@ -1840,9 +1867,10 @@ template <> std::string GetValue(lexer* lex)
       return lex->buffer;
     }
     default: {
-      throw parse_error(
-          "Expected a string, got %s:\n%s", token_type_name(token.type),
-          lex->format_comment(token.loc, "Expected string").c_str());
+      throw parse_error("Expected a string, got %s",
+                        token_type_name(token.type))
+          .add_context("%s",
+                       lex->format_comment(token.loc, "while parsing").c_str());
     }
   }
 }
@@ -1858,17 +1886,19 @@ template <> name_t GetValue(lexer* lex)
         return lex->buffer;
       }
       default: {
-        throw parse_error(
-            "Expected a string, got %s:\n%s", token_type_name(token.type),
-            lex->format_comment(token.loc, "Expected string").c_str());
+        throw parse_error("expected a string, got %s",
+                          token_type_name(token.type))
+            .add_context(
+                "%s", lex->format_comment(token.loc, "while parsing").c_str());
       }
     }
   }();
 
   if (str.size() > MAX_NAME_LENGTH) {
-    throw parse_error("Name is too long (%zu > %zu).\n%s", str.size(),
-                      MAX_NAME_LENGTH,
-                      lex->format_comment(token.loc, "defined here").c_str());
+    throw parse_error("Name is too long (%zu > %zu)", str.size(),
+                      (size_t)MAX_NAME_LENGTH)
+        .add_context("%s",
+                     lex->format_comment(token.loc, "defined here").c_str());
   }
   return {std::move(str)};
 }
@@ -1877,9 +1907,11 @@ template <> quoted_string_t GetValue(lexer* lex)
 {
   auto token = lex->next_token();
   if (token.type != token_type::QuotedString) {
-    throw parse_error(
-        "Expected a quoted string, got %s:\n%s", token_type_name(token.type),
-        lex->format_comment(token.loc, "Expected quoted string here").c_str());
+    throw parse_error("Expected a quoted string, got %s",
+                      token_type_name(token.type))
+        .add_context(
+            "%s", lex->format_comment(token.loc, "Expected quoted string here")
+                      .c_str());
   }
   return {lex->buffer};
 }
@@ -1896,17 +1928,17 @@ template <typename Int> Int GetIntValue(lexer* lex)
   auto result = std::from_chars(begin, end, value);
 
   if (result.ec != std::errc()) {
-    throw parse_error(
-        "Expected a number here\n%s",
-        lex->format_comment(token.loc,
-                            make_error_condition(result.ec).message())
-            .c_str());
+    throw parse_error("Expected a number here")
+        .add_context(
+            "%s", lex->format_comment(token.loc,
+                                      make_error_condition(result.ec).message())
+                      .c_str());
   } else if (result.ptr != end) {
-    throw parse_error(
-        "Expected a number here\n%s",
-        lex->format_comment(token.loc,
-                            make_error_condition(result.ec).message())
-            .c_str());
+    throw parse_error("Expected a number here")
+        .add_context(
+            "%s", lex->format_comment(token.loc,
+                                      make_error_condition(result.ec).message())
+                      .c_str());
   }
 
   return value;
@@ -1924,11 +1956,12 @@ template <typename Int> std::pair<Int, Int> GetIntRangeValue(lexer* lex)
   auto result_left = std::from_chars(begin, end, value.first);
 
   if (result_left.ec != std::errc()) {
-    throw parse_error(
-        "Expected a number here\n%s",
-        lex->format_comment(token.loc,
-                            make_error_condition(result_left.ec).message())
-            .c_str());
+    throw parse_error("Expected a number here")
+        .add_context(
+            "%s",
+            lex->format_comment(token.loc,
+                                make_error_condition(result_left.ec).message())
+                .c_str());
   }
 
   if (result_left.ptr == end) { return value; }
@@ -1936,23 +1969,24 @@ template <typename Int> std::pair<Int, Int> GetIntRangeValue(lexer* lex)
   const char* right = strchr(result_left.ptr, '-');
 
   if (!right) {
-    throw parse_error("Expected range here\n%s",
-                      lex->format_comment(token.loc, "").c_str());
+    throw parse_error("Expected range here")
+        .add_context("%s", lex->format_comment(token.loc, "").c_str());
   }
 
   auto result_right = std::from_chars(right + 1, end, value.second);
 
   if (result_right.ec != std::errc()) {
-    throw parse_error(
-        "Expected a number here\n%s",
-        lex->format_comment(token.loc,
-                            make_error_condition(result_right.ec).message())
-            .c_str());
+    throw parse_error("Expected a number here")
+        .add_context(
+            "%s",
+            lex->format_comment(token.loc,
+                                make_error_condition(result_right.ec).message())
+                .c_str());
   }
 
   if (result_right.ptr != end) {
-    throw parse_error("Expected range here\n%s",
-                      lex->format_comment(token.loc, "").c_str());
+    throw parse_error("Expected range here")
+        .add_context("%s", lex->format_comment(token.loc, "").c_str());
   }
 
   return value;
