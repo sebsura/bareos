@@ -30,8 +30,10 @@
 #include "lib/mem_pool.h"
 #include "dird/client_connection_handshake_mode.h"
 #include "dird/job_trigger.h"
+#include "lib/thread_util.h"
 
 #include <condition_variable>
+#include <variant>
 
 typedef struct s_tree_root TREE_ROOT;
 
@@ -103,14 +105,23 @@ struct Resources {
   bool run_next_pool_override{};  /**< Next pool override was given on run cmdline */
 };
 
+struct msg_thread_done {};
+struct msg_thread_listening { pthread_t id; };
+struct msg_thread_not_started {};
+
+using msg_thread_state = std::variant<msg_thread_not_started,
+                                      msg_thread_listening,
+                                      msg_thread_done>;
+
 struct DirectorJcrImpl {
   DirectorJcrImpl( std::shared_ptr<ConfigResourcesContainer> configuration_resources_container) : job_config_resources_container_(configuration_resources_container) {
     RestoreJobId = 0; MigrateJobId = 0; VerifyJobId = 0;
   }
   std::shared_ptr<ConfigResourcesContainer> job_config_resources_container_;
-  pthread_t SD_msg_chan{};        /**< Message channel thread id */
-  bool SD_msg_chan_started{};     /**< Message channel thread started */
-  std::condition_variable term_wait{}; /**< Wait for job termination */
+
+  synchronized<msg_thread_state> SD_msg_chan{};
+  std::condition_variable SD_msg_state_change{};
+
   pthread_cond_t nextrun_ready = PTHREAD_COND_INITIALIZER;  /**< Wait for job next run to become ready */
   Resources res;                  /**< Resources assigned */
   TREE_ROOT* restore_tree_root{}; /**< Selected files to restore (some protocols need this info) */
@@ -148,7 +159,6 @@ struct DirectorJcrImpl {
   int32_t reschedule_count{};           /**< Number of times rescheduled */
   int32_t FDVersion{};                  /**< File daemon version number */
   int64_t spool_size{};                 /**< Spool size for this job */
-  std::atomic<bool> sd_msg_thread_done{};   /**< Set when Storage message thread done */
   bool IgnoreDuplicateJobChecking{};    /**< Set in migration jobs */
   bool IgnoreLevelPoolOverrides{};       /**< Set if a cmdline pool was specified */
   bool IgnoreClientConcurrency{};       /**< Set in migration jobs */

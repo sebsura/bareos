@@ -442,19 +442,25 @@ void NativeRestoreCleanup(JobControlRecord* jcr, int TermCode)
     case JS_ErrorTerminated:
       TermMsg = T_("*** Restore Error ***");
       msg_type = M_ERROR;  // Generate error message
+
       if (jcr->store_bsock) {
+        auto locked = jcr->dir_impl->SD_msg_chan.lock();
+
         jcr->store_bsock->signal(BNET_TERMINATE);
-        if (jcr->dir_impl->SD_msg_chan_started) {
-          pthread_cancel(jcr->dir_impl->SD_msg_chan);
+        if (auto* state = std::get_if<msg_thread_listening>(&*locked)) {
+          pthread_cancel(state->id);
         }
       }
       break;
     case JS_Canceled:
       TermMsg = T_("Restore Canceled");
+
       if (jcr->store_bsock) {
+        auto locked = jcr->dir_impl->SD_msg_chan.lock();
+
         jcr->store_bsock->signal(BNET_TERMINATE);
-        if (jcr->dir_impl->SD_msg_chan_started) {
-          pthread_cancel(jcr->dir_impl->SD_msg_chan);
+        if (auto* state = std::get_if<msg_thread_listening>(&*locked)) {
+          pthread_cancel(state->id);
         }
       }
       break;

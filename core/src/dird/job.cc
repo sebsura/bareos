@@ -646,21 +646,24 @@ static void* job_thread(void* arg)
 
 void SdMsgThreadSendSignal(JobControlRecord* jcr,
                            int sig,
-                           const std::unique_lock<std::mutex>& lock)
+                           const msg_thread_state& state)
 {
-  ASSERT(lock);
-  ASSERT(lock.mutex() == &jcr->mutex_guard());
-  if (!jcr->dir_impl->sd_msg_thread_done && jcr->dir_impl->SD_msg_chan_started
-      && !pthread_equal(jcr->dir_impl->SD_msg_chan, pthread_self())) {
-    Dmsg1(800, "Send kill to SD msg chan jid=%d\n", jcr->JobId);
-    pthread_kill(jcr->dir_impl->SD_msg_chan, sig);
+  auto* listening = std::get_if<msg_thread_listening>(&state);
+
+  if (listening) {
+    if (!pthread_equal(listening->id, pthread_self())) {
+      Dmsg1(100, "Cannot kill myself jid=%d\n", jcr->JobId);
+    } else {
+      Dmsg1(800, "Send kill to SD msg chan jid=%d\n", jcr->JobId);
+      pthread_kill(listening->id, sig);
+    }
   }
 }
 
 void SdMsgThreadSendSignal(JobControlRecord* jcr, int sig)
 {
-  std::unique_lock l(jcr->mutex_guard());
-  SdMsgThreadSendSignal(jcr, sig, l);
+  auto locked = jcr->dir_impl->SD_msg_chan.lock();
+  SdMsgThreadSendSignal(jcr, sig, locked.get());
 }
 
 /**

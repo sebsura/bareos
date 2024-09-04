@@ -1850,17 +1850,21 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
 
         // Close connection to Reading SD.
         if (jcr->store_bsock) {
+          auto locked = jcr->dir_impl->SD_msg_chan.lock();
+
           jcr->store_bsock->signal(BNET_TERMINATE);
-          if (jcr->dir_impl->SD_msg_chan_started) {
-            pthread_cancel(jcr->dir_impl->SD_msg_chan);
+          if (auto* state = std::get_if<msg_thread_listening>(&*locked)) {
+            pthread_cancel(state->id);
           }
         }
 
         // Close connection to Writing SD (if SD-SD replication)
         if (mig_jcr->store_bsock) {
+          auto locked = mig_jcr->dir_impl->SD_msg_chan.lock();
+
           mig_jcr->store_bsock->signal(BNET_TERMINATE);
-          if (mig_jcr->dir_impl->SD_msg_chan_started) {
-            pthread_cancel(mig_jcr->dir_impl->SD_msg_chan);
+          if (auto* state = std::get_if<msg_thread_listening>(&*locked)) {
+            pthread_cancel(state->id);
           }
         }
         break;

@@ -22,6 +22,7 @@
 #ifndef BAREOS_DIRD_JOB_H_
 #define BAREOS_DIRD_JOB_H_
 
+#include "dird/director_jcr_impl.h"
 class JobControlRecord;
 
 #include "cats/cats.h"
@@ -61,7 +62,7 @@ bool RunConsoleCommand(JobControlRecord* jcr, const char* cmd);
 void SdMsgThreadSendSignal(JobControlRecord* jcr, int sig);
 void SdMsgThreadSendSignal(JobControlRecord* jcr,
                            int sig,
-                           const std::unique_lock<std::mutex>& jcr_lock);
+                           const msg_thread_state& state);
 void InitJobServer(int max_workers);
 void TermJobServer();
 
