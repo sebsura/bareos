@@ -59,6 +59,8 @@ void DirdFreeJcr(JobControlRecord* jcr);
 void DirdFreeJcrPointers(JobControlRecord* jcr);
 void CancelStorageDaemonJob(JobControlRecord* jcr);
 bool RunConsoleCommand(JobControlRecord* jcr, const char* cmd);
+
+void StopStoreSocket(JobControlRecord* jcr);
 void SdMsgThreadSendSignal(JobControlRecord* jcr, int sig);
 void SdMsgThreadSendSignal(JobControlRecord* jcr,
                            int sig,

@@ -666,6 +666,17 @@ void SdMsgThreadSendSignal(JobControlRecord* jcr, int sig)
   SdMsgThreadSendSignal(jcr, sig, locked.get());
 }
 
+void StopStoreSocket(JobControlRecord* jcr)
+{
+  if (jcr->store_bsock) {
+    auto locked = jcr->dir_impl->SD_msg_chan.lock();
+    jcr->store_bsock->signal(BNET_TERMINATE);
+    if (auto* state = std::get_if<msg_thread_listening>(&*locked)) {
+      pthread_cancel(state->id);
+    }
+  }
+}
+
 /**
  * Cancel a job -- typically called by the UA (Console program), but may also
  *              be called by the job watchdog.

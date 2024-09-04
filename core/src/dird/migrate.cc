@@ -1849,24 +1849,10 @@ void MigrationCleanup(JobControlRecord* jcr, int TermCode)
         }
 
         // Close connection to Reading SD.
-        if (jcr->store_bsock) {
-          auto locked = jcr->dir_impl->SD_msg_chan.lock();
-
-          jcr->store_bsock->signal(BNET_TERMINATE);
-          if (auto* state = std::get_if<msg_thread_listening>(&*locked)) {
-            pthread_cancel(state->id);
-          }
-        }
+        StopStoreSocket(jcr);
 
         // Close connection to Writing SD (if SD-SD replication)
-        if (mig_jcr->store_bsock) {
-          auto locked = mig_jcr->dir_impl->SD_msg_chan.lock();
-
-          mig_jcr->store_bsock->signal(BNET_TERMINATE);
-          if (auto* state = std::get_if<msg_thread_listening>(&*locked)) {
-            pthread_cancel(state->id);
-          }
-        }
+        StopStoreSocket(mig_jcr);
         break;
       default:
         TermMsg = T_("Inappropriate %s term code");

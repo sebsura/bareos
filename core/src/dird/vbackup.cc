@@ -499,25 +499,11 @@ void NativeVbackupCleanup(JobControlRecord* jcr, int TermCode, int JobLevel)
     case JS_ErrorTerminated:
       TermMsg = T_("*** Backup Error ***");
       msg_type = M_ERROR; /* Generate error message */
-      if (jcr->store_bsock) {
-        auto locked = jcr->dir_impl->SD_msg_chan.lock();
-
-        jcr->store_bsock->signal(BNET_TERMINATE);
-        if (auto* state = std::get_if<msg_thread_listening>(&*locked)) {
-          pthread_cancel(state->id);
-        }
-      }
+      StopStoreSocket(jcr);
       break;
     case JS_Canceled:
       TermMsg = T_("Backup Canceled");
-      if (jcr->store_bsock) {
-        auto locked = jcr->dir_impl->SD_msg_chan.lock();
-
-        jcr->store_bsock->signal(BNET_TERMINATE);
-        if (auto* state = std::get_if<msg_thread_listening>(&*locked)) {
-          pthread_cancel(state->id);
-        }
-      }
+      StopStoreSocket(jcr);
       break;
     default:
       TermMsg = term_code;
