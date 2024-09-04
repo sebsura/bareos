@@ -921,39 +921,42 @@ static void JcrTimeoutCheck(watchdog_t* /* self */)
     bs = jcr->store_bsock;
     if (bs) {
       timer_start = bs->timer_start;
-      if (timer_start && (watchdog_time - timer_start) > watch_dog_timeout) {
+      if (timer_start
+          && (watchdog_time.load() - timer_start) > watch_dog_timeout) {
         bs->timer_start = 0; /* turn off timer */
         bs->SetTimedOut();
         Qmsg(jcr, M_ERROR, 0,
              T_("Watchdog sending kill after %d secs to thread stalled reading "
                 "Storage daemon.\n"),
-             watchdog_time - timer_start);
+             watchdog_time.load() - timer_start);
         jcr->MyThreadSendSignal(TIMEOUT_SIGNAL);
       }
     }
     bs = jcr->file_bsock;
     if (bs) {
       timer_start = bs->timer_start;
-      if (timer_start && (watchdog_time - timer_start) > watch_dog_timeout) {
+      if (timer_start
+          && (watchdog_time.load() - timer_start) > watch_dog_timeout) {
         bs->timer_start = 0; /* turn off timer */
         bs->SetTimedOut();
         Qmsg(jcr, M_ERROR, 0,
              T_("Watchdog sending kill after %d secs to thread stalled reading "
                 "File daemon.\n"),
-             watchdog_time - timer_start);
+             watchdog_time.load() - timer_start);
         jcr->MyThreadSendSignal(TIMEOUT_SIGNAL);
       }
     }
     bs = jcr->dir_bsock;
     if (bs) {
       timer_start = bs->timer_start;
-      if (timer_start && (watchdog_time - timer_start) > watch_dog_timeout) {
+      if (timer_start
+          && (watchdog_time.load() - timer_start) > watch_dog_timeout) {
         bs->timer_start = 0; /* turn off timer */
         bs->SetTimedOut();
         Qmsg(jcr, M_ERROR, 0,
              T_("Watchdog sending kill after %d secs to thread stalled reading "
                 "Director.\n"),
-             watchdog_time - timer_start);
+             watchdog_time.load() - timer_start);
         jcr->MyThreadSendSignal(TIMEOUT_SIGNAL);
       }
     }

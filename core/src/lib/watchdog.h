@@ -28,6 +28,7 @@
 #define BAREOS_LIB_WATCHDOG_H_
 
 #include <signal.h>
+#include <atomic>
 
 #include "lib/dlist.h"
 
@@ -53,7 +54,8 @@ struct s_watchdog_t {
 typedef struct s_watchdog_t watchdog_t;
 
 /* Exported globals */
-BAREOS_IMPORT utime_t watchdog_time; /* this has granularity of SLEEP_TIME */
+BAREOS_IMPORT std::atomic<utime_t>
+    watchdog_time; /* this has granularity of SLEEP_TIME */
 BAREOS_IMPORT utime_t watchdog_sleep_time; /* examine things every 60 seconds */
 int StartWatchdog(void);
 int StopWatchdog(void);

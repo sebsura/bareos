@@ -36,8 +36,8 @@
 
 
 /* Exported globals */
-utime_t watchdog_time = 0;        /* this has granularity of SLEEP_TIME */
-utime_t watchdog_sleep_time = 60; /* examine things every 60 seconds */
+std::atomic<utime_t> watchdog_time = 0; /* this has granularity of SLEEP_TIME */
+utime_t watchdog_sleep_time = 60;       /* examine things every 60 seconds */
 
 /* Locals */
 static pthread_mutex_t timer_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -50,8 +50,8 @@ static void wd_lock();
 static void wd_unlock();
 
 /* Static globals */
-static bool quit = false;
-static bool wd_is_init = false;
+static std::atomic<bool> quit = false;
+static std::atomic<bool> wd_is_init = false;
 static brwlock_t lock; /* watchdog lock */
 
 static pthread_t wd_tid;
@@ -186,7 +186,7 @@ bool RegisterWatchdog(watchdog_t* wd)
   }
 
   wd_lock();
-  wd->next_fire = watchdog_time + wd->interval;
+  wd->next_fire = watchdog_time.load() + wd->interval;
   wd_queue->append(wd);
   Dmsg3(800, "Registered watchdog %p, interval %d%s\n", wd, wd->interval,
         wd->one_shot ? " one shot" : "");
@@ -266,9 +266,9 @@ extern "C" void* watchdog_thread(void*)
 
   walk_list:
     watchdog_time = time(NULL);
-    next_time = watchdog_time + watchdog_sleep_time;
+    next_time = watchdog_time.load() + watchdog_sleep_time;
     foreach_dlist (p, wd_queue) {
-      if (p->next_fire <= watchdog_time) {
+      if (p->next_fire <= watchdog_time.load()) {
         /* Run the callback */
         Dmsg2(3400, "Watchdog callback p=0x%p fire=%d\n", p, p->next_fire);
         p->callback(p);
@@ -279,7 +279,7 @@ extern "C" void* watchdog_thread(void*)
           wd_inactive->append(p);
           goto walk_list;
         } else {
-          p->next_fire = watchdog_time + p->interval;
+          p->next_fire = watchdog_time.load() + p->interval;
         }
       }
       if (p->next_fire <= next_time) { next_time = p->next_fire; }

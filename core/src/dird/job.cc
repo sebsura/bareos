@@ -783,7 +783,7 @@ static bool JobCheckMaxwaittime(JobControlRecord* jcr)
 
   if (!JobWaiting(jcr)) { return false; }
 
-  if (jcr->wait_time) { current = watchdog_time - jcr->wait_time; }
+  if (jcr->wait_time) { current = watchdog_time.load() - jcr->wait_time; }
 
   Dmsg2(200, "check maxwaittime %u >= %u\n", current + jcr->wait_time_sum,
         job->MaxWaitTime);
@@ -810,9 +810,9 @@ static bool JobCheckMaxruntime(JobControlRecord* jcr)
       && job->IncMaxRunTime == 0 && job->DiffMaxRunTime == 0) {
     return false;
   }
-  run_time = watchdog_time - jcr->start_time;
+  run_time = watchdog_time.load() - jcr->start_time;
   Dmsg7(200, "check_maxruntime %llu-%u=%llu >= %llu|%llu|%llu|%llu\n",
-        watchdog_time, jcr->start_time, run_time, job->MaxRunTime,
+        watchdog_time.load(), jcr->start_time, run_time, job->MaxRunTime,
         job->FullMaxRunTime, job->IncMaxRunTime, job->DiffMaxRunTime);
 
   if (jcr->getJobLevel() == L_FULL && job->FullMaxRunTime != 0
@@ -844,7 +844,7 @@ static bool JobCheckMaxrunschedtime(JobControlRecord* jcr)
   if (jcr->dir_impl->MaxRunSchedTime == 0 || jcr->IsJobCanceled()) {
     return false;
   }
-  if ((watchdog_time - jcr->initial_sched_time)
+  if ((watchdog_time.load() - jcr->initial_sched_time)
       < jcr->dir_impl->MaxRunSchedTime) {
     Dmsg3(200, "Job %p (%s) with MaxRunSchedTime %d not expired\n", jcr,
           jcr->Job, jcr->dir_impl->MaxRunSchedTime);
