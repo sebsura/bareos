@@ -34,8 +34,6 @@
 #include "lib/bpipe.h"
 #include <glob.h>
 
-extern int debug_level;
-
 /* Debug level for this source file */
 static const int debuglevel = 5000;
 
