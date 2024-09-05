@@ -31,6 +31,7 @@
  * returned results are (supposed to be) predictable.
  */
 
+#include "dird/ua_output.h"
 #include "include/bareos.h"
 #include "dird.h"
 #include "dird/director_jcr_impl.h"
@@ -56,9 +57,6 @@ extern struct s_jl joblevels[];
 extern struct s_jt jobtypes[];
 extern struct s_kw ActionOnPurgeOptions[];
 extern struct s_kw VolumeStatus[];
-
-/* ua_output.c */
-extern void DoMessages(UaContext* ua, const char* cmd);
 
 struct authorization_mapping {
   const char* type;
@@ -684,7 +682,7 @@ bool DotBvfsGetJobidsCmd(UaContext* ua, const char*)
 
 bool DotGetmsgsCmd(UaContext* ua, const char* cmd)
 {
-  if (console_msg_pending) { DoMessages(ua, cmd); }
+  DoMessages(ua, cmd);
   return 1;
 }
 

@@ -41,6 +41,7 @@
 #include "dird/ua_output.h"
 #include "dird/ua_select.h"
 #include "lib/edit.h"
+#include "lib/message.h"
 #include "lib/parse_conf.h"
 #include "dird/jcr_util.h"
 
@@ -1366,39 +1367,31 @@ bool CompleteJcrForJob(JobControlRecord* jcr,
   return true;
 }
 
-static void ConLockRelease(void*) { Vw(con_lock); }
-
-void DoMessages(UaContext* ua, const char*)
+size_t DoMessages(UaContext* ua, const char*)
 {
-  char msg[2000];
-  int mlen;
-  bool DoTruncate = false;
-
   // Flush any queued messages.
   if (ua->jcr) { DequeueMessages(ua->jcr); }
 
-  Pw(con_lock);
-  pthread_cleanup_push(ConLockRelease, (void*)NULL);
-  rewind(con_fd);
-  while (fgets(msg, sizeof(msg), con_fd)) {
-    mlen = strlen(msg);
-    ua->UA_sock->msg = CheckPoolMemorySize(ua->UA_sock->msg, mlen + 1);
-    strcpy(ua->UA_sock->msg, msg);
-    ua->UA_sock->message_length = mlen;
+  return IteratePendingMessages([ua](std::string_view msg) {
+    auto msg_size = msg.size();
+    bool add_newline = false;
+    if (msg_size == 0 || msg.back() != '\n') {
+      msg_size += 1;
+      add_newline = true;
+    }
+
+    ua->UA_sock->msg = CheckPoolMemorySize(ua->UA_sock->msg, msg_size + 1);
+    memcpy(ua->UA_sock->msg, msg.data(), msg.size());
+    if (add_newline) { ua->UA_sock->msg[msg.size()] = '\n'; }
+    ua->UA_sock->message_length = msg.size();
     ua->UA_sock->send();
-    DoTruncate = true;
-  }
-  if (DoTruncate) { (void)!ftruncate(fileno(con_fd), 0L); }
-  console_msg_pending = false;
-  ua->user_notified_msg_pending = false;
-  pthread_cleanup_pop(0);
-  Vw(con_lock);
+    return true;
+  });
 }
 
 bool DotMessagesCmd(UaContext* ua, const char* cmd)
 {
-  if (console_msg_pending && ua->AclAccessOk(Command_ACL, cmd)
-      && ua->auto_display_messages) {
+  if (ua->AclAccessOk(Command_ACL, cmd) && ua->auto_display_messages) {
     DoMessages(ua, cmd);
   }
   return true;
@@ -1406,9 +1399,7 @@ bool DotMessagesCmd(UaContext* ua, const char* cmd)
 
 bool MessagesCmd(UaContext* ua, const char* cmd)
 {
-  if (console_msg_pending && ua->AclAccessOk(Command_ACL, cmd)) {
-    DoMessages(ua, cmd);
-  } else {
+  if (!ua->AclAccessOk(Command_ACL, cmd) || DoMessages(ua, cmd) == 0) {
     ua->send->Decoration(T_("You have no messages.\n"));
   }
   return true;

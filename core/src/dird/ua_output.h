@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -50,6 +50,10 @@ RunResource* find_next_run(RunResource* run,
                            JobResource* job,
                            utime_t& runtime,
                            int ndays);
+
+/* return the number of messages processed */
+class UaContext;
+size_t DoMessages(UaContext* ua, const char*);
 
 } /* namespace directordaemon */
 #endif  // BAREOS_DIRD_UA_OUTPUT_H_

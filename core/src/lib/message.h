@@ -40,6 +40,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <string_view>
 
 class JobControlRecord;
 
@@ -66,10 +67,6 @@ BAREOS_IMPORT char my_name[];
 BAREOS_IMPORT const char* working_directory;
 BAREOS_IMPORT utime_t daemon_start_time;
 
-BAREOS_IMPORT bool console_msg_pending;
-BAREOS_IMPORT FILE* con_fd;       /* Console file descriptor */
-BAREOS_IMPORT brwlock_t con_lock; /* Console lock structure */
-
 void MyNameIs(int argc, const char* const argv[], const char* name);
 void InitMsg(JobControlRecord* jcr,
              MessagesResource* msg,
@@ -82,6 +79,9 @@ void DispatchMessage(JobControlRecord* jcr,
                      utime_t mtime,
                      const char* buf);
 void InitConsoleMsg(const char* wd);
+bool HaveMessagesPending();
+size_t IteratePendingMessages(std::function<bool(std::string_view)> f);
+
 void DequeueMessages(JobControlRecord* jcr);
 void SetTrace(int trace_flag);
 bool GetTrace(void);

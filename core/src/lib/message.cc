@@ -51,6 +51,9 @@
 #include "lib/message_queue_item.h"
 #include "lib/thread_specific_data.h"
 #include "lib/bpipe.h"
+#include "lib/thread_util.h"
+
+#include <fstream>
 
 // globals
 const char* working_directory = NULL; /* working directory path stored here */
@@ -63,10 +66,6 @@ char my_name[128] = {0};              /* daemon name is stored here */
 char host_name[256] = {0};            /* host machine name */
 char* exepath = (char*)NULL;
 char* exename = (char*)NULL;
-bool console_msg_pending = false;
-char con_fname[500]; /* Console filename */
-FILE* con_fd = NULL; /* Console file descriptor */
-brwlock_t con_lock;  /* Console lock structure */
 job_code_callback_t message_job_code_callback = NULL;  // Only used by director
 
 /* Exclude spaces but require .mail at end */
@@ -83,6 +82,16 @@ static bool trace = true;
 static bool trace = false;
 #endif
 static bool hangup = false;
+
+namespace globals {
+struct pending_messages {
+  std::string name{};
+  std::fstream stream{};
+  size_t num_pending{};
+};
+
+synchronized<pending_messages> con_fd;
+};  // namespace globals
 
 static int MessageTypeToLogPriority(int message_type);
 
@@ -243,38 +252,6 @@ void InitMsg(JobControlRecord* jcr,
   }
 
   Dmsg2(250, "Copied message resource %p\n", msg);
-}
-
-/*
- * Initialize so that the console (User Agent) can receive messages -- stored in
- * a file.
- */
-void InitConsoleMsg(const char* wd)
-{
-  int fd;
-
-  Bsnprintf(con_fname, sizeof(con_fname), "%s%c%s.conmsg", wd, PathSeparator,
-            my_name);
-  fd = open(con_fname, O_CREAT | O_RDWR | O_BINARY, 0600);
-  if (fd == -1) {
-    BErrNo be;
-    Emsg2(M_ERROR_TERM, 0,
-          T_("Could not open console message file %s: ERR=%s\n"), con_fname,
-          be.bstrerror());
-  }
-  if (lseek(fd, 0, SEEK_END) > 0) { console_msg_pending = 1; }
-  close(fd);
-  con_fd = fopen(con_fname, "a+b");
-  if (!con_fd) {
-    BErrNo be;
-    Emsg2(M_ERROR, 0, T_("Could not open console message file %s: ERR=%s\n"),
-          con_fname, be.bstrerror());
-  }
-  if (RwlInit(&con_lock) != 0) {
-    BErrNo be;
-    Emsg1(M_ERROR_TERM, 0, T_("Could not get con mutex: ERR=%s\n"),
-          be.bstrerror());
-  }
 }
 
 static void MakeUniqueMailFilename(JobControlRecord* jcr,
@@ -481,11 +458,9 @@ void TermMsg()
   CloseMsg(NULL);     /* close global chain */
   delete daemon_msgs; /* f ree the resources */
   daemon_msgs = NULL;
-  if (con_fd) {
-    fflush(con_fd);
-    fclose(con_fd);
-    con_fd = NULL;
-  }
+
+  *globals::con_fd.lock() = {};
+
   if (exepath) {
     free(exepath);
     exepath = NULL;
@@ -711,28 +686,28 @@ void DispatchMessage(JobControlRecord* jcr,
             }
           }
           break;
-        case MessageDestinationCode::kConsole:
+        case MessageDestinationCode::kConsole: {
           Dmsg1(850, "CONSOLE for following msg: %s", msg);
-          if (!con_fd) {
-            con_fd = fopen(con_fname, "a+b");
-            Dmsg0(850, "Console file not open.\n");
+          auto locked = globals::con_fd.lock();
+          auto& stream = locked->stream;
+          std::size_t msg_len = strlen(msg);
+          std::size_t total_len = msg_len + dtlen;
+          stream.write(reinterpret_cast<const char*>(&total_len),
+                       sizeof(total_len));
+
+          stream.write(dt, dtlen);
+          stream.write(msg, msg_len);
+
+          stream.flush();
+
+          if (stream.fail()) {
+            BErrNo be;
+            Dmsg0(100, "Could not write message '%s' to console: %s\n", msg,
+                  be.bstrerror());
           }
-          if (con_fd) {
-            Pw(con_lock); /* get write lock on console message file */
-            errno = 0;
-            if (dtlen) { (void)fwrite(dt, dtlen, 1, con_fd); }
-            len = strlen(msg);
-            if (len > 0) {
-              (void)fwrite(msg, len, 1, con_fd);
-              if (msg[len - 1] != '\n') { (void)fwrite("\n", 2, 1, con_fd); }
-            } else {
-              (void)fwrite("\n", 2, 1, con_fd);
-            }
-            fflush(con_fd);
-            console_msg_pending = true;
-            Vw(con_lock);
-          }
-          break;
+
+          locked->num_pending += 1;
+        } break;
         case MessageDestinationCode::kSyslog:
           Dmsg1(850, "SYSLOG for following msg: %s\n", msg);
 
@@ -1653,4 +1628,89 @@ void q_msg(const char* file,
 void SetLogTimestampFormat(const char* format)
 {
   log_timestamp_format = format;
+}
+
+/*
+ * Initialize so that the console (User Agent) can receive messages -- stored in
+ * a file.
+ */
+void InitConsoleMsg(const char* wd)
+{
+  std::string filename = wd;
+  filename += PathSeparator;
+  filename += my_name;
+
+  std::fstream stream{filename, std::fstream::in | std::fstream::out
+                                    | std::fstream::binary
+                                    | std::fstream::trunc};
+
+  if (stream.fail()) {
+    BErrNo be;
+    Emsg2(M_ERROR_TERM, 0,
+          T_("Could not open console message file %s: ERR=%s\n"),
+          filename.c_str(), be.bstrerror());
+  }
+
+  auto locked = globals::con_fd.lock();
+  locked->name = std::move(filename);
+  locked->stream = std::move(stream);
+}
+
+bool HaveMessagesPending()
+{
+  auto locked = globals::con_fd.lock();
+  return locked->num_pending > 0;
+}
+
+size_t IteratePendingMessages(std::function<bool(std::string_view)> f)
+{
+  auto locked = globals::con_fd.lock();
+
+  auto& stream = locked->stream;
+
+  // as this function always takes a global lock, only one thread
+  // can execute it at a time.  We can take advantage of this fact and use a
+  // global buffer to reduce the amount of allocations that we need.
+  static std::vector<char> buffer{};
+  std::size_t msg_size{};
+  std::size_t num_messages = 0;
+
+
+  // we need to reset the state to prevent read/write failures leaking
+  // into our read routine
+  stream.clear();
+  stream.seekg(0);
+
+  for (size_t msg_idx = 0; msg_idx < locked->num_pending; ++msg_idx) {
+    stream.read(reinterpret_cast<char*>(&msg_size), sizeof(msg_size));
+    if (stream.fail()) {
+      Dmsg0(300, "Was not able to read message header: %s\n",
+            stream.eof() ? "EOF" : "ERROR");
+      break;
+    }
+
+    if (buffer.size() < msg_size) { buffer.resize(msg_size); }
+
+    stream.read(buffer.data(), msg_size);
+    if (stream.fail()) {
+      BErrNo be;
+      Dmsg0(100,
+            "Tried to read %llu bytes from message buffer"
+            " but was not successful: %s\n",
+            msg_size, be.bstrerror());
+
+      break;
+    }
+
+    num_messages += 1;
+
+    if (!f(std::string_view{buffer.data(), msg_size})) {
+      Dmsg0(100, "User function requested stop\n");
+      break;
+    }
+  }
+
+  locked->num_pending = 0;
+
+  return num_messages;
 }
