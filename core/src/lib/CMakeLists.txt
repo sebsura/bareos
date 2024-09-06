@@ -59,6 +59,7 @@ set(BAREOS_SRCS
     daemon.cc
     devlock.cc
     dlist_string.cc
+    dmsg.cc
     edit.cc
     fnmatch.cc
     guid_to_name.cc

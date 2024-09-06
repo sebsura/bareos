@@ -527,5 +527,7 @@ if(NOT HAVE_WIN32)
   bareos_add_test(fvec LINK_LIBRARIES GTest::gtest_main)
 endif()
 
+bareos_add_test(new_dmsg LINK_LIBRARIES GTest::gtest_main bareos)
+
 bareoscopydllstobindir()
 include(DebugEdit)
