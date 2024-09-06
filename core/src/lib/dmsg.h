@@ -75,6 +75,8 @@ struct ring_allocator {
 
   mapped_memory map1{};
   mapped_memory map2{};
+
+  friend void do_dmsg_flush();
 };
 
 struct fast_atomic {
@@ -93,7 +95,10 @@ struct dmsg {
   static int current_file;
   static std::thread writer;
 
-  static std::array<fast_atomic, num_pages> page_used;
+  static uint32_t old_read_start;
+  static fast_atomic read_start;
+  static fast_atomic read_end;
+
   static std::array<fast_atomic, num_pages> page_writers;
 };
 

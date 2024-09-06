@@ -54,7 +54,7 @@ TEST(dmsg, ring_buffer)
   EXPECT_EQ(page[0][0], pages[18][0]);
 }
 
-TEST(dmsg, dmsg)
+TEST(dmsg, dmsg_some)
 {
   dmsg::init("dir");
 
@@ -89,6 +89,20 @@ TEST(dmsg, dmsg)
   dmsg::msg(quarter_page);
   dmsg::msg(quarter_page);
   dmsg::msg(quarter_page);
+
+  dmsg::deinit();
+}
+
+TEST(dmsg, dmsg_much)
+{
+  dmsg::init("dir");
+
+  char buffer[100];
+  for (size_t i = 0; i < 1'000'000; ++i) {
+    int len = snprintf(buffer, sizeof(buffer), "%zu\n", i);
+    ASSERT_GE(len, 0);
+    dmsg::msg(std::string_view{buffer, (size_t)len});
+  }
 
   dmsg::deinit();
 }

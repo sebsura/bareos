@@ -125,9 +125,9 @@ void ring_allocator::dequeue(size_t alloc_size)
 
 static std::atomic<bool> quit_writer = false;
 
-static void fut_wait(uint32_t* addr, uint32_t value)
+static void fut_wait_for(uint32_t* addr, uint32_t value, timespec* spec)
 {
-  syscall(SYS_futex, addr, FUTEX_WAIT_PRIVATE, value, NULL, NULL, 0);
+  syscall(SYS_futex, addr, FUTEX_WAIT_PRIVATE, value, spec, NULL, 0);
 }
 
 static void fut_notify_one(uint32_t* addr)
@@ -153,45 +153,79 @@ static void full_write(int fd, void* data, size_t len)
   }
 }
 
+void write(fast_atomic* atmc, uint32_t value)
+{
+  __atomic_store_n(&atmc->state, value, __ATOMIC_RELEASE);
+
+  fut_notify_all(&atmc->state);
+}
+
+uint32_t read(fast_atomic* atmc)
+{
+  uint32_t ret;
+
+  __atomic_load(&atmc->state, &ret, __ATOMIC_ACQUIRE);
+
+  return ret;
+}
+
 static void write_to_disk(int fd,
                           size_t num_pages,
                           char* base,
                           size_t page_size,
-                          fast_atomic* used)
+                          fast_atomic* start,
+                          fast_atomic* end)
 {
-  (void)fut_notify_one;
-  size_t current_page = 0;
+  size_t current_page = read(start);
+
 
   for (;;) {
-    printf("[WRITER] wait on %zu\n", current_page);
-    fut_wait(&used[current_page].state, 0);
+    ASSERT(current_page < num_pages);
 
-    if (quit_writer.load()) {
-      printf("[WRITER] quit\n");
-      break;
+
+    size_t read_to = read(end);
+
+    if (read_to == current_page) {
+      if (quit_writer.load()) { break; }
+      printf("[WRITER] wait on %zu\n", current_page);
+      timespec s{};
+      s.tv_nsec = size_t{5} * size_t{1000} * size_t{1000};  // 5ms
+      fut_wait_for(&end->state, read_to, &s);
+      continue;
     }
 
-    ASSERT(used[current_page].state != 0);
-    printf("[WRITER] Writing page %zu\n", current_page);
+    printf("[WRITER] Writing pages %zu - %zu\n", current_page, read_to);
+
+    // read_to might be bigger than num_pages!
+    if (read_to < current_page) { read_to += num_pages; }
+    ASSERT(read_to > current_page);
+
+    auto diff_size = (read_to - current_page) * page_size;
+
     char* page = base + page_size * current_page;
 
-    full_write(fd, page, page_size);
-    printf("[WRITER] Wrote page %zu\n", current_page);
+    // base is part of a map-extended circular buffer, so this is fine!
+    full_write(fd, page, diff_size);
 
-    used[current_page].state = 1;
-    fut_notify_all(&used[current_page].state);
-    // TODO: we need to dequeue the memory we just wrote!
+    printf("[WRITER] Wrote pages %zu - %zu\n", current_page, read_to);
 
-    current_page += 1;
-    if (current_page == num_pages) { current_page = 0; }
+    current_page = read_to;
+
+    if (current_page >= num_pages) { current_page -= num_pages; }
+
+    write(start, current_page);
   }
 }
 
-ring_allocator dmsg::alloc;
-std::string dmsg::directory;
-int dmsg::current_file;
-std::array<fast_atomic, dmsg::num_pages> dmsg::page_used;
-std::array<fast_atomic, dmsg::num_pages> dmsg::page_writers;
+ring_allocator dmsg::alloc{};
+std::string dmsg::directory{};
+int dmsg::current_file{};
+
+uint32_t dmsg::old_read_start{};
+fast_atomic dmsg::read_start{};
+fast_atomic dmsg::read_end{};
+
+std::array<fast_atomic, dmsg::num_pages> dmsg::page_writers{};
 
 std::thread dmsg::writer;
 
@@ -211,10 +245,17 @@ void dmsg::init(const char* dir)
   ASSERT(current_file >= 0);
 
   writer = std::thread{
-      write_to_disk, current_file,    num_pages, std::get<1>(alloc.debug()),
-      page_size,     page_used.data()
+      write_to_disk, current_file, num_pages, std::get<1>(alloc.debug()),
+      page_size,     &read_start,  &read_end};
+}
 
-  };
+static bool between(uint32_t start, uint32_t end, uint32_t val)
+{
+  if (start < end) {
+    return (start <= val) && (val < end);
+  } else {
+    return (end <= val) && (val < start);
+  }
 }
 
 void dmsg::msg(std::string_view msg)
@@ -222,7 +263,6 @@ void dmsg::msg(std::string_view msg)
   char* mem = reinterpret_cast<char*>(alloc.queue(msg.size()));
 
   if (!mem) { return; }
-
 
   auto* base = std::get<1>(alloc.debug());
 
@@ -238,18 +278,56 @@ void dmsg::msg(std::string_view msg)
   printf("Wanting to write to %zu - %zu (-> %zu - %zu)\n", diff,
          diff + msg.size(), start, end);
 
-  fut_wait(&page_used[end].state, 1);
+  auto current_read_end = read(&read_end);
+
+  for (;;) {
+    auto rs = read(&read_start);
+
+    if (rs != old_read_start) {
+      size_t num_free_pages = 0;
+      if (old_read_start < rs) {
+        num_free_pages = rs - old_read_start;
+      } else {
+        num_free_pages = (rs - 0) + (num_pages - old_read_start);
+      }
+      alloc.dequeue(page_size * num_free_pages);
+      old_read_start = rs;
+    }
+    if (!between(rs, current_read_end, end)) { break; }
+    timespec wait;
+    wait.tv_nsec = size_t{5} * size_t{1000} * size_t{1000};  // 5ms
+    fut_wait_for(&read_start.state, rs, &wait);
+  }
 
   memcpy(mem, msg.data(), msg.size());
 
   printf("Wrote %zu - %zu (-> %zu - %zu)\n", diff, diff + msg.size(), start,
          one_past_end);
 
-  for (size_t i = start; i < one_past_end; ++i) {
-    printf("Notify %zu\n", i);
-    page_used[i].state = 1;
-    fut_notify_one(&page_used[i].state);
+  write(&read_end, one_past_end);
+}
+
+void do_dmsg_flush()
+{
+  auto rs = read(&dmsg::read_start);
+
+  if (rs != dmsg::old_read_start) {
+    size_t num_free_pages = 0;
+    if (dmsg::old_read_start < rs) {
+      num_free_pages = rs - dmsg::old_read_start;
+    } else {
+      num_free_pages = (rs - 0) + (dmsg::num_pages - dmsg::old_read_start);
+    }
+    dmsg::alloc.dequeue(dmsg::page_size * num_free_pages);
+    dmsg::old_read_start = rs;
   }
+
+  // dump everything that was allocated
+
+  auto allocated = dmsg::alloc.map1.size - dmsg::alloc.free;
+  char* value = dmsg::alloc.map1.base + dmsg::alloc.head;
+
+  full_write(dmsg::current_file, value, allocated);
 }
 
 void dmsg::deinit()
@@ -257,12 +335,13 @@ void dmsg::deinit()
   // todo: we should flush everything
 
   quit_writer = true;
-  for (size_t i = 0; i < dmsg::num_pages; ++i) {
-    page_used[i].state = 1;
-    fut_notify_one(&page_used[i].state);
-  }
+  fut_notify_one(&read_end.state);
 
   writer.join();
+
+  do_dmsg_flush();
+
+  fsync(current_file);
   close(current_file);
   alloc = {};
 }
