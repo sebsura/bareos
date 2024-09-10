@@ -458,8 +458,10 @@ static inline bool BndmpCreateVirtualFile(JobControlRecord* jcr, char* filename)
   statp.st_mtime = now;
   statp.st_atime = now;
   statp.st_size = -1;
+#  if !defined(HAVE_WIN32)
   statp.st_blksize = 4096;
   statp.st_blocks = 1;
+#  endif
 
   // Encode a stat structure into an ASCII string.
   EncodeStat(attribs.c_str(), &statp, sizeof(statp), dcr->FileIndex,

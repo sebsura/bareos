@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -208,8 +208,13 @@ static inline PyStatPacket* NativeToPyStatPacket(struct stat* statp)
     pStatp->atime = statp->st_atime;
     pStatp->mtime = statp->st_mtime;
     pStatp->ctime = statp->st_ctime;
+#if !defined(HAVE_WIN32)
     pStatp->blksize = statp->st_blksize;
     pStatp->blocks = statp->st_blocks;
+#else
+    pStatp->blksize = 0;
+    pStatp->blocks = 0;
+#endif
   }
 
   return pStatp;
@@ -229,8 +234,10 @@ static inline void PyStatPacketToNative(PyStatPacket* pStatp,
   statp->st_atime = pStatp->atime;
   statp->st_mtime = pStatp->mtime;
   statp->st_ctime = pStatp->ctime;
+#if !defined(HAVE_WIN32)
   statp->st_blksize = pStatp->blksize;
   statp->st_blocks = pStatp->blocks;
+#endif
 }
 
 static inline PySavePacket* NativeToPySavePacket(save_pkt* sp)

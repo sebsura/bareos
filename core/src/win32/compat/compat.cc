@@ -900,41 +900,41 @@ long int random(void) { return rand(); }
 
 void srandom(unsigned int seed) { srand(seed); }
 
-static time_t CvtFtimeToUtime(const FILETIME& time)
-{
-  uint64_t mstime;
+// static time_t CvtFtimeToUtime(const FILETIME& time)
+// {
+//   uint64_t mstime;
 
-  mstime = time.dwHighDateTime;
-  mstime <<= 32;
-  mstime |= time.dwLowDateTime;
-  mstime -= WIN32_FILETIME_ADJUST;
-  mstime /= WIN32_FILETIME_SCALE; /* convert to seconds. */
+//   mstime = time.dwHighDateTime;
+//   mstime <<= 32;
+//   mstime |= time.dwLowDateTime;
+//   mstime -= WIN32_FILETIME_ADJUST;
+//   mstime /= WIN32_FILETIME_SCALE; /* convert to seconds. */
 
-  if constexpr (sizeof(time_t) < sizeof(mstime)) {
-    // take care of 32bit time_ts (i.e. on 32bit windows)
-    return static_cast<time_t>(mstime & 0xffff'ffff);
-  } else {
-    return static_cast<time_t>(mstime);
-  }
-}
+//   if constexpr (sizeof(time_t) < sizeof(mstime)) {
+//     // take care of 32bit time_ts (i.e. on 32bit windows)
+//     return static_cast<time_t>(mstime & 0xffff'ffff);
+//   } else {
+//     return static_cast<time_t>(mstime);
+//   }
+// }
 
-static time_t CvtFtimeToUtime(const LARGE_INTEGER& time)
-{
-  uint64_t mstime;
+// static time_t CvtFtimeToUtime(const LARGE_INTEGER& time)
+// {
+//   uint64_t mstime;
 
-  mstime = time.HighPart;
-  mstime <<= 32;
-  mstime |= time.LowPart;
-  mstime -= WIN32_FILETIME_ADJUST;
-  mstime /= WIN32_FILETIME_SCALE; /* convert to seconds. */
+//   mstime = time.HighPart;
+//   mstime <<= 32;
+//   mstime |= time.LowPart;
+//   mstime -= WIN32_FILETIME_ADJUST;
+//   mstime /= WIN32_FILETIME_SCALE; /* convert to seconds. */
 
-  if constexpr (sizeof(time_t) < sizeof(mstime)) {
-    // take care of 32bit time_ts (i.e. on 32bit windows)
-    return static_cast<time_t>(mstime & 0xffff'ffff);
-  } else {
-    return static_cast<time_t>(mstime);
-  }
-}
+//   if constexpr (sizeof(time_t) < sizeof(mstime)) {
+//     // take care of 32bit time_ts (i.e. on 32bit windows)
+//     return static_cast<time_t>(mstime & 0xffff'ffff);
+//   } else {
+//     return static_cast<time_t>(mstime);
+//   }
+// }
 
 bool CreateJunction(const char* szJunction, const char* szPath)
 {
@@ -1238,349 +1238,356 @@ static inline ssize_t GetSymlinkData(const char* filename,
  * This is called for directories, and reparse points and is used to
  * get some special attributes like the type of reparse point etc..
  */
-static int GetWindowsFileInfo(const char* filename,
-                              struct stat* sb,
-                              bool is_directory)
-{
-  bool use_fallback_data = true;
-  WIN32_FIND_DATAW info_w;  // window's file info
-  WIN32_FIND_DATAA info_a;  // window's file info
-#if (_WIN32_WINNT >= 0x0600)
-  FILE_BASIC_INFO basic_info;  // window's basic file info
-  HANDLE h = INVALID_HANDLE_VALUE;
-#endif
-  HANDLE fh = INVALID_HANDLE_VALUE;
+// static int GetWindowsFileInfo(const char* filename,
+//                               struct stat* sb,
+//                               bool is_directory)
+// {
+//   bool use_fallback_data = true;
+//   WIN32_FIND_DATAW info_w;  // window's file info
+//   WIN32_FIND_DATAA info_a;  // window's file info
+// #if (_WIN32_WINNT >= 0x0600)
+//   FILE_BASIC_INFO basic_info;  // window's basic file info
+//   HANDLE h = INVALID_HANDLE_VALUE;
+// #endif
+//   HANDLE fh = INVALID_HANDLE_VALUE;
 
-  // Cache some common vars to make code more transparent.
-  DWORD* pdwFileAttributes;
-  DWORD* pnFileSizeHigh;
-  DWORD* pnFileSizeLow;
-  DWORD* pdwReserved0;
-  FILETIME* pftLastAccessTime;
-  FILETIME* pftLastWriteTime;
-  FILETIME* pftChangeTime;
+//   // Cache some common vars to make code more transparent.
+//   DWORD* pdwFileAttributes;
+//   DWORD* pnFileSizeHigh;
+//   DWORD* pnFileSizeLow;
+//   DWORD* pdwReserved0;
+//   FILETIME* pftLastAccessTime;
+//   FILETIME* pftLastWriteTime;
+//   FILETIME* pftChangeTime;
 
 
-  // First get a findhandle and a file handle to the file.
-  if (p_FindFirstFileW) { /* use unicode */
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
+//   // First get a findhandle and a file handle to the file.
+//   if (p_FindFirstFileW) { /* use unicode */
+//     std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
 
-    Dmsg1(debuglevel, "FindFirstFileW=%s\n", utf16.c_str());
-    fh = p_FindFirstFileW(utf16.c_str(), &info_w);
-#if (_WIN32_WINNT >= 0x0600)
-    if (fh != INVALID_HANDLE_VALUE) {
-      h = p_CreateFileW(
-          utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-          FILE_FLAG_BACKUP_SEMANTICS, /* Required for directories */
-          NULL);
-    }
-#endif
+//     Dmsg1(debuglevel, "FindFirstFileW=%s\n", utf16.c_str());
+//     fh = p_FindFirstFileW(utf16.c_str(), &info_w);
+// #if (_WIN32_WINNT >= 0x0600)
+//     if (fh != INVALID_HANDLE_VALUE) {
+//       h = p_CreateFileW(
+//           utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+//           FILE_FLAG_BACKUP_SEMANTICS, /* Required for directories */
+//           NULL);
+//     }
+// #endif
 
-  } else if (p_FindFirstFileA) {  // use ASCII
-    PoolMem win32_fname(PM_FNAME);
-    unix_name_to_win32(win32_fname.addr(), filename);
-    Dmsg1(debuglevel, "FindFirstFileA=%s\n", win32_fname.c_str());
-    fh = p_FindFirstFileA(win32_fname.c_str(), &info_a);
-#if (_WIN32_WINNT >= 0x0600)
-    if (h != INVALID_HANDLE_VALUE) {
-      h = CreateFileA(win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                      OPEN_EXISTING,
-                      FILE_FLAG_BACKUP_SEMANTICS, /* Required for directories */
-                      NULL);
-    }
-#endif
-  } else {
-    Dmsg0(debuglevel, "No findFirstFile A or W found\n");
-  }
+//   } else if (p_FindFirstFileA) {  // use ASCII
+//     PoolMem win32_fname(PM_FNAME);
+//     unix_name_to_win32(win32_fname.addr(), filename);
+//     Dmsg1(debuglevel, "FindFirstFileA=%s\n", win32_fname.c_str());
+//     fh = p_FindFirstFileA(win32_fname.c_str(), &info_a);
+// #if (_WIN32_WINNT >= 0x0600)
+//     if (h != INVALID_HANDLE_VALUE) {
+//       h = CreateFileA(win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ,
+//       NULL,
+//                       OPEN_EXISTING,
+//                       FILE_FLAG_BACKUP_SEMANTICS, /* Required for directories
+//                       */ NULL);
+//     }
+// #endif
+//   } else {
+//     Dmsg0(debuglevel, "No findFirstFile A or W found\n");
+//   }
 
-  // If we got a valid handle start processing the info.
-  if (fh != INVALID_HANDLE_VALUE) {
-    if (p_FindFirstFileW) { /* use unicode */
-      pdwFileAttributes = &info_w.dwFileAttributes;
-      pdwReserved0 = &info_w.dwReserved0;
-      pnFileSizeHigh = &info_w.nFileSizeHigh;
-      pnFileSizeLow = &info_w.nFileSizeLow;
-    } else {
-      pdwFileAttributes = &info_a.dwFileAttributes;
-      pdwReserved0 = &info_a.dwReserved0;
-      pnFileSizeHigh = &info_a.nFileSizeHigh;
-      pnFileSizeLow = &info_a.nFileSizeLow;
-    }
+//   // If we got a valid handle start processing the info.
+//   if (fh != INVALID_HANDLE_VALUE) {
+//     if (p_FindFirstFileW) { /* use unicode */
+//       pdwFileAttributes = &info_w.dwFileAttributes;
+//       pdwReserved0 = &info_w.dwReserved0;
+//       pnFileSizeHigh = &info_w.nFileSizeHigh;
+//       pnFileSizeLow = &info_w.nFileSizeLow;
+//     } else {
+//       pdwFileAttributes = &info_a.dwFileAttributes;
+//       pdwReserved0 = &info_a.dwReserved0;
+//       pnFileSizeHigh = &info_a.nFileSizeHigh;
+//       pnFileSizeLow = &info_a.nFileSizeLow;
+//     }
 
-#if (_WIN32_WINNT >= 0x0600)
-    // As this is retrieved by handle it has no specific A or W call.
-    if (h != INVALID_HANDLE_VALUE) {
-      if (p_GetFileInformationByHandleEx) {
-        if (p_GetFileInformationByHandleEx(h, FileBasicInfo, &basic_info,
-                                           sizeof(basic_info))) {
-          pftLastAccessTime = (FILETIME*)&basic_info.LastAccessTime;
-          pftLastWriteTime = (FILETIME*)&basic_info.LastWriteTime;
-          // changetime is not updated when a file is copied to a new location
-          // only creation time is updated (dont ask me how you update
-          // the creation time without updating the meta data)
-          // as such we need to take the maximum here!
-          if (CompareFileTime((FILETIME*)&basic_info.ChangeTime,
-                              (FILETIME*)&basic_info.CreationTime)
-              < 0) {
-            pftChangeTime = (FILETIME*)&basic_info.CreationTime;
-          } else {
-            pftChangeTime = (FILETIME*)&basic_info.ChangeTime;
-          }
-          use_fallback_data = false;
-        }
-      }
-      CloseHandle(h);
-    }
-#endif
+// #if (_WIN32_WINNT >= 0x0600)
+//     // As this is retrieved by handle it has no specific A or W call.
+//     if (h != INVALID_HANDLE_VALUE) {
+//       if (p_GetFileInformationByHandleEx) {
+//         if (p_GetFileInformationByHandleEx(h, FileBasicInfo, &basic_info,
+//                                            sizeof(basic_info))) {
+//           pftLastAccessTime = (FILETIME*)&basic_info.LastAccessTime;
+//           pftLastWriteTime = (FILETIME*)&basic_info.LastWriteTime;
+//           // changetime is not updated when a file is copied to a new
+//           location
+//           // only creation time is updated (dont ask me how you update
+//           // the creation time without updating the meta data)
+//           // as such we need to take the maximum here!
+//           if (CompareFileTime((FILETIME*)&basic_info.ChangeTime,
+//                               (FILETIME*)&basic_info.CreationTime)
+//               < 0) {
+//             pftChangeTime = (FILETIME*)&basic_info.CreationTime;
+//           } else {
+//             pftChangeTime = (FILETIME*)&basic_info.ChangeTime;
+//           }
+//           use_fallback_data = false;
+//         }
+//       }
+//       CloseHandle(h);
+//     }
+// #endif
 
-    /* See if we got anything from the GetFileInformationByHandleEx() call if
-     * not fallback to the normal info data returned by FindFirstFileW() or
-     * FindFirstFileA() */
-    if (use_fallback_data) {
-      if (p_FindFirstFileW) { /* use unicode */
-        pftLastAccessTime = &info_w.ftLastAccessTime;
-        pftLastWriteTime = &info_w.ftLastWriteTime;
-        // if change time is not available we fallback to
-        // using lastwritetime instead
-        if (CompareFileTime(&info_w.ftLastWriteTime, &info_w.ftCreationTime)
-            < 0) {
-          pftChangeTime = &info_w.ftCreationTime;
-        } else {
-          pftChangeTime = &info_w.ftLastWriteTime;
-        }
-      } else {
-        pftLastAccessTime = &info_a.ftLastAccessTime;
-        pftLastWriteTime = &info_a.ftLastWriteTime;
-        if (CompareFileTime(&info_a.ftLastWriteTime, &info_a.ftCreationTime)
-            < 0) {
-          pftChangeTime = &info_a.ftCreationTime;
-        } else {
-          pftChangeTime = &info_a.ftLastWriteTime;
-        }
-      }
-    }
+//     /* See if we got anything from the GetFileInformationByHandleEx() call if
+//      * not fallback to the normal info data returned by FindFirstFileW() or
+//      * FindFirstFileA() */
+//     if (use_fallback_data) {
+//       if (p_FindFirstFileW) { /* use unicode */
+//         pftLastAccessTime = &info_w.ftLastAccessTime;
+//         pftLastWriteTime = &info_w.ftLastWriteTime;
+//         // if change time is not available we fallback to
+//         // using lastwritetime instead
+//         if (CompareFileTime(&info_w.ftLastWriteTime, &info_w.ftCreationTime)
+//             < 0) {
+//           pftChangeTime = &info_w.ftCreationTime;
+//         } else {
+//           pftChangeTime = &info_w.ftLastWriteTime;
+//         }
+//       } else {
+//         pftLastAccessTime = &info_a.ftLastAccessTime;
+//         pftLastWriteTime = &info_a.ftLastWriteTime;
+//         if (CompareFileTime(&info_a.ftLastWriteTime, &info_a.ftCreationTime)
+//             < 0) {
+//           pftChangeTime = &info_a.ftCreationTime;
+//         } else {
+//           pftChangeTime = &info_a.ftLastWriteTime;
+//         }
+//       }
+//     }
 
-    FindClose(fh);
-  } else {
-    const char* err = errorString();
+//     FindClose(fh);
+//   } else {
+//     const char* err = errorString();
 
-    /* Note, in creating leading paths, it is normal that the file does not
-     * exist. */
-    Dmsg2(2099, "FindFirstFile(%s):%s\n", filename, err);
-    LocalFree((void*)err);
-    errno = b_errno_win32;
+//     /* Note, in creating leading paths, it is normal that the file does not
+//      * exist. */
+//     Dmsg2(2099, "FindFirstFile(%s):%s\n", filename, err);
+//     LocalFree((void*)err);
+//     errno = b_errno_win32;
 
-    return -1;
-  }
+//     return -1;
+//   }
 
-  sb->st_mode = 0777;
+//   sb->st_mode = 0777;
 
-  // We store the full windows file attributes into st_rdev.
-  sb->st_rdev = *pdwFileAttributes;
+//   // We store the full windows file attributes into st_rdev.
+//   sb->st_rdev = *pdwFileAttributes;
 
-  if (is_directory) {
-    // Directory
-    sb->st_mode |= S_IFDIR;
+//   if (is_directory) {
+//     // Directory
+//     sb->st_mode |= S_IFDIR;
 
-    /* Store reparse/mount point info in st_rdev.  Note a Win32 reparse point
-     * (junction point) is like a link though it can have many properties
-     * (directory link, soft link, hard link, HSM, ...
-     * The IO_REPARSE_TAG_* tag values describe what type of reparse point
-     * it actually is.
-     *
-     * A mount point is a reparse point where another volume is mounted,
-     * so it is like a Unix mount point (change of filesystem). */
-    if ((*pdwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-      switch (*pdwReserved0) {
-        case IO_REPARSE_TAG_MOUNT_POINT: {
-          /* A mount point can be:
-           * Volume Mount Point "\\??\\volume{..."
-           * Junction Point     "\\??\\..." */
-          POOLMEM* vmp = GetPoolMemory(PM_NAME);
-          if (GetVolumeMountPointData(filename, vmp)) {
-            if (bstrncasecmp(vmp, "\\??\\volume{", 11)) {
-              Dmsg2(debuglevel, "Volume Mount Point %s points to: %s\n",
-                    filename, vmp);
-              sb->st_rdev |= FILE_ATTRIBUTE_VOLUME_MOUNT_POINT;
-            } else {
-              Dmsg2(debuglevel, "Junction Point %s points to: %s\n", filename,
-                    vmp);
-              sb->st_rdev |= FILE_ATTRIBUTES_JUNCTION_POINT;
-              sb->st_mode |= S_IFLNK;
-              sb->st_mode &= ~S_IFDIR;
-            }
-          }
-          FreePoolMemory(vmp);
-          break;
-        }
-        case IO_REPARSE_TAG_SYMLINK: {
-          POOLMEM* slt;
+//     /* Store reparse/mount point info in st_rdev.  Note a Win32 reparse point
+//      * (junction point) is like a link though it can have many properties
+//      * (directory link, soft link, hard link, HSM, ...
+//      * The IO_REPARSE_TAG_* tag values describe what type of reparse point
+//      * it actually is.
+//      *
+//      * A mount point is a reparse point where another volume is mounted,
+//      * so it is like a Unix mount point (change of filesystem). */
+//     if ((*pdwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+//       switch (*pdwReserved0) {
+//         case IO_REPARSE_TAG_MOUNT_POINT: {
+//           /* A mount point can be:
+//            * Volume Mount Point "\\??\\volume{..."
+//            * Junction Point     "\\??\\..." */
+//           POOLMEM* vmp = GetPoolMemory(PM_NAME);
+//           if (GetVolumeMountPointData(filename, vmp)) {
+//             if (bstrncasecmp(vmp, "\\??\\volume{", 11)) {
+//               Dmsg2(debuglevel, "Volume Mount Point %s points to: %s\n",
+//                     filename, vmp);
+//               sb->st_rdev |= FILE_ATTRIBUTE_VOLUME_MOUNT_POINT;
+//             } else {
+//               Dmsg2(debuglevel, "Junction Point %s points to: %s\n",
+//               filename,
+//                     vmp);
+//               sb->st_rdev |= FILE_ATTRIBUTES_JUNCTION_POINT;
+//               sb->st_mode |= S_IFLNK;
+//               sb->st_mode &= ~S_IFDIR;
+//             }
+//           }
+//           FreePoolMemory(vmp);
+//           break;
+//         }
+//         case IO_REPARSE_TAG_SYMLINK: {
+//           POOLMEM* slt;
 
-          Dmsg0(debuglevel, "We have a symlinked directory!\n");
-          sb->st_rdev |= FILE_ATTRIBUTES_SYMBOLIC_LINK;
-          sb->st_mode |= S_IFLNK;
-          sb->st_mode &= ~S_IFDIR;
+//           Dmsg0(debuglevel, "We have a symlinked directory!\n");
+//           sb->st_rdev |= FILE_ATTRIBUTES_SYMBOLIC_LINK;
+//           sb->st_mode |= S_IFLNK;
+//           sb->st_mode &= ~S_IFDIR;
 
-          slt = GetPoolMemory(PM_NAME);
-          slt = CheckPoolMemorySize(slt, MAX_PATH * sizeof(wchar_t));
+//           slt = GetPoolMemory(PM_NAME);
+//           slt = CheckPoolMemorySize(slt, MAX_PATH * sizeof(wchar_t));
 
-          if (GetSymlinkData(filename, slt)) {
-            Dmsg2(debuglevel, "Symlinked Directory %s points to: %s\n",
-                  filename, slt);
-          }
-          FreePoolMemory(slt);
-          break;
-        }
-        default:
-          Dmsg1(debuglevel,
-                "IO_REPARSE_TAG_MOUNT_POINT with unhandled IO_REPARSE_TAG %d\n",
-                *pdwReserved0);
-          break;
-      }
-    }
-  } else {
-    // No directory
-    if ((*pdwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-      switch (*pdwReserved0) {
-        case IO_REPARSE_TAG_SYMLINK: {
-          POOLMEM* slt = GetPoolMemory(PM_NAME);
+//           if (GetSymlinkData(filename, slt)) {
+//             Dmsg2(debuglevel, "Symlinked Directory %s points to: %s\n",
+//                   filename, slt);
+//           }
+//           FreePoolMemory(slt);
+//           break;
+//         }
+//         default:
+//           Dmsg1(debuglevel,
+//                 "IO_REPARSE_TAG_MOUNT_POINT with unhandled IO_REPARSE_TAG
+//                 %d\n", *pdwReserved0);
+//           break;
+//       }
+//     }
+//   } else {
+//     // No directory
+//     if ((*pdwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+//       switch (*pdwReserved0) {
+//         case IO_REPARSE_TAG_SYMLINK: {
+//           POOLMEM* slt = GetPoolMemory(PM_NAME);
 
-          Dmsg0(debuglevel, "We have a symlinked file!\n");
-          sb->st_mode |= S_IFLNK;
+//           Dmsg0(debuglevel, "We have a symlinked file!\n");
+//           sb->st_mode |= S_IFLNK;
 
-          if (GetSymlinkData(filename, slt)) {
-            Dmsg2(debuglevel, "Symlinked File %s points to: %s\n", filename,
-                  slt);
-          }
-          FreePoolMemory(slt);
-          break;
-        }
-        case IO_REPARSE_TAG_DEDUP:
-          Dmsg0(debuglevel, "We have a deduplicated file!\n");
-          sb->st_rdev |= FILE_ATTRIBUTES_DEDUPED_ITEM;
+//           if (GetSymlinkData(filename, slt)) {
+//             Dmsg2(debuglevel, "Symlinked File %s points to: %s\n", filename,
+//                   slt);
+//           }
+//           FreePoolMemory(slt);
+//           break;
+//         }
+//         case IO_REPARSE_TAG_DEDUP:
+//           Dmsg0(debuglevel, "We have a deduplicated file!\n");
+//           sb->st_rdev |= FILE_ATTRIBUTES_DEDUPED_ITEM;
 
-          // We treat a deduped file as a normal file.
-          sb->st_mode |= S_IFREG;
-          break;
-        default:
-          Dmsg1(debuglevel,
-                "IO_REPARSE_TAG_MOUNT_POINT with unhandled IO_REPARSE_TAG %d\n",
-                *pdwReserved0);
-          break;
-      }
-    }
-  }
+//           // We treat a deduped file as a normal file.
+//           sb->st_mode |= S_IFREG;
+//           break;
+//         default:
+//           Dmsg1(debuglevel,
+//                 "IO_REPARSE_TAG_MOUNT_POINT with unhandled IO_REPARSE_TAG
+//                 %d\n", *pdwReserved0);
+//           break;
+//       }
+//     }
+//   }
 
-  Dmsg2(debuglevel, "st_rdev=%d filename=%s\n", sb->st_rdev, filename);
+//   Dmsg2(debuglevel, "st_rdev=%d filename=%s\n", sb->st_rdev, filename);
 
-  sb->st_size = *pnFileSizeHigh;
-  sb->st_size <<= 32;
-  sb->st_size |= *pnFileSizeLow;
-  sb->st_blksize = 4096;
-  sb->st_blocks = (uint32_t)(sb->st_size + 4095) / 4096;
+//   sb->st_size = *pnFileSizeHigh;
+//   sb->st_size <<= 32;
+//   sb->st_size |= *pnFileSizeLow;
+//   sb->st_blksize = 4096;
+//   sb->st_blocks = (uint32_t)(sb->st_size + 4095) / 4096;
 
-  sb->st_atime = CvtFtimeToUtime(*pftLastAccessTime);
-  sb->st_mtime = CvtFtimeToUtime(*pftLastWriteTime);
-  sb->st_ctime = CvtFtimeToUtime(*pftChangeTime);
+//   sb->st_atime = CvtFtimeToUtime(*pftLastAccessTime);
+//   sb->st_mtime = CvtFtimeToUtime(*pftLastWriteTime);
+//   sb->st_ctime = CvtFtimeToUtime(*pftChangeTime);
 
-  return 0;
-}
+//   return 0;
+// }
 
-int fstat(intptr_t fd, struct stat* sb)
-{
-  bool use_fallback_data = true;
-  BY_HANDLE_FILE_INFORMATION info;
+// int fstat(intptr_t fd, struct stat* sb)
+// {
+//   bool use_fallback_data = true;
+//   BY_HANDLE_FILE_INFORMATION info;
 
-  if (!GetFileInformationByHandle((HANDLE)_get_osfhandle(fd), &info)) {
-    const char* err = errorString();
+//   if (!GetFileInformationByHandle((HANDLE)_get_osfhandle(fd), &info)) {
+//     const char* err = errorString();
 
-    Dmsg1(2099, "GetfileInformationByHandle: %s\n", err);
-    LocalFree((void*)err);
-    errno = b_errno_win32;
+//     Dmsg1(2099, "GetfileInformationByHandle: %s\n", err);
+//     LocalFree((void*)err);
+//     errno = b_errno_win32;
 
-    return -1;
-  }
+//     return -1;
+//   }
 
-  // This can become a problem in the future:
-  // https://learn.microsoft.com/en-us/windows/win32/api/fileapi/ns-fileapi-by_handle_file_information
-  // The identifier (low and high parts) and the volume serial number uniquely
-  // identify a file on a single computer.  To determine whether two open
-  // handles represent the same file, combine the identifier and the volume
-  // serial number for each file and compare them.
-  // The ReFS file system, introduced with Windows Server 2012, includes
-  // 128-bit file identifiers.  To retrieve the 128-bit file identifier use the
-  // GetFileInformationByHandleEx function with FileIdInfo to retrieve the
-  // FILE_ID_INFO structure. The 64-bit identifier in this structure is not
-  // guaranteed to be unique on ReFS.
-  // This means that we need to make st_ino at least 128 bit big.
-  // The API itself is only available on windows server as it seems:
-  // https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_id_info
-  // Since the stat struct is something that we serialize, we have to ensure
-  // that making st_ino 128 does not mess anything up; especially for
-  // "portable" windows backups that you are supposed to be able to restore
-  // on other operating systems.
+//   // This can become a problem in the future:
+//   //
+//   https://learn.microsoft.com/en-us/windows/win32/api/fileapi/ns-fileapi-by_handle_file_information
+//   // The identifier (low and high parts) and the volume serial number
+//   uniquely
+//   // identify a file on a single computer.  To determine whether two open
+//   // handles represent the same file, combine the identifier and the volume
+//   // serial number for each file and compare them.
+//   // The ReFS file system, introduced with Windows Server 2012, includes
+//   // 128-bit file identifiers.  To retrieve the 128-bit file identifier use
+//   the
+//   // GetFileInformationByHandleEx function with FileIdInfo to retrieve the
+//   // FILE_ID_INFO structure. The 64-bit identifier in this structure is not
+//   // guaranteed to be unique on ReFS.
+//   // This means that we need to make st_ino at least 128 bit big.
+//   // The API itself is only available on windows server as it seems:
+//   //
+//   https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_id_info
+//   // Since the stat struct is something that we serialize, we have to ensure
+//   // that making st_ino 128 does not mess anything up; especially for
+//   // "portable" windows backups that you are supposed to be able to restore
+//   // on other operating systems.
 
-  sb->st_dev = info.dwVolumeSerialNumber;
-  sb->st_ino = info.nFileIndexHigh;
-  sb->st_ino <<= 32;
-  sb->st_ino |= info.nFileIndexLow;
-  sb->st_nlink = (short)info.nNumberOfLinks;
-  if (sb->st_nlink > 1) { Dmsg1(debuglevel, "st_nlink=%d\n", sb->st_nlink); }
+//   sb->st_dev = info.dwVolumeSerialNumber;
+//   sb->st_ino = info.nFileIndexHigh;
+//   sb->st_ino <<= 32;
+//   sb->st_ino |= info.nFileIndexLow;
+//   sb->st_nlink = (short)info.nNumberOfLinks;
+//   if (sb->st_nlink > 1) { Dmsg1(debuglevel, "st_nlink=%d\n", sb->st_nlink); }
 
-  sb->st_mode = 0777;
-  sb->st_mode |= S_IFREG;
+//   sb->st_mode = 0777;
+//   sb->st_mode |= S_IFREG;
 
-  // We store the full windows file attributes into st_rdev.
-  sb->st_rdev = info.dwFileAttributes;
+//   // We store the full windows file attributes into st_rdev.
+//   sb->st_rdev = info.dwFileAttributes;
 
-  Dmsg3(debuglevel, "st_rdev=%d sizino=%d ino=%lld\n", sb->st_rdev,
-        sizeof(sb->st_ino), (long long)sb->st_ino);
+//   Dmsg3(debuglevel, "st_rdev=%d sizino=%d ino=%lld\n", sb->st_rdev,
+//         sizeof(sb->st_ino), (long long)sb->st_ino);
 
-  sb->st_size = info.nFileSizeHigh;
-  sb->st_size <<= 32;
-  sb->st_size |= info.nFileSizeLow;
-  sb->st_blksize = 4096;
-  sb->st_blocks = (uint32_t)(sb->st_size + 4095) / 4096;
+//   sb->st_size = info.nFileSizeHigh;
+//   sb->st_size <<= 32;
+//   sb->st_size |= info.nFileSizeLow;
+//   sb->st_blksize = 4096;
+//   sb->st_blocks = (uint32_t)(sb->st_size + 4095) / 4096;
 
-#if (_WIN32_WINNT >= 0x0600)
-  if (p_GetFileInformationByHandleEx) {
-    FILE_BASIC_INFO basic_info;
+// #if (_WIN32_WINNT >= 0x0600)
+//   if (p_GetFileInformationByHandleEx) {
+//     FILE_BASIC_INFO basic_info;
 
-    if (p_GetFileInformationByHandleEx((HANDLE)_get_osfhandle(fd),
-                                       FileBasicInfo, &basic_info,
-                                       sizeof(basic_info))) {
-      sb->st_atime = CvtFtimeToUtime(basic_info.LastAccessTime);
-      sb->st_mtime = CvtFtimeToUtime(basic_info.LastWriteTime);
+//     if (p_GetFileInformationByHandleEx((HANDLE)_get_osfhandle(fd),
+//                                        FileBasicInfo, &basic_info,
+//                                        sizeof(basic_info))) {
+//       sb->st_atime = CvtFtimeToUtime(basic_info.LastAccessTime);
+//       sb->st_mtime = CvtFtimeToUtime(basic_info.LastWriteTime);
 
-      // changetime is not updated when a file is copied to a new location
-      // only creation time is updated (dont ask me how you update
-      // the creation time without updating the meta data)
-      // as such we need to take the maximum here!
-      if (CompareFileTime((FILETIME*)&basic_info.ChangeTime,
-                          (FILETIME*)&basic_info.CreationTime)
-          < 0) {
-        sb->st_ctime = CvtFtimeToUtime(basic_info.CreationTime);
-      } else {
-        sb->st_ctime = CvtFtimeToUtime(basic_info.ChangeTime);
-      }
-      use_fallback_data = false;
-    }
-  }
-#endif
+//       // changetime is not updated when a file is copied to a new location
+//       // only creation time is updated (dont ask me how you update
+//       // the creation time without updating the meta data)
+//       // as such we need to take the maximum here!
+//       if (CompareFileTime((FILETIME*)&basic_info.ChangeTime,
+//                           (FILETIME*)&basic_info.CreationTime)
+//           < 0) {
+//         sb->st_ctime = CvtFtimeToUtime(basic_info.CreationTime);
+//       } else {
+//         sb->st_ctime = CvtFtimeToUtime(basic_info.ChangeTime);
+//       }
+//       use_fallback_data = false;
+//     }
+//   }
+// #endif
 
-  if (use_fallback_data) {
-    sb->st_atime = CvtFtimeToUtime(info.ftLastAccessTime);
-    sb->st_mtime = CvtFtimeToUtime(info.ftLastWriteTime);
-    // if changetime is not available we fallback to LastWriteTime
-    if (CompareFileTime(&info.ftLastWriteTime, &info.ftCreationTime) < 0) {
-      sb->st_ctime = CvtFtimeToUtime(info.ftCreationTime);
-    } else {
-      sb->st_ctime = CvtFtimeToUtime(info.ftLastWriteTime);
-    }
-  }
+//   if (use_fallback_data) {
+//     sb->st_atime = CvtFtimeToUtime(info.ftLastAccessTime);
+//     sb->st_mtime = CvtFtimeToUtime(info.ftLastWriteTime);
+//     // if changetime is not available we fallback to LastWriteTime
+//     if (CompareFileTime(&info.ftLastWriteTime, &info.ftCreationTime) < 0) {
+//       sb->st_ctime = CvtFtimeToUtime(info.ftCreationTime);
+//     } else {
+//       sb->st_ctime = CvtFtimeToUtime(info.ftLastWriteTime);
+//     }
+//   }
 
-  return 0;
-}
+//   return 0;
+// }
 
 static inline bool IsDriveLetterOnly(const char* filename)
 {
@@ -1588,182 +1595,184 @@ static inline bool IsDriveLetterOnly(const char* filename)
           || (filename[1] == ':' && filename[2] == '/' && filename[3] == 0));
 }
 
-static int stat2(const char* filename, struct stat* sb)
-{
-  HANDLE h = INVALID_HANDLE_VALUE;
-  int rval = 0;
-  DWORD attr = (DWORD)-1;
+// static int stat2(const char* filename, struct stat* sb)
+// {
+//   HANDLE h = INVALID_HANDLE_VALUE;
+//   int rval = 0;
+//   DWORD attr = (DWORD)-1;
 
 
-  if (p_GetFileAttributesW) {
-    std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
-    attr = p_GetFileAttributesW(utf16.c_str());
-    if (p_CreateFileW) {
-      h = CreateFileW(utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                      OPEN_EXISTING, 0, NULL);
-    }
-  } else if (p_GetFileAttributesA) {
-    PoolMem win32_fname(PM_FNAME);
-    unix_name_to_win32(win32_fname.addr(), filename);
-    attr = p_GetFileAttributesA(win32_fname.c_str());
-    h = CreateFileA(win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                    OPEN_EXISTING, 0, NULL);
+//   if (p_GetFileAttributesW) {
+//     std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
+//     attr = p_GetFileAttributesW(utf16.c_str());
+//     if (p_CreateFileW) {
+//       h = CreateFileW(utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
+//                       OPEN_EXISTING, 0, NULL);
+//     }
+//   } else if (p_GetFileAttributesA) {
+//     PoolMem win32_fname(PM_FNAME);
+//     unix_name_to_win32(win32_fname.addr(), filename);
+//     attr = p_GetFileAttributesA(win32_fname.c_str());
+//     h = CreateFileA(win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
+//                     OPEN_EXISTING, 0, NULL);
 
-  } else {
-    Emsg0(M_FATAL, 0,
-          T_("p_GetFileAttributesW and p_GetFileAttributesA undefined. "
-             "probably missing OSDependentInit() call\n"));
-  }
+//   } else {
+//     Emsg0(M_FATAL, 0,
+//           T_("p_GetFileAttributesW and p_GetFileAttributesA undefined. "
+//              "probably missing OSDependentInit() call\n"));
+//   }
 
-  if (attr == (DWORD)-1) {
-    const char* err = errorString();
+//   if (attr == (DWORD)-1) {
+//     const char* err = errorString();
 
-    Dmsg2(2099, "GetFileAttributes(%s): %s\n", filename, err);
+//     Dmsg2(2099, "GetFileAttributes(%s): %s\n", filename, err);
 
-    LocalFree((void*)err);
-    if (h != INVALID_HANDLE_VALUE) { CloseHandle(h); }
-    errno = b_errno_win32;
+//     LocalFree((void*)err);
+//     if (h != INVALID_HANDLE_VALUE) { CloseHandle(h); }
+//     errno = b_errno_win32;
 
-    rval = -1;
-    goto bail_out;
-  }
+//     rval = -1;
+//     goto bail_out;
+//   }
 
-  if (h == INVALID_HANDLE_VALUE) {
-    const char* err = errorString();
+//   if (h == INVALID_HANDLE_VALUE) {
+//     const char* err = errorString();
 
-    Dmsg2(2099, "Cannot open file for stat (%s):%s\n", filename, err);
-    LocalFree((void*)err);
-    errno = b_errno_win32;
+//     Dmsg2(2099, "Cannot open file for stat (%s):%s\n", filename, err);
+//     LocalFree((void*)err);
+//     errno = b_errno_win32;
 
-    rval = -1;
-    goto bail_out;
-  }
+//     rval = -1;
+//     goto bail_out;
+//   }
 
-  rval = fstat((intptr_t)h, sb);
-  CloseHandle(h);
+//   rval = fstat((intptr_t)h, sb);
+//   CloseHandle(h);
 
-  /* See if this is a directory or a reparse point and its not a single drive
-   * letter. If so we call GetWindowsFileInfo() which retrieves the lowlevel
-   * information we need. */
-  if (((attr & FILE_ATTRIBUTE_DIRECTORY)
-       || (attr & FILE_ATTRIBUTE_REPARSE_POINT))
-      && !IsDriveLetterOnly(filename)) {
-    rval = GetWindowsFileInfo(filename, sb, (attr & FILE_ATTRIBUTE_DIRECTORY));
-  }
+//   /* See if this is a directory or a reparse point and its not a single drive
+//    * letter. If so we call GetWindowsFileInfo() which retrieves the lowlevel
+//    * information we need. */
+//   if (((attr & FILE_ATTRIBUTE_DIRECTORY)
+//        || (attr & FILE_ATTRIBUTE_REPARSE_POINT))
+//       && !IsDriveLetterOnly(filename)) {
+//     rval = GetWindowsFileInfo(filename, sb, (attr &
+//     FILE_ATTRIBUTE_DIRECTORY));
+//   }
 
-bail_out:
-  return rval;
-}
+// bail_out:
+//   return rval;
+// }
 
-int stat(const char* filename, struct stat* sb)
-{
-  int rval = 0;
-  WIN32_FILE_ATTRIBUTE_DATA data;
+// int stat(const char* filename, struct stat* sb)
+// {
+//   int rval = 0;
+//   WIN32_FILE_ATTRIBUTE_DATA data;
 
-  errno = 0;
-  memset(sb, 0, sizeof(*sb));
+//   errno = 0;
+//   memset(sb, 0, sizeof(*sb));
 
-  PoolMem win32_fname(PM_FNAME);
-  unix_name_to_win32(win32_fname.addr(), filename);
+//   PoolMem win32_fname(PM_FNAME);
+//   unix_name_to_win32(win32_fname.addr(), filename);
 
-  std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
+//   std::wstring utf16 = make_win32_path_UTF8_2_wchar(filename);
 
-  if (p_GetFileAttributesExW) {
-    BOOL b
-        = p_GetFileAttributesExW(utf16.c_str(), GetFileExInfoStandard, &data);
-    if (!b) { goto bail_out; }
-  } else if (p_GetFileAttributesExA) {
-    if (!p_GetFileAttributesExA(win32_fname.c_str(), GetFileExInfoStandard,
-                                &data)) {
-      goto bail_out;
-    }
-  } else {
-    Emsg0(M_FATAL, 0,
-          T_("p_GetFileAttributesExW and p_GetFileAttributesExA undefined. "
-             "probably missing OSDependentInit() call\n"));
-    goto bail_out;
-  }
+//   if (p_GetFileAttributesExW) {
+//     BOOL b
+//         = p_GetFileAttributesExW(utf16.c_str(), GetFileExInfoStandard,
+//         &data);
+//     if (!b) { goto bail_out; }
+//   } else if (p_GetFileAttributesExA) {
+//     if (!p_GetFileAttributesExA(win32_fname.c_str(), GetFileExInfoStandard,
+//                                 &data)) {
+//       goto bail_out;
+//     }
+//   } else {
+//     Emsg0(M_FATAL, 0,
+//           T_("p_GetFileAttributesExW and p_GetFileAttributesExA undefined. "
+//              "probably missing OSDependentInit() call\n"));
+//     goto bail_out;
+//   }
 
-  /* See if this is a directory or a reparse point and not a single drive
-   * letter. If so we call GetWindowsFileInfo() which retrieves the lowlevel
-   * information we need. As GetWindowsFileInfo() fills the complete stat
-   * structs we only need to perform the other part of the code when we don't
-   * call the GetWindowsFileInfo() function. */
-  if (((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-       || (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
-      && !IsDriveLetterOnly(filename)) {
-    rval = GetWindowsFileInfo(
-        filename, sb, (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
-  } else {
-    bool use_fallback_data = true;
+//   /* See if this is a directory or a reparse point and not a single drive
+//    * letter. If so we call GetWindowsFileInfo() which retrieves the lowlevel
+//    * information we need. As GetWindowsFileInfo() fills the complete stat
+//    * structs we only need to perform the other part of the code when we don't
+//    * call the GetWindowsFileInfo() function. */
+//   if (((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+//        || (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+//       && !IsDriveLetterOnly(filename)) {
+//     rval = GetWindowsFileInfo(
+//         filename, sb, (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
+//   } else {
+//     bool use_fallback_data = true;
 
-    sb->st_mode = 0777;
+//     sb->st_mode = 0777;
 
-    // We store the full windows file attributes into st_rdev.
-    sb->st_rdev = data.dwFileAttributes;
+//     // We store the full windows file attributes into st_rdev.
+//     sb->st_rdev = data.dwFileAttributes;
 
-    if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-      sb->st_mode |= S_IFDIR;
-    } else {
-      sb->st_mode |= S_IFREG;
-    }
+//     if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+//       sb->st_mode |= S_IFDIR;
+//     } else {
+//       sb->st_mode |= S_IFREG;
+//     }
 
-    sb->st_nlink = 1;
-    sb->st_size = data.nFileSizeHigh;
-    sb->st_size <<= 32;
-    sb->st_size |= data.nFileSizeLow;
-    sb->st_blksize = 4096;
-    sb->st_blocks = (uint32_t)(sb->st_size + 4095) / 4096;
+//     sb->st_nlink = 1;
+//     sb->st_size = data.nFileSizeHigh;
+//     sb->st_size <<= 32;
+//     sb->st_size |= data.nFileSizeLow;
+//     sb->st_blksize = 4096;
+//     sb->st_blocks = (uint32_t)(sb->st_size + 4095) / 4096;
 
-#if (_WIN32_WINNT >= 0x0600)
-    // See if GetFileInformationByHandleEx API is available.
-    if (p_GetFileInformationByHandleEx) {
-      HANDLE h = INVALID_HANDLE_VALUE;
+// #if (_WIN32_WINNT >= 0x0600)
+//     // See if GetFileInformationByHandleEx API is available.
+//     if (p_GetFileInformationByHandleEx) {
+//       HANDLE h = INVALID_HANDLE_VALUE;
 
-      /* The GetFileInformationByHandleEx need a file handle so we have to
-       * open the file or directory read-only. */
-      if (p_CreateFileW) {
-        h = p_CreateFileW(utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                          OPEN_EXISTING, 0, NULL);
-      } else {
-        h = CreateFileA(win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ,
-                        NULL, OPEN_EXISTING, 0, NULL);
-      }
+//       /* The GetFileInformationByHandleEx need a file handle so we have to
+//        * open the file or directory read-only. */
+//       if (p_CreateFileW) {
+//         h = p_CreateFileW(utf16.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
+//                           OPEN_EXISTING, 0, NULL);
+//       } else {
+//         h = CreateFileA(win32_fname.c_str(), GENERIC_READ, FILE_SHARE_READ,
+//                         NULL, OPEN_EXISTING, 0, NULL);
+//       }
 
-      if (h != INVALID_HANDLE_VALUE) {
-        FILE_BASIC_INFO basic_info;
+//       if (h != INVALID_HANDLE_VALUE) {
+//         FILE_BASIC_INFO basic_info;
 
-        if (p_GetFileInformationByHandleEx(h, FileBasicInfo, &basic_info,
-                                           sizeof(basic_info))) {
-          sb->st_atime = CvtFtimeToUtime(basic_info.LastAccessTime);
-          sb->st_mtime = CvtFtimeToUtime(basic_info.LastWriteTime);
-          sb->st_ctime = CvtFtimeToUtime(basic_info.ChangeTime);
-          use_fallback_data = false;
-        }
+//         if (p_GetFileInformationByHandleEx(h, FileBasicInfo, &basic_info,
+//                                            sizeof(basic_info))) {
+//           sb->st_atime = CvtFtimeToUtime(basic_info.LastAccessTime);
+//           sb->st_mtime = CvtFtimeToUtime(basic_info.LastWriteTime);
+//           sb->st_ctime = CvtFtimeToUtime(basic_info.ChangeTime);
+//           use_fallback_data = false;
+//         }
 
-        CloseHandle(h);
-      }
-    }
-#endif
+//         CloseHandle(h);
+//       }
+//     }
+// #endif
 
-    if (use_fallback_data) {
-      // Fall back to the GetFileAttributesEx data.
-      sb->st_atime = CvtFtimeToUtime(data.ftLastAccessTime);
-      sb->st_mtime = CvtFtimeToUtime(data.ftLastWriteTime);
-      sb->st_ctime = CvtFtimeToUtime(data.ftLastWriteTime);
-    }
-  }
-  rval = 0;
+//     if (use_fallback_data) {
+//       // Fall back to the GetFileAttributesEx data.
+//       sb->st_atime = CvtFtimeToUtime(data.ftLastAccessTime);
+//       sb->st_mtime = CvtFtimeToUtime(data.ftLastWriteTime);
+//       sb->st_ctime = CvtFtimeToUtime(data.ftLastWriteTime);
+//     }
+//   }
+//   rval = 0;
 
-  Dmsg3(debuglevel, "sizino=%d ino=%lld filename=%s\n", sizeof(sb->st_ino),
-        (long long)sb->st_ino, filename);
+//   Dmsg3(debuglevel, "sizino=%d ino=%lld filename=%s\n", sizeof(sb->st_ino),
+//         (long long)sb->st_ino, filename);
 
-  return rval;
+//   return rval;
 
-bail_out:
+// bail_out:
 
-  return stat2(filename, sb);
-}
+//   return stat2(filename, sb);
+// }
 
 /**
  * Get the Volume MountPoint unique devicename for the given filename.
@@ -1822,7 +1831,8 @@ int fcntl(int, int cmd, long)
   return rval;
 }
 
-int lstat(const char* filename, struct stat* sb) { return stat(filename, sb); }
+// int lstat(const char* filename, struct stat* sb) { return stat(filename, sb);
+// }
 
 void sleep(int sec) { Sleep(sec * 1000); }
 

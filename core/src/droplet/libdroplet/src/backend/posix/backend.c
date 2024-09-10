@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Bareos GmbH & Co. KG
+ * Copyright (C) 2020-2024 Bareos GmbH & Co. KG
  * Copyright (C) 2010 SCALITY SA. All rights reserved.
  * http://www.scality.com
  *
@@ -48,7 +48,7 @@
 
 /** @file */
 
-//#define DPRINTF(fmt,...) fprintf(stderr, fmt, ##__VA_ARGS__)
+// #define DPRINTF(fmt,...) fprintf(stderr, fmt, ##__VA_ARGS__)
 #define DPRINTF(fmt, ...)
 
 static dpl_status_t dpl_posix_map_errno()
@@ -179,6 +179,7 @@ dpl_status_t dpl_posix_head_raw(dpl_ctx_t* ctx,
     goto end;
   }
 
+#if !defined(HAVE_WIN32)
   snprintf(buf, sizeof(buf), "%ld", (long int)(st.st_blksize));
   ret2 = dpl_dict_add(metadata, "blksize", buf, 0);
   if (DPL_SUCCESS != ret2) {
@@ -192,6 +193,7 @@ dpl_status_t dpl_posix_head_raw(dpl_ctx_t* ctx,
     ret = ret2;
     goto end;
   }
+#endif
 
   snprintf(buf, sizeof(buf), "%lu", st.st_atime);
   ret2 = dpl_dict_add(metadata, "atime", buf, 0);

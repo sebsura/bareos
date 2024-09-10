@@ -300,6 +300,7 @@ bool HasFileChanged(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
     return true;
   }
 
+#if !defined(HAVE_WIN32)
   if ((statp.st_blksize != ff_pkt->statp.st_blksize)
       || (statp.st_blocks != ff_pkt->statp.st_blocks)) {
     Jmsg(jcr, M_ERROR, 0, T_("%s: size changed during backup.\n"),
@@ -308,6 +309,7 @@ bool HasFileChanged(JobControlRecord* jcr, FindFilesPacket* ff_pkt)
           (int64_t)ff_pkt->statp.st_blocks, (int64_t)statp.st_blocks);
     return true;
   }
+#endif  // !defined(HAVE_WIN32)
 
   return false;
 }

@@ -419,8 +419,10 @@ static bRC startBackupFile(PluginContext* ctx, save_pkt* sp)
   sp->statp.st_mtime = now;
   sp->statp.st_atime = now;
   sp->statp.st_size = 0;
+#if !defined(HAVE_WIN32)
   sp->statp.st_blksize = DEFAULT_BLOCKSIZE;
   sp->statp.st_blocks = 1;
+#endif
 
   return bRC_OK;
 }

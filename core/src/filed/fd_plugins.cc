@@ -719,7 +719,13 @@ int PluginSave(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
       CopyBits(FO_MAX, ff_pkt->flags, sp.flags);
       sp.cmd = cmd;
       Dmsg3(debuglevel, "startBackup st_size=%p st_blocks=%p sp=%p\n",
-            &sp.statp.st_size, &sp.statp.st_blocks, &sp);
+            &sp.statp.st_size,
+#if !defined(HAVE_WIN32)
+            &sp.statp.st_blocks,
+#else
+            0,
+#endif
+            &sp);
 
       // Get the file save parameters. I.e. the stat pkt ...
       {
@@ -954,7 +960,13 @@ int PluginEstimate(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
       CopyBits(FO_MAX, ff_pkt->flags, sp.flags);
       sp.cmd = cmd;
       Dmsg3(debuglevel, "startBackup st_size=%p st_blocks=%p sp=%p\n",
-            &sp.statp.st_size, &sp.statp.st_blocks, &sp);
+            &sp.statp.st_size,
+#if !defined(HAVE_WIN32)
+            &sp.statp.st_blocks,
+#else
+            0,
+#endif
+            &sp);
 
       // Get the file save parameters. I.e. the stat pkt ...
       if (PlugFunc(ctx->plugin)->startBackupFile(ctx, &sp) != bRC_OK) {

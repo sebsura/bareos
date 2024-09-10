@@ -40,10 +40,13 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <syslog.h>
 #include "include/fcntl_def.h"
 #include "include/bc_types.h"
+
+#include <string>
 
 // Copyright transferred from Raider Solutions, Inc to
 //   Kern Sibbald and John Walker by express permission.
@@ -52,14 +55,6 @@
  * Author          : Christopher S. Hull
  * Created On      : Fri Jan 30 13:00:51 2004
  */
-
-#if !defined(_STAT_H)
-#  define _STAT_H /* don't pull in MinGW stat.h */
-#endif
-
-#ifndef _STAT_DEFINED
-#  define _STAT_DEFINED 1 /* don't pull in MinGW struct stat from wchar.h */
-#endif
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1400)  // VC8+
 #  pragma warning(disable : 4996)  // Either disable all deprecation warnings,
@@ -72,13 +67,14 @@
 #include <malloc.h>
 #include <direct.h>
 
-#if defined(HAVE_MINGW)
-/*
- * MINGW uses __declspec while Microsoft Visual C uses _declspec so map all
- * _declspec to __declspec
+/* #if defined(HAVE_MINGW) */
+/* /\* */
+/*  * MINGW uses __declspec while Microsoft Visual C uses _declspec so map all
  */
-#  define _declspec __declspec
-#endif
+/*  * _declspec to __declspec */
+/*  *\/ */
+/* #  define _declspec __declspec */
+/* #endif */
 
 #include <winioctl.h>
 
@@ -181,64 +177,48 @@ int gettimeofday(struct timeval*, struct timezone*);
 #  define ENODATA 61
 #endif
 
-struct stat {
-  _dev_t st_dev;
-  uint64_t st_ino;
-  uint16_t st_mode;
-  int16_t st_nlink;
-  uint32_t st_uid;
-  uint32_t st_gid;
-  _dev_t st_rdev;
-  uint64_t st_size;
-  time_t st_atime;
-  time_t st_mtime;
-  time_t st_ctime;
-  uint32_t st_blksize;
-  uint64_t st_blocks;
-};
-
-#undef S_IFMT
-#define S_IFMT 0170000 /* file type mask */
-#undef S_IFDIR
-#define S_IFDIR 0040000 /* directory */
-#define S_IFCHR 0020000 /* character special */
-#define S_IFBLK 0060000 /* block special */
-#define S_IFIFO 0010000 /* pipe */
-#undef S_IFREG
-#define S_IFREG 0100000 /* regular */
-#undef S_IFLNK
-#define S_IFLNK 0120000  /* symbolic link */
-#define S_IREAD 0000400  /* read permission, owner */
-#define S_IWRITE 0000200 /* write permission, owner */
-#define S_IEXEC 0000100  /* execute/search permission, owner */
-
-#define S_IRUSR S_IREAD
-#define S_IWUSR S_IWRITE
-#define S_IXUSR S_IEXEC
-#define S_ISREG(x) (((x) & S_IFMT) == S_IFREG)
+// #undef S_IFMT
+// #define S_IFMT 0170000 /* file type mask */
+// #undef S_IFDIR
+// #define S_IFDIR 0040000 /* directory */
+// #define S_IFCHR 0020000 /* character special */
+// #define S_IFBLK 0060000 /* block special */
+// #define S_IFIFO 0010000 /* pipe */
+// #undef S_IFREG
+// #define S_IFREG 0100000 /* regular */
+// #undef S_IFLNK
+#define S_IFLNK 0120000 /* symbolic link */
+// #define S_IREAD 0000400  /* read permission, owner */
+// #define S_IWRITE 0000200 /* write permission, owner */
+// #define S_IEXEC 0000100  /* execute/search permission, owner */
+//
+// #define S_IRUSR S_IREAD
+// #define S_IWUSR S_IWRITE
+// #define S_IXUSR S_IEXEC
+// #define S_ISREG(x) (((x) & S_IFMT) == S_IFREG)
 #define S_ISLNK(x) (((x) & S_IFMT) == S_IFLNK)
-#define S_ISDIR(x) (((x) & S_IFMT) == S_IFDIR)
-#define S_ISCHR(x) 0
-#define S_ISBLK(x) (((x) & S_IFMT) == S_IFBLK)
-#define S_ISFIFO(x) 0
-
-#define S_IRGRP 000040
-#define S_IWGRP 000020
-#define S_IXGRP 000010
-
-#define S_IROTH 00004
-#define S_IWOTH 00002
-#define S_IXOTH 00001
-
-#define S_IRWXO 000007
-#define S_IRWXG 000070
+// #define S_ISDIR(x) (((x) & S_IFMT) == S_IFDIR)
+// #define S_ISCHR(x) 0
+// #define S_ISBLK(x) (((x) & S_IFMT) == S_IFBLK)
+// #define S_ISFIFO(x) 0
+//
+// #define S_IRGRP 000040
+// #define S_IWGRP 000020
+// #define S_IXGRP 000010
+//
+// #define S_IROTH 00004
+// #define S_IWOTH 00002
+// #define S_IXOTH 00001
+//
+// #define S_IRWXO 000007
+// #define S_IRWXG 000070
 #define S_ISUID 004000
 #define S_ISGID 002000
 #define S_ISVTX 001000
 #define S_ISSOCK(x) 0
 
-#define _S_IFDIR S_IFDIR
-#define _stat stat
+// #define _S_IFDIR S_IFDIR
+// #define _stat stat
 
 #if __STDC__
 #  define O_RDONLY _O_RDONLY
@@ -272,12 +252,26 @@ int chown(const char*, uid_t uid, gid_t gid);
 #define F_GETFL 3
 #define F_SETFL 4
 
+// using stat = struct _stat64;
+
 #ifndef MINGW64
 #  define open _open
 #endif
 
+/* #define fstat _fstat */
+/* #define lstat _lstat */
+/* #define stat _stat */
+
+/* static inline int stat(const char* path, struct stat* buf) { return
+ * _stat64(path, buf); } */
+/* static inline int fstat(int fd, struct stat* buf) { return _fstat64(fd, buf);
+ * } */
+static inline int lstat(const char* path, struct stat* buf)
+{
+  return stat(path, buf);
+}
+
 int fcntl(int fd, int cmd, long arg);
-int fstat(intptr_t fd, struct stat* sb);
 
 int inet_aton(const char* cp, struct in_addr* inp);
 int kill(int pid, int signo);
@@ -303,8 +297,7 @@ struct timespec;
 int readdir(unsigned int fd, struct dirent* dirp, unsigned int count);
 long int random(void);
 void srandom(unsigned int seed);
-int lstat(const char* filename, struct stat* sb);
-int stat(const char* file, struct stat* sb);
+
 long pathconf(const char* path, int name);
 ssize_t readlink(const char* path, char* buf, size_t bufsiz);
 int win32_symlink(const char* name1, const char* name2, _dev_t st_rdev);
