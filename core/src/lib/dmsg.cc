@@ -25,11 +25,14 @@
 #include <linux/futex.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <semaphore.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdio>
 #include <optional>
+#include <stdexcept>
 #include <thread>
 
 // #if defined(HAVE_LINUX_OS)
@@ -345,5 +348,71 @@ void dmsg::deinit()
   close(current_file);
   alloc = {};
 }
+
+// track the mimimum value in a thread safe way
+// this is used to keep track of the maximum offset
+// into the ring buffer that we can read from
+// as there may be memory allocated in the ring buffer
+// that is still getting written to
+struct ts_min {
+  sem_t semaphore;
+  std::unique_ptr<std::atomic<size_t>[]> positions;
+  size_t num_readers;
+
+  ts_min(size_t nrs) : num_readers{nrs}
+  {
+    if (num_readers > std::numeric_limits<unsigned int>::max()) {
+      throw std::runtime_error("bad value");
+    }
+
+    if (!sem_init(&semaphore, 0, num_readers)) {
+      throw std::runtime_error("sem init");
+    }
+
+    positions = std::make_unique<std::atomic<size_t>[]>(num_readers);
+
+    for (size_t i = 0; i < num_readers; ++i) {
+      positions[i] = std::numeric_limits<size_t>::max();
+    }
+  }
+
+  size_t current()
+  {
+    size_t minimum = std::numeric_limits<size_t>::max();
+    for (size_t i = 0; i < num_readers; ++i) {
+      size_t val = positions[i].load();
+      if (minimum > val) { minimum = val; }
+    }
+    return minimum;
+  }
+
+  std::atomic<size_t>& enter(size_t initial)
+  {
+    if (initial == std::numeric_limits<size_t>::max()) {
+      throw std::runtime_error("bad value");
+    }
+
+    if (!sem_wait(&semaphore)) { throw std::runtime_error("sem wait"); }
+
+    for (size_t i = 0; i < num_readers; ++i) {
+      size_t tmp = std::numeric_limits<size_t>::max();
+      if (positions[i].compare_exchange_strong(tmp, initial,
+                                               std::memory_order_acquire,
+                                               std::memory_order_acq_rel)) {
+        return positions[i];
+      }
+    }
+
+    // we should never come here since we only allow at max num_reader threads
+    // into the array
+    throw std::runtime_error("internal error");
+  }
+
+  void release(std::atomic<size_t>& val)
+  {
+    val = std::numeric_limits<size_t>::max();
+    sem_post(&semaphore);
+  }
+};
 
 // #endif
