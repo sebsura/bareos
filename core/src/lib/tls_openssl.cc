@@ -27,6 +27,7 @@
 
 #include <assert.h>
 #include "include/bareos.h"
+#include "lib/backtrace.h"
 #include "lib/bpoll.h"
 #include "lib/crypto_openssl.h"
 
@@ -71,6 +72,13 @@ void TlsOpenSsl::SetTlsPskClientContext(const PskCredentials& credentials)
 void TlsOpenSsl::SetTlsPskServerContext(ConfigurationParser* config)
 {
   if (!d_->openssl_ctx_) {
+    auto bs = Backtrace(200);
+
+    for (auto& info : bs) {
+      Dmsg0(50, "%d: %s\n", info.frame_number_, info.function_call_.c_str());
+    }
+
+
     Dmsg0(50, "Could not prepare TLS_PSK SERVER callback (no SSL_CTX)\n");
   } else if (!config) {
     Dmsg0(50, "Could not prepare TLS_PSK SERVER callback (no config)\n");

@@ -1504,17 +1504,29 @@ int InitCrypto(void)
   }
 
   /* Load libssl and libcrypto human-readable error strings */
-  SSL_load_error_strings();
+  if (!SSL_load_error_strings()) {
+    BErrNo be;
+    Jmsg1(NULL, M_ABORT, 0, T_("Unable to init OpenSSL strings: ERR=%s\n"),
+          be.bstrerror(status));
+  }
 
   /* Initialize OpenSSL SSL  library */
 #  if OPENSSL_VERSION_NUMBER < 0x10100000L
   SSL_library_init();
 #  else
-  OPENSSL_init_ssl(0, NULL);
+  if (!OPENSSL_init_ssl(0, NULL)) {
+    BErrNo be;
+    Jmsg1(NULL, M_ABORT, 0, T_("Unable to init OpenSSL: ERR=%s\n"),
+          be.bstrerror(status));
+  }
 #  endif
 
   /* Register OpenSSL ciphers and digests */
-  OpenSSL_add_all_algorithms();
+  if (!OpenSSL_add_all_algorithms()) {
+    BErrNo be;
+    Jmsg1(NULL, M_ABORT, 0, T_("Unable to add OpenSSL algorithms: ERR=%s\n"),
+          be.bstrerror(status));
+  }
 
 #  ifdef HAVE_ENGINE_LOAD_PK11
   ENGINE_load_pk11();
