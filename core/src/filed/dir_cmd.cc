@@ -2024,9 +2024,9 @@ static bool VerifyCmd(JobControlRecord* jcr)
       break;
     case L_VERIFY_VOLUME_TO_CATALOG: {
       if (!OpenSdReadSession(jcr)) { return false; }
-      auto send_hb = MakeDirHeartbeat(jcr);
+      StartDirHeartbeat(jcr);
       DoVerifyVolume(jcr);
-      send_hb.reset();
+      StopDirHeartbeat(jcr);
       // Send Close session command to Storage daemon
       sd->fsend(read_close, jcr->fd_impl->Ticket);
       Dmsg1(130, "filed>stored: %s", sd->msg);
@@ -2204,7 +2204,7 @@ static bool RestoreCmd(JobControlRecord* jcr)
 
   // Do restore of files and data
   {
-    auto hb_send = MakeDirHeartbeat(jcr);
+    StartDirHeartbeat(jcr);
 
     GeneratePluginEvent(jcr, bEventStartRestoreJob);
 
@@ -2230,7 +2230,7 @@ static bool RestoreCmd(JobControlRecord* jcr)
 #endif
 
     DoRestore(jcr);
-    hb_send.reset();
+    StopDirHeartbeat(jcr);
   }
 
   if (jcr->JobWarnings) {
