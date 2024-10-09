@@ -141,6 +141,8 @@ static ResourceItem dir_items[] = {
   { "StatisticsRetention", CFG_TYPE_TIME, ITEM(res_dir, stats_retention), 0, CFG_ITEM_DEPRECATED | CFG_ITEM_DEFAULT, "160704000" /* 5 years */, NULL, NULL },
   { "StatisticsCollectInterval", CFG_TYPE_PINT32, ITEM(res_dir, stats_collect_interval), 0, CFG_ITEM_DEPRECATED | CFG_ITEM_DEFAULT, "0", "14.2.0-", NULL },
   { "VerId", CFG_TYPE_STR, ITEM(res_dir, verid), 0, 0, NULL, NULL, NULL },
+  { "OptimizeForSize", CFG_TYPE_BOOL, ITEM(res_dir, optimize_for_size), 0, CFG_ITEM_DEPRECATED | CFG_ITEM_DEFAULT, "false", NULL, NULL },
+  { "OptimizeForSpeed", CFG_TYPE_BOOL, ITEM(res_dir, optimize_for_speed), 0, CFG_ITEM_DEPRECATED | CFG_ITEM_DEFAULT, "false", NULL, NULL },
   { "KeyEncryptionKey", CFG_TYPE_AUTOPASSWORD, ITEM(res_dir, keyencrkey), 1, 0, NULL, NULL, NULL },
   { "NdmpSnooping", CFG_TYPE_BOOL, ITEM(res_dir, ndmp_snooping), 0, 0, NULL, "13.2.0-", NULL },
   { "NdmpLogLevel", CFG_TYPE_PINT32, ITEM(res_dir, ndmp_loglevel), 0, CFG_ITEM_DEFAULT, "4", "13.2.0-", NULL },
@@ -508,7 +510,7 @@ static ResourceItem counter_items[] = {
  *
  * name handler value code flags default_value
  */
-static ResourceTable dird_resource_tables[] = {
+static ResourceTable resources[] = {
   { "Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
       [] (){ res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir) },
   { "Client", "Clients", client_items, R_CLIENT, sizeof(ClientResource),
@@ -817,9 +819,8 @@ bool PrintConfigSchemaJson(PoolMem& buffer)
   json_object_set_new(resource, "bareos-dir", bareos_dir);
 
   for (int r = 0; resources[r].name; r++) {
-    ResourceTable& resource_table = my_config->resource_definitions_[r];
-    json_object_set_new(bareos_dir, resource_table.name,
-                        json_items(resource_table.items));
+    ResourceTable resource = my_config->resource_definitions_[r];
+    json_object_set_new(bareos_dir, resource.name, json_items(resource.items));
   }
 
   // Datatypes
@@ -992,8 +993,8 @@ const char* GetUsageStringForConsoleConfigureCommand()
   // Only fill the configure_usage_string once. The content is static.
   if (configure_usage_string->strlen() == 0) {
     // subcommand: add
-    for (int r = 0; dird_resource_tables[r].name; r++) {
-      auto& table = dird_resource_tables[r];
+    for (int r = 0; resources[r].name; r++) {
+      auto& table = resources[r];
       /* Only one Director is allowed.
        * If the resource have not items, there is no need to add it. */
       if ((table.rcode != R_DIRECTOR) && (table.items)) {
@@ -3537,20 +3538,20 @@ static void PrintConfigCb(ResourceItem& item,
 }  // namespace directordaemon
 
 static void ResetAllClientConnectionHandshakeModes(
-    ConfigurationParser& t_config)
+    ConfigurationParser& my_config)
 {
-  BareosResource* p = t_config.GetNextRes(R_CLIENT, nullptr);
+  BareosResource* p = my_config.GetNextRes(R_CLIENT, nullptr);
   while (p) {
     ClientResource* client = dynamic_cast<ClientResource*>(p);
     if (client) {
       client->connection_successful_handshake_
           = ClientConnectionHandshakeMode::kUndefined;
     }
-    p = t_config.GetNextRes(R_CLIENT, p);
+    p = my_config.GetNextRes(R_CLIENT, p);
   };
 }
 
-static void ConfigBeforeCallback(ConfigurationParser& t_config)
+static void ConfigBeforeCallback(ConfigurationParser& my_config)
 {
   std::map<int, std::string> map{
       {R_DIRECTOR, "R_DIRECTOR"}, {R_CLIENT, "R_CLIENT"},
@@ -3561,14 +3562,14 @@ static void ConfigBeforeCallback(ConfigurationParser& t_config)
       {R_COUNTER, "R_COUNTER"},   {R_PROFILE, "R_PROFILE"},
       {R_CONSOLE, "R_CONSOLE"},   {R_DEVICE, "R_DEVICE"},
       {R_USER, "R_USER"}};
-  t_config.InitializeQualifiedResourceNameTypeConverter(map);
+  my_config.InitializeQualifiedResourceNameTypeConverter(map);
 }
 
-static void ConfigReadyCallback(ConfigurationParser& t_config)
+static void ConfigReadyCallback(ConfigurationParser& my_config)
 {
-  CreateAndAddUserAgentConsoleResource(t_config);
+  CreateAndAddUserAgentConsoleResource(my_config);
 
-  ResetAllClientConnectionHandshakeModes(t_config);
+  ResetAllClientConnectionHandshakeModes(my_config);
 }
 
 static bool AddResourceCopyToEndOfChain(int type,
@@ -3647,10 +3648,10 @@ static bool AddResourceCopyToEndOfChain(int type,
  * connections can be handled in unique way
  *
  */
-static void CreateAndAddUserAgentConsoleResource(ConfigurationParser& t_config)
+static void CreateAndAddUserAgentConsoleResource(ConfigurationParser& my_config)
 {
   DirectorResource* dir_resource
-      = (DirectorResource*)t_config.GetNextRes(R_DIRECTOR, NULL);
+      = (DirectorResource*)my_config.GetNextRes(R_DIRECTOR, NULL);
   if (!dir_resource) { return; }
 
   ConsoleResource* c = new ConsoleResource();
@@ -3667,11 +3668,11 @@ static void CreateAndAddUserAgentConsoleResource(ConfigurationParser& t_config)
   AddResourceCopyToEndOfChain(R_CONSOLE, c);
 }
 
-ConfigurationParser* InitDirConfig(const char* t_configfile, int exit_code)
+ConfigurationParser* InitDirConfig(const char* configfile, int exit_code)
 {
   ConfigurationParser* config = new ConfigurationParser(
-      t_configfile, nullptr, nullptr, InitResourceCb, ParseConfigCb,
-      PrintConfigCb, exit_code, R_NUM, dird_resource_tables,
+      configfile, nullptr, nullptr, InitResourceCb, ParseConfigCb,
+      PrintConfigCb, exit_code, R_NUM, resources,
       default_config_filename.c_str(), "bareos-dir.d", ConfigBeforeCallback,
       ConfigReadyCallback, SaveResource, DumpResource, FreeResource);
   if (config) { config->r_own_ = R_DIRECTOR; }
@@ -3964,8 +3965,7 @@ static void FreeResource(BareosResource* res, int type)
  */
 static bool SaveResource(int type, ResourceItem* items, int pass)
 {
-  BareosResource* allocated_resource
-      = *dird_resource_tables[type].allocated_resource_;
+  BareosResource* allocated_resource = *resources[type].allocated_resource_;
 
   switch (type) {
     case R_DIRECTOR: {
@@ -3991,7 +3991,7 @@ static bool SaveResource(int type, ResourceItem* items, int pass)
         if (!allocated_resource->IsMemberPresent(items[0].name)) {
           Emsg2(M_ERROR, 0,
                 T_("%s item is required in %s resource, but not found.\n"),
-                items[0].name, dird_resource_tables[type].name);
+                items[0].name, resources[type].name);
           return false;
         }
       }
