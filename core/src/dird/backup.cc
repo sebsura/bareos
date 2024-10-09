@@ -968,18 +968,17 @@ void GenerateBackupSummary(JobControlRecord *jcr, ClientDbRecord *cr, int msg_ty
       }
    }
 
-   if (jcr->ReadBytes == 0 || !FindUsedCompressalgos(&compress_algo_list, jcr)) {
+   if (jcr->ReadBytes == 0) {
      // compress_algo_list is guaranteed to be emtpy
       bstrncpy(compress, "None", sizeof(compress));
    } else {
-     double compression = 100.0 - 100.0 * ((double)jcr->JobBytes / (double)jcr->ReadBytes);
-     if (compression < -1 && jcr->is_JobLevel(L_FULL)) {
-       Jmsg(jcr, M_INFO, 0,
-	    T_("Compression inflated the full backup data by more than 1%%."
-	       " We suggest to use a different algorithm or to disable "
-	       "compression.\n"));
-     }
-     Bsnprintf(compress, sizeof(compress), "%.1f %%", compression);
+      double compression = (double)100 - 100.0 * ((double)jcr->JobBytes / (double)jcr->ReadBytes);
+      if (compression < 0.5) {
+         bstrncpy(compress, "None", sizeof(compress));
+      } else {
+         Bsnprintf(compress, sizeof(compress), "%.1f %%", compression);
+         FindUsedCompressalgos(&compress_algo_list, jcr);
+      }
    }
 
    std::string fd_term_msg = JobstatusToAscii(jcr->dir_impl->FDJobStatus);
