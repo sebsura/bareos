@@ -71,7 +71,6 @@
 #include "lib/version.h"
 #include "lib/watchdog.h"
 #include "include/protocol_types.h"
-#include "include/compiler_macro.h"
 
 namespace directordaemon {
 
@@ -1337,9 +1336,10 @@ bool GetOrCreateFilesetRecord(JobControlRecord* jcr)
     MD5_CTX md5c;
     unsigned char digest[16]; /* MD5 digest length */
     memcpy(&md5c, &jcr->dir_impl->res.fileset->md5c, sizeof(md5c));
-    IGNORE_DEPRECATED_ON;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     MD5_Final(digest, &md5c);
-    IGNORE_DEPRECATED_OFF;
+#pragma GCC diagnostic pop
     /* Keep the flag (last arg) set to false otherwise old FileSets will
      * get new MD5 sums and the user will get Full backups on everything */
     BinToBase64(fsr.MD5, sizeof(fsr.MD5), (char*)digest, sizeof(digest), false);

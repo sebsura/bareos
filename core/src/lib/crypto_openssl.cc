@@ -32,7 +32,6 @@
 
 #if defined(HAVE_OPENSSL)
 
-#  include "include/compiler_macro.h"
 #  include <openssl/err.h>
 #  include <openssl/rand.h>
 
@@ -223,10 +222,11 @@ IMPLEMENT_STACK_OF(RecipientInfo)
 /* Openssl Version >= 1.1 */
 
 /* ignore the suggest-override warnings caused by following DEFINE_STACK_OF() */
-IGNORE_UNREFERENCED_FUNCTION_ON
+#      pragma GCC diagnostic push
+#      pragma GCC diagnostic ignored "-Wunused-function"
 DEFINE_STACK_OF(SignerInfo)
 DEFINE_STACK_OF(RecipientInfo)
-IGNORE_UNREFERENCED_FUNCTION_OFF
+#      pragma GCC diagnostic pop
 
 
 #      define M_ASN1_OCTET_STRING_free(a) ASN1_STRING_free((ASN1_STRING*)a)
@@ -644,9 +644,10 @@ DIGEST* OpensslDigestNew(JobControlRecord* jcr, crypto_digest_t type)
     switch (type) {
       case CRYPTO_DIGEST_MD5:
         // Solaris deprecates use of md5 in OpenSSL
-        IGNORE_DEPRECATED_ON;
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         return new EvpDigest(jcr, type, EVP_md5());
-        IGNORE_DEPRECATED_OFF;
+#    pragma GCC diagnostic pop
         break;
       case CRYPTO_DIGEST_SHA1:
         return new EvpDigest(jcr, type, EVP_sha1());
@@ -1182,7 +1183,8 @@ CRYPTO_SESSION* crypto_session_new(crypto_cipher_t cipher,
     /* Encrypt the session key */
     ekey = (unsigned char*)malloc(EVP_PKEY_size(keypair->pubkey));
 
-    IGNORE_DEPRECATED_ON;
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     if ((ekey_len = EVP_PKEY_encrypt(ekey, cs->session_key, cs->session_key_len,
                                      keypair->pubkey))
         <= 0) {
@@ -1192,7 +1194,7 @@ CRYPTO_SESSION* crypto_session_new(crypto_cipher_t cipher,
       free(ekey);
       return NULL;
     }
-    IGNORE_DEPRECATED_OFF;
+#    pragma GCC diagnostic pop
     /* Store it in our ASN.1 structure */
     if (!M_ASN1_OCTET_STRING_set(ri->encryptedKey, ekey, ekey_len)) {
       /* Allocation failed in OpenSSL */
@@ -1307,11 +1309,12 @@ crypto_error_t CryptoSessionDecode(const uint8_t* data,
          */
         cs->session_key
             = (unsigned char*)malloc(EVP_PKEY_size(keypair->privkey));
-        IGNORE_DEPRECATED_ON;
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         cs->session_key_len = EVP_PKEY_decrypt(
             cs->session_key, M_ASN1_STRING_data(ri->encryptedKey),
             M_ASN1_STRING_length(ri->encryptedKey), keypair->privkey);
-        IGNORE_DEPRECATED_OFF;
+#    pragma GCC diagnostic pop
         if (cs->session_key_len <= 0) {
           OpensslPostErrors(M_ERROR, T_("Failure decrypting the session key"));
           retval = CRYPTO_ERROR_DECRYPTION;
@@ -1520,10 +1523,11 @@ int InitCrypto(void)
   ENGINE_load_pk11();
 #  else
   // Load all the builtin engines.
-  IGNORE_DEPRECATED_ON;
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   ENGINE_load_builtin_engines();
   ENGINE_register_all_complete();
-  IGNORE_DEPRECATED_OFF;
+#    pragma GCC diagnostic pop
 #  endif
 
   crypto_initialized = true;
