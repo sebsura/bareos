@@ -435,9 +435,6 @@ static void* job_thread(void* arg)
   // Let the statistics subsystem know a new Job was started.
   stats_job_started();
 
-  Jmsg(jcr, M_INFO, 0, T_("Version: %s (%s) %s\n"), kBareosVersionStrings.Full,
-       kBareosVersionStrings.Date, kBareosVersionStrings.GetOsInfo());
-
   if (jcr->dir_impl->res.job->MaxStartDelay != 0
       && jcr->dir_impl->res.job->MaxStartDelay
              < (utime_t)(jcr->start_time - jcr->sched_time)) {
