@@ -972,7 +972,6 @@ class BareosDb : public BareosDbQueryEnum {
 
  private:
   virtual char* EscapeObject(JobControlRecord* jcr, char* old, int len);
-  virtual void SqlFieldSeek(int field) = 0;
   virtual int SqlNumFields(void) = 0;
   virtual void SqlFreeResult(void) = 0;
   virtual SQL_ROW SqlFetchRow(void) = 0;
@@ -987,7 +986,12 @@ class BareosDb : public BareosDbQueryEnum {
   virtual uint64_t SqlInsertAutokeyRecord(const char* query,
                                           const char* table_name)
       = 0;
+
+ public:
+  virtual void SqlFieldSeek(int field) = 0;
   virtual SQL_FIELD* SqlFetchField(void) = 0;
+
+ private:
   virtual bool SqlFieldIsNotNull(int field_type) = 0;
   virtual bool SqlFieldIsNumeric(int field_type) = 0;
   virtual bool SqlBatchStartFileTable(JobControlRecord* jcr) = 0;

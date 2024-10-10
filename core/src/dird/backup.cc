@@ -787,6 +787,72 @@ void NativeBackupCleanup(JobControlRecord* jcr, int TermCode)
 
   UpdateBootstrapFile(jcr);
 
+  if (jcr->dir_impl->jr.JobFiles == 13) {
+    Jmsg(jcr, M_FATAL, 0, "Detected job with 13 files\n");
+
+    PoolMem query1;
+    PoolMem query2;
+
+    Mmsg(query1, "SELECT * FROM file, decode_lstat(lstat) WHERE jobid = %d",
+         jcr->JobId);
+    Mmsg(query2, "SELECT * FROM file WHERE jobid = %d", jcr->JobId);
+
+    struct stuff {
+      JobControlRecord* jcr;
+      std::vector<std::string> lines{};
+    };
+
+    auto JobLogHandler = +[](void* user, int col_count, char** row) -> int {
+      auto* s = reinterpret_cast<stuff*>(user);
+
+
+      if (s->lines.empty()) {
+        std::string header;
+        auto* db = s->jcr->db;
+        db->SqlFieldSeek(0);
+
+        header = "| ";
+
+        for (int i = 0; i < col_count; ++i) {
+          auto* field_info = db->SqlFetchField();
+          if (header.size() != 2) { header += " | "; }
+          header += field_info->name;
+        }
+
+        header += " |";
+
+        s->lines.emplace_back(std::move(header));
+      }
+
+      std::string result = "| ";
+
+      for (int i = 0; i < col_count; ++i) {
+        if (result.size() != 2) { result += " | "; }
+
+        result += row[i];
+      }
+
+      result += " |";
+
+      s->lines.emplace_back(std::move(result));
+
+      return 0;
+    };
+
+
+    stuff args{jcr};
+
+    if (!jcr->db->SqlQuery(query1.c_str(), JobLogHandler, &args)
+        && !jcr->db->SqlQuery(query2.c_str(), JobLogHandler, &args)) {
+      Jmsg(jcr, M_FATAL, 0, "Both queries failed \n");
+    } else {
+      for (auto& line : args.lines) {
+        Jmsg(jcr, M_INFO, 0, "%s\n", line.c_str());
+      }
+    }
+  }
+
+
   switch (jcr->getJobStatus()) {
     case JS_Terminated:
       TermMsg = T_("Backup OK");
@@ -987,7 +1053,6 @@ void GenerateBackupSummary(JobControlRecord *jcr, ClientDbRecord *cr, int msg_ty
      }
      Bsnprintf(compress, sizeof(compress), "%.1f %%", compression);
    }
-
    std::string fd_term_msg = JobstatusToAscii(jcr->dir_impl->FDJobStatus);
    std::string sd_term_msg = JobstatusToAscii(jcr->dir_impl->SDJobStatus);
 
