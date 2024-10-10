@@ -793,9 +793,15 @@ void NativeBackupCleanup(JobControlRecord* jcr, int TermCode)
     PoolMem query1;
     PoolMem query2;
 
-    Mmsg(query1, "SELECT * FROM file, decode_lstat(lstat) WHERE jobid = %d",
+    Mmsg(
+        query1,
+        "WITH bad_files as (SELECT pathid, name FROM file WHERE jobid = %d) "
+        "SELECT jobid, path || name AS fullpath, lstat, md5, st_mtime, "
+        "st_ctime, st_atime from file JOIN bad_files USING (pathid, name) JOIN "
+        "path USING (pathid), decode_lstat(lstat) ORDER BY fullpath, jobid",
+        jcr->JobId);
+    Mmsg(query2, "SELECT * FROM file JOIN path USING (pathid) WHERE jobid = %d",
          jcr->JobId);
-    Mmsg(query2, "SELECT * FROM file WHERE jobid = %d", jcr->JobId);
 
     struct stuff {
       JobControlRecord* jcr;
