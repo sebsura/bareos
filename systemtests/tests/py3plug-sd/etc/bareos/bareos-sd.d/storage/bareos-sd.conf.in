@@ -7,7 +7,7 @@ Storage {
   # otherwise all storage plugins (*-sd.so) from the "Plugin Directory".
   #
   Plugin Directory = "@SD_PLUGINS_DIR_TO_TEST@"
-  Plugin Names = "@python_module_name@"
+  Plugin Names = "grpc-fd"
   Working Directory =  "@working_dir@"
   SD Port = @sd_port@
   @sd_backend_config@

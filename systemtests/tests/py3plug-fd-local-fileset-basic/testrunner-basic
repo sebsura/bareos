@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -ex
 set -o pipefail
 set -u
 #
@@ -48,7 +48,7 @@ cat <<END_OF_DATA >$tmp/bconcmds
 messages
 @$out $tmp/log1.out
 setdebug level=800 client trace=1
-label volume=TestVolume001 storage=File pool=Full
+label volume=TestVolume001 client pool=Full trace=1
 run job=$JobName yes
 status director
 status client
