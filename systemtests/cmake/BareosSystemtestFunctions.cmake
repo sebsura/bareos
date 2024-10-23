@@ -559,7 +559,7 @@ macro(prepare_test_python)
   string(REGEX MATCH "py2plug" py_v2 "${TEST_NAME}")
   string(REGEX MATCH "py3plug" py_v3 "${TEST_NAME}")
   # use python3 by default, exepts the name of test starts with py2plug.
-  set(python_module_name python3)
+  set(python_module_name grpc:grpc-python-module:python3)
   if(py_v2)
     set(python_module_name python)
   endif()
@@ -582,9 +582,9 @@ macro(prepare_test_python)
           "${CMAKE_SOURCE_DIR}/contrib/fd-plugins;"
           "${CMAKE_SOURCE_DIR}/core/src/plugins/stored/python/pyfiles;"
           "${CMAKE_SOURCE_DIR}/core/src/plugins/dird/python/pyfiles;"
-          "${CMAKE_BINARY_DIR}/core/src/plugins/filed/python/${python_module_name}modules/\${CMAKE_CONFIG_TYPE};"
-          "${CMAKE_BINARY_DIR}/core/src/plugins/stored/python/${python_module_name}modules/\${CMAKE_CONFIG_TYPE};"
-          "${CMAKE_BINARY_DIR}/core/src/plugins/dird/python/${python_module_name}modules/\${CMAKE_CONFIG_TYPE};"
+          "${CMAKE_BINARY_DIR}/core/src/plugins/filed/python/python3modules/\${CMAKE_CONFIG_TYPE};"
+          "${CMAKE_BINARY_DIR}/core/src/plugins/stored/python/python3modules/\${CMAKE_CONFIG_TYPE};"
+          "${CMAKE_BINARY_DIR}/core/src/plugins/dird/python/python3modules/\${CMAKE_CONFIG_TYPE};"
           "${CMAKE_SOURCE_DIR}/systemtests/python-modules;"
           "\""
       )
@@ -603,9 +603,9 @@ macro(prepare_test_python)
           "${CMAKE_SOURCE_DIR}/contrib/fd-plugins:"
           "${CMAKE_SOURCE_DIR}/core/src/plugins/stored/python/pyfiles:"
           "${CMAKE_SOURCE_DIR}/core/src/plugins/dird/python/pyfiles:"
-          "${CMAKE_BINARY_DIR}/core/src/plugins/filed/python/${python_module_name}modules:"
-          "${CMAKE_BINARY_DIR}/core/src/plugins/stored/python/${python_module_name}modules:"
-          "${CMAKE_BINARY_DIR}/core/src/plugins/dird/python/${python_module_name}modules:"
+          "${CMAKE_BINARY_DIR}/core/src/plugins/filed/python/python3modules:"
+          "${CMAKE_BINARY_DIR}/core/src/plugins/stored/python/python3modules:"
+          "${CMAKE_BINARY_DIR}/core/src/plugins/dird/python/python3modules:"
           "${CMAKE_SOURCE_DIR}/systemtests/python-modules:"
           "${CMAKE_CURRENT_SOURCE_DIR}/tests/${TEST_NAME}/python-modules"
       )

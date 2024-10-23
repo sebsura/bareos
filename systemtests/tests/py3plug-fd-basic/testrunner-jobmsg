@@ -21,6 +21,7 @@ rm -f "$tmp/jobmsg-backup.out" "$tmp/jobmsg-restore.out"
 cat <<END_OF_DATA >$tmp/bconcmds
 @$out /dev/null
 messages
+setdebug level=150 trace=1 client
 @$out $tmp/jobmsg-backup.out
 run job=$JobName yes
 wait

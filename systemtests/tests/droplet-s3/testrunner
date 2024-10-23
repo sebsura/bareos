@@ -2,7 +2,7 @@
 
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2020-2023 Bareos GmbH & Co. KG
+#   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -36,12 +36,12 @@ JobName=backup-s3-fd
 "${rscripts}"/cleanup
 "${rscripts}"/setup
 
-"${rscripts}"/start_minio.sh "$MINIO_PORT" "$TestName"
+#"${rscripts}"/start_minio.sh "$MINIO_PORT" "$TestName"
 
 # shortcut for s3cmd
-S3="${S3CMD} --no-check-certificate --config ${S3CFG}"
+#S3="${S3CMD} --no-check-certificate --config ${S3CFG}"
 
-$S3 mb S3://backup
+#$S3 mb S3://backup
 
 
 # Fill ${BackupDirectory} with data.

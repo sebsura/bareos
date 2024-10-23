@@ -17,7 +17,7 @@ Director {                            # define myself
   # otherwise all director plugins (*-dir.so) from the "Plugin Directory".
   #
   Plugin Directory = "@DIR_PLUGINS_DIR_TO_TEST@"
-  Plugin Names = "@python_module_name@"
+  Plugin Names = "grpc"
   Working Directory =  "@working_dir@"
   DirPort = @dir_port@
 }

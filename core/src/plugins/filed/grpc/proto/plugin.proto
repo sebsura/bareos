@@ -74,7 +74,6 @@ message startBackupFileRequest {
   bool no_read = 2;
   // ---
 
-
   bytes flags = 3;
   bytes cmd = 4;
 };

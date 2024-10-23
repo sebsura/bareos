@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # BAREOS - Backup Archiving REcovery Open Sourced
 #
-# Copyright (C) 2014-2023 Bareos GmbH & Co. KG
+# Copyright (C) 2014-2024 Bareos GmbH & Co. KG
 #
 # This program is Free Software; you can redistribute it and/or
 # modify it under the terms of version three of the GNU Affero General Public
@@ -278,11 +278,11 @@ class BareosFdPluginLocalFilesetWithRestoreObjects(
         to distinguish which of them it is, because job type
         is "I" until the bEventStartBackupJob event
         """
-        bareosfd.DebugMessage(
-            100,
-            "BareosFdPluginLocalFilesetWithRestoreObjects:restore_object_data() called with ROP:%s\n"
-            % (ROP),
-        )
+        # bareosfd.DebugMessage(
+        #    100,
+        #    "BareosFdPluginLocalFilesetWithRestoreObjects:restore_object_data() called with ROP:%s\n"
+        #    % (ROP),
+        # )
         bareosfd.DebugMessage(
             100,
             "ROP.object_name(%s): %s\n" % (type(ROP.object_name), ROP.object_name),
@@ -304,8 +304,10 @@ class BareosFdPluginLocalFilesetWithRestoreObjects(
             100, "ROP.object(%s): %s\n" % (type(ROP.object), repr(ROP.object))
         )
         orig_filename = os.path.splitext(ROP.object_name)[0]
+
         if ROP.object_name.endswith(".sha256sum"):
             self.sha256sums_by_filename[orig_filename] = ROP.object
+            bareosfd.DebugMessage(100, "rop sha for %s\n" % orig_filename)
             # self.sha256sums_by_filename[orig_filename] = str(ROP.object)
         elif ROP.object_name.endswith(".abspath"):
             if ROP.object.decode() != orig_filename:
