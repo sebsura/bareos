@@ -165,7 +165,7 @@ set(ALL_BINARIES_BEING_USED_BY_SYSTEMTESTS
     bareos-sd
     bls
     bscan
-    bconsole
+    bconsole-unsafe
     bwild
     bpluginfo
     bsmtp
