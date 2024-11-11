@@ -87,7 +87,7 @@ elseif(HAVE_GRPC)
     "proto/events.proto" "proto/bareos.proto" "proto/common.proto"
   )
 
-  add_library(grpc-proto ${protosrcs} ${protohdrs} ${grpcsrcs} ${grpchdrs})
+  add_library(STATIC grpc-proto ${protosrcs} ${protohdrs} ${grpcsrcs} ${grpchdrs})
   target_include_directories(grpc-proto PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
 
   target_link_libraries(
