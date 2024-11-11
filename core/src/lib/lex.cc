@@ -32,9 +32,8 @@
 #include "lib/parse_conf.h"
 #include "lib/berrno.h"
 #include "lib/bpipe.h"
+#include "lib/message.h"
 #include <glob.h>
-
-extern int debug_level;
 
 /* Debug level for this source file */
 static const int debuglevel = 5000;

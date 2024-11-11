@@ -41,6 +41,7 @@
 #include "include/exit_codes.h"
 #include "lib/berrno.h"
 #include "lib/daemon.h"
+#include "lib/message.h"
 
 
 #if defined(HAVE_WIN32)
@@ -51,7 +52,6 @@ void daemon_start(const char*, int, std::string) { return; }
 
 static void SetupStdFileDescriptors()
 {
-  extern int debug_level;
   if (debug_level > 0) { return; }
   int fd = open("/dev/null", O_RDONLY);
   ASSERT(fd > STDERR_FILENO);
