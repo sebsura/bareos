@@ -1290,7 +1290,11 @@ static inline bool SendPlainData(b_ctx& bctx)
                             [&latch, &compute_group, &compute_fin] {
                               compute_group.work_until_completion();
 
-                              *latch.lock() -= 1;
+                              auto locked = latch.lock();
+                              *locked -= 1;
+                              // we need to keep latch locked until we exit
+                              // because otherwise compute_fin might already
+                              // be destroyed when we try to notify
                               compute_fin.notify_one();
                             });
 
