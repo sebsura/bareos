@@ -91,8 +91,7 @@ elseif(HAVE_GRPC)
   target_include_directories(grpc-proto PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
 
   target_link_libraries(
-    grpc-proto PUBLIC ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF}
-                       absl_log_internal_check_op absl_log_internal_message absl_raw_logging_internal absl_spinlock_wait
+    grpc-proto PUBLIC ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
 
   )
   # add_library(grpc-plugin SHARED grpc.cc restore.cc config.cc database.cc) #
@@ -124,8 +123,7 @@ elseif(HAVE_GRPC)
   add_executable(
     grpc-python-module grpc_python_module.cc plugin_service_python.cc
   )
-  target_link_libraries(grpc-python-module fmt grpc-proto ${Python3_LIBRARIES}
-                        absl_log_internal_check_op absl_log_internal_message absl_raw_logging_internal absl_spinlock_wait)
+  target_link_libraries(grpc-python-module fmt grpc-proto ${Python3_LIBRARIES})
   target_include_directories(grpc-python-module PUBLIC ${Python3_INCLUDE_DIRS})
   install(
     TARGETS grpc-python-module
