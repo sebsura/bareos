@@ -1935,7 +1935,7 @@ struct grpc_connection_builder {
       // closefrom needs the lowest filedescriptor to close.
       closefrom(7);
 #else
-      for (i = 7; i <= 32; i++) { /* close any open file descriptors */
+      for (int i = 7; i <= 32; i++) { /* close any open file descriptors */
         close(i);
       }
 #endif

@@ -92,6 +92,8 @@ elseif(HAVE_GRPC)
 
   target_link_libraries(
     grpc-proto PUBLIC ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF}
+                       absl_log_internal_check_op absl_log_internal_message absl_raw_logging_internal absl_spinlock_wait
+
   )
   # add_library(grpc-plugin SHARED grpc.cc restore.cc config.cc database.cc) #
   # Include generated *.pb.h files target_link_libraries( grpc-plugin
