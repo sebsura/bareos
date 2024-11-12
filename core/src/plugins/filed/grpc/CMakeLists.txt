@@ -90,10 +90,7 @@ elseif(HAVE_GRPC)
   add_library(grpc-proto STATIC ${protosrcs} ${protohdrs} ${grpcsrcs} ${grpchdrs})
   target_include_directories(grpc-proto PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
 
-  target_link_libraries(
-    grpc-proto PUBLIC ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
-
-  )
+  target_link_libraries( grpc-proto PUBLIC ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
   # add_library(grpc-plugin SHARED grpc.cc restore.cc config.cc database.cc) #
   # Include generated *.pb.h files target_link_libraries( grpc-plugin
   # ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF} grpc-proto )
