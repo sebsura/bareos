@@ -23,8 +23,8 @@
 #ifndef BAREOS_FILED_SOCKET_SERVER_H_
 #define BAREOS_FILED_SOCKET_SERVER_H_
 
-template <typename T> class dlist;
-class IPADDR;
+#include "lib/dlist.h"
+#include "lib/address_conf.h"
 
 namespace filedaemon {
 

@@ -22,9 +22,9 @@
 #ifndef BAREOS_DIRD_NDMP_DMA_STORAGE_H_
 #define BAREOS_DIRD_NDMP_DMA_STORAGE_H_
 
-struct ndm_job_param;
-template <typename T> class dlist;
-struct vol_list_t;
+#include "lib/dlist.h"
+#include "dird/dird.h"
+#include "ndmp/ndmagents.h"
 
 namespace directordaemon {
 

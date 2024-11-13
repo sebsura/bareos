@@ -25,8 +25,8 @@
 #include <vector>
 #include "lib/bnet_server_tcp.h"
 
-template <typename T> class dlist;
-class IPADDR;
+#include "lib/dlist.h"
+#include "lib/address_conf.h"
 
 namespace directordaemon {
 

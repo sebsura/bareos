@@ -32,11 +32,9 @@
 #include "lib/messages_resource.h"
 #include "lib/tls_conf.h"
 #include "lib/crypto.h"
-template <typename T> class alist;
-template <typename T> class dlist;
-class IPADDR;
-
-typedef struct X509_Keypair X509_KEYPAIR;
+#include "lib/alist.h"
+#include "lib/dlist.h"
+#include "lib/address_conf.h"
 
 namespace filedaemon {
 

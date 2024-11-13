@@ -22,8 +22,8 @@
 #ifndef BAREOS_DIRD_SD_CMDS_H_
 #define BAREOS_DIRD_SD_CMDS_H_
 
-class JobControlRecord;
-template <typename T> class dlist;
+#include "lib/dlist.h"
+#include "lib/jcr.h"
 
 namespace directordaemon {
 

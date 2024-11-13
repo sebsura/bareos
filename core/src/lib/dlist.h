@@ -258,16 +258,7 @@ template <typename T> class dlist {
     }
     return NULL;
   }
-  /*
-   *  Insert an item in the list, regardless if it is unique
-   *  or not.
-   */
-  void BinaryInsertMultiple(T* item, int compare(T* item1, T* item2))
-  {
-    T* ins_item = binary_insert(item, compare);
-    /* If identical, insert after the one found */
-    if (ins_item != item) { InsertAfter(item, ins_item); }
-  }
+
   void remove(T* item)
   {
     T* xitem;
@@ -315,4 +306,5 @@ template <typename T> class dlist {
   T* first() const { return head; }
   T* last() const { return tail; }
 };
+
 #endif  // BAREOS_LIB_DLIST_H_

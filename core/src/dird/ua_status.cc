@@ -51,6 +51,7 @@
 #include "lib/util.h"
 #include "lib/version.h"
 
+#include <algorithm>
 #include <memory>
 
 #define DEFAULT_STATUS_SCHED_DAYS 7
@@ -863,7 +864,7 @@ static void PrtRuntime(UaContext* ua, sched_pkt* sp)
 }
 
 // Sort items by runtime, priority
-static int CompareByRuntimePriority(sched_pkt* p1, sched_pkt* p2)
+static int CompareByRuntimePriority(const sched_pkt* p1, const sched_pkt* p2)
 {
   if (p1->runtime < p2->runtime) {
     return -1;
@@ -889,8 +890,7 @@ static void ListScheduledJobs(UaContext* ua)
   int level, num_jobs = 0;
   int priority;
   bool hdr_printed = false;
-  auto sched = std::make_unique<dlist<sched_pkt>>();
-  sched_pkt* sp;
+  auto sched = std::vector<sched_pkt>{};
   int days, i;
 
   Dmsg0(200, "enter list_sched_jobs()\n");
@@ -921,26 +921,34 @@ static void ListScheduledJobs(UaContext* ua)
         PrtRunhdr(ua);
         hdr_printed = true;
       }
-      sp = (sched_pkt*)malloc(sizeof(sched_pkt));
-      sp->job = job;
-      sp->level = level;
-      sp->priority = priority;
-      sp->runtime = runtime;
-      sp->pool = run->pool;
+
+      sched_pkt pkt;
+      pkt.job = job;
+      pkt.level = level;
+      pkt.priority = priority;
+      pkt.runtime = runtime;
+      pkt.pool = run->pool;
       GetJobStorage(&store, job, run);
-      sp->store = store.store;
-      if (sp->store) {
+      pkt.store = store.store;
+      if (pkt.store) {
         Dmsg3(250, "job=%s storage=%s MediaType=%s\n", job->resource_name_,
-              sp->store->resource_name_, sp->store->media_type);
+              pkt.store->resource_name_, pkt.store->media_type);
       } else {
         Dmsg1(250, "job=%s could not get job storage\n", job->resource_name_);
       }
-      sched->BinaryInsertMultiple(sp, CompareByRuntimePriority);
+
+      sched.insert(std::upper_bound(std::begin(sched),
+                                    std::end(sched),
+                                    pkt, +[](const sched_pkt& a,
+                                            const sched_pkt& b) -> bool {
+                                      return CompareByRuntimePriority(&a, &b) < 0;
+                                    }),
+                   pkt);
       num_jobs++;
     }
   } /* end for loop over resources */
 
-  foreach_dlist (sp, sched) { PrtRuntime(ua, sp); }
+  for (auto& sp : sched) { PrtRuntime(ua, &sp); }
   if (num_jobs == 0 && !ua->api) { ua->SendMsg(T_("No Scheduled Jobs.\n")); }
   if (!ua->api) ua->SendMsg("====\n");
   Dmsg0(200, "Leave list_sched_jobs_runs()\n");

@@ -47,6 +47,7 @@
 #include "lib/tls.h"
 #include "lib/s_password.h"
 #include "lib/tls_conf.h"
+#include "lib/dlist.h"
 #include "include/version_numbers.h"
 
 #include <mutex>
@@ -59,7 +60,6 @@ class BareosSocket;
 class Tls;
 class BStringList;
 class QualifiedResourceNameTypeConverter;
-template <typename T> class dlist;
 btimer_t* StartBsockTimer(BareosSocket* bs, uint32_t wait);
 void StopBsockTimer(btimer_t* wid);
 

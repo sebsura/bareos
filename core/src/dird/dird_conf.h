@@ -38,10 +38,10 @@
 #include "lib/resource_item.h"
 #include "lib/tls_conf.h"
 
-template <typename T> class dlist;
+#include "lib/dlist.h"
+#include "lib/address_conf.h"
+#include "lib/runscript.h"
 struct json_t;
-class RunScript;
-class IPADDR;
 
 namespace directordaemon {
 

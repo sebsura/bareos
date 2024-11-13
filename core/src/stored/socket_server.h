@@ -21,9 +21,9 @@
 #ifndef BAREOS_STORED_SOCKET_SERVER_H_
 #define BAREOS_STORED_SOCKET_SERVER_H_
 
-template <typename T> class dlist;
-class ConfigurationParser;
-class IPADDR;
+#include "lib/dlist.h"
+#include "lib/address_conf.h"
+#include "lib/parse_conf.h"
 
 namespace storagedaemon {
 

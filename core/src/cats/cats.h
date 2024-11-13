@@ -41,12 +41,12 @@
 #include "lib/output_formatter.h"
 #include "lib/crypto.h"
 #include "lib/base64.h"
+#include "lib/dlist.h"
 
 #include <string>
 #include <stdexcept>
 #include <system_error>
 #include <vector>
-template <typename T> class dlist;
 
 /* import automatically generated SQL_QUERY */
 #include "bdb_query_enum_class.h"

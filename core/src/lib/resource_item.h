@@ -24,9 +24,9 @@
 #ifndef BAREOS_LIB_RESOURCE_ITEM_H_
 #define BAREOS_LIB_RESOURCE_ITEM_H_
 
-struct s_password;
-template <typename T> class alist;
-template <typename T> class dlist;
+#include "lib/alist.h"
+#include "lib/dlist.h"
+#include "lib/s_password.h"
 
 /*
  * This is the structure that defines the record types (items) permitted within

@@ -47,13 +47,13 @@
 #include "lib/path_list.h"
 #include "lib/guid_to_name.h"
 #include "lib/jcr.h"
+#include "lib/dlist.h"
 
 #include <atomic>
 
 struct job_callback_item;
 class BareosDb;
 class BareosSocket;
-template <typename T> class dlist;
 class JobControlRecord;
 
 struct AttributesDbRecord;

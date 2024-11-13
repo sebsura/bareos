@@ -31,8 +31,6 @@
 
 #include "lib/dlist.h"
 
-template <typename T> class dlist;
-
 namespace storagedaemon {
 
 // Return codes from read_device_volume_label()

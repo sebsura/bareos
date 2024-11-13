@@ -35,8 +35,7 @@
 
 #include "lib/dlink.h"
 #include "include/jcr.h"
-
-template <typename T> class dlist;
+#include "lib/dlist.h"
 
 namespace directordaemon {
 

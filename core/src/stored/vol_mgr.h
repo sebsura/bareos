@@ -48,7 +48,7 @@
 
 #include <atomic>
 
-template <typename T> class dlist;
+#include "lib/dlist.h"
 
 namespace storagedaemon {
 

@@ -65,11 +65,10 @@
 #include "stored/volume_catalog_info.h"
 #include "stored/io_direction.h"
 #include "lib/btimers.h"
+#include "lib/dlist.h"
 
 #include <vector>
 #include <atomic>
-
-template <typename T> class dlist;
 
 namespace storagedaemon {
 

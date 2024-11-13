@@ -25,11 +25,12 @@
 #include <functional>
 #include <vector>
 
-constexpr int kListenBacklog = 50;
+#include "lib/address_conf.h"
+#include "lib/dlist.h"
+#include "lib/parse_conf.h"
+#include "lib/thread_list.h"
 
-class ConfigurationParser;
-class ThreadList;
-class IPADDR;
+constexpr int kListenBacklog = 50;
 
 enum class BnetServerState
 {
@@ -39,8 +40,6 @@ enum class BnetServerState
   kStarted,
   kEnded
 };
-
-template <typename T> class dlist;
 
 void close_socket(int fd);
 

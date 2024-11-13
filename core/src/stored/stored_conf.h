@@ -34,10 +34,9 @@
 #include "lib/messages_resource.h"
 #include "lib/tls_conf.h"
 
-template <typename T> class alist;
-template <typename T> class dlist;
-
-class IPADDR;
+#include "lib/alist.h"
+#include "lib/dlist.h"
+#include "lib/address_conf.h"
 
 namespace storagedaemon {
 
