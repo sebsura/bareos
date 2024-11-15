@@ -20,11 +20,10 @@
 include(BareosDisableWarnings)
 include(BareosConfigureFile)
 
-if(HAVE_WIN32)
-  message(STATUS "Disabling grpc plugin as its not supported on windows")
-elseif(HAVE_GRPC)
-  message(STATUS "Using protobuf ${Protobuf_VERSION}")
-  message(STATUS "Using gRPC ${gRPC_VERSION}")
+if(ENABLE_GRPC)
+  if(HAVE_WIN32)
+    message(FATAL_ERROR "The grpc plugin is currently not compatible with windows")
+  endif()
 
   if(TARGET gRPC::grpc++_reflection)
     set(_REFLECTION gRPC::grpc++_reflection)
