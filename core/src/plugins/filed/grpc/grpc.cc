@@ -426,9 +426,14 @@ constexpr PluginInformation my_info = {
     .plugin_license = "Bareos AGPLv3",
     .plugin_author = "Sebastian Sura",
     .plugin_date = "September 2024",
-    .plugin_version = "0.0.1",
-    .plugin_description = "a simple grpc plugin",
-    .plugin_usage = "Not sure yet",
+    .plugin_version = "0.1.0",
+    .plugin_description =
+    "This plugin is a shim that allows you to run separate programs as a"
+    "bareos plugin by the use of a grpc interface.",
+    .plugin_usage =
+    "grpc:<grpc executable>:...\n"
+    "Additional paramenters are parsed by the executable instead.\n"
+    "EXAMPLE grpc:grpc-test-module:file=/my/file",
 };
 
 constexpr filedaemon::PluginFunctions my_functions = {
