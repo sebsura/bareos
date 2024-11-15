@@ -25,12 +25,6 @@ if(ENABLE_GRPC)
     message(FATAL_ERROR "The grpc plugin is currently not compatible with windows")
   endif()
 
-  if(CMAKE_CROSSCOMPILING)
-    find_program(_PROTOBUF_PROTOC protoc)
-  else()
-    set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
-  endif()
-
   set(PROTO_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto")
   # Proto file
   function(target_add_proto_sources target)
@@ -48,6 +42,7 @@ if(ENABLE_GRPC)
       set(proto_hdr "${PROTO_OUTPUT_DIR}/${stem}.pb.h")
       set(grpc_src "${PROTO_OUTPUT_DIR}/${stem}.grpc.pb.cc")
       set(grpc_hdr "${PROTO_OUTPUT_DIR}/${stem}.grpc.pb.h")
+
       if(Protobuf_VERSION VERSION_LESS 3.15.0)
         set(_PROTOBUF_PROTOC_EXTRA_PARAMS "--experimental_allow_proto3_optional")
       else()
@@ -56,7 +51,7 @@ if(ENABLE_GRPC)
       add_custom_command(
         OUTPUT "${proto_src}" "${proto_hdr}" "${grpc_src}" "${grpc_hdr}"
         COMMAND
-          ${_PROTOBUF_PROTOC} ARGS --grpc_out "${PROTO_OUTPUT_DIR}"
+          $<TARGET_FILE:protobuf::protoc> ARGS --grpc_out "${PROTO_OUTPUT_DIR}"
           --cpp_out "${PROTO_OUTPUT_DIR}" -I "${path}"
           --plugin=protoc-gen-grpc="${gRPC_CPP_PROTO_PLUGIN}"
           ${_PROTOBUF_PROTOC_EXTRA_PARAMS}
@@ -72,8 +67,8 @@ if(ENABLE_GRPC)
     endforeach()
 
     message(DEBUG "Generated proto files:")
-    message(DEBUG "proto: ${protosrcs} ${protohdrs}")
-    message(DEBUG "grpc: ${grpcsrcs} ${grpchdrs}")
+    message(DEBUG " proto: ${protosrcs} / ${protohdrs}")
+    message(DEBUG " grpc: ${grpcsrcs} / ${grpchdrs}")
 
     target_sources(${target} PRIVATE ${protosrcs} ${grpcsrcs})
     target_include_directories(${target} PUBLIC ${PROTO_OUTPUT_DIR})
@@ -92,7 +87,7 @@ if(ENABLE_GRPC)
   set_target_properties(
     grpc-fd PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY ..
   )
-  target_link_libraries(grpc-fd bareos fmt grpc-proto)
+  target_link_libraries(grpc-fd bareos fmt::fmt grpc-proto)
   install(
     TARGETS grpc-fd
     DESTINATION ${plugindir}
@@ -100,7 +95,7 @@ if(ENABLE_GRPC)
   )
 
   add_executable(grpc-test-module grpc_test_module.cc plugin_service.cc)
-  target_link_libraries(grpc-test-module fmt grpc-proto)
+  target_link_libraries(grpc-test-module fmt::fmt grpc-proto)
   install(
     TARGETS grpc-test-module
     DESTINATION ${plugindir}
@@ -110,7 +105,7 @@ if(ENABLE_GRPC)
   add_executable(
     grpc-python-module grpc_python_module.cc plugin_service_python.cc
   )
-  target_link_libraries(grpc-python-module fmt grpc-proto Python3::Module)
+  target_link_libraries(grpc-python-module fmt::fmt grpc-proto Python3::Module)
   install(
     TARGETS grpc-python-module
     DESTINATION ${plugindir}
