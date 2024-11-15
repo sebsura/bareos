@@ -38,7 +38,8 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
   set(Python3_FOUND 0)
 
 else()
-  find_package(Python3 COMPONENTS Interpreter Development)
+  find_package(Python3 COMPONENTS Interpreter Development
+    Development.Module)
 
   set(Python3_VERSION_MAJOR
       ${Python3_VERSION_MAJOR}

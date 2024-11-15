@@ -122,8 +122,7 @@ elseif(HAVE_GRPC)
   add_executable(
     grpc-python-module grpc_python_module.cc plugin_service_python.cc
   )
-  target_link_libraries(grpc-python-module fmt grpc-proto ${Python3_LIBRARIES})
-  target_include_directories(grpc-python-module PUBLIC ${Python3_INCLUDE_DIRS})
+  target_link_libraries(grpc-python-module fmt grpc-proto Python3::Module)
   install(
     TARGETS grpc-python-module
     DESTINATION ${plugindir}
