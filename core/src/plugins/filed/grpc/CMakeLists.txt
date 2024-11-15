@@ -25,25 +25,10 @@ if(ENABLE_GRPC)
     message(FATAL_ERROR "The grpc plugin is currently not compatible with windows")
   endif()
 
-  if(TARGET gRPC::grpc++_reflection)
-    set(_REFLECTION gRPC::grpc++_reflection)
-  else()
-    set(_REFLECTION grpc++_reflection)
-  endif()
   if(CMAKE_CROSSCOMPILING)
     find_program(_PROTOBUF_PROTOC protoc)
   else()
     set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
-  endif()
-  if(TARGET gRPC::grpc++)
-    set(_GRPC_GRPCPP gRPC::grpc++)
-  else()
-    set(_GRPC_GRPCPP grpc++)
-  endif()
-  if(TARGET gRPC::grpc_cpp_plugin)
-    set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
-  else()
-    find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
   endif()
 
   set(PROTO_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto")
@@ -63,20 +48,21 @@ if(ENABLE_GRPC)
       set(proto_hdr "${PROTO_OUTPUT_DIR}/${stem}.pb.h")
       set(grpc_src "${PROTO_OUTPUT_DIR}/${stem}.grpc.pb.cc")
       set(grpc_hdr "${PROTO_OUTPUT_DIR}/${stem}.grpc.pb.h")
-        if(Protobuf_VERSION VERSION_LESS 3.15.0)
-          set(_PROTOBUF_PROTOC_EXTRA_PARAMS "--experimental_allow_proto3_optional")
-        else()
-          set(_PROTOBUF_PROTOC_EXTRA_PARAMS "")
-        endif()
+      if(Protobuf_VERSION VERSION_LESS 3.15.0)
+        set(_PROTOBUF_PROTOC_EXTRA_PARAMS "--experimental_allow_proto3_optional")
+      else()
+        set(_PROTOBUF_PROTOC_EXTRA_PARAMS "")
+      endif()
       add_custom_command(
         OUTPUT "${proto_src}" "${proto_hdr}" "${grpc_src}" "${grpc_hdr}"
         COMMAND
           ${_PROTOBUF_PROTOC} ARGS --grpc_out "${PROTO_OUTPUT_DIR}"
           --cpp_out "${PROTO_OUTPUT_DIR}" -I "${path}"
-          --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
+          --plugin=protoc-gen-grpc="${gRPC_CPP_PROTO_PLUGIN}"
           ${_PROTOBUF_PROTOC_EXTRA_PARAMS}
           "${absolute}"
-        DEPENDS "${absolute}"
+        DEPENDS "${absolute}" protobuf::protoc
+        COMMENT "Compiling proto file ${absolute}"
       )
 
       list(APPEND protosrcs "${proto_src}")
@@ -99,7 +85,7 @@ if(ENABLE_GRPC)
     "proto/common.proto"
   )
   target_link_libraries(
-    grpc-proto PUBLIC ${_REFLECTION} ${_GRPC_GRPCPP} protobuf::libprotobuf
+    grpc-proto PUBLIC gRPC::grpc++_reflection gRPC::grpc++ protobuf::libprotobuf
   )
 
   add_library(grpc-fd MODULE grpc.cc grpc_impl.cc bareos_api.cc)

@@ -193,19 +193,7 @@ option(ENABLE_GRPC "Build with grpc support" OFF)
 
 if(ENABLE_GRPC)
   find_package(Protobuf 3.12.0 REQUIRED)
-  # Find gRPC installation Looks for gRPCConfig.cmake file installed by gRPC's
-  # cmake installation.
-  find_package(gRPC CONFIG)
-  if(NOT gRPC_FOUND)
-    message(INFO "ENABLE_GRPC=ON but grpc not (yet) found, fallback to pkg_check_modules()")
-    pkg_check_modules (gRPC grpc++ REQUIRED)
-    find_library(rpc++_reflection NAMES grpc++_reflection HINTS /usr/lib/x86_64-linux-gnu/ REQUIRED)
-    find_library(grpc++ NAMES grpc++ HINTS /usr/lib/x86_64-linux-gnu/ REQUIRED)
-    message(WARNING "gRPC_VERSION: ${gRPC_VERSION}")
-    if(NOT gRPC_FOUND)
-      message(FATAL_ERROR "ENABLE_GRPC=ON but grpc not found")
-    endif()
-  endif()
+  find_package(gRPC REQUIRED)
 endif()
 
 if(NOT MSVC)
