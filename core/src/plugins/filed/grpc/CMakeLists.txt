@@ -48,17 +48,23 @@ elseif(HAVE_GRPC)
     find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
   endif()
 
+  set(PROTO_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto")
   # Proto file
-  macro(addgrpcprotofiles protosrcs protohdrs grpcsrcs grpchdrs)
+  function(target_add_proto_sources target)
+    set(protosrcs)
+    set(protohdrs)
+    set(grpcsrcs)
+    set(grpchdrs)
+
     foreach(file ${ARGN})
       get_filename_component(absolute "${file}" ABSOLUTE)
       get_filename_component(path "${absolute}" PATH)
       get_filename_component(stem "${file}" NAME_WE)
 
-      set(proto_src "${CMAKE_CURRENT_BINARY_DIR}/${stem}.pb.cc")
-      set(proto_hdr "${CMAKE_CURRENT_BINARY_DIR}/${stem}.pb.h")
-      set(grpc_src "${CMAKE_CURRENT_BINARY_DIR}/${stem}.grpc.pb.cc")
-      set(grpc_hdr "${CMAKE_CURRENT_BINARY_DIR}/${stem}.grpc.pb.h")
+      set(proto_src "${PROTO_OUTPUT_DIR}/${stem}.pb.cc")
+      set(proto_hdr "${PROTO_OUTPUT_DIR}/${stem}.pb.h")
+      set(grpc_src "${PROTO_OUTPUT_DIR}/${stem}.grpc.pb.cc")
+      set(grpc_hdr "${PROTO_OUTPUT_DIR}/${stem}.grpc.pb.h")
         if(Protobuf_VERSION VERSION_LESS 3.15.0)
           set(_PROTOBUF_PROTOC_EXTRA_PARAMS "--experimental_allow_proto3_optional")
         else()
@@ -67,8 +73,8 @@ elseif(HAVE_GRPC)
       add_custom_command(
         OUTPUT "${proto_src}" "${proto_hdr}" "${grpc_src}" "${grpc_hdr}"
         COMMAND
-          ${_PROTOBUF_PROTOC} ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
-          --cpp_out "${CMAKE_CURRENT_BINARY_DIR}" -I "${path}"
+          ${_PROTOBUF_PROTOC} ARGS --grpc_out "${PROTO_OUTPUT_DIR}"
+          --cpp_out "${PROTO_OUTPUT_DIR}" -I "${path}"
           --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
           ${_PROTOBUF_PROTOC_EXTRA_PARAMS}
           "${absolute}"
@@ -80,34 +86,30 @@ elseif(HAVE_GRPC)
       list(APPEND grpcsrcs "${grpc_src}")
       list(APPEND grpchdrs "${grpc_hdr}")
     endforeach()
-  endmacro()
 
-  addgrpcprotofiles(
-    protosrcs protohdrs grpcsrcs grpchdrs "proto/plugin.proto"
-    "proto/events.proto" "proto/bareos.proto" "proto/common.proto"
+    target_sources(${target} PRIVATE ${protosrcs} ${grpcsrcs})
+    target_include_directories(${target} PUBLIC ${PROTO_OUTPUT_DIR})
+  endfunction()
+
+  add_library(grpc-proto OBJECT)
+  target_add_proto_sources(grpc-proto
+    "proto/plugin.proto" "proto/events.proto" "proto/bareos.proto"
+    "proto/common.proto"
   )
-
-  add_library(grpc-proto STATIC ${protosrcs} ${protohdrs} ${grpcsrcs} ${grpchdrs})
-  target_include_directories(grpc-proto PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
-
-  target_link_libraries( grpc-proto PUBLIC ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
-  # add_library(grpc-plugin SHARED grpc.cc restore.cc config.cc database.cc) #
-  # Include generated *.pb.h files target_link_libraries( grpc-plugin
-  # ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF} grpc-proto )
-  #
-  # add_executable(grpc-client gclient.cc) target_link_libraries(grpc-client
-  # grpc-proto)
+  target_link_libraries(
+    grpc-proto PUBLIC ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF}
+  )
 
   add_library(grpc-fd MODULE grpc.cc grpc_impl.cc bareos_api.cc)
   set_target_properties(
     grpc-fd PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY ..
   )
+  target_link_libraries(grpc-fd bareos fmt grpc-proto)
   install(
     TARGETS grpc-fd
     DESTINATION ${plugindir}
     COMPONENT filedaemon
   )
-  target_link_libraries(grpc-fd bareos fmt grpc-proto)
 
   add_executable(grpc-test-module grpc_test_module.cc plugin_service.cc)
   target_link_libraries(grpc-test-module fmt grpc-proto)
