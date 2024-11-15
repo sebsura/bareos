@@ -26,7 +26,6 @@ elseif(HAVE_GRPC)
   message(STATUS "Using protobuf ${Protobuf_VERSION}")
   message(STATUS "Using gRPC ${gRPC_VERSION}")
 
-  set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
   if(TARGET gRPC::grpc++_reflection)
     set(_REFLECTION gRPC::grpc++_reflection)
   else()
@@ -87,6 +86,10 @@ elseif(HAVE_GRPC)
       list(APPEND grpchdrs "${grpc_hdr}")
     endforeach()
 
+    message(DEBUG "Generated proto files:")
+    message(DEBUG "proto: ${protosrcs} ${protohdrs}")
+    message(DEBUG "grpc: ${grpcsrcs} ${grpchdrs}")
+
     target_sources(${target} PRIVATE ${protosrcs} ${grpcsrcs})
     target_include_directories(${target} PUBLIC ${PROTO_OUTPUT_DIR})
   endfunction()
@@ -97,7 +100,7 @@ elseif(HAVE_GRPC)
     "proto/common.proto"
   )
   target_link_libraries(
-    grpc-proto PUBLIC ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF}
+    grpc-proto PUBLIC ${_REFLECTION} ${_GRPC_GRPCPP} protobuf::libprotobuf
   )
 
   add_library(grpc-fd MODULE grpc.cc grpc_impl.cc bareos_api.cc)
@@ -127,10 +130,6 @@ elseif(HAVE_GRPC)
     TARGETS grpc-python-module
     DESTINATION ${plugindir}
     COMPONENT filedaemon
-  )
-
-  set_target_properties(
-    grpc-fd PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY ..
   )
 
   include(DebugEdit)
