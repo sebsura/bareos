@@ -74,7 +74,7 @@ struct tree_node {
   tree_node()
       : type{tree_node_type::Root}
       , extract{false}
-      , extract_descendend{false}
+      , extract_descendant{false}
       , hard_link{false}
       , soft_link{false}
       , inserted{false}
@@ -92,7 +92,7 @@ struct tree_node {
   tree_node_type type;
   unsigned int extract : 1; /* extract item */
   unsigned int
-      extract_descendend : 1; /* something to extract lives in this subtree */
+      extract_descendant : 1; /* something to extract lives in this subtree */
   unsigned int hard_link : 1; /* set if have hard link */
   unsigned int soft_link : 1; /* set if is soft link */
   unsigned int inserted : 1;  /* set when node newly inserted */

@@ -378,28 +378,24 @@ static int SetExtract(UaContext* ua,
       if (entry && entry->node) {
         n = entry->node;
         count += SetExtract(ua, n, tree, extract);
-        // // if this is our first time marking it, then add to the count
-        // if (!n->extract) { count += 1; }
-        // n->extract = true;
-        // n->extract_dir = (n->type == tree_node_type::Dir || n->type ==
-        // tree_node_type::DirWin);
       }
     }
   }
+
   // Walk up tree marking any unextracted parent to be extracted.
   if (extract) {
-    while (node->parent && !node->parent->extract_descendend) {
+    while (node->parent && !node->parent->extract_descendant) {
       node = node->parent;
-      node->extract_descendend = true;
+      node->extract_descendant = true;
     }
   } else {
-    while (node->parent && node->parent->extract_descendend) {
+    while (node->parent && node->parent->extract_descendant) {
       node = node->parent;
-      node->extract_descendend = false;
+      node->extract_descendant = false;
       tree_node* child;
       foreach_child (child, node) {
-        if (child->extract || child->extract_descendend) {
-          node->extract_descendend = true;
+        if (child->extract || child->extract_descendant) {
+          node->extract_descendant = true;
         }
       }
     }
@@ -632,7 +628,7 @@ static int findcmd(UaContext* ua, TreeContext* tree)
         cwd = tree_getpath(node);
         if (node->extract) {
           tag = "*";
-        } else if (node->extract_descendend) {
+        } else if (node->extract_descendant) {
           tag = "+";
         } else {
           tag = "";
@@ -694,7 +690,7 @@ static int lscmd(UaContext* ua, TreeContext* tree)
       const char* tag;
       if (node->extract) {
         tag = "*";
-      } else if (node->extract_descendend) {
+      } else if (node->extract_descendant) {
         tag = "+";
       } else {
         tag = "";
@@ -740,11 +736,11 @@ static void rlsmark(UaContext* ua, tree_node* tnode, int level)
 
   foreach_child (node, tnode) {
     if ((ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0)
-        && (node->extract || node->extract_descendend)) {
+        && (node->extract || node->extract_descendant)) {
       const char* tag;
       if (node->extract) {
         tag = "*";
-      } else if (node->extract_descendend) {
+      } else if (node->extract_descendant) {
         tag = "+";
       } else {
         tag = "";
@@ -829,7 +825,7 @@ static int DoDircmd(UaContext* ua, TreeContext* tree, bool dot_cmd)
     if (ua->argc == 1 || fnmatch(ua->argk[1], node->fname, 0) == 0) {
       if (node->extract) {
         tag = "*";
-      } else if (node->extract_descendend) {
+      } else if (node->extract_descendant) {
         tag = "+";
       } else {
         tag = " ";
@@ -918,7 +914,7 @@ static int Estimatecmd(UaContext* ua, TreeContext* tree)
         }
 
         FreePoolMemory(cwd);
-      } else if (node->extract || node->extract_descendend) {
+      } else if (node->extract || node->extract_descendant) {
         // Directory, count only
         num_extract++;
       }
