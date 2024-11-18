@@ -177,7 +177,7 @@ bool StartSocketServer(std::vector<s_sockfd>&& bound_sockets)
 
     if (current_state == BnetServerState::kStarted
         || current_state == BnetServerState::kError) {
-      // waiting longer wont change anything
+      // waiting longer won't change anything
       break;
     }
   } while (--tries);
