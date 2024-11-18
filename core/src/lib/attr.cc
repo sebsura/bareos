@@ -218,8 +218,9 @@ void BuildAttrOutputFnames(JobControlRecord* jcr, Attributes* attr)
       bool is_absolute_path = IsPathSeparator(attr->lname[0]);
       bool allow_prefix = (attr->type == FT_LNKSAVED || jcr->prefix_links);
 #if defined(HAVE_WIN32)
-      // for hardlinks (i.e. LNKSAVED), we need to fixup the lname,
-      // so that the where prefixing works, otherwise we dont
+      // on windows we need to detect absolute paths slightly differently.
+      // We need to check for X: at the start of the path, and if so
+      // we need to replace : by /, so that it works when we prepend where
       if (allow_prefix && attr->lname[1] == ':') {
         attr->lname[1] = '/'; /* convert : to / for where prefix */
         is_absolute_path = true;
