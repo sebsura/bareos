@@ -23,7 +23,7 @@
 # restore some single files from archives
 #
 
-set -ex
+set -e
 set -o pipefail
 set -u
 TestName="$(basename "$(pwd)")"
