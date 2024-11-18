@@ -494,11 +494,9 @@ static int MarkElements(UaContext* ua, TreeContext* tree, bool extract = true)
       auto& part = parts[current.part_index];
       auto* node = current.node;
 
-      // ** is treated specifically as it can match zero or more
+      // ** is handled differently as it can match zero or more
       // directories/subdirectory
-      bool special = (part == "**");
-
-      if (special) {
+      if (part == std::string_view{"**"}) {
         // We know that we are not at the end of a path, as split_path
         // takes care of that.
         // ** inside a path means: match 0 or more subdirectories, so we take
