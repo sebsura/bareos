@@ -37,8 +37,28 @@ The grpc plugin, together with the `grpc-test-module` and `grpc-python-module`, 
 Configuration of the Grpc Plugin
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The Grpc Plugin receives as first argument the name of the executable that it should execute.
-All other options are then passed to that executable.  E.g. if you want to start the python3 plugin `pyplug`
-in a separate procces, your configuration would look like this:
+This executable is assumed to be in the normal bareos plugin directory.
+
+.. _GrpcPythonPlugin:
+
+Grpc Python Plugin
+~~~~~~~~~~~~~~~~~~
+
+.. index::
+   single: Plugin; Grpc
+   single: Grpc Python Plugin
+
+The Grpc Python Plugin is a Grpc Plugin that can be used to start the
+:ref:`section-python-fd Plugin` (and other Bareos plugins) in
+a separate process.  This ensures that no python state is shared between
+different jobs.
+
+This plugin does not take any options, but expects its arguments to be a
+valid python-fd plugin definition.
+
+
+Example
+^^^^^^^
 
 .. code-block:: bareosconfig
    :caption: /etc/bareos/bareos-dir.d/fileset/GrpcPython.conf
@@ -55,9 +75,8 @@ in a separate procces, your configuration would look like this:
                 ":python3"
                 ":module_name=pyplug"
                 ":arg1=val1"
-                ...
      }
    }
 
-Currently the plugin itself does not take any arguments except for the executable name.
-The executable name is interpreted as a relative path starting in the bareos plugin directory.
+This fileset will call the python-fd plugin `pyplug` with the argument
+`arg1=val1` in a separate process.
