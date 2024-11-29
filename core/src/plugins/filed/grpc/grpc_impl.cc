@@ -41,6 +41,8 @@
 
 #include <aio.h>
 
+#include <chrono>
+
 #include "bareos_api.h"
 
 #include "include/filetypes.h"
@@ -85,6 +87,65 @@ bool SetNonBlocking(PluginContext* ctx, OSFile& f)
   return true;
 }
 
+struct flush_fd {
+  int fd;
+  const char* name;
+  enum {
+    OUTPUT_DEBUG,
+    OUTPUT_JOB_ERROR,
+  } output;
+
+  // this buffer is used for line buffering
+  // ie we read into this buffer until we hit an \n,
+  // then we output that line, and continue
+  std::array<char, 4096> buffer{};
+  size_t buffer_free{buffer.size()};
+
+  void reset_buffer()
+  {
+    buffer_free = buffer.size();
+  }
+
+  void remove_printed_bytes(size_t byte_count)
+  {
+    ASSERT(byte_count <= read_size());
+    // this is the size of the unprinted leftovers in the buffer
+    auto leftover_size = read_size() - byte_count;
+
+    // we printed something, so move everything back to create space
+    memmove(buffer.data() + byte_count,
+            buffer.data(), leftover_size);
+
+    buffer_free += byte_count;
+  }
+
+  void advance_write_head(size_t byte_count)
+  {
+    ASSERT(buffer_free >= byte_count);
+    buffer_free -= byte_count;
+  }
+
+  char* write_start()
+  {
+    return buffer.data() + (buffer.size() - buffer_free);
+  }
+
+  size_t write_size() const noexcept
+  {
+    return buffer_free;
+  }
+
+  const char* read_start() const noexcept
+  {
+    return buffer.data();
+  }
+
+  size_t read_size() const noexcept
+  {
+    return buffer.size() - buffer_free;
+  }
+};
+
 void do_std_io(std::atomic<bool>* quit,
                PluginContext* ctx,
                OSFile out,
@@ -95,127 +156,170 @@ void do_std_io(std::atomic<bool>* quit,
   // CreateEvent on the overlapped structure to get an awaitable event
   // after issuing ReadFileEx
 
+  DebugLog(ctx, 100, FMT_STRING("io thread - starting"));
+
   SetNonBlocking(ctx, out);
   SetNonBlocking(ctx, err);
 
-  char outbuf[4096];
-  char errbuf[4096];
+  std::array fds = {
+    flush_fd{out.get(), "stdout", flush_fd::OUTPUT_DEBUG},
+    flush_fd{err.get(), "stderr", flush_fd::OUTPUT_JOB_ERROR},
+  };
 
-  char* outs_start = &outbuf[0];
-  char* outs = outs_start;
-  size_t outs_size = sizeof(outbuf);
+  size_t fd_count = fds.size();
 
-  char* errs_start = &errbuf[0];
-  char* errs = errs_start;
-  size_t errs_size = sizeof(errbuf);
+  // we should be alive until the child dies, so we only use "quit" as a hint
+  // to stop processing stuff.
+  // as such we wait up to 5 seconds after we noticed the quit, before we
+  // actually quit.  This enables us to print the output of the child
+  // that it created just before it died
 
-  std::array fds = {pollfd{out.get(), POLLIN, 0}, pollfd{err.get(), POLLIN, 0}};
+  std::optional<std::chrono::steady_clock::time_point> end_time{};
+  while (!end_time || end_time.value() >= std::chrono::steady_clock::now()) {
 
-  while (!quit->load()) {
-    auto num_fired = poll(fds.data(), fds.size(), 500);
-    if (num_fired < 0) { break; }
+    if (!end_time && quit->load()) {
+      auto current_time = std::chrono::steady_clock::now();
+      end_time = current_time + std::chrono::seconds(5);
+      DebugLog(ctx, 100,
+               FMT_STRING("io thread received end."
+                          " Current time = {}, End time = {}"),
+               current_time.time_since_epoch().count(),
+               end_time->time_since_epoch().count());
+    }
 
-    if (num_fired == 0) { continue; }
+    std::array pfds = {
+      pollfd{fds[0].fd, POLLIN, 0},
+      pollfd{fds[1].fd, POLLIN, 0}
+    };
 
-    if ((fds[0].revents & POLLIN) == POLLIN) {
-      // OUT
-      ssize_t bytes_read = read(out.get(), outs, outs_size);
+    auto num_fired = poll(pfds.data(), fd_count, 500);
+    if (num_fired < 0) {
+      DebugLog(ctx, 50,
+               FMT_STRING("io thread poll returned {}: Err={}"),
+               num_fired, strerror(errno));
+      break;
+    }
 
-      if (bytes_read < 0) {
-        // ?? how is this possible ??
-        DebugLog(ctx, 50, FMT_STRING("reading from {} returned {}: Err={}"),
-                 out.get(), bytes_read, strerror(errno));
-      } else {
-        // we search in [search_start, search_end) for newlines
-        auto* search_start = outs;
-        auto* search_end = outs + bytes_read;
-        // ... as this is the only place where they could be
+    if (num_fired == 0) {
+      DebugLog(ctx, 500,
+               FMT_STRING("io thread - no news"));
+      continue;
+    }
 
-        // When we find one, we print starting at print_start
-        auto* print_start = outs_start;
-        for (;;) {
-          auto* x = std::find(search_start, search_end, '\n');
-          if (x == search_end) { break; }
+    size_t fds_dead = 0;
 
-          // if we found a newline then we print it as debug message
-          DebugLog(ctx, 100, FMT_STRING("stdout: {}"),
-                   std::string_view{print_start,
-                                    static_cast<size_t>(x - print_start)});
+    for (size_t i = 0; i < fd_count; ++i) {
+      DebugLog(ctx, 200, FMT_STRING("io thread - {} events: {:#x}"),
+               fds[i].name, pfds[i].revents);
+      if ((pfds[i].revents & POLLIN) == POLLIN) {
+        // we received data
+        DebugLog(ctx, 200, FMT_STRING("io thread - {} (fd: {}) has data"),
+                 fds[i].name, fds[i].fd);
 
-          // skip the newline itself
-          search_start = print_start = x + 1;
+        ssize_t bytes_read = read(fds[i].fd, fds[i].write_start(),
+                                  fds[i].write_size());
+
+        if (bytes_read < 0) {
+          // ?? how is this possible ??
+          DebugLog(ctx, 50, FMT_STRING("reading from {} returned {}: Err={}"),
+                   fds[i].fd, bytes_read, strerror(errno));
+        } else if (bytes_read > 0) {
+          fds[i].advance_write_head(bytes_read);
+          // we read new data so print any newly discovered lines
+          // as we know that this buffer did not contain any complete line
+          // previously, we just need to look at the newly read characters
+
+          // we search in [search_start, search_end) for newlines
+          auto* search_end = fds[i].read_start() + fds[i].read_size();
+          // just look at the last `bytes_read` bytes
+          auto* search_start = search_end - bytes_read;
+
+          // if we find \n, then we print starting at print_start
+          auto* print_start = fds[i].read_start();
+
+          for (;;) {
+            auto* line_end = std::find(search_start, search_end, '\n');
+            if (line_end == search_end) { break; }
+            std::string_view line{print_start,
+                                  static_cast<size_t>(line_end - print_start)};
+
+            switch (fds[i].output) {
+            case flush_fd::OUTPUT_DEBUG: {
+              DebugLog(ctx, 100, FMT_STRING("{}: {}"),
+                       fds[i].name, line);
+            } break;
+            case flush_fd::OUTPUT_JOB_ERROR: {
+              JobLog(ctx, M_ERROR, FMT_STRING("{}: {}"), fds[i].name, line);
+
+            } break;
+            }
+            // if we found a newline then we print it as debug message
+
+            // skip the newline itself
+            search_start = print_start = line_end + 1;
+          }
+
+          if (print_start != fds[i].read_start()) {
+            // if we printed anything, we have to fixup our buffer
+            // and remove all data that was already printed
+
+            fds[i].remove_printed_bytes(print_start - fds[i].read_start());
+          } else if (fds[i].write_size() == 0) {
+            // if our buffer is full, we need to flush it completely
+            // to make room for more data
+
+            std::string_view content{fds[i].read_start(),
+                                     fds[i].read_size()};
+
+            switch (fds[i].output) {
+            case flush_fd::OUTPUT_DEBUG: {
+              DebugLog(ctx, 100, FMT_STRING("{} (full): {}"),
+                       fds[i].name, content);
+            } break;
+            case flush_fd::OUTPUT_JOB_ERROR: {
+              JobLog(ctx, M_ERROR, FMT_STRING("{} (full): {}"),
+                     fds[i].name, content);
+
+            } break;
+            }
+
+            fds[i].reset_buffer();
+          }
         }
-
-        if (print_start != outs_start) {
-          // this is the size of the unprinted leftovers in the buffer
-          auto bufsize = search_end - print_start;
-
-          // we printed something, so move everything back to create space
-          memmove(outs_start, print_start, bufsize);
-
-          outs = outs_start + bufsize;
-          outs_size = sizeof(outbuf) - bufsize;
-        } else if (outs_size == 0) {
-          DebugLog(ctx, 100, FMT_STRING("stdout (full): {}"),
-                   std::string_view{outs_start, sizeof(outbuf)});
-
-          outs_size = sizeof(outbuf);
-          outs = outs_start;
-        } else {
-          outs += bytes_read;
-          outs_size -= bytes_read;
-        }
+      } else if (((pfds[i].revents & POLLHUP) == POLLHUP)
+                 || (pfds[i].revents & POLLERR) == POLLERR) {
+        // both pollhub and pollerr indicate that the connection broke.
+        // so if there is no more data in that fd, we know that there
+        // also will be no more new data.  As such we can consider this
+        // connection to be done
+        fds_dead += 1;
       }
     }
 
-    if ((fds[1].revents & POLLIN) == POLLIN) {
-      // ERR
-      ssize_t bytes_read = read(err.get(), errs, errs_size);
+    if (fds_dead == fd_count) {
+      DebugLog(ctx, 100, FMT_STRING("all fds are dead, so we quit"));
+      break;
+    }
+  }
 
-      if (bytes_read < 0) {
-        // ?? how is this possible ??
-        DebugLog(ctx, 50, FMT_STRING("reading from {} returned {}: Err={}"),
-                 err.get(), bytes_read, strerror(errno));
-      } else {
-        // we search in [search_start, search_end) for newlines
-        auto* search_start = errs;
-        auto* search_end = errs + bytes_read;
-        // ... as this is the only place where they could be
+  // if there is still data left in the buffers, we dump them now
+  // this can happen if the data was not properly suffixed by \n
+  for (auto& buf : fds) {
+    if (buf.read_size() > 0) {
+      auto content = std::string_view{
+        buf.read_start(),
+        buf.read_size()
+      };
+      switch (buf.output) {
+      case flush_fd::OUTPUT_DEBUG: {
+        DebugLog(ctx, 100, FMT_STRING("{} (dump): {}"),
+                 buf.name, content);
+      } break;
+      case flush_fd::OUTPUT_JOB_ERROR: {
+        JobLog(ctx, M_ERROR, FMT_STRING("{} (dump): {}"),
+               buf.name, content);
 
-        // When we find one, we print starting at print_start
-        auto* print_start = errs_start;
-        for (;;) {
-          auto* x = std::find(search_start, search_end, '\n');
-          if (x == search_end) { break; }
-
-          // if we found a newline then we print it as debug message
-          JobLog(ctx, M_ERROR, FMT_STRING("stderr: {}"),
-                 std::string_view{print_start,
-                                  static_cast<size_t>(x - print_start)});
-
-          // skip the newline itself
-          search_start = print_start = x + 1;
-        }
-
-        if (print_start != errs_start) {
-          // this is the size of the unprinted leftovers in the buffer
-          auto bufsize = search_end - print_start;
-
-          // we printed something, so move everything back to create space
-          memmove(errs_start, print_start, bufsize);
-
-          errs = errs_start + bufsize;
-          errs_size = sizeof(errbuf) - bufsize;
-        } else if (errs_size == 0) {
-          JobLog(ctx, M_ERROR, FMT_STRING("stderr (full): {}"),
-                 std::string_view{errs_start, sizeof(errbuf)});
-
-          errs_size = sizeof(errbuf);
-          errs = errs_start;
-        } else {
-          errs += bytes_read;
-          errs_size -= bytes_read;
-        }
+      } break;
       }
     }
   }
@@ -1880,7 +1984,9 @@ struct grpc_connection_builder {
 
   bool move_fd(int fd, int newfd)
   {
-    if (dup2(fd, newfd) != newfd) { return false; }
+    if (dup2(fd, newfd) != newfd) {
+      return false;
+    }
 
     close(fd);
 
