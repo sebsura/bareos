@@ -949,8 +949,8 @@ struct plugin_thread {
  private:
   plugin_thread(channel::channel_pair<callback> p)
       : in{std::move(p.first)}, out{std::move(p.second)}
+      , t{+[](plugin_thread* pt) { pt->run(); }, this}
   {
-    t = std::thread{+[](plugin_thread* pt) { pt->run(); }, this};
   }
 
   bool enqueue_task(callback&& c) { return in.emplace(std::move(c)); }
