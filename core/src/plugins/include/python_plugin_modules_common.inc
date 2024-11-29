@@ -22,7 +22,7 @@
 static void PyErrorHandler()
 {
   std::string error_string = GetStringFromPyErrorHandler();
-  printf("Error: %s\n", error_string.c_str());
+  fprintf(stderr, "Error: %s\n", error_string.c_str());
 
   exit(1);
 }
