@@ -53,11 +53,15 @@
 #include "lib/edit.h"
 #include "lib/parse_conf.h"
 #include "lib/util.h"
+#include "lib/attribs.h"
 #include "lib/version.h"
 
 #include "dird/dbcheck_utils.h"
 
 #include "dird/reload.h"
+
+#include <chrono>
+#include "ua_test.h"
 
 namespace directordaemon {
 
@@ -66,6 +70,8 @@ namespace directordaemon {
 /* Imported variables */
 
 // Imported functions
+
+extern bool TestCmd(UaContext* ua, const char* cmd);
 
 /* ua_cmds.c */
 extern bool AutodisplayCmd(UaContext* ua, const char* cmd);
@@ -479,6 +485,7 @@ static struct ua_cmdstruct commands[] = {
      true, true},
     {NT_("sqlquery"), SqlqueryCmd, T_("Use SQL to query catalog"), NT_(""),
      false, true},
+    {NT_("test"), TestCmd, T_(""), NT_(""), true, true},
     {NT_("time"), time_cmd, T_("Print current time"), NT_(""), true, false},
     {NT_("trace"), TraceCmd, T_("Turn on/off trace to file"), NT_("on | off"),
      true, true},
@@ -2864,6 +2871,176 @@ static bool VersionCmd(UaContext* ua, const char*)
                            "%s ");
   ua->send->ObjectKeyValue("CustomVersionId", NPRTB(me->verid), "%s\n");
   ua->send->ObjectEnd("version");
+
+  return true;
+}
+
+struct file_db_entry{
+  const char* path;
+  const char* filename;
+  FileIndex fidx;
+  FileIndex link_fidx;
+  JobId jobid;
+  struct stat lstat;
+  DeltaSeq dseq;
+  ndmp_info info;
+};
+
+file_db_entry parse_cols(int colc, char** colv)
+{
+  /*
+   * row[0]=Path, row[1]=Filename, row[2]=FileIndex
+   * row[3]=JobId row[4]=LStat row[5]=DeltaSeq row[6]=Fhinfo row[7]=Fhnode
+   */
+
+  ASSERT(colc == 8);
+
+  file_db_entry ent{};
+
+  ent.path = colv[0];
+  ent.filename = colv[1];
+
+  ent.fidx = atoll(colv[2]);
+  ent.jobid = atoll(colv[3]);
+  ent.dseq = atoll(colv[5]);
+
+  int32_t LinkFI = {};
+  DecodeStat(colv[4], &ent.lstat, sizeof(ent.lstat), &LinkFI);
+
+  ent.link_fidx = LinkFI;
+
+  ent.info.fh_info = atoll(colv[6]);
+  ent.info.fh_node = atoll(colv[7]);
+
+  return ent;
+}
+
+struct handler_ctx {
+  file_tree tree;
+
+  size_t insertion_count;
+};
+
+int Handler(void* ctx, int colc, char** colv)
+{
+
+  auto db_entry = parse_cols(colc, colv);
+
+  auto* hctx = static_cast<handler_ctx*>(ctx);
+  auto* ft = &hctx->tree;
+  hctx->insertion_count += 1;
+
+  auto& dir = ft->find(db_entry.path);
+
+  auto& current = * [&] {
+    if (db_entry.filename && db_entry.filename[0]) {
+      return &ft->find_from(dir, db_entry.filename);
+    } else {
+      return &dir;
+    }
+  } ();
+
+#if 0
+  auto p = current.full_path();
+
+  std::string p2 = db_entry.path;
+  if (db_entry.filename && db_entry.filename[0]) {
+    if (p2.back() != '/') p2 += "/";
+    p2 += db_entry.filename;
+  }
+
+  if (p2.back() == '/') { p2.pop_back(); }
+
+  ASSERT(p == p2);
+#endif
+
+  auto version = [&]() -> entry_base* {
+    if (db_entry.info.fh_info || db_entry.info.fh_node) {
+      auto* ndmp = ft->alloc_ndmp();
+      ndmp->info = db_entry.info;
+      return ndmp;
+    }
+    return ft->alloc_default();
+  } ();
+
+  version->delta_seq = db_entry.dseq;
+  version->file_index = db_entry.fidx;
+  version->job_id = db_entry.jobid;
+
+  current.value->swap_version(version);
+
+  return 0;
+}
+
+template <typename T>
+std::pair<std::size_t, std::size_t> count_tree(const node<T>* n)
+{
+  auto names = n->names();
+  auto children = n->children();
+  std::size_t count = names.size();
+  std::size_t size = 0;
+  for (size_t i = 0; i < names.size(); ++i) {
+    size += strlen(names[i]);
+
+    auto [ccount, csize] = count_tree(children[i]);
+
+    count += ccount;
+    size += csize;
+  }
+
+  return { count, size };
+}
+
+template <typename T>
+void print_tree(UaContext* ua,
+                const node<T>* n, size_t indent = 0)
+{
+  auto indentation = std::string(indent, ' ');
+  for (size_t i = 0; i < n->names().size(); ++i) {
+    ua->SendMsg("%s%s\n",
+                indentation.c_str(),
+                n->names()[i]);
+
+    print_tree(ua, n->children()[i], indent + 1);
+  }
+}
+
+
+
+bool TestCmd(UaContext* ua, const char*)
+{
+
+  if (!OpenDb(ua)) {
+    ua->ErrorMsg("Cant open db\n");
+    return true;
+  }
+  std::string jobids{};
+  if (auto i = FindArgWithValue(ua, NT_("jobid")); i >= 0) {
+    jobids = ua->argv[i];
+  } else {
+    ua->ErrorMsg("No jobid(s) given\n");
+    return true;
+  }
+  bool use_md5 = false;
+  bool use_delta = true;
+  handler_ctx ctx{};
+
+  auto start = std::chrono::steady_clock::now();
+  ua->db->GetFileList(ua->jcr, jobids.c_str(), use_md5, use_delta,
+                      Handler, &ctx);
+  auto end = std::chrono::steady_clock::now();
+
+  auto [count, size] = ctx.tree.structure.name_size();
+  auto [ocount, osize] = count_tree(ctx.tree.structure.root());
+  ua->SendMsg("Inserted %llu entries in %lluns. Needed %llu (old: %llu) components worth %llu (old: %llu) bytes\n",
+              static_cast<long long unsigned>(ctx.insertion_count),
+              static_cast<long long unsigned>(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()),
+              static_cast<long long unsigned>(count),
+              static_cast<long long unsigned>(ocount),
+              static_cast<long long unsigned>(size),
+              static_cast<long long unsigned>(osize));
+
+  print_tree(ua, ctx.tree.structure.root());
 
   return true;
 }
