@@ -42,62 +42,79 @@ struct allocator {
 
 #include <span>
 
+template <typename T>
+struct intrusive_list {
+  intrusive_list<T>* next;
+};
+
 template <typename UserT>
-struct node {
+struct node : intrusive_list<node<UserT>> {
 private:
   node* parent{};
-  std::vector<const char*> names_{};
-  std::vector<node*> children_{};
+  char const* name_{};
+  intrusive_list<node> children_{};
 
 public:
   UserT* value{nullptr};
 
-  node() = default;
+  node() {
+    children_.next = &children_;
+  }
+
+  struct iter {
+    intrusive_list<node>* current;
+
+    node* operator*() noexcept {
+      return static_cast<node*>(current);
+    }
+    iter& operator++() noexcept {
+      current = current->next;
+      return *this;
+    }
+    bool operator==(const iter& other) const noexcept {
+      return current == other.current;
+    }
+  };
+
+  const char* name() const noexcept { return name_; }
+
+  iter begin() noexcept { return iter{ children_.next }; }
+  iter end() noexcept { return iter{ &children_ }; }
+
   node(const node&) = delete;
   node& operator=(const node&) = delete;
   node(node&&) = delete;
   node& operator=(node&&) = delete;
 
-  std::span<const char * const> names() const noexcept {
-    return { names_.begin(), names_.size() };
-  }
-  std::span<node const * const> children() const noexcept {
-    return { children_.begin(), children_.size() };
-  }
-
   node* find_or_emplace(const char* name,
                         allocator<node>& alloc)
   {
-    for (size_t i = 0; i < names_.size(); ++i) {
-      if (names_[i] == name) {
-        return children_[i];
+    for (auto* child : *this) {
+      if (child->name_ == name) {
+        return child;
       }
     }
 
     auto* child = alloc.alloc();
     child->parent = this;
+    child->name_ = name;
 
-    names_.push_back(name);
-    children_.push_back(child);
+    child->next = children_.next;
+    children_.next = child;
 
     return child;
   }
 
   std::string full_path() const {
     if (!parent) {
-      return "";
+      return name_;
     }
 
     std::string path = parent->full_path();
     path += "/";
-    for (size_t i = 0; i < parent->children_.size(); ++i) {
-      if (parent->children_[i] == this) {
-        path += parent->names_[i];
-        return path;
-      }
-    }
+    path += name_;
 
-    ASSERT(0);
+    return path;
   }
 };
 
