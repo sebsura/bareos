@@ -2967,22 +2967,21 @@ int Handler(void* ctx, int colc, char** colv)
   version->file_index = db_entry.fidx;
   version->job_id = db_entry.jobid;
 
-  current.value->swap_version(version);
+  swap_version(&current.value, version);
 
   return 0;
 }
 
 template <typename T>
-std::pair<std::size_t, std::size_t> count_tree(const node<T>* n)
+std::pair<std::size_t, std::size_t> count_tree(node<T>* n)
 {
-  auto names = n->names();
-  auto children = n->children();
-  std::size_t count = names.size();
+  std::size_t count = 0;
   std::size_t size = 0;
-  for (size_t i = 0; i < names.size(); ++i) {
-    size += strlen(names[i]);
 
-    auto [ccount, csize] = count_tree(children[i]);
+  for (auto* child : *n) {
+    size += strlen(child->name());
+    count += 1;
+    auto [ccount, csize] = count_tree(child);
 
     count += ccount;
     size += csize;
@@ -2996,12 +2995,12 @@ void print_tree(UaContext* ua,
                 const node<T>* n, size_t indent = 0)
 {
   auto indentation = std::string(indent, ' ');
-  for (size_t i = 0; i < n->names().size(); ++i) {
+
+  for (auto* child : *n) {
     ua->SendMsg("%s%s\n",
                 indentation.c_str(),
-                n->names()[i]);
-
-    print_tree(ua, n->children()[i], indent + 1);
+                child->name());
+    print_tree(ua, child, indent + 1);
   }
 }
 
@@ -3032,15 +3031,18 @@ bool TestCmd(UaContext* ua, const char*)
 
   auto [count, size] = ctx.tree.structure.name_size();
   auto [ocount, osize] = count_tree(ctx.tree.structure.root());
-  ua->SendMsg("Inserted %llu entries in %lluns. Needed %llu (old: %llu) components worth %llu (old: %llu) bytes\n",
+  ua->SendMsg("Inserted %llu entries in %lluns. Needed %llu (old: %llu) components worth %llu (old: %llu) bytes\n Node count = %llu/%llu\n",
               static_cast<long long unsigned>(ctx.insertion_count),
               static_cast<long long unsigned>(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()),
               static_cast<long long unsigned>(count),
               static_cast<long long unsigned>(ocount),
               static_cast<long long unsigned>(size),
-              static_cast<long long unsigned>(osize));
+              static_cast<long long unsigned>(osize),
+              static_cast<long long unsigned>(ctx.tree.structure.count()),
+              static_cast<long long unsigned>(ctx.tree.structure.cap())
+             );
 
-  print_tree(ua, ctx.tree.structure.root());
+  //print_tree(ua, ctx.tree.structure.root());
 
   return true;
 }

@@ -55,7 +55,7 @@ private:
   intrusive_list<node> children_{};
 
 public:
-  UserT* value{nullptr};
+  UserT value{};
 
   node() {
     children_.next = &children_;
@@ -375,9 +375,7 @@ struct ndmp_info {
   uint64_t fh_node;
 };
 
-struct entry_base {
-  entry_base* left{};
-  entry_base* right{};
+struct entry_base : intrusive_list<entry_base> {
   FileIndex file_index{};
   DeltaSeq delta_seq{};
   JobId job_id{};
@@ -389,73 +387,14 @@ struct ndmp_entry : public entry_base {
   ndmp_info info;
 };
 
-struct versioned_entry {
-  using Version = JobId;
-
-  entry_base sentinel{};
-
-  versioned_entry() {
-    sentinel.left = &sentinel;
-    sentinel.right = &sentinel;
-  }
-
-  entry_base* get_version(Version version)
-  {
-    for (auto* current = sentinel.right;
-         current != &sentinel; current = current->right) {
-      if (current->job_id == version) { return current; }
-    }
-    return nullptr;
-  }
-
-  void chain_left(entry_base* base, entry_base *left)
-  {
-    left->right = base;
-    left->left = base->left;
-    left->left->right = left;
-    base->left = left;
-  }
-
-  void chain_right(entry_base* base, entry_base *right)
-  {
-    right->left = base;
-    right->right = base->right;
-    right->right->left = right;
-    base->right = right;
-  }
-
-  void unchain(entry_base* base)
-  {
-    base->left->right = base->right;
-    base->right->left = base->left;
-    base->right = nullptr;
-    base->left = nullptr;
-  }
-
-  // returns the old version (or nullptr if there was none)
-  entry_base* swap_version(entry_base* ent) {
-    Version version = ent->job_id;
-
-    auto* found = get_version(version);
-
-    if (!found) {
-      chain_left(&sentinel, ent);
-      return nullptr;
-    }
-
-    chain_right(found, ent);
-    unchain(found);
-    return found;
-  }
-};
-
 #include <optional>
 
 struct file_tree {
-  allocator<versioned_entry> entries;
   allocator<ndmp_entry> ndmp;
   allocator<default_entry> def;
-  tree<versioned_entry> structure;
+  tree<intrusive_list<entry_base>> structure;
+
+  using Node = decltype(structure)::Node;
 
   ndmp_entry* alloc_ndmp() noexcept
   {
@@ -467,23 +406,50 @@ struct file_tree {
     return def.alloc();
   }
 
-  node<versioned_entry>& find(std::string_view path) noexcept
+  Node& find(std::string_view path) noexcept
   {
     auto* found = structure.get_path(path);
-    if (!found->value) {
-      found->value = entries.alloc();
+    if (found->value.next == nullptr) {
+      found->value.next = &found->value;
     }
     return *found;
   }
 
-  node<versioned_entry>& find_from(node<versioned_entry>& ent,
-                                   std::string_view path) noexcept
+  Node& find_from(Node& ent, std::string_view path) noexcept
   {
     auto* found = structure.get_path(path, &ent);
-    if (!found->value) {
-      found->value = entries.alloc();
+    if (found->value.next == nullptr) {
+      found->value.next = &found->value;
     }
     return *found;
   }
 };
 
+entry_base* swap_version(intrusive_list<entry_base>* sentinel,
+                         entry_base* new_ent)
+{
+  auto* prev = sentinel;
+  auto* current = sentinel->next;
+  while (current != sentinel) {
+
+    auto* val = static_cast<entry_base*>(current);
+    if (val->job_id == new_ent->job_id) {
+      // remove current/val & insert new_int in its place
+      new_ent->next = val->next;
+      prev->next = new_ent;
+      val->next = nullptr;
+
+      return val;
+    }
+
+    prev = current;
+    current = current->next;
+  }
+
+  // insert new_int after the last entry (i.e. prev)
+  new_ent->next = sentinel;
+  prev->next = new_ent;
+
+  // there is no old version
+  return nullptr;
+}
