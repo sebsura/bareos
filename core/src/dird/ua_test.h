@@ -86,21 +86,30 @@ public:
   node(node&&) = delete;
   node& operator=(node&&) = delete;
 
+
   node* find_or_emplace(const char* name,
                         allocator<node>& alloc)
   {
-    for (auto* child : *this) {
-      if (child->name_ == name) {
-        return child;
-      }
+    auto ptr = intptr_t(name);
+    auto* prev = &children_;
+    auto* current = children_.next;
+    while (current != &children_) {
+      auto elem = static_cast<node*>(current);
+      auto child_ptr = intptr_t(elem->name_);
+
+      if (child_ptr == ptr) { return elem; }
+      if (child_ptr > ptr) { break; }
+
+      prev = current;
+      current = current->next;
     }
 
     auto* child = alloc.alloc();
     child->parent = this;
     child->name_ = name;
 
-    child->next = children_.next;
-    children_.next = child;
+    child->next = prev->next;
+    prev->next = child;
 
     return child;
   }
