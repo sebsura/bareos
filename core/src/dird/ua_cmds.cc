@@ -2875,6 +2875,7 @@ static bool VersionCmd(UaContext* ua, const char*)
   return true;
 }
 
+namespace {
 struct file_db_entry{
   const char* path;
   const char* filename;
@@ -3004,7 +3005,48 @@ void print_tree(UaContext* ua,
   }
 }
 
+  struct command_context {
+    file_tree *tree;
+    file_tree::Node *current;
 
+    command_context(file_tree& tre)
+      : tree{&tre}
+    {
+      current = tree->structure.root();
+    }
+  };
+
+  bool NewLs(UaContext* ua, command_context& ctx)
+  {
+    (void) ua;
+    (void) ctx;
+    return true;
+  }
+  bool NewMark(UaContext* ua, command_context& ctx)
+  {
+    (void) ua;
+    (void) ctx;
+    return true;
+  }
+  bool NewUnmark(UaContext* ua, command_context& ctx)
+  {
+    (void) ua;
+    (void) ctx;
+    return true;
+  }
+  bool NewCd(UaContext* ua, command_context& ctx)
+  {
+    (void) ua;
+    (void) ctx;
+    return true;
+  }
+  bool NewLsMark(UaContext* ua, command_context& ctx)
+  {
+    (void) ua;
+    (void) ctx;
+    return true;
+  }
+}
 
 bool TestCmd(UaContext* ua, const char*)
 {
@@ -3041,6 +3083,52 @@ bool TestCmd(UaContext* ua, const char*)
               static_cast<long long unsigned>(ctx.tree.structure.count()),
               static_cast<long long unsigned>(ctx.tree.structure.cap())
              );
+
+
+  auto* user = ua->UA_sock;
+
+
+  user->signal(BNET_START_RTREE);
+  bool quit = false;
+  command_context cctx{ctx.tree};
+  while (!quit) {
+    if (!GetCmd(ua, "$ ", true)) { break; }
+
+    if (ua->api) { user->signal(BNET_CMD_BEGIN); }
+
+    ParseArgsOnly(ua->cmd, ua->args, &ua->argc, ua->argk, ua->argv,
+                  MAX_CMD_ARGS);
+    if (ua->argc == 0) {
+      ua->WarningMsg(T_("Invalid command \"%s\". Enter \"done\" to exit.\n"),
+                     ua->cmd);
+      if (ua->api) { user->signal(BNET_CMD_FAILED); }
+      continue;
+    }
+    std::string_view command{ua->argk[0]};
+    if (command == std::string_view{"quit"}) {
+      quit = true;
+    }
+    else if (command == std::string_view{"ls"}) {
+      if (!NewLs(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+    }
+    else if (command == std::string_view{"mark"}) {
+      if (!NewMark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+    }
+    else if (command == std::string_view{"unmark"}) {
+      if (!NewUnmark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+    }
+    else if (command == std::string_view{"cd"}) {
+      if (!NewCd(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+    }
+    else if (command == std::string_view{"lsmark"}) {
+      if (!NewLsMark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+    }
+
+    ua->SendMsg("Got command = '%s'\n", ua->argk[0]);
+
+    if (ua->api) { user->signal(BNET_CMD_OK); }
+  }
+  user->signal(BNET_END_RTREE);
 
   //print_tree(ua, ctx.tree.structure.root());
 
