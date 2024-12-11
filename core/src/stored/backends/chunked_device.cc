@@ -334,7 +334,7 @@ static void UpdateChunkIoRequest(void* old_item, void* new_item)
     new_req->release = false;
   } else {
     new_req->release = false;  // we must keep the new buffer
-    old_req->release = false;  // but should discard the old one
+    old_req->release = true;   // but should discard the old one
     std::swap(*old_req, *new_req);
   }
 }
