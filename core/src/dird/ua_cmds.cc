@@ -61,6 +61,7 @@
 #include "dird/reload.h"
 
 #include <chrono>
+#include <cmath>
 #include "ua_test.h"
 
 namespace directordaemon {
@@ -2918,9 +2919,58 @@ file_db_entry parse_cols(int colc, char** colv)
 
 struct handler_ctx {
   file_tree tree;
+  PathCache<file_tree::Node> cache;
+  std::uint64_t pre_cache{}, post_cache{};
 
-  size_t insertion_count;
+  struct {
+    std::chrono::nanoseconds cache{};
+    std::chrono::nanoseconds find_dir{};
+    std::chrono::nanoseconds find_file{};
+    std::chrono::nanoseconds version{};
+  } time;
+
+  size_t insertion_count{};
+  size_t file_count{};
 };
+
+  struct analysis {
+    std::uint64_t min;
+    std::uint64_t max;
+    double avg;
+    double var;
+  };
+
+  analysis analyze(const std::vector<std::uint64_t>& v)
+  {
+    double avg = [&] {
+      uint64_t sum = 0;
+      for (auto val : v) { sum += val; }
+      return (double) sum / (double) v.size();
+    } ();
+
+    double var = [&] {
+      double sum = 0;
+      for (auto val : v) {
+        double normalised = val - avg;
+        sum += normalised * normalised;
+      }
+      return std::sqrtl(sum) / (double) (v.size() - 1);
+    } ();
+
+    auto [min, max] = [&] {
+      auto l = v[0];
+      auto r = v[0];
+
+      for (auto val : v) {
+        if (val < l) { l = val; }
+        if (val > r) { r = val; }
+      }
+
+      return std::make_pair( l, r );
+    }();
+
+    return {min, max, avg, var};
+  }
 
 int Handler(void* ctx, int colc, char** colv)
 {
@@ -2931,15 +2981,37 @@ int Handler(void* ctx, int colc, char** colv)
   auto* ft = &hctx->tree;
   hctx->insertion_count += 1;
 
-  auto& dir = ft->find(db_entry.path);
+  std::string_view dir_path{ db_entry.path };
 
-  auto& current = * [&] {
-    if (db_entry.filename && db_entry.filename[0]) {
-      return &ft->find_from(dir, db_entry.filename);
-    } else {
-      return &dir;
-    }
-  } ();
+  // hctx->pre_cache += dir_path.size();
+
+  // auto start_c = std::chrono::steady_clock::now();
+  auto [rest, node] = hctx->cache.find(dir_path, ft->structure.root());
+  // auto end_c = std::chrono::steady_clock::now();
+  // hctx->time.cache += std::chrono::duration_cast<std::chrono::nanoseconds>(end_c - start_c);
+
+  hctx->post_cache += rest.size();
+
+  //auto start_d = std::chrono::steady_clock::now();
+  auto& dir = ft->find_from(*node, rest);
+  //auto end_d = std::chrono::steady_clock::now();
+  //hctx->time.find_dir += std::chrono::duration_cast<std::chrono::nanoseconds>(end_d - start_d);
+
+  hctx->cache.enter( dir_path, &dir );
+
+  if (db_entry.filename && db_entry.filename[0]) {
+    hctx->file_count += 1;
+  }
+  auto* current_ptr = &dir;
+  if (db_entry.filename && db_entry.filename[0]) {
+    //hctx->file_count += 1;
+    //auto start_f = std::chrono::steady_clock::now();
+    current_ptr = &ft->child_of(dir, db_entry.filename);
+    //auto end_f = std::chrono::steady_clock::now();
+    //hctx->time.find_file += std::chrono::duration_cast<std::chrono::nanoseconds>(end_f - start_f);
+  }
+  (void) current_ptr;
+  //auto& current = *current_ptr;
 
 #if 0
   auto p = current.full_path();
@@ -2955,20 +3027,23 @@ int Handler(void* ctx, int colc, char** colv)
   ASSERT(p == p2);
 #endif
 
-  auto version = [&]() -> entry_base* {
-    if (db_entry.info.fh_info || db_entry.info.fh_node) {
-      auto* ndmp = ft->alloc_ndmp();
-      ndmp->info = db_entry.info;
-      return ndmp;
-    }
-    return ft->alloc_default();
-  } ();
+  //auto start_v = std::chrono::steady_clock::now();
+  // auto version = [&]() -> entry_base* {
+  //   if (db_entry.info.fh_info || db_entry.info.fh_node) {
+  //     auto* ndmp = ft->alloc_ndmp();
+  //     ndmp->info = db_entry.info;
+  //     return ndmp;
+  //   }
+  //   return ft->alloc_default();
+  // } ();
 
-  version->delta_seq = db_entry.dseq;
-  version->file_index = db_entry.fidx;
-  version->job_id = db_entry.jobid;
+  // version->delta_seq = db_entry.dseq;
+  // version->file_index = db_entry.fidx;
+  // version->job_id = db_entry.jobid;
 
-  swap_version(&current.value, version);
+  // swap_version(&current.value, version);
+  // auto end_v = std::chrono::steady_clock::now();
+  // hctx->time.version += std::chrono::duration_cast<std::chrono::nanoseconds>(end_v - start_v);
 
   return 0;
 }
@@ -2992,6 +3067,21 @@ std::pair<std::size_t, std::size_t> count_tree(node<T>* n)
 }
 
 template <typename T>
+void count_dir_sizes(node<T>* n, std::vector<std::uint64_t>& v)
+{
+  std::size_t children_count = 0;
+
+  for (auto* child : *n) {
+    children_count += 1;
+    count_dir_sizes(child, v);
+  }
+
+  if (children_count != 0) {
+    v.push_back(children_count);
+  }
+}
+
+template <typename T>
 void print_tree(UaContext* ua,
                 const node<T>* n, size_t indent = 0)
 {
@@ -3008,6 +3098,7 @@ void print_tree(UaContext* ua,
   struct command_context {
     file_tree *tree;
     file_tree::Node *current;
+    std::unordered_set<file_tree::Node*> marked{};
 
     command_context(file_tree& tre)
       : tree{&tre}
@@ -3018,8 +3109,9 @@ void print_tree(UaContext* ua,
 
   bool NewLs(UaContext* ua, command_context& ctx)
   {
-    (void) ua;
-    (void) ctx;
+    for (auto* child : *ctx.current) {
+      ua->SendMsg(" %s\n", child->name());
+    }
     return true;
   }
   bool NewMark(UaContext* ua, command_context& ctx)
@@ -3071,24 +3163,77 @@ bool TestCmd(UaContext* ua, const char*)
                       Handler, &ctx);
   auto end = std::chrono::steady_clock::now();
 
-  auto [count, size] = ctx.tree.structure.name_size();
-  auto [ocount, osize] = count_tree(ctx.tree.structure.root());
-  ua->SendMsg("Inserted %llu entries in %lluns. Needed %llu (old: %llu) components worth %llu (old: %llu) bytes\n Node count = %llu/%llu\n",
-              static_cast<long long unsigned>(ctx.insertion_count),
-              static_cast<long long unsigned>(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()),
-              static_cast<long long unsigned>(count),
-              static_cast<long long unsigned>(ocount),
-              static_cast<long long unsigned>(size),
-              static_cast<long long unsigned>(osize),
-              static_cast<long long unsigned>(ctx.tree.structure.count()),
-              static_cast<long long unsigned>(ctx.tree.structure.cap())
-             );
+  [[maybe_unused]] auto diff = end - start;
+  ua->SendMsg(R"MULTILINE(GENERAL
+  Count = %llu
+  Time = %llu
+)MULTILINE",
+               static_cast<long long unsigned>(ctx.insertion_count),
+               static_cast<long long unsigned>(std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count()));
+  ua->SendMsg(R"MULTILINE(CACHE
+  Hits = %llun
+)MULTILINE",
+              static_cast<long long unsigned>(ctx.cache.cache_hits));
+   auto [count, size] = ctx.tree.structure.name_size();
+   auto [ocount, osize] = count_tree(ctx.tree.structure.root());
+   ua->SendMsg("Needed %llu (old: %llu) components worth %llu (old: %llu) bytes\n Node count = %llu/%llu\n",
+               static_cast<long long unsigned>(count),
+               static_cast<long long unsigned>(ocount),
+               static_cast<long long unsigned>(size),
+               static_cast<long long unsigned>(osize),
+               static_cast<long long unsigned>(ctx.tree.structure.count()),
+               static_cast<long long unsigned>(ctx.tree.structure.cap())
+              );
+     ua->SendMsg(R"MULTILINE(DATA
+  Count = %llu\n
+  Dir Count = %llu\n
+  File Count = %llu\n
+)MULTILINE",
+                 ctx.insertion_count,
+                 ctx.insertion_count - ctx.file_count,
+                 ctx.file_count);
+
+   {
+     std::vector<std::uint64_t> dir_count;
+     count_dir_sizes(ctx.tree.structure.root(), dir_count);
+     auto res = analyze(dir_count);
+     ua->SendMsg(R"MULTILINE(ANALYSIS
+  Min Children = %llu\n
+  Max Children = %llu\n
+  Avg Children = %lf\n
+  Var Children = %lf\n
+)MULTILINE",
+                 res.min, res.max,  res.avg, res.var);
+   }
+//   ua->SendMsg(
+//               R"MULTILINE(pre cache = %llu, post cache = %llu
+// TIMING
+//   cache   = %20lluns (%5lluns / entry)
+//   dir     = %20lluns (%5lluns / entry)
+//   file    = %20lluns (%5lluns / entry)
+//   version = %20lluns (%5lluns / entry)
+// )MULTILINE",
+//               ctx.pre_cache, ctx.post_cache,
+//               static_cast<long long unsigned>(ctx.time.cache.count()),
+//               static_cast<long long unsigned>(ctx.time.cache.count())
+//               / ctx.insertion_count,
+//               static_cast<long long unsigned>(ctx.time.find_dir.count()),
+//               static_cast<long long unsigned>(ctx.time.find_dir.count())
+//               / ctx.insertion_count,
+//               static_cast<long long unsigned>(ctx.time.find_file.count()),
+//               static_cast<long long unsigned>(ctx.time.find_file.count())
+//               / ctx.file_count,
+//               static_cast<long long unsigned>(ctx.time.version.count()),
+//               static_cast<long long unsigned>(ctx.time.version.count())
+//               / ctx.insertion_count
+
+//              );
 
 
   auto* user = ua->UA_sock;
 
 
-  user->signal(BNET_START_RTREE);
+  //user->signal(BNET_START_RTREE);
   bool quit = false;
   command_context cctx{ctx.tree};
   while (!quit) {
@@ -3128,7 +3273,7 @@ bool TestCmd(UaContext* ua, const char*)
 
     if (ua->api) { user->signal(BNET_CMD_OK); }
   }
-  user->signal(BNET_END_RTREE);
+  //user->signal(BNET_END_RTREE);
 
   //print_tree(ua, ctx.tree.structure.root());
 

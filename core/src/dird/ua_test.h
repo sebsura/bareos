@@ -108,7 +108,7 @@ public:
     child->parent = this;
     child->name_ = name;
 
-    child->next = prev->next;
+    child->next = current;
     prev->next = child;
 
     return child;
@@ -236,11 +236,6 @@ static std::uint32_t common_path(std::string_view l, std::string_view r)
 
 template <typename T>
 struct PathCache {
-  PathCache(T* def)
-  {
-    (void) def;
-  }
-
   std::string current_path{};
   size_t cache_hits{};
   using Entry = std::pair<std::uint32_t, T*>;
@@ -257,11 +252,14 @@ struct PathCache {
       return { p, t };
     }
 
+    cache_hits += 1;
     auto found_size = entries[j-1].first;
     auto found_elem = entries[j-1].second;
 
     // we found it exactly
-    if (found_size == p.size()) { return { "", found_elem }; }
+    if (found_size == p.size()) {
+      return { "", found_elem };
+    }
 
     // +1 = remove /
     return { p.substr(found_size + 1), found_elem };
@@ -317,7 +315,6 @@ struct tree {
   {
   }
 
-  size_t cache_hits() const noexcept { return cache.cache_hits; }
   size_t count() const noexcept { return nodes.total_size; }
   size_t cap() const noexcept { return nodes.total_cap; }
 
@@ -328,10 +325,6 @@ struct tree {
 
   Node* get_path(std::string_view p, Node* current) noexcept
   {
-    std::string_view orig_p = p;
-
-    std::tie(p, current) = cache.find(p, current);
-
     while (p.size() != 0) {
       auto pos = p.find_first_of("/");
       auto comp = p.substr(0, pos);
@@ -346,9 +339,14 @@ struct tree {
       p.remove_prefix(pos + 1);
     }
 
-    cache.enter( orig_p, current );
-
     return current;
+  }
+
+  // p _may not_ contain a /, this only gets the immediate child
+  Node* get_child(std::string_view p, Node* current) noexcept
+  {
+    const char* name = intern_name(p);
+    return current->find_or_emplace(name, nodes);
   }
 
   Node* root() noexcept { return &root_; }
@@ -363,7 +361,6 @@ private:
   Node root_{};
   allocator<Node> nodes;
   StringCache name_list;
-  PathCache<Node> cache{&root_};
 
   const char* intern_name(std::string_view name)
   {
@@ -427,6 +424,14 @@ struct file_tree {
   Node& find_from(Node& ent, std::string_view path) noexcept
   {
     auto* found = structure.get_path(path, &ent);
+    if (found->value.next == nullptr) {
+      found->value.next = &found->value;
+    }
+    return *found;
+  }
+  Node& child_of(Node& ent, std::string_view comp) noexcept
+  {
+    auto* found = structure.get_child(comp, &ent);
     if (found->value.next == nullptr) {
       found->value.next = &found->value;
     }
