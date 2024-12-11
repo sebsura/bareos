@@ -1250,11 +1250,17 @@ static bool BuildDirectoryTree(UaContext* ua, RestoreContext* rx)
   ua->LogAuditEventInfoMsg(T_("Building directory tree for JobId(s) %s"),
                            rx->JobIds);
 
+  auto start = std::chrono::steady_clock::now();
   if (!ua->db->GetFileList(ua->jcr, rx->JobIds, false /* do not use md5 */,
                            true /* get delta */, InsertTreeHandler,
                            (void*)&tree)) {
     ua->ErrorMsg("%s", ua->db->strerror());
   }
+  auto end = std::chrono::steady_clock::now();
+
+  ua->InfoMsg("This took %lluns\n",
+              static_cast<long long unsigned>(std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count())
+             );
 
   if (*rx->BaseJobIds) {
     PmStrcat(rx->JobIds, ",");
