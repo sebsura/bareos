@@ -6,6 +6,8 @@
 #include <span>
 #include <memory_resource>
 
+#include <unordered_map>
+
 template <typename T>
 struct allocator {
   std::vector<std::unique_ptr<T[]>> chunks;
@@ -594,18 +596,31 @@ namespace idea2 {
 
   struct file_tree {
     struct file {
-      const char* name;
-      DeltaSeq delta_seq;
-      JobId job_id;
-      FileIndex file_index;
-      ndmp_info ndmp;
+      const char* name{};
+      FileIndex file_index{};
+      time_t ctime{};
+      // by transforming job_id into version_id (jobid[0] -> 0, jobid[1] -> 1, ...)
+      // we can ensure that this version id is smaller than e.g. 255, that is,
+      // it needs less than 8 bits for storage.  This means we can store it
+      // in the upper bits of the 64bit FileIndex
+      JobId job_id{};
+      std::uint32_t extra_info{};
+    };
+
+    // some extra information that is not used most of the time
+    struct extra_info {
+      DeltaSeq delta_seq{};
+      ndmp_info ndmp{};
     };
     struct directory {
-      std::vector<file> files;
+      std::unordered_map<const char*, std::uint64_t> files;
     };
 
     StringCache cache;
     tree<directory> dir_tree{&cache};
+
+    std::vector<file> file_data;
+    std::vector<extra_info> extra_data;
 
     using Node = tree<directory>::node;
 

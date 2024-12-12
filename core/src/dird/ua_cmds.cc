@@ -3009,25 +3009,28 @@ int Handler(void* ctx, int colc, char** colv)
   //auto start_f = std::chrono::steady_clock::now();
   //current_ptr = &ft->child_of(dir, db_entry.filename);
 
-  auto& vec = dir.value.files;
-  auto iter = std::lower_bound(vec.begin(), vec.end(),
-                               std::make_pair(fname, db_entry.jobid),
-                               [](const idea2::file_tree::file& n, auto& p) -> bool {
-                                 return (intptr_t)n.name < (intptr_t)p.first
-                                   || n.job_id < p.second;
-                               });
+  auto& files = dir.value.files;
 
-  if (iter != vec.end() &&
-      iter->name == fname
-      && iter->job_id == db_entry.jobid) {
-    // what to do here ? this should not happen ...
-  } else {
-    auto& file = *vec.emplace(iter);
-    file.name = fname;
-    file.file_index = db_entry.fidx;
-    file.delta_seq = db_entry.dseq;
-    file.job_id = db_entry.jobid;
-    file.ndmp = db_entry.info;
+  auto [found, inserted] = files.emplace(fname, hctx->tree.file_data.size());
+
+  if (!inserted) {
+    // ????
+    return 0;
+  }
+
+  auto& file = hctx->tree.file_data.emplace_back();
+  file.name = fname;
+  file.file_index = db_entry.fidx;
+  file.job_id = db_entry.jobid;
+  file.ctime = db_entry.lstat.st_ctime;
+
+  if (db_entry.dseq != 0
+      || db_entry.info.fh_info != 0
+      || db_entry.info.fh_node != 0) {
+
+    file.extra_info = hctx->tree.extra_data.size();
+
+    hctx->tree.extra_data.push_back({db_entry.dseq, db_entry.info});
   }
 
   //auto end_f = std::chrono::steady_clock::now();
@@ -3081,8 +3084,8 @@ std::pair<std::size_t, std::size_t> count_tree(Node* n)
 
     count += child.value.files.size();
 
-    for (auto& f : child.value.files) {
-      auto len = strlen(f.name);
+    for (auto& [name, _] : child.value.files) {
+      auto len = strlen(name);
       size += len;
       // we already counted the directory itself ...
       if (len == 0) { size -= 1; }
@@ -3141,10 +3144,16 @@ void print_tree(UaContext* ua,
   [[maybe_unused]] bool NewLs(UaContext* ua, command_context& ctx)
   {
     for (auto& child : ctx.stack.back()->children) {
-      ua->SendMsg("> %s\n", child.name);
+      ua->SendMsg("> %20s <mtime> (J%d)\n", child.name, 0);
     }
-    for (auto& child : ctx.stack.back()->value.files) {
-      ua->SendMsg("> %s\n", child.name);
+
+    char sdt[50];
+    for (auto [name, id] : ctx.stack.back()->value.files) {
+
+      auto& info = ctx.tree->file_data[id];
+      bstrftimes(sdt, sizeof(sdt), info.ctime);
+
+      ua->SendMsg("> %20s <%s> (J%d)\n", name, sdt, info.job_id);
     }
     return true;
   }
@@ -3231,6 +3240,34 @@ void print_tree(UaContext* ua,
   }
 }
 
+std::size_t TotalFileCount(UaContext* ua,
+                          const char* jobids)
+{
+  std::size_t total_files = 0;
+  for (const char* p = jobids;;) {
+    char ed1[50];
+    JobId_t JobId;
+    int status = GetNextJobidFromList(&p, &JobId);
+    ua->InfoMsg("status = %d, jobid=%d\n", status, JobId);
+    if (status < 0) {
+      ua->ErrorMsg(T_("Invalid JobId in list.\n"));
+      return 0;
+    }
+    if (status == 0) { break; }
+    JobDbRecord jr{};
+    jr.JobId = JobId;
+    if (!ua->db->GetJobRecord(ua->jcr, &jr)) {
+      ua->ErrorMsg(T_("Unable to get Job record for JobId=%s: ERR=%s\n"),
+                   edit_int64(JobId, ed1), ua->db->strerror());
+      return 0;
+    }
+    total_files += jr.JobFiles;
+  }
+
+  ua->InfoMsg("File Count = %llu\n", total_files);
+  return total_files;
+}
+
 bool TestCmd(UaContext* ua, const char*)
 {
 
@@ -3249,6 +3286,7 @@ bool TestCmd(UaContext* ua, const char*)
   bool use_delta = true;
   handler_ctx ctx{};
 
+  ctx.tree.file_data.reserve(TotalFileCount(ua, jobids.c_str()));
   auto start = std::chrono::steady_clock::now();
   ua->db->GetFileList(ua->jcr, jobids.c_str(), use_md5, use_delta,
                       Handler, &ctx);
