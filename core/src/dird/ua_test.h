@@ -236,6 +236,22 @@ static std::uint32_t common_path(std::string_view l, std::string_view r)
   return common;
 }
 
+template <typename K, typename V>
+struct SimpleCache {
+  K k;
+  V* v;
+
+  V* find(K test_k) {
+    if (k == test_k) { return v; }
+    return nullptr;
+  }
+
+  void enter(K new_k, V* new_v) {
+    k = new_k;
+    v = new_v;
+  }
+};
+
 template <typename T>
 struct PathCache {
   std::string current_path{};
@@ -377,6 +393,7 @@ private:
 using DeltaSeq = std::uint32_t;
 using FileIndex = std::uint64_t;
 using JobId = std::uint32_t;
+using PathId = std::uint64_t;
 
 struct ndmp_info {
   uint64_t fh_info;

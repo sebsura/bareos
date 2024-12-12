@@ -1232,7 +1232,7 @@ bool BareosDb::GetFileList(JobControlRecord*,
    * Migration */
   Mmsg(query,
        "SELECT Path.Path, T1.Name, T1.FileIndex, T1.JobId, LStat, DeltaSeq, "
-       "MD5, Fhinfo, Fhnode "
+       "MD5, Fhinfo, Fhnode, Path.PathId "
        "FROM ( %s ) AS T1 "
        "JOIN Path ON (Path.PathId = T1.PathId) "
        "WHERE FileIndex > 0 "

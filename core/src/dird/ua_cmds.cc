@@ -2886,6 +2886,7 @@ struct file_db_entry{
   struct stat lstat;
   DeltaSeq dseq;
   ndmp_info info;
+  PathId path_id;
 };
 
 file_db_entry parse_cols(int colc, char** colv)
@@ -2895,7 +2896,7 @@ file_db_entry parse_cols(int colc, char** colv)
    * row[3]=JobId row[4]=LStat row[5]=DeltaSeq row[6]=Fhinfo row[7]=Fhnode
    */
 
-  ASSERT(colc == 8);
+  ASSERT(colc == 9);
 
   file_db_entry ent{};
 
@@ -2914,12 +2915,17 @@ file_db_entry parse_cols(int colc, char** colv)
   ent.info.fh_info = atoll(colv[6]);
   ent.info.fh_node = atoll(colv[7]);
 
+  ent.path_id = atoll(colv[8]);
+
   return ent;
 }
 
 struct handler_ctx {
   idea2::file_tree tree;
   PathCache<idea2::file_tree::Node> cache;
+  SimpleCache<PathId, idea2::file_tree::Node> cache1{
+    std::numeric_limits<PathId>::max(), nullptr
+  };
   std::uint64_t pre_cache{}, post_cache{};
 
   struct {
@@ -2980,23 +2986,31 @@ int Handler(void* ctx, int colc, char** colv)
   auto* ft = &hctx->tree;
   hctx->insertion_count += 1;
 
-  std::string_view dir_path{ db_entry.path };
+  auto* dir_ptr = hctx->cache1.find( db_entry.path_id );
 
-  // hctx->pre_cache += dir_path.size();
+  if (!dir_ptr) {
+    std::string_view dir_path{ db_entry.path };
 
-  // auto start_c = std::chrono::steady_clock::now();
-  auto [rest, node] = hctx->cache.find(dir_path, ft->root());
-  // auto end_c = std::chrono::steady_clock::now();
-  // hctx->time.cache += std::chrono::duration_cast<std::chrono::nanoseconds>(end_c - start_c);
+    // hctx->pre_cache += dir_path.size();
 
-  hctx->post_cache += rest.size();
+    // auto start_c = std::chrono::steady_clock::now();
+    auto [rest, node] = hctx->cache.find(dir_path, ft->root());
+    // auto end_c = std::chrono::steady_clock::now();
+    // hctx->time.cache += std::chrono::duration_cast<std::chrono::nanoseconds>(end_c - start_c);
 
-  //auto start_d = std::chrono::steady_clock::now();
-  auto& dir = ft->mkpath_from(*node, rest);
-  //auto end_d = std::chrono::steady_clock::now();
-  //hctx->time.find_dir += std::chrono::duration_cast<std::chrono::nanoseconds>(end_d - start_d);
+    hctx->post_cache += rest.size();
 
-  hctx->cache.enter( dir_path, &dir );
+    //auto start_d = std::chrono::steady_clock::now();
+    auto& found = ft->mkpath_from(*node, rest);
+    //auto end_d = std::chrono::steady_clock::now();
+    //hctx->time.find_dir += std::chrono::duration_cast<std::chrono::nanoseconds>(end_d - start_d);
+
+    hctx->cache.enter( dir_path, &found );
+    hctx->cache1.enter( db_entry.path_id, &found );
+
+    dir_ptr = &found;
+  }
+  auto& dir = *dir_ptr;
 
   auto* fname = [&] {
     if (db_entry.filename && db_entry.filename[0]) {
@@ -3006,8 +3020,6 @@ int Handler(void* ctx, int colc, char** colv)
       return ft->cache.intern("");
     }
   } ();
-  //auto start_f = std::chrono::steady_clock::now();
-  //current_ptr = &ft->child_of(dir, db_entry.filename);
 
   auto& files = dir.value.files;
 
@@ -3032,42 +3044,6 @@ int Handler(void* ctx, int colc, char** colv)
 
     hctx->tree.extra_data.push_back({db_entry.dseq, db_entry.info});
   }
-
-  //auto end_f = std::chrono::steady_clock::now();
-  //hctx->time.find_file += std::chrono::duration_cast<std::chrono::nanoseconds>(end_f - start_f);
-  //auto& current = *current_ptr;
-
-#if 0
-  auto p = current.full_path();
-
-  std::string p2 = db_entry.path;
-  if (db_entry.filename && db_entry.filename[0]) {
-    if (p2.back() != '/') p2 += "/";
-    p2 += db_entry.filename;
-  }
-
-  if (p2.back() == '/') { p2.pop_back(); }
-
-  ASSERT(p == p2);
-#endif
-
-  //auto start_v = std::chrono::steady_clock::now();
-  // auto version = [&]() -> entry_base* {
-  //   if (db_entry.info.fh_info || db_entry.info.fh_node) {
-  //     auto* ndmp = ft->alloc_ndmp();
-  //     ndmp->info = db_entry.info;
-  //     return ndmp;
-  //   }
-  //   return ft->alloc_default();
-  // } ();
-
-  // version->delta_seq = db_entry.dseq;
-  // version->file_index = db_entry.fidx;
-  // version->job_id = db_entry.jobid;
-
-  // swap_version(&current.value, version);
-  // auto end_v = std::chrono::steady_clock::now();
-  // hctx->time.version += std::chrono::duration_cast<std::chrono::nanoseconds>(end_v - start_v);
 
   return 0;
 }
@@ -3149,6 +3125,8 @@ void print_tree(UaContext* ua,
 
     char sdt[50];
     for (auto [name, id] : ctx.stack.back()->value.files) {
+
+      if (name[0] == '\0') { continue; }
 
       auto& info = ctx.tree->file_data[id];
       bstrftimes(sdt, sizeof(sdt), info.ctime);
