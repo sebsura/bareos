@@ -484,9 +484,27 @@ namespace idea2 {
       }
     };
 
-    node* find(std::string_view path)
+    node* find_or_create(std::string_view path, node* base)
     {
-      return find(path, &root);
+      tmp.clear();
+
+      for (size_t i = 0; i < path.size(); ++i) {
+        if (path[i] == '/') { tmp.push_back(i); }
+      }
+
+
+      auto current_start = 0;
+      node* current = base;
+
+      for (std::size_t end : tmp) {
+        std::string_view component = path.substr(current_start,
+                                                 end - current_start);
+
+        current = find_child_or_create(current, component);
+        current_start = end + 1;
+      }
+
+      return find_child_or_create(current, path.substr(current_start));
     }
 
     node* find(std::string_view path, node* base)
@@ -501,15 +519,20 @@ namespace idea2 {
       auto current_start = 0;
       node* current = base;
 
-      for (std::size_t end  : tmp) {
+      if (!current) { return nullptr; }
+
+      for (std::size_t end : tmp) {
         std::string_view component = path.substr(current_start,
                                                  end - current_start);
 
-        current = find_child_or_create(current, component);
+        current = find_child(current, component);
+
+        if (current == nullptr) { return nullptr; }
+
         current_start = end + 1;
       }
 
-      return find_child_or_create(current, path.substr(current_start));
+      return find_child(current, path.substr(current_start));
     }
 
     const char* intern(std::string_view v)
@@ -519,6 +542,7 @@ namespace idea2 {
 
     node* find_child_or_create(node* parent, std::string_view component)
     {
+      if (component.size() == 0) { return parent; }
       const char* interned = intern(component);
       auto iter = std::lower_bound(parent->children.begin(),
                                    parent->children.end(),
@@ -535,6 +559,25 @@ namespace idea2 {
       auto& child = *parent->children.emplace(iter);
       child.name = interned;
       return &child;
+    }
+
+    node* find_child(node* parent, std::string_view component)
+    {
+      if (component.size() == 0) { return parent; }
+      const char* interned = intern(component);
+      auto iter = std::lower_bound(parent->children.begin(),
+                                   parent->children.end(),
+                                   interned,
+                                   [](const node& n, const char* str) -> bool {
+                                     return (intptr_t)n.name < (intptr_t)str;
+                                   });
+
+      if (iter != parent->children.end() &&
+         iter->name == interned) {
+        return &*iter;
+      }
+
+      return nullptr;
     }
 
     tree(StringCache* c)
@@ -566,9 +609,14 @@ namespace idea2 {
 
     using Node = tree<directory>::node;
 
-    Node& find_from(Node& base, std::string_view path)
+    Node& mkpath_from(Node& base, std::string_view path)
     {
-      return *dir_tree.find(path, &base);
+      return *dir_tree.find_or_create(path, &base);
+    }
+
+    Node* find_from(Node& base, std::string_view path)
+    {
+      return dir_tree.find(path, &base);
     }
 
     std::pair<size_t, size_t> name_size() {

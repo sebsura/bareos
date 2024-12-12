@@ -2992,7 +2992,7 @@ int Handler(void* ctx, int colc, char** colv)
   hctx->post_cache += rest.size();
 
   //auto start_d = std::chrono::steady_clock::now();
-  auto& dir = ft->find_from(*node, rest);
+  auto& dir = ft->mkpath_from(*node, rest);
   //auto end_d = std::chrono::steady_clock::now();
   //hctx->time.find_dir += std::chrono::duration_cast<std::chrono::nanoseconds>(end_d - start_d);
 
@@ -3127,21 +3127,24 @@ void print_tree(UaContext* ua,
 }
 
   struct command_context {
-    file_tree *tree;
-    file_tree::Node *current;
+    idea2::file_tree *tree;
+    std::vector<idea2::file_tree::Node *> stack;
     std::unordered_set<file_tree::Node*> marked{};
 
-    command_context(file_tree& tre)
+    command_context(idea2::file_tree& tre)
       : tree{&tre}
     {
-      current = tree->structure.root();
+      stack.push_back(tree->root());
     }
   };
 
   [[maybe_unused]] bool NewLs(UaContext* ua, command_context& ctx)
   {
-    for (auto* child : *ctx.current) {
-      ua->SendMsg(" %s\n", child->name());
+    for (auto& child : ctx.stack.back()->children) {
+      ua->SendMsg("> %s\n", child.name);
+    }
+    for (auto& child : ctx.stack.back()->value.files) {
+      ua->SendMsg("> %s\n", child.name);
     }
     return true;
   }
@@ -3159,9 +3162,66 @@ void print_tree(UaContext* ua,
   }
   [[maybe_unused]] bool NewCd(UaContext* ua, command_context& ctx)
   {
-    (void) ua;
-    (void) ctx;
-    return true;
+    if (ua->argc > 1) {
+      std::string_view path { ua->argk[1] };
+      std::vector<std::size_t> comp_ends;
+      for (size_t i = 0; i < path.size(); ++i) {
+        if (path[i] == '/') { comp_ends.push_back(i); }
+      }
+
+      auto copy = ctx.stack;
+      auto current_start = 0;
+      auto* current = ctx.stack.back();
+      for (std::size_t end : comp_ends) {
+        std::string_view component = path.substr(current_start,
+                                                 end - current_start);
+
+        if (component == std::string_view{"."}) {
+          continue;
+        } else if (component == std::string_view{".."}) {
+          if (ctx.stack.size() > 1) {
+            ctx.stack.pop_back();
+          }
+          continue;
+        }
+
+        current = ctx.tree->find_from(*current, component);
+
+        if (!current) {
+          ua->ErrorMsg("Directory '%s' does not contain a directory '%s'\n",
+                       ctx.stack.back()->name, std::string{component}.c_str());
+          ctx.stack = std::move(copy);
+          return false;
+        }
+        ctx.stack.push_back(current);
+        current_start = end + 1;
+      }
+
+      {
+        auto component = path.substr(current_start);
+
+        if (component == std::string_view{"."}) {
+        } else if (component == std::string_view{".."}) {
+          if (ctx.stack.size() > 1) {
+            ctx.stack.pop_back();
+          }
+        } else {
+          current = ctx.tree->find_from(*current, component);
+
+          if (!current) {
+            ua->ErrorMsg("Directory '%s' does not contain a directory '%s'\n",
+                         ctx.stack.back()->name, std::string{component}.c_str());
+            ctx.stack = std::move(copy);
+            return false;
+          }
+
+          ctx.stack.push_back(current);
+        }
+      }
+    } else {
+      ctx.stack.resize(1);
+    }
+    return NewLs(ua, ctx);
   }
   [[maybe_unused]] bool NewLsMark(UaContext* ua, command_context& ctx)
   {
@@ -3263,48 +3323,49 @@ bool TestCmd(UaContext* ua, const char*)
 //              );
 
 
-  // auto* user = ua->UA_sock;
-  //user->signal(BNET_START_RTREE);
-  // bool quit = false;
-  // command_context cctx{ctx.tree};
-  // while (!quit) {
-  //   if (!GetCmd(ua, "$ ", true)) { break; }
+  auto* user = ua->UA_sock;
+  // user->signal(BNET_START_RTREE);
+  bool quit = false;
+  command_context cctx{ctx.tree};
+  while (!quit) {
+    if (!GetCmd(ua, "$ ", true)) { break; }
 
-  //   if (ua->api) { user->signal(BNET_CMD_BEGIN); }
+    if (ua->api) { user->signal(BNET_CMD_BEGIN); }
 
-  //   ParseArgsOnly(ua->cmd, ua->args, &ua->argc, ua->argk, ua->argv,
-  //                 MAX_CMD_ARGS);
-  //   if (ua->argc == 0) {
-  //     ua->WarningMsg(T_("Invalid command \"%s\". Enter \"done\" to exit.\n"),
-  //                    ua->cmd);
-  //     if (ua->api) { user->signal(BNET_CMD_FAILED); }
-  //     continue;
-  //   }
-  //   std::string_view command{ua->argk[0]};
-  //   if (command == std::string_view{"quit"}) {
-  //     quit = true;
-  //   }
-  //   else if (command == std::string_view{"ls"}) {
-  //     if (!NewLs(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
-  //   }
-  //   else if (command == std::string_view{"mark"}) {
-  //     if (!NewMark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
-  //   }
-  //   else if (command == std::string_view{"unmark"}) {
-  //     if (!NewUnmark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
-  //   }
-  //   else if (command == std::string_view{"cd"}) {
-  //     if (!NewCd(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
-  //   }
-  //   else if (command == std::string_view{"lsmark"}) {
-  //     if (!NewLsMark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
-  //   }
+    ParseArgsOnly(ua->cmd, ua->args, &ua->argc, ua->argk, ua->argv,
+                  MAX_CMD_ARGS);
+    if (ua->argc == 0) {
+      ua->WarningMsg(T_("Invalid command \"%s\". Enter \"done\" to exit.\n"),
+                     ua->cmd);
+      if (ua->api) { user->signal(BNET_CMD_FAILED); }
+      continue;
+    }
+    ua->SendMsg("Got command = '%s'\n", ua->argk[0]);
+    std::string_view command{ua->argk[0]};
+    if (command == std::string_view{"quit"}) {
+      quit = true;
+    }
+    else if (command == std::string_view{"ls"}) {
+      if (!NewLs(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+    }
+    else if (command == std::string_view{"mark"}) {
+      if (!NewMark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+    }
+    else if (command == std::string_view{"unmark"}) {
+      if (!NewUnmark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+    }
+    else if (command == std::string_view{"cd"}) {
+      if (!NewCd(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+    }
+    else if (command == std::string_view{"lsmark"}) {
+      if (!NewLsMark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+    } else {
+      ua->SendMsg("Unknown command\n");
+    }
 
-  //   ua->SendMsg("Got command = '%s'\n", ua->argk[0]);
-
-  //   if (ua->api) { user->signal(BNET_CMD_OK); }
-  // }
-  //user->signal(BNET_END_RTREE);
+    if (ua->api) { user->signal(BNET_CMD_OK); }
+  }
+  // user->signal(BNET_END_RTREE);
 
   //print_tree(ua, ctx.tree.structure.root());
 
