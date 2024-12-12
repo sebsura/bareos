@@ -2918,8 +2918,8 @@ file_db_entry parse_cols(int colc, char** colv)
 }
 
 struct handler_ctx {
-  file_tree tree;
-  PathCache<file_tree::Node> cache;
+  idea2::file_tree tree;
+  PathCache<idea2::file_tree::Node> cache;
   std::uint64_t pre_cache{}, post_cache{};
 
   struct {
@@ -2940,7 +2940,7 @@ struct handler_ctx {
     double var;
   };
 
-  analysis analyze(const std::vector<std::uint64_t>& v)
+  [[maybe_unused]] analysis analyze(const std::vector<std::uint64_t>& v)
   {
     double avg = [&] {
       uint64_t sum = 0;
@@ -2974,7 +2974,6 @@ struct handler_ctx {
 
 int Handler(void* ctx, int colc, char** colv)
 {
-
   auto db_entry = parse_cols(colc, colv);
 
   auto* hctx = static_cast<handler_ctx*>(ctx);
@@ -2986,7 +2985,7 @@ int Handler(void* ctx, int colc, char** colv)
   // hctx->pre_cache += dir_path.size();
 
   // auto start_c = std::chrono::steady_clock::now();
-  auto [rest, node] = hctx->cache.find(dir_path, ft->structure.root());
+  auto [rest, node] = hctx->cache.find(dir_path, ft->root());
   // auto end_c = std::chrono::steady_clock::now();
   // hctx->time.cache += std::chrono::duration_cast<std::chrono::nanoseconds>(end_c - start_c);
 
@@ -2999,18 +2998,40 @@ int Handler(void* ctx, int colc, char** colv)
 
   hctx->cache.enter( dir_path, &dir );
 
-  if (db_entry.filename && db_entry.filename[0]) {
-    hctx->file_count += 1;
+  auto* fname = [&] {
+    if (db_entry.filename && db_entry.filename[0]) {
+      hctx->file_count += 1;
+      return ft->cache.intern(db_entry.filename);
+    } else {
+      return ft->cache.intern("");
+    }
+  } ();
+  //auto start_f = std::chrono::steady_clock::now();
+  //current_ptr = &ft->child_of(dir, db_entry.filename);
+
+  auto& vec = dir.value.files;
+  auto iter = std::lower_bound(vec.begin(), vec.end(),
+                               std::make_pair(fname, db_entry.jobid),
+                               [](const idea2::file_tree::file& n, auto& p) -> bool {
+                                 return (intptr_t)n.name < (intptr_t)p.first
+                                   || n.job_id < p.second;
+                               });
+
+  if (iter != vec.end() &&
+      iter->name == fname
+      && iter->job_id == db_entry.jobid) {
+    // what to do here ? this should not happen ...
+  } else {
+    auto& file = *vec.emplace(iter);
+    file.name = fname;
+    file.file_index = db_entry.fidx;
+    file.delta_seq = db_entry.dseq;
+    file.job_id = db_entry.jobid;
+    file.ndmp = db_entry.info;
   }
-  auto* current_ptr = &dir;
-  if (db_entry.filename && db_entry.filename[0]) {
-    //hctx->file_count += 1;
-    //auto start_f = std::chrono::steady_clock::now();
-    current_ptr = &ft->child_of(dir, db_entry.filename);
-    //auto end_f = std::chrono::steady_clock::now();
-    //hctx->time.find_file += std::chrono::duration_cast<std::chrono::nanoseconds>(end_f - start_f);
-  }
-  (void) current_ptr;
+
+  //auto end_f = std::chrono::steady_clock::now();
+  //hctx->time.find_file += std::chrono::duration_cast<std::chrono::nanoseconds>(end_f - start_f);
   //auto& current = *current_ptr;
 
 #if 0
@@ -3048,16 +3069,26 @@ int Handler(void* ctx, int colc, char** colv)
   return 0;
 }
 
-template <typename T>
-std::pair<std::size_t, std::size_t> count_tree(node<T>* n)
+template <typename Node>
+std::pair<std::size_t, std::size_t> count_tree(Node* n)
 {
   std::size_t count = 0;
   std::size_t size = 0;
 
-  for (auto* child : *n) {
-    size += strlen(child->name());
+  for (auto& child : *n) {
+    size += strlen(child.name);
     count += 1;
-    auto [ccount, csize] = count_tree(child);
+
+    count += child.value.files.size();
+
+    for (auto& f : child.value.files) {
+      auto len = strlen(f.name);
+      size += len;
+      // we already counted the directory itself ...
+      if (len == 0) { size -= 1; }
+    }
+
+    auto [ccount, csize] = count_tree(&child);
 
     count += ccount;
     size += csize;
@@ -3107,32 +3138,32 @@ void print_tree(UaContext* ua,
     }
   };
 
-  bool NewLs(UaContext* ua, command_context& ctx)
+  [[maybe_unused]] bool NewLs(UaContext* ua, command_context& ctx)
   {
     for (auto* child : *ctx.current) {
       ua->SendMsg(" %s\n", child->name());
     }
     return true;
   }
-  bool NewMark(UaContext* ua, command_context& ctx)
+  [[maybe_unused]] bool NewMark(UaContext* ua, command_context& ctx)
   {
     (void) ua;
     (void) ctx;
     return true;
   }
-  bool NewUnmark(UaContext* ua, command_context& ctx)
+  [[maybe_unused]] bool NewUnmark(UaContext* ua, command_context& ctx)
   {
     (void) ua;
     (void) ctx;
     return true;
   }
-  bool NewCd(UaContext* ua, command_context& ctx)
+  [[maybe_unused]] bool NewCd(UaContext* ua, command_context& ctx)
   {
     (void) ua;
     (void) ctx;
     return true;
   }
-  bool NewLsMark(UaContext* ua, command_context& ctx)
+  [[maybe_unused]] bool NewLsMark(UaContext* ua, command_context& ctx)
   {
     (void) ua;
     (void) ctx;
@@ -3170,41 +3201,43 @@ bool TestCmd(UaContext* ua, const char*)
 )MULTILINE",
                static_cast<long long unsigned>(ctx.insertion_count),
                static_cast<long long unsigned>(std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count()));
+  auto [count, size] = ctx.tree.name_size();
+  auto [ocount, osize] = count_tree(ctx.tree.root());
   ua->SendMsg(R"MULTILINE(CACHE
-  Hits = %llun
+  Hits = %llu
+  Used Components = %llu / %llu bytes
+  Stored Components = %llu / %llu bytes
+  Node Count = %llu / %llu (capacity)
 )MULTILINE",
-              static_cast<long long unsigned>(ctx.cache.cache_hits));
-   auto [count, size] = ctx.tree.structure.name_size();
-   auto [ocount, osize] = count_tree(ctx.tree.structure.root());
-   ua->SendMsg("Needed %llu (old: %llu) components worth %llu (old: %llu) bytes\n Node count = %llu/%llu\n",
-               static_cast<long long unsigned>(count),
-               static_cast<long long unsigned>(ocount),
-               static_cast<long long unsigned>(size),
-               static_cast<long long unsigned>(osize),
-               static_cast<long long unsigned>(ctx.tree.structure.count()),
-               static_cast<long long unsigned>(ctx.tree.structure.cap())
-              );
-     ua->SendMsg(R"MULTILINE(DATA
-  Count = %llu\n
-  Dir Count = %llu\n
-  File Count = %llu\n
+              static_cast<long long unsigned>(ctx.cache.cache_hits),
+              static_cast<long long unsigned>(count),
+              static_cast<long long unsigned>(ocount),
+              static_cast<long long unsigned>(size),
+              static_cast<long long unsigned>(osize),
+              static_cast<long long unsigned>(0),
+              static_cast<long long unsigned>(0)
+             );
+   ua->SendMsg(R"MULTILINE(DATA
+  Count = %llu
+  Dir Count = %llu
+  File Count = %llu
 )MULTILINE",
-                 ctx.insertion_count,
-                 ctx.insertion_count - ctx.file_count,
-                 ctx.file_count);
+               ctx.insertion_count,
+               ctx.insertion_count - ctx.file_count,
+               ctx.file_count);
 
-   {
-     std::vector<std::uint64_t> dir_count;
-     count_dir_sizes(ctx.tree.structure.root(), dir_count);
-     auto res = analyze(dir_count);
-     ua->SendMsg(R"MULTILINE(ANALYSIS
-  Min Children = %llu\n
-  Max Children = %llu\n
-  Avg Children = %lf\n
-  Var Children = %lf\n
-)MULTILINE",
-                 res.min, res.max,  res.avg, res.var);
-   }
+//    {
+//      STD::vector<std::uint64_t> dir_count;
+//      count_dir_sizes(ctx.tree.structure.root(), dir_count);
+//      auto res = analyze(dir_count);
+//      ua->SendMsg(R"MULTILINE(ANALYSIS
+//   Min Children = %llu\n
+//   Max Children = %llu\n
+//   Avg Children = %lf\n
+//   Var Children = %lf\n
+// )MULTILINE",
+//                  res.min, res.max,  res.avg, res.var);
+//    }
 //   ua->SendMsg(
 //               R"MULTILINE(pre cache = %llu, post cache = %llu
 // TIMING
@@ -3230,49 +3263,47 @@ bool TestCmd(UaContext* ua, const char*)
 //              );
 
 
-  auto* user = ua->UA_sock;
-
-
+  // auto* user = ua->UA_sock;
   //user->signal(BNET_START_RTREE);
-  bool quit = false;
-  command_context cctx{ctx.tree};
-  while (!quit) {
-    if (!GetCmd(ua, "$ ", true)) { break; }
+  // bool quit = false;
+  // command_context cctx{ctx.tree};
+  // while (!quit) {
+  //   if (!GetCmd(ua, "$ ", true)) { break; }
 
-    if (ua->api) { user->signal(BNET_CMD_BEGIN); }
+  //   if (ua->api) { user->signal(BNET_CMD_BEGIN); }
 
-    ParseArgsOnly(ua->cmd, ua->args, &ua->argc, ua->argk, ua->argv,
-                  MAX_CMD_ARGS);
-    if (ua->argc == 0) {
-      ua->WarningMsg(T_("Invalid command \"%s\". Enter \"done\" to exit.\n"),
-                     ua->cmd);
-      if (ua->api) { user->signal(BNET_CMD_FAILED); }
-      continue;
-    }
-    std::string_view command{ua->argk[0]};
-    if (command == std::string_view{"quit"}) {
-      quit = true;
-    }
-    else if (command == std::string_view{"ls"}) {
-      if (!NewLs(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
-    }
-    else if (command == std::string_view{"mark"}) {
-      if (!NewMark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
-    }
-    else if (command == std::string_view{"unmark"}) {
-      if (!NewUnmark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
-    }
-    else if (command == std::string_view{"cd"}) {
-      if (!NewCd(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
-    }
-    else if (command == std::string_view{"lsmark"}) {
-      if (!NewLsMark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
-    }
+  //   ParseArgsOnly(ua->cmd, ua->args, &ua->argc, ua->argk, ua->argv,
+  //                 MAX_CMD_ARGS);
+  //   if (ua->argc == 0) {
+  //     ua->WarningMsg(T_("Invalid command \"%s\". Enter \"done\" to exit.\n"),
+  //                    ua->cmd);
+  //     if (ua->api) { user->signal(BNET_CMD_FAILED); }
+  //     continue;
+  //   }
+  //   std::string_view command{ua->argk[0]};
+  //   if (command == std::string_view{"quit"}) {
+  //     quit = true;
+  //   }
+  //   else if (command == std::string_view{"ls"}) {
+  //     if (!NewLs(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+  //   }
+  //   else if (command == std::string_view{"mark"}) {
+  //     if (!NewMark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+  //   }
+  //   else if (command == std::string_view{"unmark"}) {
+  //     if (!NewUnmark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+  //   }
+  //   else if (command == std::string_view{"cd"}) {
+  //     if (!NewCd(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+  //   }
+  //   else if (command == std::string_view{"lsmark"}) {
+  //     if (!NewLsMark(ua, cctx)) { user->signal(BNET_CMD_FAILED); }
+  //   }
 
-    ua->SendMsg("Got command = '%s'\n", ua->argk[0]);
+  //   ua->SendMsg("Got command = '%s'\n", ua->argk[0]);
 
-    if (ua->api) { user->signal(BNET_CMD_OK); }
-  }
+  //   if (ua->api) { user->signal(BNET_CMD_OK); }
+  // }
   //user->signal(BNET_END_RTREE);
 
   //print_tree(ua, ctx.tree.structure.root());

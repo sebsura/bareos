@@ -467,3 +467,114 @@ entry_base* swap_version(intrusive_list<entry_base>* sentinel,
   // there is no old version
   return nullptr;
 }
+
+namespace idea2 {
+  template <typename T>
+  struct tree {
+    struct node {
+      const char* name;
+      std::vector<node> children;
+      T value;
+
+      auto begin() noexcept {
+        return children.begin();
+      }
+      auto end() noexcept {
+        return children.end();
+      }
+    };
+
+    node* find(std::string_view path)
+    {
+      return find(path, &root);
+    }
+
+    node* find(std::string_view path, node* base)
+    {
+      tmp.clear();
+
+      for (size_t i = 0; i < path.size(); ++i) {
+        if (path[i] == '/') { tmp.push_back(i); }
+      }
+
+
+      auto current_start = 0;
+      node* current = base;
+
+      for (std::size_t end  : tmp) {
+        std::string_view component = path.substr(current_start,
+                                                 end - current_start);
+
+        current = find_child_or_create(current, component);
+        current_start = end + 1;
+      }
+
+      return find_child_or_create(current, path.substr(current_start));
+    }
+
+    const char* intern(std::string_view v)
+    {
+      return interner->intern(v);
+    }
+
+    node* find_child_or_create(node* parent, std::string_view component)
+    {
+      const char* interned = intern(component);
+      auto iter = std::lower_bound(parent->children.begin(),
+                                   parent->children.end(),
+                                   interned,
+                                   [](const node& n, const char* str) -> bool {
+                                     return (intptr_t)n.name < (intptr_t)str;
+                                   });
+
+      if (iter != parent->children.end() &&
+         iter->name == interned) {
+        return &*iter;
+      }
+
+      auto& child = *parent->children.emplace(iter);
+      child.name = interned;
+      return &child;
+    }
+
+    tree(StringCache* c)
+      : interner{c}
+    {
+      root.name = interner->intern("");
+    }
+
+
+    StringCache* interner{};
+    std::vector<std::uint32_t> tmp;
+    node root;
+  };
+
+  struct file_tree {
+    struct file {
+      const char* name;
+      DeltaSeq delta_seq;
+      JobId job_id;
+      FileIndex file_index;
+      ndmp_info ndmp;
+    };
+    struct directory {
+      std::vector<file> files;
+    };
+
+    StringCache cache;
+    tree<directory> dir_tree{&cache};
+
+    using Node = tree<directory>::node;
+
+    Node& find_from(Node& base, std::string_view path)
+    {
+      return *dir_tree.find(path, &base);
+    }
+
+    std::pair<size_t, size_t> name_size() {
+      return cache.size();
+    }
+
+    Node* root() { return  &dir_tree.root; }
+  };
+};
