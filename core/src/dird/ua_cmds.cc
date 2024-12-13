@@ -3021,29 +3021,26 @@ int Handler(void* ctx, int colc, char** colv)
     }
   } ();
 
-  auto& files = dir.value.files;
+  // we know that all files that we get are different, so no need to
+  // use a collection that actively checks for that.
+  dir.value.files.push_back({fname, hctx->tree.file_data.size()});
 
-  auto [found, inserted] = files.emplace(fname, hctx->tree.file_data.size());
-
-  if (!inserted) {
-    // ????
-    return 0;
-  }
-
-  auto& file = hctx->tree.file_data.emplace_back();
-  file.name = fname;
-  file.file_index = db_entry.fidx;
-  file.job_id = db_entry.jobid;
-  file.ctime = db_entry.lstat.st_ctime;
-
+  std::uint32_t extra_info = 0;
   if (db_entry.dseq != 0
       || db_entry.info.fh_info != 0
       || db_entry.info.fh_node != 0) {
 
-    file.extra_info = hctx->tree.extra_data.size();
-
+    extra_info = hctx->tree.extra_data.size();
     hctx->tree.extra_data.push_back({db_entry.dseq, db_entry.info});
   }
+
+  hctx->tree.file_data.push_back({
+      .name = fname,
+      .file_index = db_entry.fidx,
+      .ctime = db_entry.lstat.st_ctime,
+      .job_id = db_entry.jobid,
+      .extra_info = extra_info,
+    });
 
   return 0;
 }

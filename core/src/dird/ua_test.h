@@ -630,7 +630,7 @@ namespace idea2 {
       ndmp_info ndmp{};
     };
     struct directory {
-      std::unordered_map<const char*, std::uint64_t> files;
+      std::vector<std::pair<const char*, std::uint64_t>> files;
     };
 
     StringCache cache;
@@ -657,4 +657,66 @@ namespace idea2 {
 
     Node* root() { return  &dir_tree.root; }
   };
+};
+
+struct FileTable {
+#if 1
+  struct file {
+    const char* name{};
+    FileIndex file_index{};
+    time_t ctime{};
+    // by transforming job_id into version_id (jobid[0] -> 0, jobid[1] -> 1, ...)
+    // we can ensure that this version id is smaller than e.g. 255, that is,
+    // it needs less than 8 bits for storage.  This means we can store it
+    // in the upper bits of the 64bit FileIndex
+    JobId job_id{};
+    std::uint32_t extra_info{};
+  };
+
+  // some extra information that is not used most of the time
+  struct extra_info {
+    DeltaSeq delta_seq{};
+    ndmp_info ndmp{};
+  };
+
+  std::vector<file> file_data;
+  std::vector<extra_info> extra_data;
+
+  std::uint64_t insert(const char* fname,
+                       FileIndex file_index,
+                       time_t ctime,
+                       JobId job_id)
+  {
+    auto res = file_data.size();
+    std::uint32_t extra_info = std::numeric_limits<std::uint32_t>::max();
+    file_data.push_back({
+        .name = fname,
+        .file_index = file_index,
+        .ctime = ctime,
+        .job_id = job_id,
+        .extra_info = extra_info,
+      });
+    return res;
+  }
+  std::uint64_t insert_extra(const char* fname,
+                             FileIndex file_index,
+                             time_t ctime,
+                             JobId job_id,
+                             DeltaSeq delta_seq,
+                             ndmp_info ndmp)
+  {
+    auto res = file_data.size();
+    std::uint32_t extra_info = extra_data.size();
+    extra_data.push_back({delta_seq, ndmp});
+    file_data.push_back({
+        .name = fname,
+        .file_index = file_index,
+        .ctime = ctime,
+        .job_id = job_id,
+        .extra_info = extra_info,
+      });
+    return res;
+  }
+  #else
+  #endif
 };
