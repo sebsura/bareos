@@ -55,6 +55,12 @@ if(ENABLE_BCONSOLE)
   add_subdirectory(console)
 endif()
 
+
+if(HAVE_LMDB)
+  # we should only do this if we dont want to take the native one i guess ?
+  # this does not seem correct, think about it a bit more
+  install(TARGETS lmdb DESTINATION ${libdir})
+endif()
 add_subdirectory(lib)
 add_subdirectory(findlib)
 add_subdirectory(plugins)
