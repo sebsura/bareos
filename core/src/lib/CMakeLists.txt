@@ -24,6 +24,7 @@ include_directories(
 )
 
 set(BAREOS_SRCS
+    kv_store.cc
     address_conf.cc
     alist.cc
     attr.cc
@@ -197,6 +198,10 @@ set_target_properties(
 if(HAVE_WIN32)
   set_target_properties(bareos PROPERTIES DEFINE_SYMBOL "BUILDING_DLL")
   target_link_libraries(bareos PUBLIC ws2_32)
+endif()
+
+if(HAVE_LMDB)
+  target_link_libraries(bareos PUBLIC lmdb)
 endif()
 
 include(DebugEdit)
