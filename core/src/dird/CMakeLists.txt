@@ -184,7 +184,7 @@ if(HAVE_NDMP)
 endif()
 
 if(HAVE_LMDB)
-  target_link_libraries(dird_objects PRIVATE bareoslmdb)
+  target_link_libraries(dird_objects PRIVATE lmdb)
 endif()
 
 if(HAVE_PAM)

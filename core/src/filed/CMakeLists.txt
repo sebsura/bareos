@@ -71,8 +71,8 @@ target_link_libraries(
 )
 
 if(HAVE_LMDB)
-  target_link_libraries(fd_objects PRIVATE bareoslmdb)
-  target_link_libraries(fd_test_objects PRIVATE bareoslmdb)
+  target_link_libraries(fd_objects PRIVATE lmdb)
+  target_link_libraries(fd_test_objects PRIVATE lmdb)
 endif()
 
 if(HAVE_WIN32)

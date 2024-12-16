@@ -105,6 +105,34 @@ if(xxHash_ADDED)
   endif()
 endif()
 
+CPMAddPackage(
+  NAME lmdb
+  VERSION 0.9.33
+  GIT_REPOSITORY https://git.openldap.org/openldap/openldap.git
+  DOWNLOAD_ONLY YES
+  GIT_TAG LMDB_0.9.33
+)
+
+if (lmdb_ADDED)
+  add_library(lmdb SHARED
+    ${CPM_PACKAGE_lmdb_SOURCE_DIR}/libraries/liblmdb/mdb.c
+    ${CPM_PACKAGE_lmdb_SOURCE_DIR}/libraries/liblmdb/midl.c)
+  target_include_directories(
+    lmdb INTERFACE ${CPM_PACKAGE_lmdb_SOURCE_DIR}/libraries/liblmdb
+  )
+  if(HAVE_FREEBSD_OS)
+    target_add_definitions(lmdb -D_WANT_SEMUN=1)
+  endif()
+
+  if (HAVE_WIN32)
+    set_target_properties(lmdb PROPERTIES DEFINE_SYMBOL "BUILDING_DLL")
+  endif()
+  install(TARGETS lmdb DESTINATION ${libdir})
+  # if(HAVE_WIN32)
+  #   bareos_disable_warnings(TARGET bareoslmdb WARNINGS -Wreturn-local-addr C_ONLY)
+  # endif()
+endif()
+
 # Dump package information from CPM into a YAML file
 file(WRITE "${CMAKE_BINARY_DIR}/cpm-packages.yaml"
      "# List of packages provided by CPM\n" "---\n"

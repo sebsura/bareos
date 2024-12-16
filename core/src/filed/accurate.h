@@ -159,7 +159,7 @@ class BareosAccurateFilelistHtable : public BareosAccurateFilelist {
 
 #ifdef HAVE_LMDB
 
-#  include "lmdb/lmdb.h"
+#  include "lmdb.h"
 
 /*
  * Lightning Memory DataBase (LMDB) specific storage abstraction class using the

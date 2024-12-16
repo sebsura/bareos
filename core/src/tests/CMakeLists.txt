@@ -486,7 +486,7 @@ if(NOT MSVC)
       ${PROJECT_SOURCE_DIR}/src/filed/fd_plugins.cc
       ${PROJECT_SOURCE_DIR}/src/filed/fileset.cc
       ${PROJECT_SOURCE_DIR}/src/filed/filed_globals.cc
-    LINK_LIBRARIES bareos bareosfind GTest::gtest_main
+    LINK_LIBRARIES bareos bareosfind GTest::gtest_main lmdb
   )
 endif()
 bareos_add_test(test_is_name_valid LINK_LIBRARIES bareos GTest::gtest_main)
