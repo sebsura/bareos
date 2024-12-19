@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -26,15 +26,18 @@
 
 #include "lib/bits.h"
 
+#include <bitset>
+
 namespace directordaemon {
 
 struct DateTimeBitfield {
-  char hour[NbytesForBits(24 + 1)]{0};
-  char mday[NbytesForBits(31 + 1)]{0};
-  char month[NbytesForBits(12 + 1)]{0};
-  char wday[NbytesForBits(7 + 1)]{0};
-  char wom[NbytesForBits(5 + 1)]{0};
-  char woy[NbytesForBits(54 + 1)]{0};
+  std::bitset<24> hour;
+  std::bitset<31> mday;
+  std::bitset<12> month;
+  std::bitset<7> wday;
+  std::bitset<5> wom;
+  std::bitset<54> woy;
+
   bool last_week_of_month{false};
 };
 

@@ -70,6 +70,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <sstream>
 
 namespace directordaemon {
 
@@ -1412,92 +1413,88 @@ static void PrintConfigRunscript(OutputFormatterResource& send,
   send.ArrayEnd(item.name, inherited, "");
 }
 
+template <size_t N, typename IntervalHandler>
+void find_half_open_intervals(const std::bitset<N>& s, IntervalHandler handler)
+{
+  if constexpr (N > 0) {
+    std::optional<std::size_t> interval_start;
+    for (std::size_t i = 0; i < N; ++i) {
+      if (s[i]) {
+        if (!interval_start.has_value()) {
+          Dmsg1(200, "starting interval at %lu\n", i);
+          interval_start = i;
+        }
+      } else {
+        if (interval_start.has_value()) {
+          Dmsg1(200, "ending interval at %lu -> [%lu, %lu]\n", i,
+                interval_start.value(), i);
+          handler(interval_start.value(), i);
+          interval_start.reset();
+        }
+      }
+    }
+
+    // if we are still in in interval at the end, then we need to
+    // we need to end it
+    if (interval_start.has_value()) { handler(interval_start.value(), N); }
+  }
+}
 
 static std::string PrintConfigRun(RunResource* run)
 {
   PoolMem temp;
 
-  bool all_set;
-  int i, nr_items;
-  int interval_start;
+  static constexpr const char* weekdays[] = {
+      "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+  };
 
-  /* clang-format off */
+  static constexpr const char* months[] = {
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  };
 
-   char *weekdays[] = {
-      (char *)"Sun",
-      (char *)"Mon",
-      (char *)"Tue",
-      (char *)"Wed",
-      (char *)"Thu",
-      (char *)"Fri",
-      (char *)"Sat"
-   };
+  static constexpr const char* ordinals[] = {
+      "1st", "2nd", "3rd", "4th", "5th",
+  };
 
-   char *months[] = {
-      (char *)"Jan",
-      (char *)"Feb",
-      (char *)"Mar",
-      (char *)"Apr",
-      (char *)"May",
-      (char *)"Jun",
-      (char *)"Jul",
-      (char *)"Aug",
-      (char *)"Sep",
-      (char *)"Oct",
-      (char *)"Nov",
-      (char *)"Dec"
-   };
-
-   char *ordinals[] = {
-      (char *)"1st",
-      (char *)"2nd",
-      (char *)"3rd",
-      (char *)"4th",
-      (char *)"5th"
-   };
-
-  /* clang-format on */
-
-
-  PoolMem run_str;  /* holds the complete run= ... line */
-  PoolMem interval; /* is one entry of day/month/week etc. */
+  std::stringstream run_str; /* holds the complete run= ... line */
+  PoolMem interval;          /* is one entry of day/month/week etc. */
 
   // Overrides
   if (run->pool) {
     Mmsg(temp, "pool=\"%s\" ", run->pool->resource_name_);
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   if (run->full_pool) {
     Mmsg(temp, "fullpool=\"%s\" ", run->full_pool->resource_name_);
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   if (run->vfull_pool) {
     Mmsg(temp, "virtualfullpool=\"%s\" ", run->vfull_pool->resource_name_);
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   if (run->inc_pool) {
     Mmsg(temp, "incrementalpool=\"%s\" ", run->inc_pool->resource_name_);
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   if (run->diff_pool) {
     Mmsg(temp, "differentialpool=\"%s\" ", run->diff_pool->resource_name_);
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   if (run->next_pool) {
     Mmsg(temp, "nextpool=\"%s\" ", run->next_pool->resource_name_);
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   if (run->level) {
     for (int j = 0; joblevels[j].level_name; j++) {
       if (joblevels[j].level == run->level) {
-        PmStrcat(run_str, joblevels[j].level_name);
-        PmStrcat(run_str, " ");
+        run_str << joblevels[j].level_name << " ";
         break;
       }
     }
@@ -1505,29 +1502,29 @@ static std::string PrintConfigRun(RunResource* run)
 
   if (run->storage) {
     Mmsg(temp, "storage=\"%s\" ", run->storage->resource_name_);
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   if (run->msgs) {
     Mmsg(temp, "messages=\"%s\" ", run->msgs->resource_name_);
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   if (run->Priority && run->Priority != 10) {
     Mmsg(temp, "priority=%d ", run->Priority);
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   if (run->MaxRunSchedTime) {
     Mmsg(temp, "maxrunschedtime=%d ", run->MaxRunSchedTime);
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   if (run->accurate) {
     /* TODO: You cannot distinct if accurate was not set or if it was set to
      * no maybe we need an additional variable like "accurate_set". */
     Mmsg(temp, "accurate=\"%s\" ", "yes");
-    PmStrcat(run_str, temp.c_str());
+    run_str << temp.c_str();
   }
 
   // Now the time specification
@@ -1536,274 +1533,112 @@ static std::string PrintConfigRun(RunResource* run)
   PmStrcpy(temp, "");
 
   // First see if not all bits are set.
-  all_set = true;
-  nr_items = 31;
-  for (i = 0; i < nr_items; i++) {
-    if (!BitIsSet(i, run->date_time_bitfield.mday)) { all_set = false; }
-  }
-
-  if (!all_set) {
-    interval_start = -1;
-
-    for (i = 0; i < nr_items; i++) {
-      if (BitIsSet(i, run->date_time_bitfield.mday)) {
-        if (interval_start
-            == -1) {          /* bit is set and we are not in an interval */
-          interval_start = i; /* start an interval */
-          Dmsg1(200, "starting interval at %d\n", i + 1);
-          Mmsg(interval, ",%d", i + 1);
-          PmStrcat(temp, interval.c_str());
-        }
-      }
-
-      if (!BitIsSet(i, run->date_time_bitfield.mday)) {
-        if (interval_start != -1) { /* bit is unset and we are in an interval */
-          if ((i - interval_start) > 1) {
-            Dmsg2(200, "found end of interval from %d to %d\n",
-                  interval_start + 1, i);
-            Mmsg(interval, "-%d", i);
-            PmStrcat(temp, interval.c_str());
-          }
-          interval_start = -1; /* end the interval */
-        }
-      }
-    }
-
-    /* See if we are still in an interval and the last bit is also set then
-     * the interval stretches to the last item. */
-    i = nr_items - 1;
-    if (interval_start != -1 && BitIsSet(i, run->date_time_bitfield.mday)) {
-      if ((i - interval_start) > 1) {
-        Dmsg2(200, "found end of interval from %d to %d\n", interval_start + 1,
-              i + 1);
-        Mmsg(interval, "-%d", i + 1);
-        PmStrcat(temp, interval.c_str());
-      }
-    }
-
+  if (!run->date_time_bitfield.mday.all()) {
+    find_half_open_intervals(run->date_time_bitfield.mday,
+                             [&interval, &temp](size_t start, size_t end) {
+                               if (end - 1 != start) {
+                                 Mmsg(interval, ",%lu-%lu", start, end - 1);
+                               } else {
+                                 Mmsg(interval, ",%lu", start);
+                               }
+                               PmStrcat(temp, interval.c_str());
+                             });
     PmStrcat(temp, " ");
-    PmStrcat(run_str, temp.c_str() + 1); /* jump over first comma*/
+    run_str << (temp.c_str() + 1);
+    PmStrcpy(temp, "");
   }
 
   /* run->wom output is 1st, 2nd... 5th comma separated
    *                    first, second, third... is also allowed
    *                    but we ignore that for now */
-  all_set = true;
-  nr_items = 5;
-  for (i = 0; i < nr_items; i++) {
-    if (!BitIsSet(i, run->date_time_bitfield.wom)) { all_set = false; }
-  }
-
-  if (!all_set) {
-    interval_start = -1;
-
-    PmStrcpy(temp, "");
-    for (i = 0; i < nr_items; i++) {
-      if (BitIsSet(i, run->date_time_bitfield.wom)) {
-        if (interval_start
-            == -1) {          /* bit is set and we are not in an interval */
-          interval_start = i; /* start an interval */
-          Dmsg1(200, "starting interval at %s\n", ordinals[i]);
-          Mmsg(interval, ",%s", ordinals[i]);
-          PmStrcat(temp, interval.c_str());
-        }
-      }
-
-      if (!BitIsSet(i, run->date_time_bitfield.wom)) {
-        if (interval_start != -1) { /* bit is unset and we are in an interval */
-          if ((i - interval_start) > 1) {
-            Dmsg2(200, "found end of interval from %s to %s\n",
-                  ordinals[interval_start], ordinals[i - 1]);
-            Mmsg(interval, "-%s", ordinals[i - 1]);
-            PmStrcat(temp, interval.c_str());
-          }
-          interval_start = -1; /* end the interval */
-        }
-      }
-    }
-
-    /* See if we are still in an interval and the last bit is also set then
-     * the interval stretches to the last item. */
-    i = nr_items - 1;
-    if (interval_start != -1 && BitIsSet(i, run->date_time_bitfield.wom)) {
-      if ((i - interval_start) > 1) {
-        Dmsg2(200, "found end of interval from %s to %s\n",
-              ordinals[interval_start], ordinals[i]);
-        Mmsg(interval, "-%s", ordinals[i]);
-        PmStrcat(temp, interval.c_str());
-      }
-    }
-
+  if (!run->date_time_bitfield.wom.all()) {
+    find_half_open_intervals(run->date_time_bitfield.wom,
+                             [&interval, &temp](size_t start, size_t end) {
+                               Dmsg2(200, "found interval from %s to %s\n",
+                                     ordinals[start], ordinals[end - 1]);
+                               if (end - 1 != start) {
+                                 Mmsg(interval, ",%s-%s", ordinals[start],
+                                      ordinals[end - 1]);
+                               } else {
+                                 Mmsg(interval, ",%s", ordinals[start]);
+                               }
+                               PmStrcat(temp, interval.c_str());
+                             });
     PmStrcat(temp, " ");
-    PmStrcat(run_str, temp.c_str() + 1); /* jump over first comma*/
+    run_str << (temp.c_str() + 1);
+    PmStrcpy(temp, "");
   }
 
   // run->wday output is Sun, Mon, ..., Sat comma separated
-  all_set = true;
-  nr_items = 7;
-  for (i = 0; i < nr_items; i++) {
-    if (!BitIsSet(i, run->date_time_bitfield.wday)) { all_set = false; }
-  }
-
-  if (!all_set) {
-    interval_start = -1;
-
-    PmStrcpy(temp, "");
-    for (i = 0; i < nr_items; i++) {
-      if (BitIsSet(i, run->date_time_bitfield.wday)) {
-        if (interval_start
-            == -1) {          /* bit is set and we are not in an interval */
-          interval_start = i; /* start an interval */
-          Dmsg1(200, "starting interval at %s\n", weekdays[i]);
-          Mmsg(interval, ",%s", weekdays[i]);
-          PmStrcat(temp, interval.c_str());
-        }
-      }
-
-      if (!BitIsSet(i, run->date_time_bitfield.wday)) {
-        if (interval_start != -1) { /* bit is unset and we are in an interval */
-          if ((i - interval_start) > 1) {
-            Dmsg2(200, "found end of interval from %s to %s\n",
-                  weekdays[interval_start], weekdays[i - 1]);
-            Mmsg(interval, "-%s", weekdays[i - 1]);
-            PmStrcat(temp, interval.c_str());
-          }
-          interval_start = -1; /* end the interval */
-        }
-      }
-    }
-
-    /* See if we are still in an interval and the last bit is also set then
-     * the interval stretches to the last item. */
-    i = nr_items - 1;
-    if (interval_start != -1 && BitIsSet(i, run->date_time_bitfield.wday)) {
-      if ((i - interval_start) > 1) {
-        Dmsg2(200, "found end of interval from %s to %s\n",
-              weekdays[interval_start], weekdays[i]);
-        Mmsg(interval, "-%s", weekdays[i]);
-        PmStrcat(temp, interval.c_str());
-      }
-    }
-
+  if (!run->date_time_bitfield.wday.all()) {
+    find_half_open_intervals(run->date_time_bitfield.wday,
+                             [&interval, &temp](size_t start, size_t end) {
+                               Dmsg2(200, "found interval from %s to %s\n",
+                                     weekdays[start], weekdays[end - 1]);
+                               if (end - 1 != start) {
+                                 Mmsg(interval, ",%s-%s", weekdays[start],
+                                      weekdays[end - 1]);
+                               } else {
+                                 Mmsg(interval, ",%s", weekdays[start]);
+                               }
+                               PmStrcat(temp, interval.c_str());
+                             });
     PmStrcat(temp, " ");
-    PmStrcat(run_str, temp.c_str() + 1); /* jump over first comma*/
+    run_str << (temp.c_str() + 1);
+    PmStrcpy(temp, "");
   }
 
   // run->month output is Jan, Feb, ..., Dec comma separated
-  all_set = true;
-  nr_items = 12;
-  for (i = 0; i < nr_items; i++) {
-    if (!BitIsSet(i, run->date_time_bitfield.month)) { all_set = false; }
-  }
-
-  if (!all_set) {
-    interval_start = -1;
-
-    PmStrcpy(temp, "");
-    for (i = 0; i < nr_items; i++) {
-      if (BitIsSet(i, run->date_time_bitfield.month)) {
-        if (interval_start
-            == -1) {          /* bit is set and we are not in an interval */
-          interval_start = i; /* start an interval */
-          Dmsg1(200, "starting interval at %s\n", months[i]);
-          Mmsg(interval, ",%s", months[i]);
-          PmStrcat(temp, interval.c_str());
-        }
-      }
-
-      if (!BitIsSet(i, run->date_time_bitfield.month)) {
-        if (interval_start != -1) { /* bit is unset and we are in an interval */
-          if ((i - interval_start) > 1) {
-            Dmsg2(200, "found end of interval from %s to %s\n",
-                  months[interval_start], months[i - 1]);
-            Mmsg(interval, "-%s", months[i - 1]);
-            PmStrcat(temp, interval.c_str());
-          }
-          interval_start = -1; /* end the interval */
-        }
-      }
-    }
-
-    /* See if we are still in an interval and the last bit is also set then
-     * the interval stretches to the last item. */
-    i = nr_items - 1;
-    if (interval_start != -1 && BitIsSet(i, run->date_time_bitfield.month)) {
-      if ((i - interval_start) > 1) {
-        Dmsg2(200, "found end of interval from %s to %s\n",
-              months[interval_start], months[i]);
-        Mmsg(interval, "-%s", months[i]);
-        PmStrcat(temp, interval.c_str());
-      }
-    }
-
+  if (!run->date_time_bitfield.month.all()) {
+    find_half_open_intervals(run->date_time_bitfield.month,
+                             [&interval, &temp](size_t start, size_t end) {
+                               Dmsg2(200, "found interval from %s to %s\n",
+                                     months[start], months[end - 1]);
+                               if (end - 1 != start) {
+                                 Mmsg(interval, ",%s-%s", months[start],
+                                      months[end - 1]);
+                               } else {
+                                 Mmsg(interval, ",%s", months[start]);
+                               }
+                               PmStrcat(temp, interval.c_str());
+                             });
     PmStrcat(temp, " ");
-    PmStrcat(run_str, temp.c_str() + 1); /* jump over first comma*/
+    run_str << (temp.c_str() + 1);
+    PmStrcpy(temp, "");
   }
 
   // run->woy output is w00 - w53, comma separated
-  all_set = true;
-  nr_items = 54;
-  for (i = 0; i < nr_items; i++) {
-    if (!BitIsSet(i, run->date_time_bitfield.woy)) { all_set = false; }
-  }
-
-  if (!all_set) {
-    interval_start = -1;
-
-    PmStrcpy(temp, "");
-    for (i = 0; i < nr_items; i++) {
-      if (BitIsSet(i, run->date_time_bitfield.woy)) {
-        if (interval_start
-            == -1) {          /* bit is set and we are not in an interval */
-          interval_start = i; /* start an interval */
-          Dmsg1(200, "starting interval at w%02d\n", i);
-          Mmsg(interval, ",w%02d", i);
-          PmStrcat(temp, interval.c_str());
-        }
-      }
-
-      if (!BitIsSet(i, run->date_time_bitfield.woy)) {
-        if (interval_start != -1) { /* bit is unset and we are in an interval */
-          if ((i - interval_start) > 1) {
-            Dmsg2(200, "found end of interval from w%02d to w%02d\n",
-                  interval_start, i - 1);
-            Mmsg(interval, "-w%02d", i - 1);
-            PmStrcat(temp, interval.c_str());
+  if (!run->date_time_bitfield.woy.all()) {
+    find_half_open_intervals(
+        run->date_time_bitfield.woy,
+        [&interval, &temp](size_t start, size_t end) {
+          Dmsg2(200, "found interval from w%02d to w%02d\n", start, end - 1);
+          if (end - 1 != start) {
+            Mmsg(interval, ",w%02d-w%02d", start, end - 1);
+          } else {
+            Mmsg(interval, ",w%02d", start);
           }
-          interval_start = -1; /* end the interval */
-        }
-      }
-    }
-
-    /* See if we are still in an interval and the last bit is also set then
-     * the interval stretches to the last item. */
-    i = nr_items - 1;
-    if (interval_start != -1 && BitIsSet(i, run->date_time_bitfield.woy)) {
-      if ((i - interval_start) > 1) {
-        Dmsg2(200, "found end of interval from w%02d to w%02d\n",
-              interval_start, i);
-        Mmsg(interval, "-w%02d", i);
-        PmStrcat(temp, interval.c_str());
-      }
-    }
-
+          PmStrcat(temp, interval.c_str());
+        });
     PmStrcat(temp, " ");
-    PmStrcat(run_str, temp.c_str() + 1); /* jump over first comma*/
+    run_str << (temp.c_str() + 1); /* jump over first comma */
+    PmStrcpy(temp, "");
   }
 
   /* run->hour output is HH:MM for hour and minute though its a bitfield.
    * only "hourly" sets all bits. */
   PmStrcpy(temp, "");
-  for (i = 0; i < 24; i++) {
-    if (BitIsSet(i, run->date_time_bitfield.hour)) {
+  for (size_t i = 0; i < run->date_time_bitfield.hour.size(); ++i) {
+    if (run->date_time_bitfield.hour[i]) {
       Mmsg(temp, "at %02d:%02d", i, run->minute);
-      PmStrcat(run_str, temp.c_str());
+      run_str << temp.c_str(); /* jump over first comma */
+      PmStrcpy(temp, "");
     }
   }
 
   // run->minute output is smply the minute in HH:MM
 
-  return std::string(run_str.c_str());
+  return run_str.str();
 }
 
 
