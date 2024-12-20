@@ -539,5 +539,7 @@ add_executable(env_tester env_tester.cc)
 target_link_libraries(env_tester PRIVATE bareos)
 bareos_add_test(bpipe_env_test LINK_LIBRARIES GTest::gtest_main bareos)
 
+bareos_add_test(kv_store LINK_LIBRARIES GTest::gtest_main lmdb)
+
 bareoscopydllstobindir()
 include(DebugEdit)

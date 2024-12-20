@@ -846,7 +846,7 @@ message(
 message(
   "   VIXDISKLIB support:           ${VIXDISKLIB_FOUND} ${VIXDISKLIB_LIBRARIES} ${VIXDISKLIB_INCLUDE_DIRS} "
 )
-message("   LMDB support:                 ${lmdb} ")
+message("   LMDB support:                 ${lmdb} ${lmdb_VERSION}")
 message("   NDMP support:                 ${ndmp} ")
 message("   Build ndmjob binary:          ${build_ndmjob} ")
 message("   Build tray-monitor:           ${traymonitor} ")
