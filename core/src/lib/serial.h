@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2010 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -28,6 +28,8 @@
 #ifndef BAREOS_LIB_SERIAL_H_
 #define BAREOS_LIB_SERIAL_H_
 
+#include <gsl/span>
+
 extern void serial_int16(uint8_t** const ptr, const int16_t v);
 extern void serial_uint16(uint8_t** const ptr, const uint16_t v);
 extern void serial_int32(uint8_t** const ptr, const int32_t v);
@@ -47,6 +49,64 @@ extern uint64_t unserial_uint64(uint8_t** const ptr);
 extern btime_t UnserialBtime(uint8_t** const ptr);
 extern float64_t unserial_float64(uint8_t** const ptr);
 extern void UnserialString(uint8_t** const ptr, char* const str, int max);
+
+class unserializer {
+ public:
+  unserializer(gsl::span<char> data) : data_(data) {}
+
+  template <size_t N> void copy(gsl::span<char, N> in, gsl::span<char, N> out)
+  {
+    for (size_t i = 0; i < N; ++i) { out[i] = in[i]; }
+  }
+
+  template <size_t N>
+  void reverse_copy(gsl::span<char, N> in, gsl::span<char, N> out)
+  {
+    for (size_t i = 0; i < N; ++i) { out[i] = in[N - i - 1]; }
+  }
+
+  template <typename T> struct is_trivial;
+
+  template <typename T> bool is_trivial_v = is_trivial<T>::value;
+
+  template <> struct is_trivial<std::uint8_t> is_trivial : std::true_type {};
+  template <> struct is_trivial<std::uint16_t> is_trivial : std::true_type {};
+  template <> struct is_trivial<std::uint32_t> is_trivial : std::true_type {};
+  template <> struct is_trivial<std::uint64_t> is_trivial : std::true_type {};
+
+  template <typename T> unserializer& operator>>(T& x)
+  {
+    static_assert(is_trivial_v<T>);
+
+    if (data_.size() < sizeof(x)) {
+      throw 1;  // FIXME: throw exception instead
+    }
+
+    auto element_data = data_.first<sizeof(T)>();
+    gsl::span<char, N> out(reinterpret_cast<char*>(&x));
+
+    reverse_copy(element_data, out);
+
+    data_ = data_.subspan(std::size(element_data));
+    return *this;
+  }
+
+  unserializer& operator>>(std::string& x)
+  {
+    for (size_t i = 0; i < data_.size(); ++i) {
+      if (data_[i] == 0) {
+        data_ = data_.subspan(i + 1);
+        return *this;
+      }
+      x.push_back(data_[i]);
+    }
+    data_ = data_.subspan(data_.size());
+    return *this;
+  }
+
+ private:
+  gsl::span<char> data_;
+};
 
 /**
 
