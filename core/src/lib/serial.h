@@ -50,8 +50,23 @@ extern btime_t UnserialBtime(uint8_t** const ptr);
 extern float64_t unserial_float64(uint8_t** const ptr);
 extern void UnserialString(uint8_t** const ptr, char* const str, int max);
 
+template <typename T> struct is_trivial;
+
+template <typename T> constexpr bool is_trivial_v = is_trivial<T>::value;
+
+template <> struct is_trivial<std::uint8_t> : std::true_type {};
+template <> struct is_trivial<std::uint16_t> : std::true_type {};
+template <> struct is_trivial<std::uint32_t> : std::true_type {};
+template <> struct is_trivial<std::uint64_t> : std::true_type {};
+template <> struct is_trivial<std::int8_t> : std::true_type {};
+template <> struct is_trivial<std::int16_t> : std::true_type {};
+template <> struct is_trivial<std::int32_t> : std::true_type {};
+template <> struct is_trivial<std::int64_t> : std::true_type {};
+
 class unserializer {
  public:
+  // we need better support for when you just have a pointer
+  // also we should take a gsl::span<const char>!
   unserializer(gsl::span<char> data) : data_(data) {}
 
   template <size_t N> void copy(gsl::span<char, N> in, gsl::span<char, N> out)
@@ -65,47 +80,43 @@ class unserializer {
     for (size_t i = 0; i < N; ++i) { out[i] = in[N - i - 1]; }
   }
 
-  template <typename T> struct is_trivial;
-
-  template <typename T> bool is_trivial_v = is_trivial<T>::value;
-
-  template <> struct is_trivial<std::uint8_t> is_trivial : std::true_type {};
-  template <> struct is_trivial<std::uint16_t> is_trivial : std::true_type {};
-  template <> struct is_trivial<std::uint32_t> is_trivial : std::true_type {};
-  template <> struct is_trivial<std::uint64_t> is_trivial : std::true_type {};
-
   template <typename T> unserializer& operator>>(T& x)
   {
     static_assert(is_trivial_v<T>);
 
-    if (data_.size() < sizeof(x)) {
-      throw 1;  // FIXME: throw exception instead
-    }
+    if (data_.size() < sizeof(x)) { throw std::out_of_range(""); }
 
     auto element_data = data_.first<sizeof(T)>();
-    gsl::span<char, N> out(reinterpret_cast<char*>(&x));
+    gsl::span<char, sizeof(T)> out(reinterpret_cast<char*>(&x), sizeof(T));
 
     reverse_copy(element_data, out);
 
-    data_ = data_.subspan(std::size(element_data));
+    advance(std::size(element_data));
     return *this;
   }
 
-  unserializer& operator>>(std::string& x)
+  unserializer& operator>>(gsl::span<char> x)
   {
-    for (size_t i = 0; i < data_.size(); ++i) {
-      if (data_[i] == 0) {
-        data_ = data_.subspan(i + 1);
-        return *this;
-      }
-      x.push_back(data_[i]);
-    }
-    data_ = data_.subspan(data_.size());
+    if (data_.size() < x.size()) { throw std::out_of_range(""); }
+
+    memcpy(x.data(), data_.data(), x.size());
+    advance(x.size());
     return *this;
   }
+
+  std::size_t handled_size() const { return handled_bytes; }
+
+  std::size_t size() const { return data_.size(); }
 
  private:
+  void advance(std::size_t num_bytes)
+  {
+    handled_bytes += num_bytes;
+    data_ = data_.subspan(num_bytes);
+  }
+
   gsl::span<char> data_;
+  size_t handled_bytes{0};
 };
 
 /**
