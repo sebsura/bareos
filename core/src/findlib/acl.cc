@@ -717,8 +717,8 @@ static bacl_exit_code generic_get_acl_from_os(JobControlRecord* jcr,
 #      if defined(BACL_ENOTSUP)
       case BACL_ENOTSUP:
         /* If the filesystem reports it doesn't support ACLs we clear the
-         * BACL_FLAG_SAVE_NATIVE flag so we skip ACL saves on all other files
-         * on the same filesystem. The BACL_FLAG_SAVE_NATIVE flag gets set again
+         * SaveNative flag so we skip ACL saves on all other files
+         * on the same filesystem. The SaveNative flag gets set again
          * when we change from one filesystem to another. */
         acl_data->flags.SaveNative = false;
         goto bail_out;
@@ -766,8 +766,8 @@ static bacl_exit_code generic_set_acl_on_os(JobControlRecord* jcr,
 #      if defined(BACL_ENOTSUP)
       case BACL_ENOTSUP:
         /* If the filesystem reports it doesn't support ACLs we clear the
-         * BACL_FLAG_RESTORE_NATIVE flag so we skip ACL restores on all other
-         * files on the same filesystem. The BACL_FLAG_RESTORE_NATIVE flag gets
+         * RestoreNative flag so we skip ACL restores on all other
+         * files on the same filesystem. The RestoreNative flag gets
          * set again when we change from one filesystem to another. */
         acl_data->flags.RestoreNative = false;
         Mmsg1(jcr->errmsg,
@@ -830,8 +830,8 @@ static bacl_exit_code generic_set_acl_on_os(JobControlRecord* jcr,
 #      if defined(BACL_ENOTSUP)
       case BACL_ENOTSUP:
         /* If the filesystem reports it doesn't support ACLs we clear the
-         * BACL_FLAG_RESTORE_NATIVE flag so we skip ACL restores on all other
-         * files on the same filesystem. The BACL_FLAG_RESTORE_NATIVE flag gets
+         * RestoreNative flag so we skip ACL restores on all other
+         * files on the same filesystem. The RestoreNative flag gets
          * set again when we change from one filesystem to another. */
         acl_data->flags.RestoreNative = false;
         Mmsg1(
@@ -989,8 +989,8 @@ static bacl_exit_code freebsd_build_acl_streams(JobControlRecord* jcr,
   }
 
   /* If the filesystem reports it doesn't support ACLs we clear the
-   * BACL_FLAG_SAVE_NATIVE flag so we skip ACL saves on all other files
-   * on the same filesystem. The BACL_FLAG_SAVE_NATIVE flag gets set again
+   * SaveNative flag so we skip ACL saves on all other files
+   * on the same filesystem. The SaveNative flag gets set again
    * when we change from one filesystem to another. */
   if (acl_enabled == 0) {
     acl_data->flags.SaveNative = false;
@@ -1090,8 +1090,8 @@ static bacl_exit_code freebsd_parse_acl_streams(JobControlRecord* jcr,
     }
     case 0:
       /* If the filesystem reports it doesn't support ACLs we clear the
-       * BACL_FLAG_RESTORE_NATIVE flag so we skip ACL restores on all other
-       * files on the same filesystem. The BACL_FLAG_RESTORE_NATIVE flag gets
+       * RestoreNative flag so we skip ACL restores on all other
+       * files on the same filesystem. The RestoreNative flag gets
        * set again when we change from one filesystem to another. */
       acl_data->flags.SaveNative = false;
       Mmsg2(jcr->errmsg,
@@ -1285,8 +1285,8 @@ static bacl_exit_code solaris_build_acl_streams(JobControlRecord* jcr,
   switch (acl_enabled) {
     case 0:
       /* If the filesystem reports it doesn't support ACLs we clear the
-       * BACL_FLAG_SAVE_NATIVE flag so we skip ACL saves on all other files
-       * on the same filesystem. The BACL_FLAG_SAVE_NATIVE flag gets set again
+       * SaveNative flag so we skip ACL saves on all other files
+       * on the same filesystem. The SaveNative flag gets set again
        * when we change from one filesystem to another. */
       acl_data->flags.SaveNative = false;
       PmStrcpy(acl_data->content, "");
@@ -1379,8 +1379,8 @@ static bacl_exit_code solaris_parse_acl_streams(JobControlRecord* jcr,
       switch (acl_enabled) {
         case 0:
           /* If the filesystem reports it doesn't support ACLs we clear the
-           * BACL_FLAG_RESTORE_NATIVE flag so we skip ACL restores on all other
-           * files on the same filesystem. The BACL_FLAG_RESTORE_NATIVE flag
+           * RestoreNative flag so we skip ACL restores on all other
+           * files on the same filesystem. The RestoreNative flag
            * gets set again when we change from one filesystem to another. */
           acl_data->flags.RestoreNative = false;
           Mmsg1(jcr->errmsg,
@@ -1721,8 +1721,8 @@ bacl_exit_code BuildAclStreams(JobControlRecord* jcr,
 
 #  if defined(HAVE_AFS_ACL)
     /* AFS is a non OS specific filesystem so see if this path is on an AFS
-     * filesystem Set the BACL_FLAG_SAVE_AFS flag if it is. If not set the
-     * BACL_FLAG_SAVE_NATIVE flag. */
+     * filesystem Set the SaveAfs flag if it is. If not set the
+     * SaveNative flag. */
     if (FstypeEquals(acl_data->last_fname, "afs")) {
       acl_data->flags.SaveAfs = true;
     } else {
@@ -1737,14 +1737,14 @@ bacl_exit_code BuildAclStreams(JobControlRecord* jcr,
   }
 
 #  if defined(HAVE_AFS_ACL)
-  /* See if the BACL_FLAG_SAVE_AFS flag is set which lets us know if we should
+  /* See if the SaveAfs flag is set which lets us know if we should
    * save AFS ACLs. */
   if (acl_data->flags.SaveAfs) {
     return afs_build_acl_streams(jcr, acl_data, ff_pkt);
   }
 #  endif
 #  if defined(HAVE_ACL)
-  /* See if the BACL_FLAG_SAVE_NATIVE flag is set which lets us know if we
+  /* See if the SaveNative flag is set which lets us know if we
    * should save native ACLs. */
   if (acl_data->flags.SaveNative) {
     // Call the appropriate function.
@@ -1830,7 +1830,7 @@ bacl_exit_code parse_acl_streams(JobControlRecord* jcr,
     case STREAM_UNIX_ACCESS_ACL:
     case STREAM_UNIX_DEFAULT_ACL:
       // Handle legacy ACL streams.
-      if ((acl_data->flags.RestoreNative) && os_parse_acl_streams) {
+      if (acl_data->flags.RestoreNative && os_parse_acl_streams) {
         return os_parse_acl_streams(jcr, acl_data, stream, content,
                                     content_length);
       } else {
@@ -1841,7 +1841,7 @@ bacl_exit_code parse_acl_streams(JobControlRecord* jcr,
       }
       break;
     default:
-      if ((acl_data->flags.RestoreNative) && os_parse_acl_streams) {
+      if (acl_data->flags.RestoreNative && os_parse_acl_streams) {
         /* Walk the os_access_acl_streams array with the supported Access ACL
          * streams for this OS. */
         for (cnt = 0; cnt < sizeof(os_access_acl_streams) / sizeof(int);
