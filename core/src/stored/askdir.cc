@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -269,6 +269,179 @@ get_out:
 
   return retval;
 }
+
+struct volume_catalog_stats {
+  uint32_t max_jobs{0};      /**< Maximum Jobs to write to volume */
+  uint32_t max_files{0};     /**< Maximum files to write to volume */
+  uint64_t max_bytes{0};     /**< Max bytes to write to volume */
+  uint64_t capacity{0};      /**< capacity estimate (in bytes) */
+  uint32_t min_blocksize{0}; /**< Volume Minimum Blocksize */
+  uint32_t max_blocksize{0}; /**< Volume Maximum Blocksize */
+
+  int64_t media_id{0}; /**< MediaId */
+
+  char encryption_key[MAX_NAME_LENGTH]{
+      0}; /**< Encryption Key needed to read the media */
+
+  char status[20]{0}; /**< Volume status */
+};
+
+struct volume_rw_data {
+  uint32_t count;
+  uint64_t bytes;
+  btime_t time;
+};
+
+struct volume_device_stats {
+  uint32_t jobs{0};      /**< number of jobs on this Volume */
+  uint32_t files{0};     /**< Number of files */
+  uint32_t blocks{0};    /**< Number of blocks */
+  uint32_t mounts{0};    /**< Number of mounts this volume */
+  uint32_t errors{0};    /**< Number of errors this volume */
+  uint32_t recycles{0};  /**< Number of recycles this volume */
+  uint32_t end_file{0};  /**< Last file number */
+  uint32_t end_block{0}; /**< Last block number */
+
+  int32_t label_type{0};     /**< Bareos/ANSI/IBM */
+  int32_t current_slot{-1};  /**< >0=Slot loaded, 0=nothing, -1=unknown */
+  bool is_in_changer{false}; /**< Set if vol in current magazine */
+
+  volume_rw_data read;  /**< read data */
+  volume_rw_data write; /**< write data */
+
+  utime_t first_written{0}; /**< time of first write */
+  utime_t last_written{0};  /**< Time of last write */
+};
+
+struct volume_stats {
+  volume_catalog_stats cat;
+  volume_device_stats dev;
+};
+
+std::string bash_name(std::string_view name) { return {}; }
+
+std::optional<volume_stats> RetrieveVolumeStatsFromCatalog(
+    JobControlRecord* jcr,
+    std::string_view volume_name)
+{
+  std::string bashed_name = bash_name(volume_name);
+  if (volume_name.size() > MAX_NAME_LENGTH) {
+    UnbashSpaces(bashed_name.data());
+    Jmsg(jcr, M_ERROR, 0,
+         "Cannot retrieve volume information for volume \"%s\""
+         " as the name is to long!",
+         bashed_name.c_str());
+    return std::nullopt;
+  }
+
+  BareosSocket* dir = jcr->dir_bsock;
+  dir->fsend(Get_Vol_Info, jcr->Job, bashed_name.c_str(), 0);
+  Dmsg1(debuglevel, ">dird %s", dir->msg);
+
+  volume_stats stats = {};
+  char received_volume_name[MAX_NAME_LENGTH]{0};
+  int32_t InChanger;
+
+  if (dir->recv() <= 0) {
+    Dmsg0(debuglevel, "getvolname error BnetRecv\n");
+    Mmsg(jcr->errmsg, T_("Network error on BnetRecv in req_vol_info.\n"));
+    return std::nullopt;
+  }
+
+  Dmsg1(debuglevel, "<dird %s", dir->msg);
+
+  // FIXME: as you can see, stats.dev.read.{bytes,count} are not saved in the db
+  //        We should probably do so!
+  if (int n = sscanf(
+          dir->msg, OK_media, received_volume_name, &stats.dev.jobs,
+          &stats.dev.files, &stats.dev.blocks, &stats.dev.write.bytes,
+          &stats.dev.mounts, &stats.dev.errors, &stats.dev.write.count,
+          &stats.cat.max_bytes, &stats.cat.capacity, stats.cat.status,
+          &stats.dev.current_slot, &InChanger, &stats.dev.read.time,
+          &stats.dev.write.time, &stats.dev.end_file, &stats.dev.end_block,
+          &stats.dev.label_type, &stats.cat.media_id, &stats.cat.encryption_key,
+          &stats.cat.min_blocksize, &stats.cat.max_blocksize);
+      n != 24) {
+    Dmsg3(debuglevel, "Bad response from Dir fields=%d, len=%d: %s", n,
+          dir->message_length, dir->msg);
+    Mmsg(jcr->errmsg, T_("Error getting Volume info: %s"), dir->msg);
+    return std::nullopt;
+  }
+  stats.dev.is_in_changer = InChanger; /* bool in structure */
+  UnbashSpaces(received_volume_name);
+
+  if (std::string_view{received_volume_name, strlen(received_volume_name)}
+      != volume_name) {
+    UnbashSpaces(bashed_name.data());
+    Jmsg(jcr, M_ERROR, 0,
+         "Got information about volume \"%s\" when asking"
+         " about volume \"%s\".",
+         received_volume_name, bashed_name.c_str());
+    return std::nullopt;
+  }
+
+  /* If we received a new crypto key update the cache and write out the new
+   * cache on a change. */
+  if (*stats.cat.encryption_key) {
+    Dmsg0(debuglevel, "Received encryption key. Updating the crypto cache ...");
+    if (UpdateCryptoCache(received_volume_name, stats.cat.encryption_key)) {
+      Dmsg0(debuglevel, "Updated the crypto cache; writing it to disk");
+      WriteCryptoCache(me->working_directory, "bareos-sd",
+                       GetFirstPortHostOrder(me->SDaddrs));
+    } else {
+      Dmsg0(debuglevel, "Could not update the crypto cache");
+    }
+  }
+
+  Dmsg4(debuglevel,
+        "DoGetVolumeInfo return true slot=%d Volume=%s, "
+        "VolminBlocksize=%u VolMaxBlocksize=%u\n",
+        stats.dev.current_slot, received_volume_name, stats.cat.min_blocksize,
+        stats.cat.max_blocksize);
+
+
+  return stats;
+}
+
+bool SendVolumeStatsToCatalog(JobControlRecord* jcr,
+                              std::string_view volume_name,
+                              const volume_stats& stats,
+                              bool after_label)
+{
+  std::string bashed_name = bash_name(volume_name);
+  if (volume_name.size() > MAX_NAME_LENGTH) {
+    UnbashSpaces(bashed_name.data());
+    Jmsg(jcr, M_ERROR, 0,
+         "Cannot retrieve volume information for volume \"%s\""
+         " as the name is to long!",
+         bashed_name.c_str());
+    return false;
+  }
+
+  BareosSocket* dir = jcr->dir_bsock;
+
+  int32_t InChanger = stats.dev.is_in_changer;
+
+  char ed1[50], ed2[50], ed3[50], ed4[50], ed5[50], ed6[50];
+  if (!dir->fsend(Update_media, jcr->Job, bashed_name.c_str(), stats.dev.jobs,
+                  stats.dev.files, stats.dev.blocks,
+                  edit_uint64(stats.dev.write.bytes, ed1), stats.dev.mounts,
+                  stats.dev.errors, stats.dev.write.count,
+                  edit_uint64(stats.cat.max_bytes, ed2),
+                  edit_uint64(stats.dev.last_written, ed6), stats.cat.status,
+                  stats.dev.current_slot, after_label,
+                  InChanger, /* bool in structure */
+                  edit_int64(stats.dev.read.time, ed3),
+                  edit_int64(stats.dev.write.time, ed4),
+                  edit_uint64(stats.dev.first_written, ed5))) {
+    Dmsg0(debuglevel, "Could not send update media request to dir!\n");
+    return false;
+  }
+  Dmsg1(debuglevel, ">dird %s", dir->msg);
+
+  return true;
+}
+
 
 /**
  * After writing a Volume, send the updated statistics

@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2025 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -51,6 +51,7 @@ if(NOT build_client_only)
 endif()
 
 set(LIBBAREOSSD_SRCS
+    new_reser.cc
     acquire.cc
     ansi_label.cc
     askdir.cc
