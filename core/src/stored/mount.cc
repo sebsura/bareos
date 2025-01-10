@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -134,7 +134,7 @@ mount_next_vol:
    * If the device is a file, we create the output
    * file. If it is a tape, we check the volume name
    * and move the tape to the end of data. */
-  dcr->setVolCatInfo(false); /* out of date when Vols unlocked */
+  dcr->setVolCatInfo(false); /* out of date Vols unlocked */
 
   /* See if this is a retry of the mounting of the next volume.
    * If the device is already open close it first as otherwise we could
@@ -180,6 +180,7 @@ mount_next_vol:
       // Success
       autochanger = true;
       ask = false;
+      dev->clear_load();
       break;
   }
   Dmsg1(150, "autoLoadDev returns %d\n", autochanger);
