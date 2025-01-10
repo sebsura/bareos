@@ -6,7 +6,7 @@ JobDefs {
   FileSet = "SelfTest"
   Storage = File
   Messages = Standard
-  Pool = Incremental
+  Pool = Full
   Priority = 10
   Write Bootstrap = "@working_dir@/%c.bsr"
 }
