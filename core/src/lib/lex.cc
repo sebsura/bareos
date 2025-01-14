@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -33,6 +33,7 @@
 #include "lib/berrno.h"
 #include "lib/bpipe.h"
 #include <glob.h>
+#include <stdexcept>
 
 extern int debug_level;
 
@@ -1039,3 +1040,236 @@ int LexGetToken(LEX* lf, int expect)
   lf->token = token; /* set possible new token */
   return token;
 }
+
+struct config_exception : public std::runtime_error {
+  template <typename... Args>
+  config_exception(Args... args)
+      : std::runtime_error(std::forward<Args>(args)...)
+  {
+  }
+};
+
+#include <fstream>
+#include <sstream>
+
+struct token_base {
+  std::size_t begin, end;
+  std::size_t size() const { return end - begin; }
+};
+
+namespace config_parser {
+struct Eq : public token_base {};
+struct Comma : public token_base {};
+struct EndOfLine : public token_base {};
+struct Word : public token_base {};
+struct Quoted : public token_base {};
+struct BlockOpen : public token_base {};
+struct BlockClose : public token_base {};
+struct SemiColon : public token_base {};
+
+using token = std::variant<Eq,
+                           Comma,
+                           EndOfLine,
+                           Word,
+                           Quoted,
+                           BlockOpen,
+                           BlockClose,
+                           SemiColon>;
+
+struct Whitespace : public token_base {};
+struct Include : public token_base {};
+
+using quasi_token = std::variant<Eq,
+                                 Comma,
+                                 EndOfLine,
+                                 Word,
+                                 Quoted,
+                                 BlockOpen,
+                                 BlockClose,
+                                 Include,
+                                 Whitespace,
+                                 SemiColon>;
+
+
+token_base* baseof(quasi_token& qt)
+{
+  return std::visit(
+      [](auto& value) -> token_base* {
+        return static_cast<token_base*>(&value);
+      },
+      qt);
+}
+
+std::size_t byte_count(quasi_token qt) { return baseof(qt)->size(); }
+
+std::string_view string_value(token tk) { return {}; }
+
+quasi_token read_quasitoken(std::string_view to_parse, std::size_t offset)
+{
+  char current = to_parse[0];
+  switch (current) {
+    case '{': {
+      return BlockOpen{offset, offset + 1};
+    } break;
+    case '}': {
+      return BlockClose{offset, offset + 1};
+    } break;
+    case '=': {
+      return Eq{offset, offset + 1};
+    } break;
+    case '\n': {
+      return EndOfLine{offset, offset + 1};
+    } break;
+    case ',': {
+      return Comma{offset, offset + 1};
+    } break;
+    case '@': {
+      return Include{offset, offset + 1};
+    }
+    case ';': {
+      return SemiColon{offset, offset + 1};
+    }
+  }
+
+  if (std::isspace(current)) {
+    return Whitespace{offset, offset + 1};
+  } else {
+    return Word{offset, offset + 1};
+  }
+}
+
+struct line_translation {
+  std::size_t origin;
+  std::size_t offset;  // offset in origin on when to begin
+};
+
+struct file {
+  std::string path;
+  std::string content;
+};
+
+struct token_stream {
+  std::vector<file> files;
+  std::map<std::size_t, line_translation> line_map;
+  std::string source;
+};
+
+struct lexer {
+  std::vector<file> files;
+
+  static std::string read_full(const char* path)
+  {
+    try {
+      std::ifstream fi{path};
+      std::stringstream ss;
+
+      ss << fi.rdbuf();
+
+      return ss.str();
+    } catch (...) {
+      throw config_exception(std::string{"could not read file: "} + path);
+    }
+  }
+
+  void add_file(const char* path) { files.emplace_back(path, read_full(path)); }
+
+  token expect_token(quasi_token qt)
+  {
+    return std::visit(
+        [](auto& val) -> token {
+          using T = std::decay_t<decltype(val)>;
+
+          if constexpr (std::is_same_v<T, Whitespace>
+                        || std::is_same_v<T, Include>) {
+            // TODO: better error
+            throw config_exception("expected token");
+          } else {
+            return val;
+          }
+        },
+        qt);
+  }
+
+  std::string read_string(std::string_view& to_parse, std::size_t& offset)
+  {
+    return {};
+  }
+
+  std::vector<quasi_token> quasi_tokenize(std::string_view content)
+  {
+    std::vector<quasi_token> qts;
+    std::size_t current_offset = 0;
+    while (!content.empty()) {
+      auto qt = read_quasitoken(content, current_offset);
+      qts.push_back(qt);
+      content.remove_prefix(byte_count(qt));
+      current_offset += byte_count(qt);
+    }
+    return qts;
+  }
+
+  token_stream tokenize()
+  {
+    std::vector<token> tokens;
+
+    struct partial_file {
+      std::size_t bytes_parsed{0};
+      std::size_t file_index;
+
+      partial_file(std::size_t findex) : file_index{findex} {}
+    };
+
+    std::vector<partial_file> file_stack;
+    file_stack.emplace_back(0);
+
+    std::size_t total_offset = 0;
+
+    std::map<std::size_t, line_translation> line_map;
+
+    while (!file_stack.empty()) {
+      auto& current = file_stack.back();
+      auto& file = files[current.file_index];
+
+      if (file.content.size() == current.bytes_parsed) {
+        file_stack.pop_back();
+        continue;
+      }
+
+      line_map[total_offset] = {
+          .origin = current.file_index,
+          .offset = current.bytes_parsed,
+      };
+
+      std::string_view to_parse{file.content};
+
+      to_parse.remove_prefix(current.bytes_parsed);
+
+      while (!to_parse.empty()) {
+        auto qt = read_quasitoken(to_parse, total_offset);
+
+        total_offset += byte_count(qt);
+        to_parse.remove_prefix(byte_count(qt));
+
+        std::visit(
+            [&](auto& val) -> void {
+              using T = std::decay_t<decltype(val)>;
+
+              if constexpr (std::is_same_v<T, Whitespace>) {
+                // intentionally left blank (we just skip it)
+              } else if constexpr (std::is_same_v<T, Include>) {
+                auto path = read_string(to_parse, total_offset);
+
+                add_file(path.c_str());
+
+              } else {
+                tokens.push_back(val);
+              }
+            },
+            qt);
+      }
+    }
+    return {};
+  }
+};
+
+};  // namespace config_parser
