@@ -1156,6 +1156,7 @@ struct token_stream {
 
 struct lexer {
   std::vector<file> files;
+  std::vector<quasi_token> qts_of_file;
 
   static std::string read_full(const char* path)
   {
@@ -1171,7 +1172,12 @@ struct lexer {
     }
   }
 
-  void add_file(const char* path) { files.emplace_back(path, read_full(path)); }
+  void add_file(const char* path)
+  {
+    auto content = read_full(path);
+    qts_of_file.emplace_back(quasi_tokenize(content));
+    files.emplace_back(path, std::move(content));
+  }
 
   token expect_token(quasi_token qt)
   {
@@ -1190,8 +1196,34 @@ struct lexer {
         qt);
   }
 
+  std::string read_unquoted(std::string_view& to_parse, std::size_t& offset) {}
+
   std::string read_string(std::string_view& to_parse, std::size_t& offset)
   {
+    auto qt = read_quasitoken(to_parse, offset);
+
+    std::string ret = std::visit(
+        [&](auto& val) -> std::string {
+          using T = std::decay_t<decltype(val)>;
+
+          if constexpr (std::is_same_v<T, Quoted>) {
+            return std::string{string_value(val)};
+          } else if constexpr (std::is_same_v<T, Include>) {
+            // we should support this
+            throw config_exception("fixme");
+          } else if constexpr (std::is_same_v<T, EndOfLine>) {
+            throw config_exception("fixme");
+          } else if constexpr (std::is_same_v<T, Whitespace>) {
+            throw config_exception("fixme");
+          } else {
+            std::string s = read_unquoted(to_parse, offset);
+            auto prefix = string_value(val);
+            s.insert(std::begin(s), std::begin(prefix), std::end(prefix));
+            return s;
+          }
+        },
+        qt);
+
     return {};
   }
 
@@ -1271,5 +1303,18 @@ struct lexer {
     return {};
   }
 };
+
+// idea: first transform _all_ files into quasi tokens
+// a single quasi token can only be contained inside one file
+// a byte position is a 64 bit struct consisting of 2 32-bit
+// integers:
+// struct byte_pos { uint32_t file_index; uint32_t offset; }
+// This means we only support configuration files of up to 4GB.
+// This sould be plenty.
+// A span (f1,o1)-(f2,o2) contains the following bytes:
+// if f1=f2: then it just contains the span [o1, o2-1]
+// else: it contains f1:[o1-end], f1+1...f2-1,f2:[0, o2-1]
+// What happens if f1 contains f3 ? We need to somehow embed @ includes
+// via some kind of offset table.
 
 };  // namespace config_parser
