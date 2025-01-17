@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2004-2010 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -105,13 +105,11 @@ template <typename T> class dlist {
     if (tail == where) { tail = item; }
     num_items++;
   }
-  /*
-   *  Insert an item in the list, but only if it is unique
+  /*  Insert an item in the list, but only if it is unique
    *  otherwise, the item is returned non inserted
    *
    * Returns: item         if item inserted
-   *          other_item   if same value already exists (item not inserted)
-   */
+   *          other_item   if same value already exists (item not inserted) */
   T* binary_insert(T* item, int compare(T* item1, T* item2))
   {
     int comp;
@@ -246,11 +244,9 @@ template <typename T> class dlist {
         return cur_item;
       }
     }
-    /*
-     * low == high can only happen if low just
+    /* low == high can only happen if low just
      *   got incremented from cur, and we have
-     *   not yet tested cur+1
-     */
+     *   not yet tested cur+1 */
     if (low == high) {
       cur_item = next(cur_item);
       comp = compare(item, cur_item);
@@ -258,10 +254,8 @@ template <typename T> class dlist {
     }
     return NULL;
   }
-  /*
-   *  Insert an item in the list, regardless if it is unique
-   *  or not.
-   */
+  /*  Insert an item in the list, regardless if it is unique
+   *  or not. */
   void BinaryInsertMultiple(T* item, int compare(T* item1, T* item2))
   {
     T* ins_item = binary_insert(item, compare);
@@ -285,6 +279,8 @@ template <typename T> class dlist {
       xitem = ilink->prev;
       SetNext(xitem, ilink->next);
     }
+    ilink->next = nullptr;
+    ilink->prev = nullptr;
     num_items--;
     if (num_items == 0) { head = tail = NULL; }
   }
