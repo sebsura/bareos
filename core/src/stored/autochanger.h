@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2018 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -29,7 +29,19 @@ class DeviceControlRecord;
 class Device;
 
 bool InitAutochangers();
-int AutoloadDevice(DeviceControlRecord* dcr, int writing, BareosSocket* dir);
+
+enum class autoload_result
+{
+  Success = 1,
+  NoChangerAvailable = 0,
+  ChangerError = -1,
+  CouldNotLockChanger = -2,
+  MediumNotFoundInSlot = -3,
+};
+
+autoload_result AutoloadDevice(DeviceControlRecord* dcr,
+                               int writing,
+                               BareosSocket* dir);
 bool AutochangerCmd(DeviceControlRecord* dcr,
                     BareosSocket* dir,
                     const char* cmd);

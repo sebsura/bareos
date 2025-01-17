@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -2410,7 +2410,6 @@ static void unfillcmd()
 static bool do_unfill()
 {
   DeviceBlock* block = g_dcr->block;
-  int autochanger;
   bool rc = false;
 
   dumped = 0;
@@ -2452,9 +2451,9 @@ static bool do_unfill()
     /* Multiple Volume tape */
     /* Close device so user can use autochanger if desired */
     if (g_dev->HasCap(CAP_OFFLINEUNMOUNT)) { g_dev->offline(); }
-    autochanger = AutoloadDevice(g_dcr, 1, nullptr);
-    if (autochanger != 1) {
-      Pmsg1(100, "Autochanger returned: %d\n", autochanger);
+    auto autochanger = AutoloadDevice(g_dcr, 1, nullptr);
+    if (autochanger != autoload_result::Success) {
+      Pmsg1(100, "Autochanger returned: %d\n", static_cast<int>(autochanger));
       g_dev->close(g_dcr);
       GetCmd(T_("Mount first tape. Press enter when ready: "));
       Pmsg0(000, "\n");
@@ -2515,9 +2514,9 @@ static bool do_unfill()
 
   SetVolumeName("TestVolume2", 2);
 
-  autochanger = AutoloadDevice(g_dcr, 1, nullptr);
-  if (autochanger != 1) {
-    Pmsg1(100, "Autochanger returned: %d\n", autochanger);
+  if (auto autochanger = AutoloadDevice(g_dcr, 1, nullptr);
+      autochanger != autoload_result::Success) {
+    Pmsg1(100, "Autochanger returned: %d\n", static_cast<int>(autochanger));
     g_dev->close(g_dcr);
     GetCmd(T_("Mount second tape. Press enter when ready: "));
     Pmsg0(000, "\n");
@@ -2963,8 +2962,6 @@ bool BTAPE_DCR::DirAskSysopToMountVolume(int)
 
 bool BTAPE_DCR::DirAskSysopToCreateAppendableVolume()
 {
-  int autochanger;
-
   Dmsg0(20, "Enter DirAskSysopToCreateAppendableVolume\n");
   if (stop == 0) {
     SetVolumeName("TestVolume1", 1);
@@ -2973,9 +2970,9 @@ bool BTAPE_DCR::DirAskSysopToCreateAppendableVolume()
   }
   /* Close device so user can use autochanger if desired */
   if (dev->HasCap(CAP_OFFLINEUNMOUNT)) { dev->offline(); }
-  autochanger = AutoloadDevice(this, 1, nullptr);
-  if (autochanger != 1) {
-    Pmsg1(100, "Autochanger returned: %d\n", autochanger);
+  if (auto autochanger = AutoloadDevice(this, 1, nullptr);
+      autochanger != autoload_result::Success) {
+    Pmsg1(100, "Autochanger returned: %d\n", static_cast<int>(autochanger));
     fprintf(stderr,
             T_("Mount blank Volume on device %s and press return when ready: "),
             dev->print_name());

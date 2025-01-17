@@ -3,7 +3,7 @@
 
    Copyright (C) 2001-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -162,10 +162,10 @@ static void LabelVolumeIfOk(DeviceControlRecord* dcr,
                             char* poolname,
                             slot_number_t Slot,
                             bool relabel);
-static int TryAutoloadDevice(JobControlRecord* jcr,
-                             DeviceControlRecord* dcr,
-                             slot_number_t slot,
-                             const char* VolName);
+static autoload_result TryAutoloadDevice(JobControlRecord* jcr,
+                                         DeviceControlRecord* dcr,
+                                         slot_number_t slot,
+                                         const char* VolName);
 static void SendDirBusyMessage(BareosSocket* dir, Device* dev);
 
 struct s_sd_dir_cmds {
@@ -703,11 +703,12 @@ static void LabelVolumeIfOk(DeviceControlRecord* dcr,
 
   Dmsg0(90, "TryAutoloadDevice - looking for volume_info\n");
   switch (TryAutoloadDevice(dcr->jcr, dcr, slot, volname)) {
-    case -1:
+      // case autoload_result::MediumNotFoundInSlot:
+    case autoload_result::ChangerError:
       goto cleanup;
-    case -2:
+    case autoload_result::CouldNotLockChanger:
       goto bail_out;
-    case 0:
+    case autoload_result::NoChangerAvailable:
     default:
       break;
   }
@@ -1444,10 +1445,11 @@ static void ReadVolumeLabel(JobControlRecord* jcr,
   StealDeviceLock(dev, &hold, BST_WRITING_LABEL);
 
   switch (TryAutoloadDevice(dcr->jcr, dcr, Slot, "")) {
-    case -1:
-    case -2:
+    case autoload_result::ChangerError:
+    case autoload_result::CouldNotLockChanger:
+      // case autoload_result::MediumNotFoundInSlot:
       goto bail_out;
-    case 0:
+    case autoload_result::NoChangerAvailable:
     default:
       break;
   }
@@ -1480,10 +1482,10 @@ bail_out:
  *         -1 on error on autochanger
  *         -2 on error locking the autochanger
  */
-static int TryAutoloadDevice(JobControlRecord* jcr,
-                             DeviceControlRecord* dcr,
-                             slot_number_t Slot,
-                             const char* VolName)
+static autoload_result TryAutoloadDevice(JobControlRecord* jcr,
+                                         DeviceControlRecord* dcr,
+                                         slot_number_t Slot,
+                                         const char* VolName)
 {
   BareosSocket* dir = jcr->dir_bsock;
 

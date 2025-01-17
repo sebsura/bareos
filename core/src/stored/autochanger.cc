@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -113,10 +113,14 @@ bool InitAutochangers()
  *         -1 on error on autochanger
  *         -2 on error locking the autochanger
  */
-int AutoloadDevice(DeviceControlRecord* dcr, int writing, BareosSocket* dir)
+
+autoload_result AutoloadDevice(DeviceControlRecord* dcr,
+                               int writing,
+                               BareosSocket* dir)
 {
   POOLMEM* changer;
-  int rtn_stat = -1; /* error status */
+  autoload_result rtn_stat
+      = autoload_result::NoChangerAvailable; /* error status */
   slot_number_t wanted_slot;
   JobControlRecord* jcr = dcr->jcr;
   drive_number_t drive;
@@ -124,14 +128,14 @@ int AutoloadDevice(DeviceControlRecord* dcr, int writing, BareosSocket* dir)
   if (!dcr->dev->AttachedToAutochanger()) {
     Dmsg1(100, "Device %s is not attached to an autochanger\n",
           dcr->dev->print_name());
-    return 0;
+    return autoload_result::NoChangerAvailable;
   }
 
   // An empty ChangerCommand => virtual disk autochanger
   if (dcr->device_resource->changer_command
       && dcr->device_resource->changer_command[0] == 0) {
     Dmsg0(100, "ChangerCommand=0, virtual disk changer\n");
-    return 1; /* nothing to load */
+    return autoload_result::Success; /* nothing to load */
   }
 
   drive = dcr->dev->drive_index;
@@ -142,7 +146,10 @@ int AutoloadDevice(DeviceControlRecord* dcr, int writing, BareosSocket* dir)
   /* Handle autoloaders here.  If we cannot autoload it, we will return 0 so
    * that the sysop will be asked to load it. */
   if (writing && (!IsSlotNumberValid(wanted_slot))) {
-    if (dir) { return 0; /* For user, bail out right now */ }
+    if (dir) {
+      return autoload_result::NoChangerAvailable; /* For user, bail out right
+                                                     now */
+    }
 
     // this really should not be here
     if (dcr->DirFindNextAppendableVolume()) {
@@ -164,7 +171,7 @@ int AutoloadDevice(DeviceControlRecord* dcr, int writing, BareosSocket* dir)
       Jmsg(jcr, M_INFO, 0,
            T_("Cartridge change or \"update slots\" may be required.\n"));
     }
-    rtn_stat = 0;
+    rtn_stat = autoload_result::NoChangerAvailable;
   } else if (!dcr->device_resource->changer_name) {
     // Suppress info when polling
     if (!dcr->dev->poll) {
@@ -173,7 +180,7 @@ int AutoloadDevice(DeviceControlRecord* dcr, int writing, BareosSocket* dir)
               "required.\n"),
            dcr->dev->print_name());
     }
-    rtn_stat = 0;
+    rtn_stat = autoload_result::NoChangerAvailable;
   } else if (!dcr->device_resource->changer_command) {
     // Suppress info when polling
     if (!dcr->dev->poll) {
@@ -182,7 +189,7 @@ int AutoloadDevice(DeviceControlRecord* dcr, int writing, BareosSocket* dir)
               "required.\n"),
            dcr->dev->print_name());
     }
-    rtn_stat = 0;
+    rtn_stat = autoload_result::NoChangerAvailable;
   } else {
     uint32_t timeout = dcr->device_resource->max_changer_wait;
     int status;
@@ -191,10 +198,13 @@ int AutoloadDevice(DeviceControlRecord* dcr, int writing, BareosSocket* dir)
     // Attempt to load the Volume
     loaded_slot = GetAutochangerLoadedSlot(dcr);
     if (loaded_slot != wanted_slot) {
+      Jmsg(jcr, M_INFO, 0, "loaded slot = %d, wanted slot = %d\n", loaded_slot,
+           wanted_slot);
+
       PoolMem results(PM_MESSAGE);
 
       if (!LockChanger(dcr)) {
-        rtn_stat = -2;
+        rtn_stat = autoload_result::CouldNotLockChanger;
         goto bail_out;
       }
 
@@ -241,13 +251,17 @@ int AutoloadDevice(DeviceControlRecord* dcr, int writing, BareosSocket* dir)
         std::string tmp(results.c_str());
         if (tmp.find("Source Element Address") != std::string::npos
             && tmp.find("is Empty") != std::string::npos) {
-          rtn_stat = -3; /* medium not found in slot */
+          rtn_stat = autoload_result::MediumNotFoundInSlot; /* medium not found
+                                                               in slot */
         } else {
-          rtn_stat = -1; /* hard error */
+          rtn_stat = autoload_result::ChangerError; /* hard error */
         }
         Dmsg3(100, "load slot %hd, drive %hd, bad stats=%s.\n", wanted_slot,
               drive, be.bstrerror());
-        Jmsg(jcr, rtn_stat == -3 ? M_ERROR : M_FATAL, 0,
+        Jmsg(jcr,
+             rtn_stat == autoload_result::MediumNotFoundInSlot ? M_ERROR
+                                                               : M_FATAL,
+             0,
              T_("3992 Bad autochanger \"load slot %hd, drive %hd\": "
                 "ERR=%s.\nResults=%s\n"),
              wanted_slot, drive, be.bstrerror(), results.c_str());
@@ -262,8 +276,8 @@ int AutoloadDevice(DeviceControlRecord* dcr, int writing, BareosSocket* dir)
 
     Dmsg1(100, "After changer, status=%d\n", status);
 
-    if (status == 0) { /* did we succeed? */
-      rtn_stat = 1;    /* tape loaded by changer */
+    if (status == 0) {                     /* did we succeed? */
+      rtn_stat = autoload_result::Success; /* tape loaded by changer */
     }
   }
 

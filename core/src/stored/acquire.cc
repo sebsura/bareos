@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2013 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -327,11 +327,10 @@ bool AcquireDeviceForRead(DeviceControlRecord* dcr)
 
         // Call autochanger only once unless ask_sysop called
         if (try_autochanger) {
-          int status;
           Dmsg2(rdebuglevel, "calling autoload Vol=%s Slot=%d\n",
                 dcr->VolumeName, dcr->VolCatInfo.Slot);
-          status = AutoloadDevice(dcr, 0, NULL);
-          if (status > 0) {
+          auto status = AutoloadDevice(dcr, 0, NULL);
+          if (status == autoload_result::Success) {
             try_autochanger = false;
             continue; /* try reading volume mounted */
           }
@@ -355,7 +354,7 @@ bool AcquireDeviceForRead(DeviceControlRecord* dcr)
         try_autochanger = true; /* permit trying the autochanger again */
 
         continue; /* try reading again */
-    }             /* end switch */
+    } /* end switch */
     break;
   } /* end while loop */
 

@@ -146,7 +146,7 @@ mount_next_vol:
   }
 
   switch (AutoloadDevice(dcr, true /* writing */, NULL)) {
-    case -3:
+    case autoload_result::MediumNotFoundInSlot:
       Dmsg0(100, "Wait after a unsuccessful tape load (empty slot).\n");
       Jmsg0(jcr, M_WARNING, 0,
             "Wait after a unsuccessful tape load (empty slot).\n");
@@ -156,14 +156,14 @@ mount_next_vol:
                      * it is still on the vol_list chain for another job */
       goto mount_next_vol;
       break;
-    case -2:
-    case -1:
+    case autoload_result::CouldNotLockChanger:
+    case autoload_result::ChangerError:
       // -1 => error on autochanger
       autochanger = false;
       VolCatInfo.Slot = 0;
       ask = retry >= 2;
       break;
-    case 0:
+    case autoload_result::NoChangerAvailable:
       // 0 => failure (no changer available)
       autochanger = false;
       VolCatInfo.Slot = 0;
@@ -574,7 +574,7 @@ bool DeviceControlRecord::DoLoad(bool IsWriting)
 
   if (dev->must_load()) {
     Dmsg1(100, "Must load %s\n", dev->print_name());
-    if (AutoloadDevice(dcr, IsWriting, NULL) > 0) {
+    if (AutoloadDevice(dcr, IsWriting, NULL) == autoload_result::Success) {
       dev->clear_load();
       retval = true;
     }
