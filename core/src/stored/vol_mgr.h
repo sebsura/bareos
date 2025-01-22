@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2013 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -124,5 +124,190 @@ void AddReadVolume(JobControlRecord* jcr, const char* VolumeName);
 void RemoveReadVolume(JobControlRecord* jcr, const char* VolumeName);
 
 } /* namespace storagedaemon */
+
+#include <vector>
+#include <string>
+#include <gsl/span>
+#include <memory>
+#include <cstdint>
+
+namespace my_storagedaemon {
+
+struct media_type {
+  std::string name_;
+};
+
+struct media_pool {
+  std::string name;
+};
+
+struct media_id {
+  std::uint64_t value;
+};
+
+using mtype_ref = const media_type*;
+using mpool_ref = const media_pool*;
+
+struct device {
+  mtype_ref type{nullptr};
+};
+
+struct volume {
+ public:
+  mtype_ref mtype() const { return type; }
+  mpool_ref mpool() const { return pool; }
+  media_id mid() const { return id; }
+
+  device*& loaded_device() { return loaded_in; }
+
+ private:
+  mtype_ref type{nullptr};
+  mpool_ref pool{nullptr};
+  media_id id{};
+
+  device* loaded_in{nullptr};
+};
+
+struct volume_descriptor {
+  mtype_ref type;
+  mpool_ref pool;
+};
+
+
+const media_type* get_media_type(const char* name)
+{
+  (void)name;
+  return nullptr;
+}
+
+struct empty_device {
+  device* dev;
+};
+
+struct device_manager {
+  struct device_ptr {
+    device* dev{nullptr};
+    device_manager* manager{nullptr};
+
+    device_ptr() = default;
+    device_ptr(device_manager* manager_, device* dev_)
+        : dev{dev_}, manager{manager_}
+    {
+    }
+    device_ptr(const device_ptr&) = delete;
+    device_ptr& operator=(const device_ptr&) = default;
+    device_ptr(device_ptr&& other) { *this = std::move(other); }
+    device_ptr& operator=(device_ptr&& other)
+    {
+      cleanup();
+      dev = other.dev;
+      manager = other.manager;
+
+      other.dev = nullptr;
+      other.manager = nullptr;
+    }
+
+    ~device_ptr() { cleanup(); }
+
+    operator bool() const { return this->dev != nullptr; }
+
+    device& operator*() { return *dev; }
+    const device& operator*() const { return *dev; }
+
+   private:
+    void cleanup()
+    {
+      if (dev) {
+        manager->unlock(dev);
+        dev = nullptr;
+      }
+      manager = nullptr;
+    }
+  };
+
+  std::vector<std::unique_ptr<device>> devices;
+
+  std::vector<device> loaded_devices;
+  std::vector<empty_device> empty_devices;
+
+  device_ptr use_one_of(gsl::span<const device*> devs);
+  void unlock(device*);
+
+  bool unload_volume(device*);
+  bool take_volume(device* to, device* from);
+  bool load_volume(device*, volume*);
+};
+
+struct volume_manager {
+  device_manager devices;
+
+  struct volume_ptr {
+    volume* vol{nullptr};
+    volume_manager* manager{nullptr};
+
+    volume_ptr() = default;
+    volume_ptr(volume_manager* manager_, volume* vol_)
+        : vol{vol_}, manager{manager_}
+    {
+    }
+    volume_ptr(const volume_ptr&) = delete;
+    volume_ptr& operator=(const volume_ptr&) = default;
+    volume_ptr(volume_ptr&& other) { *this = std::move(other); }
+    volume_ptr& operator=(volume_ptr&& other)
+    {
+      cleanup();
+      vol = other.vol;
+      manager = other.manager;
+
+      other.vol = nullptr;
+      other.manager = nullptr;
+    }
+
+    ~volume_ptr() { cleanup(); }
+
+    operator bool() const { return this->vol != nullptr; }
+
+    volume& operator*() { return *vol; }
+    const volume& operator*() const { return *vol; }
+    volume* operator->() { return vol; }
+    const volume* operator->() const { return vol; }
+
+   private:
+    void cleanup()
+    {
+      if (vol) {
+        manager->release_volume(vol);
+        vol = nullptr;
+      }
+      manager = nullptr;
+    }
+  };
+
+  struct mounted_volume_ptr {
+    volume_ptr p;
+  };
+
+  // we want to write to _any_ volume that matches desc
+  mounted_volume_ptr mount_volume_for_writing(
+      volume_descriptor desc,
+      gsl::span<const device*> device_candidates);
+
+  // we want to read exactly vol
+  mounted_volume_ptr mount_volume_for_reading(
+      const volume* vol,
+      gsl::span<const device*> device_candidates);
+
+  void release_volume(volume* vol);
+
+  std::vector<std::unique_ptr<volume>> volumes;
+
+ private:
+  volume_ptr lock(const volume* vol);
+  volume_ptr try_lock(const volume* vol);
+
+  void unlock(volume* vol);
+};
+
+};  // namespace my_storagedaemon
 
 #endif  // BAREOS_STORED_VOL_MGR_H_

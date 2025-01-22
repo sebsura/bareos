@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2025 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -160,6 +160,7 @@ add_library(bareossd SHARED ${LIBBAREOSSD_SRCS})
 target_link_libraries(
   bareossd PRIVATE bareos ${THREADS_THREADS} fmt::fmt-header-only
 )
+target_link_libraries(bareossd PUBLIC Microsoft.GSL::GSL)
 set_target_properties(
   bareossd PROPERTIES VERSION "${BAREOS_NUMERIC_VERSION}"
                       SOVERSION "${BAREOS_VERSION_MAJOR}"
@@ -183,7 +184,9 @@ else()
   add_executable(bareos-sd WIN32 stored.cc)
 endif()
 
-target_link_libraries(stored_objects PRIVATE ${THREADS_THREADS})
+target_link_libraries(
+  stored_objects PRIVATE ${THREADS_THREADS} Microsoft.GSL::GSL
+)
 target_link_libraries(
   bareos-sd PRIVATE stored_objects bareos bareossd bareosfind CLI11::CLI11
 )

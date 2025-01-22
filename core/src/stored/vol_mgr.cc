@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2013 Free Software Foundation Europe e.V.
-   Copyright (C) 2015-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2015-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -912,3 +912,64 @@ void FreeTempVolList(dlist<VolumeReservationItem>* temp_vol_list)
 }
 
 } /* namespace storagedaemon */
+
+
+namespace my_storagedaemon {
+
+inline const char* name_of(mtype_ref t) { return t->name_.c_str(); }
+
+auto volume_manager::mount_volume_for_reading(
+    const volume* vol,
+    gsl::span<const device*> device_candidates) -> mounted_volume_ptr
+{
+  auto mtype = vol->mtype();
+
+  std::vector<const device*> possible_devices;
+  for (auto* dev : device_candidates) {
+    if (dev->type == mtype) { possible_devices.push_back(dev); }
+  }
+
+  if (possible_devices.empty()) {
+    Dmsg1(100, "No devices found with media type {}", name_of(mtype));
+    return {};
+  }
+
+  auto locked = lock(vol);
+
+  if (!locked) { return {}; }
+
+  auto current_device = locked->loaded_device();
+
+  if (current_device) {
+    for (auto* dev : possible_devices) {
+      if (dev == current_device) {
+        return mounted_volume_ptr{std::move(locked)};
+      }
+    }
+
+    auto dev = devices.use_one_of(possible_devices);
+    if (!dev) { return {}; }
+
+    if (!devices.unload_volume(dev.dev)) {
+      // TODO: we need to somehow signal that the volume is now not
+      //       loaded anymore
+      return {};
+    }
+
+    if (devices.unload_volume(dev.dev)
+        && devices.take_volume(dev.dev, current_device)) {
+      return mounted_volume_ptr{std::move(locked)};
+    }
+  } else {
+    auto dev = devices.use_one_of(possible_devices);
+    if (!dev) { return {}; }
+
+    if (devices.load_volume(dev.dev, &*locked)) {
+      locked->loaded_device() = dev.dev;
+      return mounted_volume_ptr{std::move(locked)};
+    }
+  }
+
+  return {};
+}
+};  // namespace my_storagedaemon
