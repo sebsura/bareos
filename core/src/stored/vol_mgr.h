@@ -127,9 +127,10 @@ void RemoveReadVolume(JobControlRecord* jcr, const char* VolumeName);
 
 #include <vector>
 #include <string>
-#include <gsl/span>
 #include <memory>
 #include <cstdint>
+#include <optional>
+#include <unordered_set>
 
 namespace my_storagedaemon {
 
@@ -174,138 +175,110 @@ struct volume_descriptor {
 };
 
 
-const media_type* get_media_type(const char* name)
-{
-  (void)name;
-  return nullptr;
-}
-
-struct empty_device {
-  device* dev;
-};
-
 struct device_manager {
-  struct device_ptr {
-    device* dev{nullptr};
-    device_manager* manager{nullptr};
+  // struct device_ptr {
+  //   device* dev{nullptr};
+  //   device_manager* manager{nullptr};
 
-    device_ptr() = default;
-    device_ptr(device_manager* manager_, device* dev_)
-        : dev{dev_}, manager{manager_}
-    {
-    }
-    device_ptr(const device_ptr&) = delete;
-    device_ptr& operator=(const device_ptr&) = default;
-    device_ptr(device_ptr&& other) { *this = std::move(other); }
-    device_ptr& operator=(device_ptr&& other)
-    {
-      cleanup();
-      dev = other.dev;
-      manager = other.manager;
+  //   device_ptr() = default;
+  //   device_ptr(device_manager* manager_, device* dev_)
+  //       : dev{dev_}, manager{manager_}
+  //   {
+  //   }
+  //   device_ptr(const device_ptr&) = delete;
+  //   device_ptr& operator=(const device_ptr&) = default;
+  //   device_ptr(device_ptr&& other) { *this = std::move(other); }
+  //   device_ptr& operator=(device_ptr&& other)
+  //   {
+  //     cleanup();
+  //     dev = other.dev;
+  //     manager = other.manager;
 
-      other.dev = nullptr;
-      other.manager = nullptr;
-    }
+  //     other.dev = nullptr;
+  //     other.manager = nullptr;
+  //   }
 
-    ~device_ptr() { cleanup(); }
+  //   ~device_ptr() { cleanup(); }
 
-    operator bool() const { return this->dev != nullptr; }
+  //   operator bool() const { return this->dev != nullptr; }
 
-    device& operator*() { return *dev; }
-    const device& operator*() const { return *dev; }
+  //   device& operator*() { return *dev; }
+  //   const device& operator*() const { return *dev; }
 
-   private:
-    void cleanup()
-    {
-      if (dev) {
-        manager->unlock(dev);
-        dev = nullptr;
-      }
-      manager = nullptr;
-    }
-  };
+  //  private:
+  //   void cleanup()
+  //   {
+  //     if (dev) {
+  //       manager->unlock(dev);
+  //       dev = nullptr;
+  //     }
+  //     manager = nullptr;
+  //   }
+  // };
 
   std::vector<std::unique_ptr<device>> devices;
-
-  std::vector<device> loaded_devices;
-  std::vector<empty_device> empty_devices;
-
-  device_ptr use_one_of(gsl::span<const device*> devs);
-  void unlock(device*);
-
-  bool unload_volume(device*);
-  bool take_volume(device* to, device* from);
-  bool load_volume(device*, volume*);
 };
 
 struct volume_manager {
-  device_manager devices;
+  // struct volume_ptr {
+  //   volume* vol{nullptr};
+  //   volume_manager* manager{nullptr};
 
-  struct volume_ptr {
-    volume* vol{nullptr};
-    volume_manager* manager{nullptr};
+  //   volume_ptr() = default;
+  //   volume_ptr(volume_manager* manager_, volume* vol_)
+  //       : vol{vol_}, manager{manager_}
+  //   {
+  //   }
+  //   volume_ptr(const volume_ptr&) = delete;
+  //   volume_ptr& operator=(const volume_ptr&) = default;
+  //   volume_ptr(volume_ptr&& other) { *this = std::move(other); }
+  //   volume_ptr& operator=(volume_ptr&& other)
+  //   {
+  //     cleanup();
+  //     vol = other.vol;
+  //     manager = other.manager;
 
-    volume_ptr() = default;
-    volume_ptr(volume_manager* manager_, volume* vol_)
-        : vol{vol_}, manager{manager_}
-    {
-    }
-    volume_ptr(const volume_ptr&) = delete;
-    volume_ptr& operator=(const volume_ptr&) = default;
-    volume_ptr(volume_ptr&& other) { *this = std::move(other); }
-    volume_ptr& operator=(volume_ptr&& other)
-    {
-      cleanup();
-      vol = other.vol;
-      manager = other.manager;
+  //     other.vol = nullptr;
+  //     other.manager = nullptr;
+  //   }
 
-      other.vol = nullptr;
-      other.manager = nullptr;
-    }
+  //   ~volume_ptr() { cleanup(); }
 
-    ~volume_ptr() { cleanup(); }
+  //   operator bool() const { return this->vol != nullptr; }
 
-    operator bool() const { return this->vol != nullptr; }
+  //   volume& operator*() { return *vol; }
+  //   const volume& operator*() const { return *vol; }
+  //   volume* operator->() { return vol; }
+  //   const volume* operator->() const { return vol; }
 
-    volume& operator*() { return *vol; }
-    const volume& operator*() const { return *vol; }
-    volume* operator->() { return vol; }
-    const volume* operator->() const { return vol; }
-
-   private:
-    void cleanup()
-    {
-      if (vol) {
-        manager->release_volume(vol);
-        vol = nullptr;
-      }
-      manager = nullptr;
-    }
-  };
-
-  struct mounted_volume_ptr {
-    volume_ptr p;
-  };
-
-  // we want to write to _any_ volume that matches desc
-  mounted_volume_ptr mount_volume_for_writing(
-      volume_descriptor desc,
-      gsl::span<const device*> device_candidates);
-
-  // we want to read exactly vol
-  mounted_volume_ptr mount_volume_for_reading(
-      const volume* vol,
-      gsl::span<const device*> device_candidates);
-
-  void release_volume(volume* vol);
+  //  private:
+  //   void cleanup()
+  //   {
+  //     if (vol) {
+  //       manager->release_volume(vol);
+  //       vol = nullptr;
+  //     }
+  //     manager = nullptr;
+  //   }
+  // };
 
   std::vector<std::unique_ptr<volume>> volumes;
+};
 
- private:
-  volume_ptr lock(const volume* vol);
-  volume_ptr try_lock(const volume* vol);
+struct mounted_device {
+  std::unique_ptr<device> dev;
+  std::unique_ptr<volume> vol;
+};
 
-  void unlock(volume* vol);
+struct reservation_manager {
+  device_manager devices;
+  volume_manager volumes;
+
+  std::vector<mounted_device> mounted_devices;
+
+  std::optional<mounted_device> acquire_for_reading(
+      const volume* vol,
+      const std::unordered_set<const device*> device_candidates);
 };
 
 };  // namespace my_storagedaemon

@@ -913,63 +913,51 @@ void FreeTempVolList(dlist<VolumeReservationItem>* temp_vol_list)
 
 } /* namespace storagedaemon */
 
+#include <algorithm>
 
 namespace my_storagedaemon {
 
-inline const char* name_of(mtype_ref t) { return t->name_.c_str(); }
+const char* name_of(mtype_ref t) { return t->name_.c_str(); }
 
-auto volume_manager::mount_volume_for_reading(
+
+std::optional<mounted_device> reservation_manager::acquire_for_reading(
     const volume* vol,
-    gsl::span<const device*> device_candidates) -> mounted_volume_ptr
+    std::unordered_set<const device*> device_candidates)
 {
-  auto mtype = vol->mtype();
+  auto found = std::find_if(
+      std::begin(mounted_devices), std::end(mounted_devices),
+      [&](const auto& m) -> bool {
+        bool vol_mounted = m.vol.get() == vol;
 
-  std::vector<const device*> possible_devices;
-  for (auto* dev : device_candidates) {
-    if (dev->type == mtype) { possible_devices.push_back(dev); }
+        bool device_accepted = device_candidates.find(m.dev.get())
+                               != std::end(device_candidates);
+
+        return vol_mounted && device_accepted;
+      });
+
+  if (found != std::end(mounted_devices)) {
+    auto result = std::move(*found);
+    mounted_devices.erase(found);
+    return result;
   }
 
-  if (possible_devices.empty()) {
-    Dmsg1(100, "No devices found with media type {}", name_of(mtype));
-    return {};
-  }
+  // ok so we know that the volume that no device has the volume mounted
+  // lets first check if we can mount the volume in an empty device:
 
-  auto locked = lock(vol);
+  // auto device = devices.get_one_of(device_candidates);
 
-  if (!locked) { return {}; }
+  // if there is no free device, we need to swap the volumes of an already
+  // mounted device.  We should use some kind of LRU scheme for this
+  // if (!device) {
+  //  ...
+  //  device = ...
+  //  unload_device(device)
+  //}
 
-  auto current_device = locked->loaded_device();
+  // Now that we have a free device, we should mount the volume into it.
+  // load_device(device, vol)
 
-  if (current_device) {
-    for (auto* dev : possible_devices) {
-      if (dev == current_device) {
-        return mounted_volume_ptr{std::move(locked)};
-      }
-    }
-
-    auto dev = devices.use_one_of(possible_devices);
-    if (!dev) { return {}; }
-
-    if (!devices.unload_volume(dev.dev)) {
-      // TODO: we need to somehow signal that the volume is now not
-      //       loaded anymore
-      return {};
-    }
-
-    if (devices.unload_volume(dev.dev)
-        && devices.take_volume(dev.dev, current_device)) {
-      return mounted_volume_ptr{std::move(locked)};
-    }
-  } else {
-    auto dev = devices.use_one_of(possible_devices);
-    if (!dev) { return {}; }
-
-    if (devices.load_volume(dev.dev, &*locked)) {
-      locked->loaded_device() = dev.dev;
-      return mounted_volume_ptr{std::move(locked)};
-    }
-  }
-
-  return {};
+  return std::nullopt;
 }
+
 };  // namespace my_storagedaemon
