@@ -215,7 +215,10 @@ struct device_manager {
   //     manager = nullptr;
   //   }
   // };
+  std::unique_ptr<device> get_one_of(const std::unordered_set<const device*>&);
+  void add_device(std::unique_ptr<device> dev);
 
+ private:
   std::vector<std::unique_ptr<device>> devices;
 };
 
@@ -262,6 +265,10 @@ struct volume_manager {
   //   }
   // };
 
+  void add_volume(std::unique_ptr<volume>);
+  std::unique_ptr<volume> get(const volume*);
+
+ private:
   std::vector<std::unique_ptr<volume>> volumes;
 };
 
@@ -278,7 +285,20 @@ struct reservation_manager {
 
   std::optional<mounted_device> acquire_for_reading(
       const volume* vol,
-      const std::unordered_set<const device*> device_candidates);
+      const std::unordered_set<const device*>& device_candidates);
+  std::optional<mounted_device> acquire_for_writing(
+      volume_descriptor desc,
+      const std::unordered_set<const device*>& device_candidates);
+
+  // std::unique_ptr<device> acquire_empty(const std::unordered_set<const
+  // device*>& device_candidates);
+
+ private:
+  std::optional<std::pair<std::unique_ptr<device>, std::unique_ptr<volume>>>
+  unload_device(mounted_device&&);
+
+  std::optional<mounted_device> load_device(std::unique_ptr<device>&& dev,
+                                            std::unique_ptr<volume>&& vol);
 };
 
 };  // namespace my_storagedaemon

@@ -919,23 +919,119 @@ namespace my_storagedaemon {
 
 const char* name_of(mtype_ref t) { return t->name_.c_str(); }
 
+std::unique_ptr<device> device_manager::get_one_of(
+    const std::unordered_set<const device*>& candidates)
+{
+  auto found = std::find_if(
+      std::begin(devices), std::end(devices), [&](const auto& m) -> bool {
+        bool device_accepted = candidates.find(m.get()) != std::end(candidates);
+
+        return device_accepted;
+      });
+
+  if (found != std::end(devices)) {
+    auto result = std::move(*found);
+    devices.erase(found);
+    return result;
+  }
+
+  return {};
+}
+
+void device_manager::add_device(std::unique_ptr<device> dev)
+{
+  devices.emplace_back(std::move(dev));
+}
+
+std::unique_ptr<volume> volume_manager::get(const volume* vol)
+{
+  auto found
+      = std::find_if(std::begin(volumes), std::end(volumes),
+                     [vol](const auto& cand) { return cand.get() == vol; });
+
+  if (found != std::end(volumes)) {
+    auto result = std::move(*found);
+    volumes.erase(found);
+    return result;
+  }
+
+  return {};
+}
+
+void volume_manager::add_volume(std::unique_ptr<volume> vol)
+{
+  volumes.emplace_back(std::move(vol));
+}
+
+std::optional<mounted_device> reservation_manager::load_device(
+    std::unique_ptr<device>&& dev,
+    std::unique_ptr<volume>&& vol)
+{
+  return mounted_device{std::move(dev), std::move(vol)};
+}
+
+std::optional<std::pair<std::unique_ptr<device>, std::unique_ptr<volume>>>
+reservation_manager::unload_device(mounted_device&& d)
+{
+  mounted_device in = std::move(d);
+  return std::make_optional<
+      std::pair<std::unique_ptr<device>, std::unique_ptr<volume>>>(
+      std::move(in.dev), std::move(in.vol));
+}
+
+#if 0
+std::optional<mounted_device> reservation_manager::acquire_for_writing(
+    volume_descriptor desc,
+    const std::unordered_set<const device*>& device_candidates)
+{
+  std::unordered_set<const device*> possible;
+
+  for (auto device : device_candidates) {
+    if (device->type == desc.type) {
+      possible.insert(device);
+    }
+  }
+
+  if (auto found = std::find_if(
+      std::begin(mounted_devices), std::end(mounted_devices),
+      [&possible, vol](const auto& m) -> bool {
+        bool vol_mounted = m.vol.get() == vol;
+
+        bool device_accepted = possible.find(m.dev.get())
+                               != std::end(possible);
+
+        return vol_mounted && device_accepted;
+      }); found != std::end(mounted_devices)) {
+    auto result = std::move(*found);
+    mounted_devices.erase(found);
+    return result;
+  }
+
+  return {};
+}
+#endif
 
 std::optional<mounted_device> reservation_manager::acquire_for_reading(
     const volume* vol,
-    std::unordered_set<const device*> device_candidates)
+    const std::unordered_set<const device*>& device_candidates)
 {
-  auto found = std::find_if(
-      std::begin(mounted_devices), std::end(mounted_devices),
-      [&](const auto& m) -> bool {
-        bool vol_mounted = m.vol.get() == vol;
+  std::unordered_set<const device*> possible;
 
-        bool device_accepted = device_candidates.find(m.dev.get())
-                               != std::end(device_candidates);
+  for (auto device : device_candidates) {
+    if (device->type == vol->mtype()) { possible.insert(device); }
+  }
 
-        return vol_mounted && device_accepted;
-      });
+  if (auto found
+      = std::find_if(std::begin(mounted_devices), std::end(mounted_devices),
+                     [&possible, vol](const auto& m) -> bool {
+                       bool vol_mounted = m.vol.get() == vol;
 
-  if (found != std::end(mounted_devices)) {
+                       bool device_accepted
+                           = possible.find(m.dev.get()) != std::end(possible);
+
+                       return vol_mounted && device_accepted;
+                     });
+      found != std::end(mounted_devices)) {
     auto result = std::move(*found);
     mounted_devices.erase(found);
     return result;
@@ -944,20 +1040,54 @@ std::optional<mounted_device> reservation_manager::acquire_for_reading(
   // ok so we know that the volume that no device has the volume mounted
   // lets first check if we can mount the volume in an empty device:
 
-  // auto device = devices.get_one_of(device_candidates);
+  auto volume = volumes.get(vol);
+  if (!volume) { return {}; }
+
+  auto device = devices.get_one_of(possible);
 
   // if there is no free device, we need to swap the volumes of an already
   // mounted device.  We should use some kind of LRU scheme for this
-  // if (!device) {
-  //  ...
-  //  device = ...
-  //  unload_device(device)
-  //}
+  if (!device) {
+    auto found
+        = std::find_if(std::begin(mounted_devices), std::end(mounted_devices),
+                       [&possible](const auto& m) -> bool {
+                         bool device_accepted
+                             = possible.find(m.dev.get()) != std::end(possible);
+
+                         return device_accepted;
+                       });
+
+    if (found == std::end(mounted_devices)) {
+      // there is simply no way to satisfy this request:
+      // there are no devices of this type
+      return {};
+    }
+
+    auto mounted_dev = std::move(*found);
+
+    std::optional unmounted = unload_device(std::move(mounted_dev));
+
+    if (!unmounted) {
+      // what to do here ?
+      mounted_devices.emplace_back(std::move(mounted_dev));
+      return {};
+    }
+
+    volumes.add_volume(std::move(unmounted->second));
+    device = std::move(unmounted->first);
+  }
 
   // Now that we have a free device, we should mount the volume into it.
-  // load_device(device, vol)
+  auto mounted = load_device(std::move(device), std::move(volume));
 
-  return std::nullopt;
+  if (!mounted) {
+    volumes.add_volume(std::move(volume));
+    devices.add_device(std::move(device));
+
+    return {};
+  }
+
+  return mounted;
 }
 
 };  // namespace my_storagedaemon
