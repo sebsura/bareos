@@ -18,8 +18,23 @@
 #   02110-1301, USA.
 message("Entering ${CMAKE_CURRENT_SOURCE_DIR}")
 
-cmake_minimum_required(VERSION 3.17)
-cmake_policy(VERSION 3.17...3.19)
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.31")
+  cmake_policy(
+    SET CMP0174 OLD
+  ) # cmake_parse_arguments(PARSE_ARGV) defines a variable for an empty string
+    # after a single-value keyword.
+  cmake_policy(SET CMP0175 OLD) # add_custom_command() rejects invalid
+                                # arguments.
+endif()
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  cmake_minimum_required(VERSION 3.25)
+  cmake_policy(SET CMP0141 NEW) # allow to disable /Zi from cmake debug switches
+                                # on MSVC
+else()
+  cmake_minimum_required(VERSION 3.17)
+  cmake_policy(VERSION 3.17...3.19)
+endif()
 
 project(bareos NONE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)

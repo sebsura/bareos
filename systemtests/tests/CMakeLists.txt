@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2021-2024 Bareos GmbH & Co. KG
+#   Copyright (C) 2021-2025 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -61,6 +61,9 @@ add_subdirectory(mtx-changer)
 add_subdirectory(multiplied-device)
 add_subdirectory(multiple-clients)
 add_subdirectory(ndmp-bareos)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  add_subdirectory(mssqlvdi-plugin)
+endif()
 add_subdirectory(notls)
 add_subdirectory(parallel-jobs)
 add_subdirectory(parser)
