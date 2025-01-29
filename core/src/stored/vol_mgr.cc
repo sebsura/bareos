@@ -1091,3 +1091,138 @@ std::optional<mounted_device> reservation_manager::acquire_for_reading(
 }
 
 };  // namespace my_storagedaemon
+
+
+namespace better_storagedaemon {
+
+struct device_group {
+  // some group of devices, could be an auto changer, could be an
+  // array/vector of devices
+};
+
+struct device {};
+
+template <typename T> using nullable = T;
+
+struct media_type {};
+struct media_pool {};
+
+struct volume;
+
+struct volume_class {
+  media_type type;
+  media_pool pool;
+
+  bool check_volume(volume*) const;
+  bool operator==(const volume_class&) const;
+};
+
+struct volume {
+  nullable<device*> mounted_in;
+
+  volume_class clz;
+
+  std::string name{};
+
+  bool in_use{false};
+};
+
+bool volume_class::check_volume(volume* v) const { return v->clz == *this; }
+
+class device_acceptor {
+ public:
+  virtual bool accept(const device&) = 0;
+};
+
+struct reservation_context {
+  bool prefer_mounted;
+  device_acceptor* devices;
+};
+
+struct volume_manager {
+  std::vector<std::unique_ptr<volume>> volumes;
+
+  // we strongly prefer correctly mounted volumes, as we can use them
+  // immediately
+  static constexpr std::size_t CORRECTLY_MOUNTED_RATING = 100;
+
+  // we strongly discourage incorrectly mounted volumes, as using them means
+  // that we have to 1) unload them from the current device and then 2)
+  // load them in a correct device.
+  static constexpr std::size_t INCORRECTLY_MOUNTED_RATING = -500;
+
+  volume* get_volume_of_class(const reservation_context& ctx,
+                              const volume_class& clz)
+  {
+    volume* chosen_volume = nullptr;
+    ssize_t chosen_rating = std::numeric_limits<ssize_t>::min();
+
+    for (auto& vol : volumes) {
+      ssize_t rating = 0;
+
+      if (vol->in_use) { continue; }
+      if (!clz.check_volume(vol.get())) { continue; }
+
+      if (vol->mounted_in) {
+        bool correctly_mounted = ctx.devices->accept(*vol->mounted_in);
+        if (correctly_mounted && ctx.prefer_mounted) {
+          rating += CORRECTLY_MOUNTED_RATING;
+        } else if (!correctly_mounted) {
+          rating += INCORRECTLY_MOUNTED_RATING;
+        }
+      }
+
+      if (rating > chosen_rating) {
+        chosen_volume = vol.get();
+        chosen_rating = rating;
+      }
+    }
+
+    if (chosen_volume) { chosen_volume->in_use = true; }
+
+    return chosen_volume;
+  }
+
+  volume* get_volume(const char* name)
+  {
+    if (auto iter
+        = std::find_if(std::begin(volumes), std::end(volumes),
+                       [name](const auto& vol) { return name == vol->name; });
+        iter != std::end(volumes)) {
+      auto* vol = iter->get();
+      if (vol->in_use) { return nullptr; }
+
+      vol->in_use = true;
+      return vol;
+    }
+
+    return nullptr;
+  }
+
+  void release_volume(volume* vol) { vol->in_use = false; }
+
+  bool create_volume(const char* name, volume_class clz)
+  {
+    if (auto iter
+        = std::find_if(std::begin(volumes), std::end(volumes),
+                       [name](const auto& vol) { return name == vol->name; });
+        iter != std::end(volumes)) {
+      return false;
+    }
+
+    auto ptr = std::make_unique<volume>();
+
+    ptr->name = name;
+    ptr->clz = clz;
+    ptr->mounted_in = nullptr;
+    ptr->in_use = false;
+
+    volumes.emplace_back(std::move(ptr));
+    return true;
+  }
+};
+
+struct device_manager {
+  device* mount_volume(volume* vol) {}
+};
+};  // namespace better_storagedaemon
