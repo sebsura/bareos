@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -362,31 +362,54 @@ bool DeviceControlRecord::find_a_volume()
 {
   DeviceControlRecord* dcr = this;
 
-  if (!IsSuitableVolumeMounted()) {
-    bool have_vol = false;
+  bool have_vol = false;
+  if (IsSuitableVolumeMounted()) {
+    // we want to only "unreserve" the currently reserved volume,
+    // if we can reserve the currently mounted volume.  Otherwise
+    // we will keep using the old reserved volume.
+    auto old_vol = dev->vol;
+    dev->vol = nullptr;
 
-    // Do we have a candidate volume?
-    if (dev->vol) {
-      bstrncpy(VolumeName, dev->vol->vol_name, sizeof(VolumeName));
-      have_vol = dcr->DirGetVolumeInfo(GET_VOL_INFO_FOR_WRITE);
-    }
+    // lets try to reserve the volume we have mounted
+    auto new_vol = reserve_volume(this, VolumeName);
 
-    /* Get Director's idea of what tape we should have mounted, in
-     * dcr->VolCatInfo */
-    if (!have_vol) {
-      Dmsg0(200, "Before DirFindNextAppendableVolume.\n");
-      while (!dcr->DirFindNextAppendableVolume()) {
-        Dmsg0(200, "not dir_find_next\n");
-        if (jcr->IsJobCanceled()) { return false; }
-        unlock_mutex(mount_mutex);
-        if (!dcr->DirAskSysopToCreateAppendableVolume()) {
-          lock_mutex(mount_mutex);
-          return false;
-        }
-        lock_mutex(mount_mutex);
-        if (jcr->IsJobCanceled()) { return false; }
-        Dmsg0(150, "Again dir_find_next_append...\n");
+    if (new_vol) {
+      // if we have managed to reserve the mounted volume, we need to release
+      // the old one (if its not the same as the new one)
+      if (old_vol && old_vol != new_vol) {
+        // the api for removing a volume reservation is bad, so we have to
+        // do it this way ...
+        dev->vol = old_vol;
+        VolumeUnused(this);
+        dev->vol = new_vol;
       }
+    } else {
+      // could not reserve the currently mounted volume => use the old one
+      dev->vol = old_vol;
+    }
+  }
+
+  // Do we have a candidate volume?
+  if (dev->vol) {
+    bstrncpy(VolumeName, dev->vol->vol_name, sizeof(VolumeName));
+    have_vol = dcr->DirGetVolumeInfo(GET_VOL_INFO_FOR_WRITE);
+  }
+
+  /* Get Director's idea of what tape we should have mounted, in
+   * dcr->VolCatInfo */
+  if (!have_vol) {
+    Dmsg0(200, "Before DirFindNextAppendableVolume.\n");
+    while (!dcr->DirFindNextAppendableVolume()) {
+      Dmsg0(200, "not dir_find_next\n");
+      if (jcr->IsJobCanceled()) { return false; }
+      unlock_mutex(mount_mutex);
+      if (!dcr->DirAskSysopToCreateAppendableVolume()) {
+        lock_mutex(mount_mutex);
+        return false;
+      }
+      lock_mutex(mount_mutex);
+      if (jcr->IsJobCanceled()) { return false; }
+      Dmsg0(150, "Again dir_find_next_append...\n");
     }
   }
 
