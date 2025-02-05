@@ -319,17 +319,16 @@ ResourceTable* ConfigurationParser::GetResourceTable(
 int ConfigurationParser::GetResourceItemIndex(ResourceItem* resource_items_,
                                               const char* item)
 {
-  int result = -1;
-  int i;
-
-  for (i = 0; resource_items_[i].name; i++) {
+  for (int i = 0; resource_items_[i].name; i++) {
     if (Bstrcasecmp(resource_items_[i].name, item)) {
-      result = i;
+      return i;
       break;
     }
+    else if (resource_items_[i].aliases.find(item) != resource_items_[i].aliases.end()) {
+      return i;
+    }
   }
-
-  return result;
+  return -1;
 }
 
 ResourceItem* ConfigurationParser::GetResourceItem(
