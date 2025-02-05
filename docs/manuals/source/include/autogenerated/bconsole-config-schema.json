@@ -170,7 +170,8 @@
         "Address": {
           "datatype": "STRING",
           "code": 0,
-          "equals": true
+          "equals": true,
+          "required": true
         },
         "Password": {
           "datatype": "MD5PASSWORD",
