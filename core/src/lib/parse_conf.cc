@@ -52,6 +52,7 @@
  */
 
 #include <algorithm>
+#include <string_view>
 
 #include "include/bareos.h"
 #include "include/jcr.h"
@@ -316,16 +317,32 @@ ResourceTable* ConfigurationParser::GetResourceTable(
   return &resource_definitions_[res_table_index];
 }
 
+static bool EqualsIgnoreCase(std::string_view v1, std::string_view v2) {
+  if (v1.length() != v2.length()) {
+    return false;
+  }
+  for (size_t i = 0; i < v1.length(); ++i) {
+    if (std::tolower(v1.at(i)) != std::tolower(v2.at(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+
 int ConfigurationParser::GetResourceItemIndex(ResourceItem* resource_items_,
                                               const char* item)
 {
   for (int i = 0; resource_items_[i].name; i++) {
-    if (Bstrcasecmp(resource_items_[i].name, item)) {
+    if (EqualsIgnoreCase(resource_items_[i].name, item)) {
       return i;
       break;
     }
-    else if (resource_items_[i].aliases.find(item) != resource_items_[i].aliases.end()) {
-      return i;
+    else {
+      for (const auto& alias : resource_items_[i].aliases) {
+        if (EqualsIgnoreCase(alias, item)) {
+          return i;
+        }
+      }
     }
   }
   return -1;
