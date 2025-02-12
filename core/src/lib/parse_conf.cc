@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -317,14 +317,11 @@ ResourceTable* ConfigurationParser::GetResourceTable(
   return &resource_definitions_[res_table_index];
 }
 
-static bool EqualsIgnoreCase(std::string_view v1, std::string_view v2) {
-  if (v1.length() != v2.length()) {
-    return false;
-  }
+static bool EqualsIgnoreCase(std::string_view v1, std::string_view v2)
+{
+  if (v1.length() != v2.length()) { return false; }
   for (size_t i = 0; i < v1.length(); ++i) {
-    if (std::tolower(v1.at(i)) != std::tolower(v2.at(i))) {
-      return false;
-    }
+    if (std::tolower(v1.at(i)) != std::tolower(v2.at(i))) { return false; }
   }
   return true;
 }
@@ -336,10 +333,15 @@ int ConfigurationParser::GetResourceItemIndex(ResourceItem* resource_items_,
     if (EqualsIgnoreCase(resource_items_[i].name, item)) {
       return i;
       break;
-    }
-    else {
+    } else {
       for (const auto& alias : resource_items_[i].aliases) {
         if (EqualsIgnoreCase(alias, item)) {
+          std::string warning = "Found alias usage \"" + alias
+              + "\" in configuration which is discouraged, consider using \""
+              + resource_items_[i].name + "\" instead.";
+          if (std::find(warnings_.begin(), warnings_.end(), warning) == warnings_.end()) {
+            AddWarning(warning);
+          }
           return i;
         }
       }
