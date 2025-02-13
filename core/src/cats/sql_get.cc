@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -1713,7 +1713,7 @@ bool BareosDb::GetNdmpEnvironmentString(JobId_t JobId,
                                         DB_RESULT_HANDLER* ResultHandler,
                                         void* ctx)
 {
-  ASSERT(JobId > 0)
+  ASSERT(JobId > 0);
   std::string query{"SELECT EnvName, EnvValue FROM NDMPJobEnvironment"};
   query += " WHERE JobId=" + std::to_string(JobId);
 
@@ -1731,7 +1731,7 @@ bool BareosDb::GetNdmpEnvironmentString(JobId_t JobId,
                                         DB_RESULT_HANDLER* ResultHandler,
                                         void* ctx)
 {
-  ASSERT(JobId > 0)
+  ASSERT(JobId > 0);
   std::string query{"SELECT EnvName, EnvValue FROM NDMPJobEnvironment"};
   query += " WHERE JobId=" + std::to_string(JobId);
   query += " AND FileIndex=" + std::to_string(FileIndex);
