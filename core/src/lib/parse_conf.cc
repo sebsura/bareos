@@ -336,10 +336,12 @@ int ConfigurationParser::GetResourceItemIndex(ResourceItem* resource_items_,
     } else {
       for (const auto& alias : resource_items_[i].aliases) {
         if (EqualsIgnoreCase(alias, item)) {
-          std::string warning = "Found alias usage \"" + alias
-              + "\" in configuration which is discouraged, consider using \""
-              + resource_items_[i].name + "\" instead.";
-          if (std::find(warnings_.begin(), warnings_.end(), warning) == warnings_.end()) {
+          std::string warning
+              = "Found alias usage \"" + alias
+                + "\" in configuration which is discouraged, consider using \""
+                + resource_items_[i].name + "\" instead.";
+          if (std::find(warnings_.begin(), warnings_.end(), warning)
+              == warnings_.end()) {
             AddWarning(warning);
           }
           return i;
