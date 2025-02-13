@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2007-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -494,9 +494,6 @@ bool BareosSocketTCP::send()
    * store the original message_length in an own variable,
    * that will not be modifed by recv(). */
   const int32_t o_msglen = message_length;
-  int32_t pktsiz;
-  int32_t written = 0;
-  int32_t packet_msglen = 0;
   bool ok = true;
   /* Store packet length at head of message -- note, we have reserved an int32_t
    * just before msg, So we can store there */
@@ -521,32 +518,13 @@ bool BareosSocketTCP::send()
 
   LockMutex();
 
-  // Compute total packet length
-  if (o_msglen <= 0) {
-    pktsiz = header_length; /* signal, no data */
-    *hdr = htonl(o_msglen); /* store signal */
-    ok = SendPacket(hdr, pktsiz);
-  } else {
-    /* msg might be to long for a single Bareos packet.
-     * If so, send msg as multiple packages. */
-    while (ok && (written < o_msglen)) {
-      if ((o_msglen - written) > max_message_len) {
-        /* Message is to large for a single Bareos packet.
-         * Send it via multiple packets. */
-        pktsiz = max_packet_size; /* header + data */
-        packet_msglen = max_message_len;
-      } else {
-        // Remaining message fits into one Bareos packet
-        pktsiz = header_length + (o_msglen - written); /* header + data */
-        packet_msglen = (o_msglen - written);
-      }
-
-      *hdr = htonl(packet_msglen); /* store length */
-      ok = SendPacket(hdr, pktsiz);
-      written += packet_msglen;
-      hdr = (int32_t*)(msg + written - (int)header_length);
-    }
+  int32_t packet_size = header_length;
+  if (o_msglen > 0) {
+    // we also want to send some data
+    packet_size += o_msglen;
   }
+  *hdr = htonl(o_msglen); /* store payload size / signal number */
+  ok = SendPacket(hdr, packet_size);
 
   UnlockMutex();
 
@@ -619,14 +597,7 @@ int32_t BareosSocketTCP::recv()
   }
 
   // If signal or packet size too big
-  if (pktsiz < 0 || pktsiz > max_packet_size) {
-    if (pktsiz > 0) { /* if packet too big */
-      Qmsg3(
-          jcr_, M_FATAL, 0,
-          T_("Packet size too big from \"%s:%s:%d. Terminating connection.\n"),
-          who_, host_, port_);
-      pktsiz = BNET_TERMINATE; /* hang up */
-    }
+  if (pktsiz < 0) {
     if (pktsiz == BNET_TERMINATE) { SetTerminated(); }
     timer_start = 0; /* clear timer */
     b_errno = ENODATA;

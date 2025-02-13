@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2013-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -26,23 +26,13 @@
 
 class BareosSocketTCP : public BareosSocket {
  public:
-  /*
-   * the header of a Bareos packet is 32 bit long.
+  /* the header of a Bareos packet is 32 bit long.
    * A value
    *    < 0: indicates a signal
-   *   >= 0: the length of the message that follows
-   */
+   *   >= 0: the length of the message that follows */
   static const int32_t header_length = sizeof(int32_t);
 
  private:
-  /*
-   * max size of each single packet.
-   * 1000000 is used by older version of Bareos/Bacula,
-   * so stick to this value to be compatible with older version of bconsole.
-   */
-  static const int32_t max_packet_size = 1000000;
-  static const int32_t max_message_len = max_packet_size - header_length;
-
   /* methods -- in bsock_tcp.c */
   void FinInit(JobControlRecord* jcr,
                int sockfd,
