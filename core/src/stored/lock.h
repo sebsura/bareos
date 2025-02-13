@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2007 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2021 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -29,15 +29,9 @@
 #define BAREOS_STORED_LOCK_H_
 
 #include "stored/dev.h"
+#include "lib/source_location.h"
 
 namespace storagedaemon {
-
-#define BlockDevice(d, s) _blockDevice(__FILE__, __LINE__, (d), s)
-#define UnblockDevice(d) _unBlockDevice(__FILE__, __LINE__, (d))
-#define StealDeviceLock(d, p, s) \
-  _stealDeviceLock(__FILE__, __LINE__, (d), (p), s)
-#define GiveBackDeviceLock(d, p) \
-  _giveBackDeviceLock(__FILE__, __LINE__, (d), (p))
 
 // blocked_ states (mutually exclusive)
 enum
@@ -68,19 +62,28 @@ enum
 
 class Device;
 
-void _lockDevice(const char* file, int line, Device* dev);
-void _unlockDevice(const char* file, int line, Device* dev);
-void _blockDevice(const char* file, int line, Device* dev, int state);
-void _unBlockDevice(const char* file, int line, Device* dev);
-void _stealDeviceLock(const char* file,
-                      int line,
-                      Device* dev,
-                      bsteal_lock_t* hold,
-                      int state);
-void _giveBackDeviceLock(const char* file,
-                         int line,
-                         Device* dev,
-                         bsteal_lock_t* hold);
+void LockDevice(Device* dev,
+                libbareos::source_location
+                = libbareos::source_location::current());
+void UnlockDevice(Device* dev,
+                  libbareos::source_location
+                  = libbareos::source_location::current());
+void BlockDevice(Device* dev,
+                 int state,
+                 libbareos::source_location
+                 = libbareos::source_location::current());
+void UnblockDevice(Device* dev,
+                   libbareos::source_location
+                   = libbareos::source_location::current());
+void StealDeviceLock(Device* dev,
+                     bsteal_lock_t* hold,
+                     int state,
+                     libbareos::source_location
+                     = libbareos::source_location::current());
+void GiveBackDeviceLock(Device* dev,
+                        bsteal_lock_t* hold,
+                        libbareos::source_location
+                        = libbareos::source_location::current());
 
 } /* namespace storagedaemon */
 

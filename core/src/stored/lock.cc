@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -245,13 +245,13 @@ void Device::rLock(bool locked)
  * the current thread can do slip through the dev->rLock()
  * calls without blocking.
  */
-void _blockDevice(const char* file, int line, Device* dev, int state)
+void BlockDevice(Device* dev, int state, libbareos::source_location loc)
 {
-  ASSERT(dev->blocked() == BST_NOT_BLOCKED);
+  ASSERT_WITH_LOC(loc, dev->blocked() == BST_NOT_BLOCKED);
   dev->SetBlocked(state);           /* make other threads wait */
   dev->no_wait_id = pthread_self(); /* allow us to continue */
   Dmsg3(sd_debuglevel, "set blocked=%s from %s:%d\n", dev->print_blocked(),
-        file, line);
+        loc.file_name(), loc.line());
 }
 
 /**
@@ -259,11 +259,11 @@ void _blockDevice(const char* file, int line, Device* dev, int state)
  * Enter: device locked
  * Exit:  device locked
  */
-void _unBlockDevice(const char* file, int line, Device* dev)
+void UnblockDevice(Device* dev, libbareos::source_location loc)
 {
-  Dmsg3(sd_debuglevel, "unblock %s from %s:%d\n", dev->print_blocked(), file,
-        line);
-  ASSERT(dev->blocked());
+  Dmsg3(sd_debuglevel, "unblock %s from %s:%d\n", dev->print_blocked(),
+        loc.file_name(), loc.line());
+  ASSERT_WITH_LOC(loc, dev->blocked());
   dev->SetBlocked(BST_NOT_BLOCKED);
   ClearThreadId(dev->no_wait_id);
   if (dev->num_waiting > 0) {
@@ -275,14 +275,13 @@ void _unBlockDevice(const char* file, int line, Device* dev)
  * Enter with device locked and blocked
  * Exit with device unlocked and blocked by us.
  */
-void _stealDeviceLock(const char* file,
-                      int line,
-                      Device* dev,
-                      bsteal_lock_t* hold,
-                      int state)
+void StealDeviceLock(Device* dev,
+                     bsteal_lock_t* hold,
+                     int state,
+                     libbareos::source_location loc)
 {
   Dmsg3(sd_debuglevel, "steal lock. old=%s from %s:%d\n", dev->print_blocked(),
-        file, line);
+        loc.file_name(), loc.line());
   hold->dev_blocked = dev->blocked();
   hold->dev_prev_blocked = dev->dev_prev_blocked;
   hold->no_wait_id = dev->no_wait_id;
@@ -296,13 +295,12 @@ void _stealDeviceLock(const char* file,
  * Enter with device blocked by us but not locked
  * Exit with device locked, and blocked by previous owner
  */
-void _giveBackDeviceLock(const char* file,
-                         int line,
-                         Device* dev,
-                         bsteal_lock_t* hold)
+void GiveBackDeviceLock(Device* dev,
+                        bsteal_lock_t* hold,
+                        libbareos::source_location loc)
 {
   Dmsg3(sd_debuglevel, "return lock. old=%s from %s:%d\n", dev->print_blocked(),
-        file, line);
+        loc.file_name(), loc.line());
   dev->Lock();
   dev->SetBlocked(hold->dev_blocked);
   dev->dev_prev_blocked = hold->dev_prev_blocked;
