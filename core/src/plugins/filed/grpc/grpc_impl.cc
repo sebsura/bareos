@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2024-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2024-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -1728,6 +1728,9 @@ struct connection_builder {
     // TODO: test what happens if the child is already dead at this point
     //       or if it does not create the server
     channel = grpc::CreateInsecureChannelFromFd("", s.get());
+
+    grpc::ChannelArguments args;
+    args.SetMaxReceiveMessageSize(1000000000);
 
     if (channel) {
       ::DebugLog(ctx, 100, FMT_STRING("could connect to client over socket {}"),
