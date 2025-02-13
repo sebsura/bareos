@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -32,6 +32,7 @@
 #define BAREOS_INCLUDE_BACONFIG_H_
 
 #include "lib/message.h"
+#include "lib/source_location.h"
 
 /* Bareos common configuration defines */
 
@@ -50,17 +51,6 @@
 #else
 #  define ioctl_req_t int
 #endif
-
-/**
- * In DEBUG mode an assert that is triggered generates a segmentation
- * fault so we can capture the debug info using btraceback.
- */
-#define ASSERT(x)                                     \
-  if (!(x)) {                                         \
-    Emsg1(M_ERROR, 0, T_("Failed ASSERT: %s\n"), #x); \
-    Pmsg1(000, T_("Failed ASSERT: %s\n"), #x);        \
-    abort();                                          \
-  }
 
 // Allow printing of NULL pointers
 #define NPRT(x) (x) ? (x) : T_("*None*")
@@ -103,6 +93,7 @@ void InitWinAPIWrapper();
 
 /* Use the following for strings not to be translated */
 #define NT_(s) (s)
+
 
 /* Maximum length to edit time/date */
 #define MAX_TIME_LENGTH 50
@@ -446,6 +437,27 @@ void q_msg(const char* file,
            const char* fmt,
            ...);
 int msg_(const char* file, int line, POOLMEM*& pool_buf, const char* fmt, ...);
+
+/**
+ * In DEBUG mode an assert that is triggered generates a segmentation
+ * fault so we can capture the debug info using btraceback.
+ */
+#define ASSERT_WITH_LOC(loc, x) assert_impl((bool)(x), #x, (loc))
+#define ASSERT(x) assert_impl((bool)(x), "")
+
+static inline void assert_impl(bool cond,
+                               const char* msg,
+                               libbareos::source_location loc
+                               = libbareos::source_location::current())
+{
+  if (!cond) {
+    e_msg(loc.file_name(), loc.line(), M_ERROR, 0, T_("Failed ASSERT: %s\n"),
+          msg);
+    p_msg(loc.file_name(), loc.line(), 000, T_("Failed ASSERT: %s\n"), msg);
+    abort();
+  }
+}
+
 
 #include "lib/bsys.h"
 #include "lib/scan.h"
