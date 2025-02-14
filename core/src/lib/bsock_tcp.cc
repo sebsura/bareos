@@ -61,7 +61,11 @@
 #  define socketClose(fd) ::close(fd)
 #endif
 
-BareosSocketTCP::BareosSocketTCP() : BareosSocket() {}
+BareosSocketTCP::BareosSocketTCP()
+    : BareosSocket()
+    , read_buffer(std::make_shared<BsockMessageBuffer>(16 * 1024))
+{
+}
 
 BareosSocketTCP::~BareosSocketTCP() { destroy(); }
 
@@ -988,19 +992,18 @@ void BareosSocketTCP::destroy()
   }
 }
 
-/*
- * Read a nbytes from the network.
- * It is possible that the total bytes require in several
- * read requests
- */
-int32_t BareosSocketTCP::read_nbytes(char* ptr, int32_t nbytes)
+int32_t BareosSocketTCP::read_nbytes_impl(char* ptr,
+                                          uint32_t min_bytes,
+                                          uint32_t max_bytes)
 {
   int32_t nleft, nread;
 
-  if (tls_conn) { return (tls_conn->TlsBsockReadn(this, ptr, nbytes)); }
+  if (tls_conn) {
+    return (tls_conn->TlsBsockReadn(this, ptr, min_bytes, max_bytes));
+  }
 
-  nleft = nbytes;
-  while (nleft > 0) {
+  nleft = max_bytes;
+  while (nleft > (int32_t)(max_bytes - min_bytes)) {
     errno = 0;
     nread = socketRead(fd_, ptr, nleft);
     if (IsTimedOut() || IsTerminated()) { return -1; }
@@ -1036,7 +1039,49 @@ int32_t BareosSocketTCP::read_nbytes(char* ptr, int32_t nbytes)
     if (UseBwlimit()) { ControlBwlimit(nread); }
   }
 
-  return nbytes - nleft; /* return >= 0 */
+  return max_bytes - nleft; /* return >= 0 */
+}
+
+bool BareosSocketTCP::fill_read_buffer(std::size_t min_size)
+{
+  ASSERT(read_buffer->size() == 0);
+  read_buffer->reset();
+
+  auto read = read_nbytes_impl(read_buffer->buffer(), min_size,
+                               read_buffer->capacity());
+  if (read < 0) { return false; }
+
+  read_buffer->fill(read);
+  return true;
+}
+
+
+#define MINIMUM_READ_SIZE 4096
+
+/*
+ * Read a nbytes from the network.
+ * It is possible that the total bytes require in several
+ * read requests
+ */
+int32_t BareosSocketTCP::read_nbytes(char* ptr, int32_t nbytes)
+{
+  if (nbytes <= 0) { return nbytes; }
+
+  size_t actual_size = nbytes;
+
+  std::size_t written = read_buffer->read(ptr, actual_size);
+
+  if (actual_size == written) { return written; }
+
+  auto leftover = actual_size - written;
+
+  if (leftover < MINIMUM_READ_SIZE && blocking_ == 0) {
+    fill_read_buffer(leftover);
+    written += read_buffer->read(ptr + written, leftover);
+    return written;
+  } else {
+    return written + read_nbytes_impl(ptr + written, leftover, leftover);
+  }
 }
 
 /*

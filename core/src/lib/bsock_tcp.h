@@ -24,6 +24,37 @@
 
 #include "lib/bsock.h"
 
+struct BsockMessageBuffer {
+  std::unique_ptr<char[]> data;
+  std::size_t begin{0};
+  std::size_t end{0};
+  std::size_t cap{0};
+
+  BsockMessageBuffer(std::size_t capacity)
+      : data(std::make_unique<char[]>(capacity)), cap{capacity}
+  {
+  }
+
+  std::size_t read(char* ptr, std::size_t count)
+  {
+    auto read_count = std::min(count, size());
+
+    memcpy(ptr, data.get() + begin, read_count);
+    begin += read_count;
+
+    return read_count;
+  }
+
+  char* buffer() { return data.get(); }
+
+  void fill(size_t n) { end += n; }
+
+  std::size_t size() const { return end - begin; }
+  std::size_t capacity() const { return cap; }
+
+  void reset() { begin = end = 0; }
+};
+
 class BareosSocketTCP : public BareosSocket {
  public:
   /* the header of a Bareos packet is 32 bit long.
@@ -38,6 +69,8 @@ class BareosSocketTCP : public BareosSocket {
    * so stick to this value to be compatible with older version of bconsole. */
   static const int32_t max_packet_size = 1000000;
   static const int32_t max_message_len = max_packet_size - header_length;
+
+  std::shared_ptr<BsockMessageBuffer> read_buffer;
 
   /* methods -- in bsock_tcp.c */
   void FinInit(JobControlRecord* jcr,
@@ -92,6 +125,9 @@ class BareosSocketTCP : public BareosSocket {
   bool ConnectionReceivedTerminateSignal() override;
   int WaitData(int sec, int usec = 0) override;
   int WaitDataIntr(int sec, int usec = 0) override;
+
+  bool fill_read_buffer(std::size_t min_size);
+  int32_t read_nbytes_impl(char* ptr, uint32_t min_bytes, uint32_t max_bytes);
 };
 
 #endif  // BAREOS_LIB_BSOCK_TCP_H_

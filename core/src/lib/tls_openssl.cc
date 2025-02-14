@@ -323,7 +323,13 @@ int TlsOpenSsl::TlsBsockWriten(BareosSocket* bsock, char* ptr, int32_t nbytes)
 {
   return d_->OpensslBsockReadwrite(bsock, ptr, nbytes, true);
 }
-
+int TlsOpenSsl::TlsBsockReadn(BareosSocket* bsock,
+                              char* ptr,
+                              int32_t min_bytes,
+                              int32_t max_bytes)
+{
+  return d_->OpensslBsockReadwrite(bsock, ptr, min_bytes, max_bytes, false);
+}
 int TlsOpenSsl::TlsBsockReadn(BareosSocket* bsock, char* ptr, int32_t nbytes)
 {
   return d_->OpensslBsockReadwrite(bsock, ptr, nbytes, false);

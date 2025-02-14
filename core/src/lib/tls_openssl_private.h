@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2005-2010 Free Software Foundation Europe e.V.
-   Copyright (C) 2018-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -45,6 +45,11 @@ class TlsOpenSslPrivate {
   int OpensslBsockReadwrite(BareosSocket* bsock,
                             char* ptr,
                             int nbytes,
+                            bool write);
+  int OpensslBsockReadwrite(BareosSocket* bsock,
+                            char* ptr,
+                            size_t min_bytes,
+                            size_t max_bytes,
                             bool write);
   bool OpensslBsockSessionStart(BareosSocket* bsock, bool server);
 
