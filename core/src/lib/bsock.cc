@@ -867,3 +867,120 @@ void BareosSocket::SetBnetDumpDestinationQualifiedName(
     bnet_dump_->SetDestinationQualifiedName(destination_qualified_name);
   }
 }
+
+class WriteBufferedBsock : BufferedBsock {
+ public:
+  WriteBufferedBsock(BareosSocket* sock, std::size_t capacity)
+      : wrapped{sock}, data{std::make_unique<char[]>(capacity)}, cap{capacity}
+  {
+  }
+
+  ~WriteBufferedBsock() {}
+
+  bool flush() override
+  {
+    if (begin != end) {
+      std::int32_t count = end - begin;
+      return wrapped->write_nbytes(data.get() + begin, count) == count;
+    }
+    return true;
+  }
+
+  BareosSocket* clone() override
+  {
+    // todo: share buffer
+    return new WriteBufferedBsock(wrapped->clone(), cap);
+  }
+  bool connect(JobControlRecord* jcr,
+               int retry_interval,
+               utime_t max_retry_time,
+               utime_t heart_beat,
+               const char* name,
+               const char* host,
+               char* service,
+               int port,
+               bool verbose) override
+  {
+    return wrapped->connect(jcr, retry_interval, max_retry_time, heart_beat,
+                            name, host, service, port, verbose);
+  }
+  int32_t recv() override
+  {
+    flush();
+    return wrapped->recv();
+  }
+  bool send() override
+  {
+    // todo
+    flush();
+    return wrapped->send();
+  }
+  virtual int32_t read_nbytes(char* ptr, int32_t nbytes) override
+  {
+    return wrapped->read_nbytes(ptr, nbytes);
+  }
+  virtual int32_t write_nbytes(char* ptr, int32_t nbytes) override
+  {
+    return wrapped->write_nbytes(ptr, nbytes);
+  }
+  void close() override
+  {
+    if (wrapped) wrapped->close();
+  }
+  virtual void destroy() override
+  {
+    if (wrapped) wrapped->destroy();
+  }
+  int GetPeer(char* buf, socklen_t buflen) override
+  {
+    return wrapped->GetPeer(buf, buflen);
+  }
+  bool SetBufferSize(uint32_t size, int rw) override
+  {
+    return wrapped->SetBufferSize(size, rw);
+  }
+  int SetNonblocking() override { return wrapped->SetNonblocking(); }
+  int SetBlocking() override { return wrapped->SetBlocking(); }
+  void RestoreBlocking(int flags) override { wrapped->RestoreBlocking(flags); }
+  bool ConnectionReceivedTerminateSignal() override
+  {
+    return wrapped->ConnectionReceivedTerminateSignal();
+  }
+
+  int WaitData(int sec, int usec = 0) override
+  {
+    flush();
+    return wrapped->WaitData(sec, usec);
+  }
+  int WaitDataIntr(int sec, int usec = 0) override
+  {
+    flush();
+    return wrapped->WaitDataIntr(sec, usec);
+  }
+
+  void FinInit(JobControlRecord* jcr,
+               int sockfd,
+               const char* who,
+               const char* host,
+               int port,
+               struct sockaddr* lclient_addr) override
+  {
+    wrapped->FinInit(jcr, sockfd, who, host, port, lclient_addr);
+  }
+  bool open(JobControlRecord* jcr,
+            const char* name,
+            const char* host,
+            char* service,
+            int port,
+            utime_t heart_beat,
+            int* fatal) override
+  {
+    return wrapped->open(jcr, name, host, service, port, heart_beat, fatal);
+  }
+
+  BareosSocket* wrapped{};
+  std::unique_ptr<char[]> data{};
+  std::size_t cap{};
+  std::size_t begin{};
+  std::size_t end{};
+};

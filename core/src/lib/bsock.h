@@ -113,6 +113,7 @@ class BareosSocket {
   bool tls_established_; /* is true when tls connection is established */
   std::unique_ptr<BnetDump> bnet_dump_;
 
+ public:
   virtual void FinInit(JobControlRecord* jcr,
                        int sockfd,
                        const char* who,
@@ -339,6 +340,13 @@ enum
   BNET_SIGNAL = -1,
   BNET_HARDEOF = -2,
   BNET_ERROR = -3
+};
+
+
+class BufferedBsock : public BareosSocket {
+ public:
+  virtual ~BufferedBsock() = default;
+  virtual bool flush() = 0;
 };
 
 #endif  // BAREOS_LIB_BSOCK_H_
