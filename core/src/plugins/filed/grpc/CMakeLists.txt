@@ -99,7 +99,9 @@ if(ENABLE_GRPC)
     COMPONENT filedaemon
   )
 
-  add_executable(grpc-test-module grpc_test_module.cc plugin_service.cc)
+  add_executable(
+    grpc-test-module test_module/test_module.cc test_module/plugin_service.cc
+  )
   target_link_libraries(grpc-test-module fmt::fmt grpc-proto)
   install(
     TARGETS grpc-test-module
@@ -108,11 +110,16 @@ if(ENABLE_GRPC)
   )
 
   add_executable(
-    grpc-compat-module grpc_compat_module.cc plugin_service_compat.cc
+    bareos-grpc-fd-plugin-bridge bridge_module/bridge_module.cc
+                                 bridge_module/plugin_service.cc
   )
-  target_link_libraries(grpc-compat-module fmt::fmt grpc-proto Python3::Module)
+  target_link_libraries(
+    # we need to link to python3, because otherwise we will not be able to load
+    # python-fd.so
+    bareos-grpc-fd-plugin-bridge fmt::fmt grpc-proto Python3::Module
+  )
   install(
-    TARGETS grpc-compat-module
+    TARGETS bareos-grpc-fd-plugin-bridge
     DESTINATION ${plugindir}/grpc
     COMPONENT filedaemon
   )

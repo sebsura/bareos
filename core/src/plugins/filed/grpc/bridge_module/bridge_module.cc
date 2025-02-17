@@ -48,8 +48,8 @@
 #include <future>
 #include <sstream>
 
-#include "plugin_service_compat.h"
-#include "test_module_compat.h"
+#include "plugin_service.h"
+#include "bridge_module.h"
 
 
 struct connection_builder {
