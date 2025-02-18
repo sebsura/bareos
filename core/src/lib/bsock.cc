@@ -32,6 +32,7 @@
 #include "lib/berrno.h"
 #include "lib/bnet.h"
 #include "lib/cram_md5.h"
+#include "lib/thread_util.h"
 #include "lib/tls.h"
 #include "lib/util.h"
 #include "lib/bstringlist.h"
@@ -868,10 +869,11 @@ void BareosSocket::SetBnetDumpDestinationQualifiedName(
   }
 }
 
-class WriteBufferedBsock : BufferedBsock {
+class WriteBufferedBsock : public BufferedBsock {
  public:
   WriteBufferedBsock(BareosSocket* sock, std::size_t capacity)
-      : wrapped{sock}, data{std::make_unique<char[]>(capacity)}, cap{capacity}
+      : wrapped{sock}
+      , data{std::make_shared<synchronized<WriteBuffer>>(capacity)}
   {
   }
 
@@ -879,17 +881,13 @@ class WriteBufferedBsock : BufferedBsock {
 
   bool flush() override
   {
-    if (begin != end) {
-      std::int32_t count = end - begin;
-      return wrapped->write_nbytes(data.get() + begin, count) == count;
-    }
-    return true;
+    auto locked = data->lock();
+    return flush(locked.get());
   }
 
   BareosSocket* clone() override
   {
-    // todo: share buffer
-    return new WriteBufferedBsock(wrapped->clone(), cap);
+    return new WriteBufferedBsock(wrapped->clone(), data);
   }
   bool connect(JobControlRecord* jcr,
                int retry_interval,
@@ -907,13 +905,32 @@ class WriteBufferedBsock : BufferedBsock {
   int32_t recv() override
   {
     flush();
-    return wrapped->recv();
+
+    auto old_msg = wrapped->msg;
+    wrapped->msg = msg;
+    int32_t num_bytes = wrapped->recv();
+    message_length = wrapped->message_length;
+    wrapped->msg = old_msg;
+    return num_bytes;
   }
+
+  static constexpr int32_t header_length = sizeof(int32_t);
+
   bool send() override
   {
-    // todo
-    flush();
-    return wrapped->send();
+    int32_t header = htonl(message_length);
+    int32_t actual_length = std::max(int32_t{0}, message_length);
+    auto locked = data->lock();
+    if ((int32_t)locked->free() >= header_length + actual_length) {
+      locked->append(header_length, (char*)&header);
+      if (actual_length > 0) { locked->append(actual_length, msg); }
+      return true;
+    } else {
+      flush(locked.get());
+      memcpy(msg - header_length, &header, header_length);
+      return wrapped->write_nbytes(msg - header_length,
+                                   actual_length + header_length);
+    }
   }
   virtual int32_t read_nbytes(char* ptr, int32_t nbytes) override
   {
@@ -921,15 +938,22 @@ class WriteBufferedBsock : BufferedBsock {
   }
   virtual int32_t write_nbytes(char* ptr, int32_t nbytes) override
   {
+    flush();
     return wrapped->write_nbytes(ptr, nbytes);
   }
   void close() override
   {
-    if (wrapped) wrapped->close();
+    if (wrapped) {
+      flush();
+      wrapped->close();
+    }
   }
   virtual void destroy() override
   {
-    if (wrapped) wrapped->destroy();
+    if (wrapped) {
+      flush();
+      wrapped->destroy();
+    }
   }
   int GetPeer(char* buf, socklen_t buflen) override
   {
@@ -978,9 +1002,57 @@ class WriteBufferedBsock : BufferedBsock {
     return wrapped->open(jcr, name, host, service, port, heart_beat, fatal);
   }
 
+  struct WriteBuffer {
+    WriteBuffer(std::size_t capacity)
+        : cap{capacity}, data{std::make_unique<char[]>(capacity)}
+    {
+    }
+
+    const char* start() const { return data.get(); }
+
+    std::size_t count() const { return end; }
+    std::size_t free() const { return cap - end; }
+
+    void append(std::size_t size, const char* in)
+    {
+      ASSERT(free() >= size);
+      memcpy(data.get() + end, in, size);
+      end += size;
+    }
+
+    void reset() { end = 0; }
+
+    std::size_t cap{};
+    std::unique_ptr<char[]> data{};
+
+    std::size_t end{};
+  };
+
+ private:
+  bool flush(WriteBuffer& buf)
+  {
+    auto to_flush = buf.count();
+    if (to_flush > 0) {
+      bool ok = wrapped->write_nbytes((char*)buf.start(), to_flush)
+                == (int32_t)to_flush;
+      buf.reset();
+      return ok;
+    }
+    return true;
+  }
+
+  WriteBufferedBsock(BareosSocket* sock,
+                     std::shared_ptr<synchronized<WriteBuffer>> in)
+      : wrapped{sock}, data{std::move(in)}
+  {
+  }
+
   BareosSocket* wrapped{};
-  std::unique_ptr<char[]> data{};
-  std::size_t cap{};
-  std::size_t begin{};
-  std::size_t end{};
+  std::shared_ptr<synchronized<WriteBuffer>> data{};
 };
+
+
+BufferedBsock* make_buffered(BareosSocket* s, std::size_t capacity)
+{
+  return new WriteBufferedBsock(s, capacity);
+}

@@ -349,4 +349,6 @@ class BufferedBsock : public BareosSocket {
   virtual bool flush() = 0;
 };
 
+BufferedBsock* make_buffered(BareosSocket* s, std::size_t capacity);
+
 #endif  // BAREOS_LIB_BSOCK_H_

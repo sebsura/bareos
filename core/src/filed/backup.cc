@@ -102,6 +102,24 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
 static void CloseVssBackupSession(JobControlRecord* jcr);
 #endif
 
+struct MakeWriteBuffered {
+  MakeWriteBuffered(BareosSocket*& sock, std::size_t capacity)
+      : pos{&sock}, underlying{sock}
+  {
+    sock = make_buffered(sock, capacity);
+  }
+
+
+  ~MakeWriteBuffered()
+  {
+    delete *pos;
+    *pos = underlying;
+  }
+
+  BareosSocket** pos{};
+  BareosSocket* underlying{};
+};
+
 /**
  * Find all the requested files and send them
  * to the Storage daemon.
@@ -156,6 +174,8 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
     SetFindChangedFunction((FindFilesPacket*)jcr->fd_impl->ff,
                            AccurateCheckFile);
   }
+
+  MakeWriteBuffered _s{jcr->store_bsock, 32 * 1024};
 
   auto hb_send = MakeHeartbeatMonitor(jcr);
 
