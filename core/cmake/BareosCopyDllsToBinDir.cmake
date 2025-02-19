@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2024-2024 Bareos GmbH & Co. KG
+#   Copyright (C) 2024-2025 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -28,8 +28,10 @@ set_property(GLOBAL PROPERTY JOB_POOLS copy=1)
 macro(BareosCopyDllsToBinDir)
   if(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND MSVC)
     set(FNAME "${CMAKE_BINARY_DIR}/required_dlls")
-    set(DLLS_TO_COPY_MANUALLY C:/vcpkg/installed/x64-windows/bin/jansson.dll
-                              C:/vcpkg/installed/x64-windows/bin/lzo2.dll
+    set(DLLS_TO_COPY_MANUALLY
+        C:/vcpkg/installed/x64-windows/bin/jansson.dll
+        C:/vcpkg/installed/x64-windows/bin/lzo2.dll
+        C:/vcpkg/installed/x64-windows/bin/zlib1.dll
     )
     set(REQUIRED_DLLS ${DLLS_TO_COPY_MANUALLY})
     get_property(
