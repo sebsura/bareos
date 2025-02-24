@@ -64,13 +64,14 @@ class ConfigResourcesContainer;
  * this daemon.
  */
 struct ResourceTable {
-  const char* name;          /* Resource name */
-  const char* groupname;     /* Resource name in plural form */
+  const char* name;      /* Resource name */
+  const char* groupname; /* Resource name in plural form */
   const ResourceItem* items; /* List of resource keywords */
   uint32_t rcode;            /* Code if needed */
   uint32_t size;             /* Size of resource */
 
-  std::function<void()> ResourceSpecificInitializer; /* this allocates memory */
+  using init_fun = void();
+  init_fun* ResourceSpecificInitializer; /* this allocates memory */
   BareosResource** allocated_resource_;
 
   struct Alias {
