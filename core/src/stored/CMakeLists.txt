@@ -172,6 +172,7 @@ else()
 endif()
 
 add_library(stored_objects STATIC ${SDSRCS})
+target_link_libraries(stored_objects PUBLIC bareos)
 
 if(HAVE_WIN32)
   bareos_configure_file(FILES ../win32/stored/storedres.rc.in)

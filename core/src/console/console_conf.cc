@@ -77,12 +77,11 @@ static const ResourceItem dir_items[] = {
   {}
 };
 
-static ResourceTable resources[] = {
+static const ResourceTable resources[] = {
   { "Console", "Consoles", cons_items, R_CONSOLE, sizeof(ConsoleResource),
       [] (){ res_cons = new ConsoleResource(); }, reinterpret_cast<BareosResource**>(&res_cons) },
   { "Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
       [] (){ res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir) },
-  {nullptr, nullptr, nullptr, 0, 0, nullptr, nullptr}
 };
 
 /* clang-format on */
@@ -275,10 +274,9 @@ bool PrintConfigSchemaJson(PoolMem& buffer)
   json_t* bconsole = json_object();
   json_object_set_new(json_resource_object, "bconsole", bconsole);
 
-  const ResourceTable* resource_definition = my_config->resource_definitions_;
-  for (; resource_definition->name; ++resource_definition) {
-    json_object_set_new(bconsole, resource_definition->name,
-                        json_items(resource_definition->items));
+  for (auto& resource_definition : my_config->resource_definitions_) {
+    json_object_set_new(bconsole, resource_definition.name,
+                        json_items(resource_definition.items));
   }
 
   char* const json_str = json_dumps(json, JSON_INDENT(2));

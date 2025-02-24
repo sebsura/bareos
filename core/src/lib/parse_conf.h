@@ -39,8 +39,8 @@
 #include <functional>
 #include <memory>
 #include <map>
-#include <vector>
-#include <string>
+#include <gsl/span>
+#include <optional>
 
 struct ResourceItem;
 class ConfigParserStateMachine;
@@ -74,9 +74,10 @@ struct ResourceTable {
   BareosResource** allocated_resource_;
 
   struct Alias {
-    std::string name, group_name;
+    const char* name;
+    const char* group_name;
   };
-  std::vector<Alias> aliases = {}; /* Resource name and group name aliases */
+  std::optional<Alias> alias = {}; /* Resource name and group name aliases */
 };
 
 // Common Resource definitions
@@ -212,8 +213,8 @@ class ConfigurationParser {
   int32_t r_num_{0};                      /* number of daemon resource types */
   int32_t r_own_{0};                      /* own resource type */
   BareosResource* own_resource_{nullptr}; /* Pointer to own resource */
-  const ResourceTable* resource_definitions_{
-      0}; /* Pointer to table of permitted resources */
+  gsl::span<const ResourceTable>
+      resource_definitions_{}; /* Pointer to table of permitted resources */
   std::shared_ptr<ConfigResourcesContainer> config_resources_container_;
   mutable brwlock_t res_lock_; /* Resource lock */
 
@@ -230,7 +231,7 @@ class ConfigurationParser {
                       PRINT_RES_HANDLER* print_res,
                       int32_t err_type,
                       int32_t r_num,
-                      const ResourceTable* resources,
+                      gsl::span<const ResourceTable> resources,
                       const char* config_default_filename,
                       const char* config_include_dir,
                       void (*ParseConfigBeforeCb)(ConfigurationParser&),

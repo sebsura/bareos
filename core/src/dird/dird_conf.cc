@@ -445,7 +445,7 @@ static const ResourceItem counter_items[] = {
  *
  * name handler value code flags default_value
  */
-static ResourceTable dird_resource_tables[] = {
+static const ResourceTable dird_resource_tables[] = {
   { "Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
       [] (){ res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir) },
   { "Client", "Clients", client_items, R_CLIENT, sizeof(ClientResource),
@@ -476,7 +476,6 @@ static ResourceTable dird_resource_tables[] = {
       [] (){ res_dev = new DeviceResource(); }, reinterpret_cast<BareosResource**>(&res_dev) },
   { "User", "Users", user_items, R_USER, sizeof(UserResource),
       [] (){ res_user = new UserResource(); }, reinterpret_cast<BareosResource**>(&res_user) },
-  { nullptr, nullptr, nullptr, 0, 0, nullptr, nullptr }
 };
 
 /**
@@ -740,7 +739,6 @@ json_t* json_datatype(const int type, const ResourceItem items[])
 bool PrintConfigSchemaJson(PoolMem& buffer)
 {
   DatatypeName* datatype;
-  const ResourceTable* resources = my_config->resource_definitions_;
 
   json_t* json = json_object();
   json_object_set_new(json, "format-version", json_integer(2));
@@ -753,8 +751,7 @@ bool PrintConfigSchemaJson(PoolMem& buffer)
   json_t* bareos_dir = json_object();
   json_object_set_new(resource, "bareos-dir", bareos_dir);
 
-  for (int r = 0; resources[r].name; r++) {
-    const ResourceTable& resource_table = my_config->resource_definitions_[r];
+  for (auto& resource_table : my_config->resource_definitions_) {
     json_object_set_new(bareos_dir, resource_table.name,
                         json_items(resource_table.items));
   }
@@ -927,8 +924,7 @@ const char* GetUsageStringForConsoleConfigureCommand()
   // Only fill the configure_usage_string once. The content is static.
   if (configure_usage_string->strlen() == 0) {
     // subcommand: add
-    for (int r = 0; dird_resource_tables[r].name; r++) {
-      auto& table = dird_resource_tables[r];
+    for (const auto& table : dird_resource_tables) {
       /* Only one Director is allowed.
        * If the resource have not items, there is no need to add it. */
       if ((table.rcode != R_DIRECTOR) && (table.items)) {

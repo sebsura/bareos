@@ -140,14 +140,13 @@ static const ResourceItem dir_items[] = {
 // Message resource
 #include "lib/messages_resource_items.h"
 
-static ResourceTable resources[] = {
+static const ResourceTable resources[] = {
   {"Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
       []() { res_dir = new  DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir)},
   {"Client", "Clients", cli_items, R_CLIENT, sizeof(ClientResource),
-      []() { res_client = new ClientResource(); }, reinterpret_cast<BareosResource**>(&res_client), { { "FileDaemon", "FileDaemons" } }},
+   []() { res_client = new ClientResource(); }, reinterpret_cast<BareosResource**>(&res_client), ResourceTable::Alias{ "FileDaemon", "FileDaemons" }},
   {"Messages", "Messages", msgs_items, R_MSGS, sizeof(MessagesResource),
       []() { res_msgs = new MessagesResource(); }, reinterpret_cast<BareosResource**>(&res_msgs)},
-  {nullptr, nullptr, nullptr, 0, 0, nullptr, nullptr}
 };
 
 /* clang-format on */
@@ -268,8 +267,7 @@ bool PrintConfigSchemaJson(PoolMem& buffer)
   json_t* bareos_fd = json_object();
   json_object_set_new(resource, "bareos-fd", bareos_fd);
 
-  for (int r = 0; my_config->resource_definitions_[r].name; r++) {
-    ResourceTable resource_table = my_config->resource_definitions_[r];
+  for (const auto& resource_table : my_config->resource_definitions_) {
     json_object_set_new(bareos_fd, resource_table.name,
                         json_items(resource_table.items));
   }

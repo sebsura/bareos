@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2024 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2025 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -159,7 +159,7 @@ target_link_libraries(
   bareos
   PRIVATE bareosfastlz ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${LZO2_LIBRARIES}
           ${CAM_LIBRARIES} CLI11::CLI11 xxHash::xxhash utf8cpp::utf8cpp
-  PUBLIC ${THREADS_THREADS}
+  PUBLIC ${THREADS_THREADS} Microsoft.GSL::GSL
 )
 
 if(XXHASH_ENABLE_DISPATCH)

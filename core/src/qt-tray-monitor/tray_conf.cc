@@ -166,7 +166,7 @@ static const ResourceItem con_font_items[] = {
  *
  *  name items rcode configuration_resources
  */
-static ResourceTable resource_definitions[] = {
+static const ResourceTable resource_definitions[] = {
   {"Monitor", "Monitors", mon_items, R_MONITOR, sizeof(MonitorResource),
       []() { res_monitor = new MonitorResource(); }, reinterpret_cast<BareosResource**>(&res_monitor)},
   {"Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
@@ -177,7 +177,6 @@ static ResourceTable resource_definitions[] = {
       []() { res_store = new StorageResource(); }, reinterpret_cast<BareosResource**>(&res_store)},
   {"ConsoleFont", "ConsoleFonts", con_font_items, R_CONSOLE_FONT, sizeof(ConsoleFontResource),
       []() { res_font = new ConsoleFontResource(); }, reinterpret_cast<BareosResource**>(&res_font)},
-  {nullptr, nullptr, nullptr, 0, 0, nullptr, nullptr}
 };
 
 /* clang-format on */
@@ -402,8 +401,7 @@ bool PrintConfigSchemaJson(PoolMem& buffer)
   json_t* bareos_tray_monitor = json_object();
   json_object_set_new(resource, "bareos-tray-monitor", bareos_tray_monitor);
 
-  for (int r = 0; my_config->resource_definitions_[r].name; r++) {
-    const ResourceTable& resource_table = my_config->resource_definitions_[r];
+  for (const auto& resource_table : my_config->resource_definitions_) {
     json_object_set_new(bareos_tray_monitor, resource_table.name,
                         json_items(resource_table.items));
   }

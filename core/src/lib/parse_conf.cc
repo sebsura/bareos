@@ -92,7 +92,7 @@ ConfigurationParser::ConfigurationParser(
     PRINT_RES_HANDLER* print_res,
     int32_t err_type,
     int32_t r_num,
-    const ResourceTable* resource_definitions,
+    gsl::span<const ResourceTable> resource_definitions,
     const char* config_default_filename,
     const char* config_include_dir,
     void (*ParseConfigBeforeCb)(ConfigurationParser&),
@@ -294,14 +294,14 @@ bool ConfigurationParser::AppendToResourcesChain(BareosResource* new_resource,
 
 int ConfigurationParser::GetResourceTableIndex(const char* resource_type_name)
 {
-  for (int i = 0; resource_definitions_[i].name; i++) {
+  for (size_t i = 0; i < resource_definitions_.size(); i++) {
     if (Bstrcasecmp(resource_definitions_[i].name, resource_type_name)) {
       return i;
     }
-    for (const auto& alias : resource_definitions_[i].aliases) {
-      if (Bstrcasecmp(alias.name.c_str(), resource_type_name)) {
+    if (const auto& alias = resource_definitions_[i].alias) {
+      if (Bstrcasecmp(alias->name, resource_type_name)) {
         std::string warning
-            = "Found resource alias usage \"" + alias.name
+            = "Found resource alias usage \"" + std::string(alias->name)
               + "\" in configuration which is discouraged, consider using \""
               + resource_definitions_[i].name + "\" instead.";
         if (std::find(warnings_.begin(), warnings_.end(), warning)

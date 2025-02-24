@@ -220,7 +220,7 @@ static const ResourceItem autochanger_items[] = {
   {}
 };
 
-static ResourceTable resources[] = {
+static const ResourceTable resources[] = {
   {"Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
       []() { res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir)},
   {"Ndmp", "Ndmp", ndmp_items, R_NDMP, sizeof(NdmpResource),
@@ -233,7 +233,7 @@ static ResourceTable resources[] = {
       []() { res_msgs = new MessagesResource(); }, reinterpret_cast<BareosResource**>(&res_msgs)},
   {"Autochanger", "Autochangers", autochanger_items, R_AUTOCHANGER, sizeof(AutochangerResource),
       []() { res_changer = new AutochangerResource(); }, reinterpret_cast<BareosResource**>(&res_changer)},
-  {nullptr, nullptr, nullptr, 0, 0, nullptr, nullptr}};
+};
 
 /* clang-format on */
 
@@ -637,8 +637,7 @@ bool PrintConfigSchemaJson(PoolMem& buffer)
   json_t* bareos_sd = json_object();
   json_object_set_new(resource, "bareos-sd", bareos_sd);
 
-  for (int r = 0; my_config->resource_definitions_[r].name; r++) {
-    const ResourceTable& resource_table = my_config->resource_definitions_[r];
+  for (const auto& resource_table : my_config->resource_definitions_) {
     json_object_set_new(bareos_sd, resource_table.name,
                         json_items(resource_table.items));
   }
