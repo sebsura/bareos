@@ -78,9 +78,9 @@ static const ResourceItem dir_items[] = {
 };
 
 static const ResourceTable resources[] = {
-  { "Console", "Consoles", cons_items, R_CONSOLE, sizeof(ConsoleResource),
+  { "Console", "Consoles", cons_items, R_CONSOLE,
       [] (){ res_cons = new ConsoleResource(); }, reinterpret_cast<BareosResource**>(&res_cons) },
-  { "Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
+  { "Director", "Directors", dir_items, R_DIRECTOR,
       [] (){ res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir) },
 };
 

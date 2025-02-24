@@ -167,15 +167,15 @@ static const ResourceItem con_font_items[] = {
  *  name items rcode configuration_resources
  */
 static const ResourceTable resource_definitions[] = {
-  {"Monitor", "Monitors", mon_items, R_MONITOR, sizeof(MonitorResource),
+  {"Monitor", "Monitors", mon_items, R_MONITOR,
       []() { res_monitor = new MonitorResource(); }, reinterpret_cast<BareosResource**>(&res_monitor)},
-  {"Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
+  {"Director", "Directors", dir_items, R_DIRECTOR,
       []() { res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir)},
-  {"Client", "Clients", client_items, R_CLIENT, sizeof(ClientResource),
+  {"Client", "Clients", client_items, R_CLIENT,
       []() { res_client = new ClientResource(); }, reinterpret_cast<BareosResource**>(&res_client)},
-  {"Storage", "Storages", store_items, R_STORAGE, sizeof(StorageResource),
+  {"Storage", "Storages", store_items, R_STORAGE,
       []() { res_store = new StorageResource(); }, reinterpret_cast<BareosResource**>(&res_store)},
-  {"ConsoleFont", "ConsoleFonts", con_font_items, R_CONSOLE_FONT, sizeof(ConsoleFontResource),
+  {"ConsoleFont", "ConsoleFonts", con_font_items, R_CONSOLE_FONT,
       []() { res_font = new ConsoleFontResource(); }, reinterpret_cast<BareosResource**>(&res_font)},
 };
 

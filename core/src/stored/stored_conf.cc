@@ -221,17 +221,17 @@ static const ResourceItem autochanger_items[] = {
 };
 
 static const ResourceTable resources[] = {
-  {"Director", "Directors", dir_items, R_DIRECTOR, sizeof(DirectorResource),
+  {"Director", "Directors", dir_items, R_DIRECTOR,
       []() { res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir)},
-  {"Ndmp", "Ndmp", ndmp_items, R_NDMP, sizeof(NdmpResource),
+  {"Ndmp", "Ndmp", ndmp_items, R_NDMP,
       []() { res_ndmp = new NdmpResource(); }, reinterpret_cast<BareosResource**>(&res_ndmp)},
-  {"Storage", "Storages", store_items, R_STORAGE, sizeof(StorageResource),
+  {"Storage", "Storages", store_items, R_STORAGE,
       []() { res_store = new StorageResource(); }, reinterpret_cast<BareosResource**>(&res_store)},
-  {"Device", "Devices", dev_items, R_DEVICE, sizeof(DeviceResource),
+  {"Device", "Devices", dev_items, R_DEVICE,
       []() { res_dev = new DeviceResource(); }, reinterpret_cast<BareosResource**>(&res_dev)},
-  {"Messages", "Messages", msgs_items, R_MSGS, sizeof(MessagesResource),
+  {"Messages", "Messages", msgs_items, R_MSGS,
       []() { res_msgs = new MessagesResource(); }, reinterpret_cast<BareosResource**>(&res_msgs)},
-  {"Autochanger", "Autochangers", autochanger_items, R_AUTOCHANGER, sizeof(AutochangerResource),
+  {"Autochanger", "Autochangers", autochanger_items, R_AUTOCHANGER,
       []() { res_changer = new AutochangerResource(); }, reinterpret_cast<BareosResource**>(&res_changer)},
 };
 

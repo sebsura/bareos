@@ -68,7 +68,6 @@ struct ResourceTable {
   const char* groupname; /* Resource name in plural form */
   const ResourceItem* items; /* List of resource keywords */
   uint32_t rcode;            /* Code if needed */
-  uint32_t size;             /* Size of resource */
 
   using init_fun = void();
   init_fun* ResourceSpecificInitializer; /* this allocates memory */
