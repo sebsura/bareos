@@ -447,35 +447,35 @@ static const ResourceItem counter_items[] = {
  */
 static const ResourceTable dird_resource_tables[] = {
   { "Director", "Directors", dir_items, R_DIRECTOR,
-      [] (){ res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir) },
+    [] (){ res_dir = new DirectorResource(); }, +[]() -> BareosResource* { return res_dir; } },
   { "Client", "Clients", client_items, R_CLIENT,
-      [] (){ res_client = new ClientResource(); }, reinterpret_cast<BareosResource**>(&res_client)  },
+    [] (){ res_client = new ClientResource(); }, +[]() -> BareosResource* { return res_client; }  },
   { "JobDefs", "JobDefs", job_items, R_JOBDEFS,
-      [] (){ res_job = new JobResource(); }, reinterpret_cast<BareosResource**>(&res_job) },
+      [] (){ res_job = new JobResource(); }, +[]() -> BareosResource* { return res_job; } },
   { "Job", "Jobs", job_items, R_JOB,
-      [] (){ res_job = new JobResource(); }, reinterpret_cast<BareosResource**>(&res_job) },
+      [] (){ res_job = new JobResource(); }, +[]() -> BareosResource* { return res_job; } },
   { "Storage", "Storages", store_items, R_STORAGE,
-      [] (){ res_store = new StorageResource(); }, reinterpret_cast<BareosResource**>(&res_store) },
+      [] (){ res_store = new StorageResource(); }, +[]() -> BareosResource* { return res_store; } },
   { "Catalog", "Catalogs", cat_items, R_CATALOG,
-      [] (){ res_cat = new CatalogResource(); }, reinterpret_cast<BareosResource**>(&res_cat) },
+      [] (){ res_cat = new CatalogResource(); }, +[]() -> BareosResource* { return res_cat; } },
   { "Schedule", "Schedules", sch_items, R_SCHEDULE,
-      [] (){ res_sch = new ScheduleResource(); }, reinterpret_cast<BareosResource**>(&res_sch) },
+      [] (){ res_sch = new ScheduleResource(); }, +[]() -> BareosResource* { return res_sch; } },
   { "FileSet", "FileSets", fs_items, R_FILESET,
-      [] (){ res_fs = new FilesetResource(); }, reinterpret_cast<BareosResource**>(&res_fs) },
+      [] (){ res_fs = new FilesetResource(); }, +[]() -> BareosResource* { return res_fs; } },
   { "Pool", "Pools", pool_items, R_POOL,
-      [] (){ res_pool = new PoolResource(); }, reinterpret_cast<BareosResource**>(&res_pool) },
+      [] (){ res_pool = new PoolResource(); }, +[]() -> BareosResource* { return res_pool; } },
   { "Messages", "Messages", msgs_items, R_MSGS,
-      [] (){ res_msgs = new MessagesResource(); }, reinterpret_cast<BareosResource**>(&res_msgs) },
+      [] (){ res_msgs = new MessagesResource(); }, +[]() -> BareosResource* { return res_msgs; } },
   { "Counter", "Counters", counter_items, R_COUNTER,
-      [] (){ res_counter = new CounterResource(); }, reinterpret_cast<BareosResource**>(&res_counter) },
+      [] (){ res_counter = new CounterResource(); }, +[]() -> BareosResource* { return res_counter; } },
   { "Profile", "Profiles", profile_items, R_PROFILE,
-      [] (){ res_profile = new ProfileResource(); }, reinterpret_cast<BareosResource**>(&res_profile) },
+      [] (){ res_profile = new ProfileResource(); }, +[]() -> BareosResource* { return res_profile; } },
   { "Console", "Consoles", con_items, R_CONSOLE,
-      [] (){ res_con = new ConsoleResource(); }, reinterpret_cast<BareosResource**>(&res_con) },
+      [] (){ res_con = new ConsoleResource(); }, +[]() -> BareosResource* { return res_con; } },
   { "Device", "Devices", NULL, R_DEVICE,/* info obtained from SD */
-      [] (){ res_dev = new DeviceResource(); }, reinterpret_cast<BareosResource**>(&res_dev) },
+      [] (){ res_dev = new DeviceResource(); }, +[]() -> BareosResource* { return res_dev; } },
   { "User", "Users", user_items, R_USER,
-      [] (){ res_user = new UserResource(); }, reinterpret_cast<BareosResource**>(&res_user) },
+      [] (){ res_user = new UserResource(); }, +[]() -> BareosResource* { return res_user; } },
 };
 
 /**
@@ -3978,7 +3978,7 @@ static void FreeResource(BareosResource* res, int type)
 static bool SaveResource(int type, const ResourceItem* items, int pass)
 {
   BareosResource* allocated_resource
-      = *dird_resource_tables[type].allocated_resource_;
+      = dird_resource_tables[type].get_resource();
 
   switch (type) {
     case R_DIRECTOR: {

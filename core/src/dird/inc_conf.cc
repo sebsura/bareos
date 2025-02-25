@@ -777,7 +777,7 @@ static FilesetResource* GetStaticFilesetResource()
   FilesetResource* res_fs = nullptr;
   const ResourceTable* t = my_config->GetResourceTable("FileSet");
   ASSERT(t);
-  if (t) { res_fs = dynamic_cast<FilesetResource*>(*t->allocated_resource_); }
+  if (t) { res_fs = dynamic_cast<FilesetResource*>(t->get_resource()); }
   assert(res_fs);
   return res_fs;
 }

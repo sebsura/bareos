@@ -243,9 +243,9 @@ ConfigParserStateMachine::ParserInitResource(int token)
                             parser_pass_number_,
                             resource_table->ResourceSpecificInitializer);
 
-    ASSERT(resource_table->allocated_resource_);
+    ASSERT(resource_table->get_resource());
     currently_parsed_resource_.allocated_resource_
-        = *resource_table->allocated_resource_;
+        = resource_table->get_resource();
     ASSERT(currently_parsed_resource_.allocated_resource_);
 
     currently_parsed_resource_.allocated_resource_->rcode_str_

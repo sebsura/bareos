@@ -222,17 +222,17 @@ static const ResourceItem autochanger_items[] = {
 
 static const ResourceTable resources[] = {
   {"Director", "Directors", dir_items, R_DIRECTOR,
-      []() { res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir)},
+   []() { res_dir = new DirectorResource(); }, +[]() -> BareosResource* { return res_dir; }},
   {"Ndmp", "Ndmp", ndmp_items, R_NDMP,
-      []() { res_ndmp = new NdmpResource(); }, reinterpret_cast<BareosResource**>(&res_ndmp)},
+   []() { res_ndmp = new NdmpResource(); }, +[]() -> BareosResource* { return res_ndmp; }},
   {"Storage", "Storages", store_items, R_STORAGE,
-      []() { res_store = new StorageResource(); }, reinterpret_cast<BareosResource**>(&res_store)},
+   []() { res_store = new StorageResource(); }, +[]() -> BareosResource* { return res_store; }},
   {"Device", "Devices", dev_items, R_DEVICE,
-      []() { res_dev = new DeviceResource(); }, reinterpret_cast<BareosResource**>(&res_dev)},
+      []() { res_dev = new DeviceResource(); }, +[]() -> BareosResource* { return res_dev; }},
   {"Messages", "Messages", msgs_items, R_MSGS,
-      []() { res_msgs = new MessagesResource(); }, reinterpret_cast<BareosResource**>(&res_msgs)},
+      []() { res_msgs = new MessagesResource(); }, +[]() -> BareosResource* { return res_msgs; }},
   {"Autochanger", "Autochangers", autochanger_items, R_AUTOCHANGER,
-      []() { res_changer = new AutochangerResource(); }, reinterpret_cast<BareosResource**>(&res_changer)},
+      []() { res_changer = new AutochangerResource(); }, +[]() -> BareosResource* { return res_changer; }},
 };
 
 /* clang-format on */
