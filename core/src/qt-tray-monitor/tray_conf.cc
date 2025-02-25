@@ -166,7 +166,7 @@ static const ResourceItem con_font_items[] = {
  *
  *  name items rcode configuration_resources
  */
-static const ResourceTable resource_definitions[] = {
+static constexpr ResourceTable resource_definitions[] = {
   {"Monitor", "Monitors", mon_items, R_MONITOR,
    []() { res_monitor = new MonitorResource(); }, +[]() -> BareosResource* { return res_monitor; }},
   {"Director", "Directors", dir_items, R_DIRECTOR,

@@ -220,7 +220,7 @@ static const ResourceItem autochanger_items[] = {
   {}
 };
 
-static const ResourceTable resources[] = {
+static constexpr ResourceTable resources[] = {
   {"Director", "Directors", dir_items, R_DIRECTOR,
    []() { res_dir = new DirectorResource(); }, +[]() -> BareosResource* { return res_dir; }},
   {"Ndmp", "Ndmp", ndmp_items, R_NDMP,

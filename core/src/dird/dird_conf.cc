@@ -445,7 +445,7 @@ static const ResourceItem counter_items[] = {
  *
  * name handler value code flags default_value
  */
-static const ResourceTable dird_resource_tables[] = {
+static constexpr ResourceTable dird_resource_tables[] = {
   { "Director", "Directors", dir_items, R_DIRECTOR,
     [] (){ res_dir = new DirectorResource(); }, +[]() -> BareosResource* { return res_dir; } },
   { "Client", "Clients", client_items, R_CLIENT,

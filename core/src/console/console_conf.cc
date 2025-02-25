@@ -77,7 +77,7 @@ static const ResourceItem dir_items[] = {
   {}
 };
 
-static const ResourceTable resources[] = {
+static constexpr ResourceTable resources[] = {
   { "Console", "Consoles", cons_items, R_CONSOLE,
     [] (){ res_cons = new ConsoleResource(); }, +[]() -> BareosResource* { return res_cons; } },
   { "Director", "Directors", dir_items, R_DIRECTOR,

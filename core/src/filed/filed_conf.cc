@@ -140,7 +140,7 @@ static const ResourceItem dir_items[] = {
 // Message resource
 #include "lib/messages_resource_items.h"
 
-static const ResourceTable resources[] = {
+static constexpr ResourceTable resources[] = {
   {"Director", "Directors", dir_items, R_DIRECTOR,
       []() { res_dir = new  DirectorResource(); }, +[]() -> BareosResource* { return res_dir; }},
   {"Client", "Clients", cli_items, R_CLIENT,
