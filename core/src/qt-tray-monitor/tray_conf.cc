@@ -168,15 +168,15 @@ static const ResourceItem con_font_items[] = {
  */
 static const ResourceTable resource_definitions[] = {
   {"Monitor", "Monitors", mon_items, R_MONITOR,
-      []() { res_monitor = new MonitorResource(); }, reinterpret_cast<BareosResource**>(&res_monitor)},
+      []() { res_monitor = new MonitorResource(); }, reinterpret_cast<BareosResource* const*>(&res_monitor)},
   {"Director", "Directors", dir_items, R_DIRECTOR,
-      []() { res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource**>(&res_dir)},
+      []() { res_dir = new DirectorResource(); }, reinterpret_cast<BareosResource* const*>(&res_dir)},
   {"Client", "Clients", client_items, R_CLIENT,
-      []() { res_client = new ClientResource(); }, reinterpret_cast<BareosResource**>(&res_client)},
+      []() { res_client = new ClientResource(); }, reinterpret_cast<BareosResource* const*>(&res_client)},
   {"Storage", "Storages", store_items, R_STORAGE,
-      []() { res_store = new StorageResource(); }, reinterpret_cast<BareosResource**>(&res_store)},
+      []() { res_store = new StorageResource(); }, reinterpret_cast<BareosResource* const*>(&res_store)},
   {"ConsoleFont", "ConsoleFonts", con_font_items, R_CONSOLE_FONT,
-      []() { res_font = new ConsoleFontResource(); }, reinterpret_cast<BareosResource**>(&res_font)},
+      []() { res_font = new ConsoleFontResource(); }, reinterpret_cast<BareosResource* const*>(&res_font)},
 };
 
 /* clang-format on */

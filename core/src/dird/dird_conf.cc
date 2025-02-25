@@ -1221,14 +1221,15 @@ char* CatalogResource::display(POOLMEM* dst)
 }
 
 
-static void PrintConfigRunscript(OutputFormatterResource& send,
+static void PrintConfigRunscript(const BareosResource* res,
+                                 OutputFormatterResource& send,
                                  const ResourceItem& item,
                                  bool inherited,
                                  bool verbose)
 {
   if (!Bstrcasecmp(item.name, "runscript")) { return; }
 
-  alist<RunScript*>* list = GetItemVariable<alist<RunScript*>*>(item);
+  alist<RunScript*>* list = GetItemVariable<alist<RunScript*>*>(res, item);
   if ((!list) or (list->empty())) { return; }
 
   send.ArrayStart(item.name, inherited, "");
@@ -1765,11 +1766,12 @@ static std::string PrintConfigRun(RunResource* run)
 }
 
 
-static void PrintConfigRun(OutputFormatterResource& send,
+static void PrintConfigRun(const BareosResource* res,
+                           OutputFormatterResource& send,
                            const ResourceItem* item,
                            bool inherited)
 {
-  RunResource* run = GetItemVariable<RunResource*>(*item);
+  RunResource* run = GetItemVariable<RunResource*>(res, *item);
   if (run != NULL) {
     std::vector<std::string> run_strings;
     while (run) {
@@ -3260,10 +3262,12 @@ static void ParseConfigCb(LEX* lc,
 }
 
 
-static bool HasDefaultValue(const ResourceItem& item, s_jt* keywords)
+static bool HasDefaultValue(const BareosResource* res,
+                            const ResourceItem& item,
+                            s_jt* keywords)
 {
   bool is_default = false;
-  uint32_t value = GetItemVariable<uint32_t>(item);
+  uint32_t value = GetItemVariable<uint32_t>(res, item);
   if (item.default_value) {
     for (int j = 0; keywords[j].type_name; j++) {
       if (keywords[j].job_type == value) {
@@ -3278,10 +3282,12 @@ static bool HasDefaultValue(const ResourceItem& item, s_jt* keywords)
 }
 
 
-static bool HasDefaultValue(const ResourceItem& item, s_jl* keywords)
+static bool HasDefaultValue(const BareosResource* res,
+                            const ResourceItem& item,
+                            s_jl* keywords)
 {
   bool is_default = false;
-  uint32_t value = GetItemVariable<uint32_t>(item);
+  uint32_t value = GetItemVariable<uint32_t>(res, item);
   if (item.default_value) {
     for (int j = 0; keywords[j].level_name; j++) {
       if (keywords[j].level == value) {
@@ -3310,20 +3316,21 @@ static bool HasDefaultValue(const ResourceItem& item, alist<T>* values)
 }
 
 
-static bool HasDefaultValueAlistConstChar(const ResourceItem& item)
+static bool HasDefaultValueAlistConstChar(const BareosResource* res,
+                                          const ResourceItem& item)
 {
-  alist<const char*>* values = GetItemVariable<alist<const char*>*>(item);
+  alist<const char*>* values = GetItemVariable<alist<const char*>*>(res, item);
   return HasDefaultValue(item, values);
 }
 
 
-static bool HasDefaultValue(const ResourceItem& item)
+static bool HasDefaultValue(const BareosResource* res, const ResourceItem& item)
 {
   bool is_default = false;
 
   switch (item.type) {
     case CFG_TYPE_DEVICE: {
-      is_default = HasDefaultValueAlistConstChar(item);
+      is_default = HasDefaultValueAlistConstChar(res, item);
       break;
     }
     case CFG_TYPE_RUNSCRIPT: {
@@ -3331,7 +3338,7 @@ static bool HasDefaultValue(const ResourceItem& item)
         /* this should not happen */
         is_default = false;
       } else {
-        is_default = (GetItemVariable<alist<RunScript*>*>(item) == NULL);
+        is_default = (GetItemVariable<alist<RunScript*>*>(res, item) == NULL);
       }
       break;
     }
@@ -3340,8 +3347,8 @@ static bool HasDefaultValue(const ResourceItem& item)
        * when parsed */
       break;
     case CFG_TYPE_ACL: {
-      alist<const char*>** alistvalue
-          = GetItemVariablePointer<alist<const char*>**>(item);
+      alist<const char*>* const* alistvalue
+          = GetItemVariablePointer<alist<const char*>**>(res, item);
       alist<const char*>* list = alistvalue[item.code];
       is_default = HasDefaultValue(item, list);
       break;
@@ -3351,50 +3358,50 @@ static bool HasDefaultValue(const ResourceItem& item)
         /* this should not happen */
         is_default = false;
       } else {
-        is_default = (GetItemVariable<RunResource*>(item) == nullptr);
+        is_default = (GetItemVariable<RunResource*>(res, item) == nullptr);
       }
       break;
     }
     case CFG_TYPE_JOBTYPE: {
-      is_default = HasDefaultValue(item, jobtypes);
+      is_default = HasDefaultValue(res, item, jobtypes);
       break;
     }
     case CFG_TYPE_PROTOCOLTYPE: {
-      is_default = HasDefaultValue(item, backupprotocols);
+      is_default = HasDefaultValue(res, item, backupprotocols);
       break;
     }
     case CFG_TYPE_MIGTYPE: {
-      is_default = HasDefaultValue(item, migtypes);
+      is_default = HasDefaultValue(res, item, migtypes);
       break;
     }
     case CFG_TYPE_REPLACE: {
-      is_default = HasDefaultValue(item, ReplaceOptions);
+      is_default = HasDefaultValue(res, item, ReplaceOptions);
       break;
     }
     case CFG_TYPE_LEVEL: {
-      is_default = HasDefaultValue(item, joblevels);
+      is_default = HasDefaultValue(res, item, joblevels);
       break;
     }
     case CFG_TYPE_ACTIONONPURGE: {
-      is_default = HasDefaultValue(item, ActionOnPurgeOptions);
+      is_default = HasDefaultValue(res, item, ActionOnPurgeOptions);
       break;
     }
     case CFG_TYPE_AUTHPROTOCOLTYPE: {
-      is_default = HasDefaultValue(item, authprotocols);
+      is_default = HasDefaultValue(res, item, authprotocols);
       break;
     }
     case CFG_TYPE_AUTHTYPE: {
-      is_default = HasDefaultValue(item, authmethods);
+      is_default = HasDefaultValue(res, item, authmethods);
       break;
     }
     case CFG_TYPE_AUDIT: {
-      is_default
-          = HasDefaultValue(item, GetItemVariable<alist<const char*>*>(item));
+      is_default = HasDefaultValue(
+          item, GetItemVariable<alist<const char*>*>(res, item));
       break;
     }
     case CFG_TYPE_POOLTYPE:
-      is_default
-          = bstrcmp(GetItemVariable<const char*>(item), item.default_value);
+      is_default = bstrcmp(GetItemVariable<const char*>(res, item),
+                           item.default_value);
       Dmsg1(200, "CFG_TYPE_POOLTYPE: default: %d\n", is_default);
       break;
     default:
@@ -3411,7 +3418,8 @@ static bool HasDefaultValue(const ResourceItem& item)
  * See ../lib/res.cc, function BareosResource::PrintConfig, for more generic
  * handling.
  */
-static void PrintConfigCb(const ResourceItem& item,
+static void PrintConfigCb(const BareosResource* res,
+                          const ResourceItem& item,
                           OutputFormatterResource& send,
                           bool,
                           bool inherited,
@@ -3423,7 +3431,7 @@ static void PrintConfigCb(const ResourceItem& item,
 
   if (item.is_required()) { print = true; }
 
-  if (HasDefaultValue(item)) {
+  if (HasDefaultValue(res, item)) {
     if (verbose && !item.is_deprecated()) {
       print = true;
       inherited = true;
@@ -3438,30 +3446,30 @@ static void PrintConfigCb(const ResourceItem& item,
     case CFG_TYPE_DEVICE: {
       // Each member of the list is comma-separated
       send.KeyMultipleStringsInOneLine(
-          item.name, GetItemVariable<alist<const char*>*>(item),
+          item.name, GetItemVariable<alist<const char*>*>(res, item),
           GetResourceName, false, true);
       break;
     }
     case CFG_TYPE_RUNSCRIPT:
       Dmsg0(200, "CFG_TYPE_RUNSCRIPT\n");
-      PrintConfigRunscript(send, item, inherited, verbose);
+      PrintConfigRunscript(res, send, item, inherited, verbose);
       break;
     case CFG_TYPE_SHRTRUNSCRIPT:
       /* We don't get here as this type is converted to a CFG_TYPE_RUNSCRIPT
        * when parsed */
       break;
     case CFG_TYPE_ACL: {
-      alist<const char*>** alistvalue
-          = GetItemVariablePointer<alist<const char*>**>(item);
+      alist<const char*>* const* alistvalue
+          = GetItemVariablePointer<alist<const char*>**>(res, item);
       alist<const char*>* list = alistvalue[item.code];
       send.KeyMultipleStringsInOneLine(item.name, list, inherited);
       break;
     }
     case CFG_TYPE_RUN:
-      PrintConfigRun(send, &item, inherited);
+      PrintConfigRun(res, send, &item, inherited);
       break;
     case CFG_TYPE_JOBTYPE: {
-      uint32_t jobtype = GetItemVariable<uint32_t>(item);
+      uint32_t jobtype = GetItemVariable<uint32_t>(res, item);
 
       if (jobtype) {
         for (int j = 0; jobtypes[j].type_name; j++) {
@@ -3474,11 +3482,11 @@ static void PrintConfigCb(const ResourceItem& item,
       break;
     }
     case CFG_TYPE_PROTOCOLTYPE: {
-      send.KeyString(item.name, GetName(item, backupprotocols), inherited);
+      send.KeyString(item.name, GetName(res, item, backupprotocols), inherited);
       break;
     }
     case CFG_TYPE_MIGTYPE: {
-      uint32_t migtype = GetItemVariable<uint32_t>(item);
+      uint32_t migtype = GetItemVariable<uint32_t>(res, item);
 
       if (migtype) {
         for (int j = 0; migtypes[j].type_name; j++) {
@@ -3491,11 +3499,11 @@ static void PrintConfigCb(const ResourceItem& item,
       break;
     }
     case CFG_TYPE_REPLACE: {
-      send.KeyString(item.name, GetName(item, ReplaceOptions), inherited);
+      send.KeyString(item.name, GetName(res, item, ReplaceOptions), inherited);
       break;
     }
     case CFG_TYPE_LEVEL: {
-      uint32_t level = GetItemVariable<uint32_t>(item);
+      uint32_t level = GetItemVariable<uint32_t>(res, item);
 
       if (!level) {
         send.KeyString(item.name, "", true /*inherited*/);
@@ -3510,27 +3518,30 @@ static void PrintConfigCb(const ResourceItem& item,
       break;
     }
     case CFG_TYPE_ACTIONONPURGE: {
-      send.KeyString(item.name, GetName(item, ActionOnPurgeOptions), inherited);
+      send.KeyString(item.name, GetName(res, item, ActionOnPurgeOptions),
+                     inherited);
       break;
     }
     case CFG_TYPE_AUTHPROTOCOLTYPE: {
-      send.KeyString(item.name, GetName(item, authprotocols), inherited);
+      send.KeyString(item.name, GetName(res, item, authprotocols), inherited);
       break;
     }
     case CFG_TYPE_AUTHTYPE: {
-      send.KeyString(item.name, GetName(item, authmethods), inherited);
+      send.KeyString(item.name, GetName(res, item, authmethods), inherited);
       break;
     }
     case CFG_TYPE_AUDIT: {
       // Each member of the list is comma-separated
       send.KeyMultipleStringsInOneLine(
-          item.name, GetItemVariable<alist<const char*>*>(item), inherited);
+          item.name, GetItemVariable<alist<const char*>*>(res, item),
+          inherited);
       break;
     }
     case CFG_TYPE_POOLTYPE:
       Dmsg1(200, "%s = %s (%d)\n", item.name,
-            GetItemVariable<const char*>(item), inherited);
-      send.KeyString(item.name, GetItemVariable<const char*>(item), inherited);
+            GetItemVariable<const char*>(res, item), inherited);
+      send.KeyString(item.name, GetItemVariable<const char*>(res, item),
+                     inherited);
       break;
     default:
       Dmsg2(200, "%s is UNSUPPORTED TYPE: %d\n", item.name, item.type);

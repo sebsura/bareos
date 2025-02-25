@@ -232,22 +232,54 @@ struct ResourceItem {
   bool has_no_eq() const { return no_equal; }
 };
 
-static inline void* CalculateAddressOfMemberVariable(const ResourceItem& item)
+static inline void* CalculateAddressOfMemberVariable(BareosResource* res,
+                                                     const ResourceItem& item)
 {
-  char* base = reinterpret_cast<char*>(*item.allocated_resource);
+  char* base = reinterpret_cast<char*>(res);
   return static_cast<void*>(base + item.offset);
+}
+
+static inline const void* CalculateAddressOfMemberVariable(
+    const BareosResource* res,
+    const ResourceItem& item)
+{
+  const char* base = reinterpret_cast<const char*>(res);
+  return static_cast<const void*>(base + item.offset);
+}
+
+template <typename P>
+P GetItemVariable(const BareosResource* res, const ResourceItem& item)
+{
+  const void* p = CalculateAddressOfMemberVariable(res, item);
+
+  return *(static_cast<typename std::remove_reference<P>::type const*>(p));
+}
+
+template <typename P>
+P GetItemVariablePointer(BareosResource* res, const ResourceItem& item)
+{
+  void* p = CalculateAddressOfMemberVariable(res, item);
+  return static_cast<P>(p);
+}
+
+template <typename P>
+auto GetItemVariablePointer(const BareosResource* res, const ResourceItem& item)
+{
+  const void* p = CalculateAddressOfMemberVariable(res, item);
+
+  using T = std::remove_pointer_t<P>;
+
+  return static_cast<T const*>(p);
 }
 
 template <typename P> P GetItemVariable(const ResourceItem& item)
 {
-  void* p = CalculateAddressOfMemberVariable(item);
-  return *(static_cast<typename std::remove_reference<P>::type*>(p));
+  return GetItemVariable<P>(*item.allocated_resource, item);
 }
 
 template <typename P> P GetItemVariablePointer(const ResourceItem& item)
 {
-  void* p = CalculateAddressOfMemberVariable(item);
-  return static_cast<P>(p);
+  return GetItemVariablePointer<P>(*item.allocated_resource, item);
 }
 
 template <typename P, typename V>

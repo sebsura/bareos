@@ -1508,28 +1508,30 @@ bool ConfigurationParser::StoreResource(int type,
   return true;
 }
 
-std::string PrintNumberSiPrefixFormat(const ResourceItem*, uint64_t value_in)
+std::string PrintNumberSiPrefixFormat(uint64_t value_in)
 {
   return SizeAsSiPrefixFormat(value_in);
 }
 
-std::string Print32BitConfigNumberSiPrefixFormat(const ResourceItem* item)
+std::string Print32BitConfigNumberSiPrefixFormat(const BareosResource* res,
+                                                 const ResourceItem* item)
 {
-  uint32_t value_32_bit = GetItemVariable<uint32_t>(*item);
-  return PrintNumberSiPrefixFormat(item, value_32_bit);
+  uint32_t value_32_bit = GetItemVariable<uint32_t>(res, *item);
+  return PrintNumberSiPrefixFormat(value_32_bit);
 }
 
-std::string Print64BitConfigNumberSiPrefixFormat(const ResourceItem* item)
+std::string Print64BitConfigNumberSiPrefixFormat(const BareosResource* res,
+                                                 const ResourceItem* item)
 {
-  uint64_t value_64_bit = GetItemVariable<uint64_t>(*item);
-  return PrintNumberSiPrefixFormat(item, value_64_bit);
+  uint64_t value_64_bit = GetItemVariable<uint64_t>(res, *item);
+  return PrintNumberSiPrefixFormat(value_64_bit);
 }
 
-std::string PrintConfigTime(const ResourceItem* item)
+std::string PrintConfigTime(const BareosResource* res, const ResourceItem* item)
 {
   PoolMem temp;
   PoolMem timespec;
-  utime_t secs = GetItemVariable<utime_t>(*item);
+  utime_t secs = GetItemVariable<utime_t>(res, *item);
   int factor;
 
   /* Reverse time formatting: 1 Month, 1 Week, etc.
@@ -1683,9 +1685,11 @@ bool MessagesResource::PrintConfig(OutputFormatterResource& send,
   return true;
 }
 
-const char* GetName(const ResourceItem& item, s_kw* keywords)
+const char* GetName(const BareosResource* res,
+                    const ResourceItem& item,
+                    s_kw* keywords)
 {
-  uint32_t value = GetItemVariable<uint32_t>(item);
+  uint32_t value = GetItemVariable<uint32_t>(res, item);
   for (int j = 0; keywords[j].name; j++) {
     if (keywords[j].token == value) { return keywords[j].name; }
   }
@@ -1693,10 +1697,12 @@ const char* GetName(const ResourceItem& item, s_kw* keywords)
 }
 
 
-bool HasDefaultValue(const ResourceItem& item, s_kw* keywords)
+bool HasDefaultValue(const BareosResource* res,
+                     const ResourceItem& item,
+                     s_kw* keywords)
 {
   bool is_default = false;
-  const char* name = GetName(item, keywords);
+  const char* name = GetName(res, item, keywords);
   if (item.default_value) {
     is_default = Bstrcasecmp(name, item.default_value);
   } else {
@@ -1705,7 +1711,7 @@ bool HasDefaultValue(const ResourceItem& item, s_kw* keywords)
   return is_default;
 }
 
-static bool HasDefaultValue(const ResourceItem& item)
+static bool HasDefaultValue(const BareosResource* res, const ResourceItem& item)
 {
   bool is_default = false;
 
@@ -1717,57 +1723,59 @@ static bool HasDefaultValue(const ResourceItem& item)
       case CFG_TYPE_DIR_OR_CMD:
       case CFG_TYPE_NAME:
       case CFG_TYPE_STRNAME:
-        is_default = bstrcmp(GetItemVariable<char*>(item), item.default_value);
+        is_default
+            = bstrcmp(GetItemVariable<char*>(res, item), item.default_value);
         break;
       case CFG_TYPE_STDSTR:
       case CFG_TYPE_STDSTRDIR:
-        is_default = bstrcmp(GetItemVariable<std::string&>(item).c_str(),
-                             item.default_value);
+        is_default
+            = bstrcmp(GetItemVariablePointer<std::string*>(res, item)->c_str(),
+                      item.default_value);
         break;
       case CFG_TYPE_LABEL:
-        is_default = HasDefaultValue(item, tapelabels);
+        is_default = HasDefaultValue(res, item, tapelabels);
         break;
       case CFG_TYPE_INT16:
-        is_default = (GetItemVariable<int16_t>(item)
+        is_default = (GetItemVariable<int16_t>(res, item)
                       == (int16_t)str_to_int32(item.default_value));
         break;
       case CFG_TYPE_PINT16:
-        is_default = (GetItemVariable<uint16_t>(item)
+        is_default = (GetItemVariable<uint16_t>(res, item)
                       == (uint16_t)str_to_int32(item.default_value));
         break;
       case CFG_TYPE_INT32:
-        is_default = (GetItemVariable<int32_t>(item)
+        is_default = (GetItemVariable<int32_t>(res, item)
                       == str_to_int32(item.default_value));
         break;
       case CFG_TYPE_PINT32:
-        is_default = (GetItemVariable<uint32_t>(item)
+        is_default = (GetItemVariable<uint32_t>(res, item)
                       == (uint32_t)str_to_int32(item.default_value));
         break;
       case CFG_TYPE_INT64:
-        is_default = (GetItemVariable<int64_t>(item)
+        is_default = (GetItemVariable<int64_t>(res, item)
                       == str_to_int64(item.default_value));
         break;
       case CFG_TYPE_SPEED:
-        is_default = (GetItemVariable<uint64_t>(item)
+        is_default = (GetItemVariable<uint64_t>(res, item)
                       == (uint64_t)str_to_int64(item.default_value));
         break;
       case CFG_TYPE_SIZE64:
-        is_default = (GetItemVariable<uint64_t>(item)
+        is_default = (GetItemVariable<uint64_t>(res, item)
                       == (uint64_t)str_to_int64(item.default_value));
         break;
       case CFG_TYPE_SIZE32:
-        is_default = (GetItemVariable<uint32_t>(item)
+        is_default = (GetItemVariable<uint32_t>(res, item)
                       == (uint32_t)str_to_int32(item.default_value));
         break;
       case CFG_TYPE_TIME:
-        is_default = (GetItemVariable<uint64_t>(item)
+        is_default = (GetItemVariable<uint64_t>(res, item)
                       == (uint64_t)str_to_int64(item.default_value));
         break;
       case CFG_TYPE_BOOL: {
         bool default_value = Bstrcasecmp(item.default_value, "true")
                              || Bstrcasecmp(item.default_value, "yes");
 
-        is_default = (GetItemVariable<bool>(item) == default_value);
+        is_default = (GetItemVariable<bool>(res, item) == default_value);
         break;
       }
       default:
@@ -1780,44 +1788,44 @@ static bool HasDefaultValue(const ResourceItem& item)
       case CFG_TYPE_DIR_OR_CMD:
       case CFG_TYPE_NAME:
       case CFG_TYPE_STRNAME:
-        is_default = (GetItemVariable<char*>(item) == nullptr);
+        is_default = (GetItemVariable<char*>(res, item) == nullptr);
         break;
       case CFG_TYPE_STDSTR:
       case CFG_TYPE_STDSTRDIR:
-        is_default = GetItemVariable<std::string&>(item).empty();
+        is_default = GetItemVariablePointer<std::string*>(res, item)->empty();
         break;
       case CFG_TYPE_LABEL:
-        is_default = HasDefaultValue(item, tapelabels);
+        is_default = HasDefaultValue(res, item, tapelabels);
         break;
       case CFG_TYPE_INT16:
-        is_default = (GetItemVariable<int16_t>(item) == 0);
+        is_default = (GetItemVariable<int16_t>(res, item) == 0);
         break;
       case CFG_TYPE_PINT16:
-        is_default = (GetItemVariable<uint16_t>(item) == 0);
+        is_default = (GetItemVariable<uint16_t>(res, item) == 0);
         break;
       case CFG_TYPE_INT32:
-        is_default = (GetItemVariable<int32_t>(item) == 0);
+        is_default = (GetItemVariable<int32_t>(res, item) == 0);
         break;
       case CFG_TYPE_PINT32:
-        is_default = (GetItemVariable<uint32_t>(item) == 0);
+        is_default = (GetItemVariable<uint32_t>(res, item) == 0);
         break;
       case CFG_TYPE_INT64:
-        is_default = (GetItemVariable<int64_t>(item) == 0);
+        is_default = (GetItemVariable<int64_t>(res, item) == 0);
         break;
       case CFG_TYPE_SPEED:
-        is_default = (GetItemVariable<uint64_t>(item) == 0);
+        is_default = (GetItemVariable<uint64_t>(res, item) == 0);
         break;
       case CFG_TYPE_SIZE64:
-        is_default = (GetItemVariable<uint64_t>(item) == 0);
+        is_default = (GetItemVariable<uint64_t>(res, item) == 0);
         break;
       case CFG_TYPE_SIZE32:
-        is_default = (GetItemVariable<uint32_t>(item) == 0);
+        is_default = (GetItemVariable<uint32_t>(res, item) == 0);
         break;
       case CFG_TYPE_TIME:
-        is_default = (GetItemVariable<uint64_t>(item) == 0);
+        is_default = (GetItemVariable<uint64_t>(res, item) == 0);
         break;
       case CFG_TYPE_BOOL:
-        is_default = (GetItemVariable<bool>(item) == false);
+        is_default = (GetItemVariable<bool>(res, item) == false);
         break;
       default:
         break;
@@ -1851,7 +1859,7 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
     print_item = true;
   }
 
-  if (HasDefaultValue(item)) {
+  if (HasDefaultValue(this, item)) {
     Dmsg1(200, "%s: default value\n", item.name);
 
     if (verbose && !item.is_deprecated()) {
@@ -1874,12 +1882,12 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
     case CFG_TYPE_DIR:
     case CFG_TYPE_NAME:
     case CFG_TYPE_STRNAME: {
-      char* p = GetItemVariable<char*>(item);
+      char* p = GetItemVariable<char*>(this, item);
       send.KeyQuotedString(item.name, p, inherited);
       break;
     }
     case CFG_TYPE_DIR_OR_CMD: {
-      char* p = GetItemVariable<char*>(item);
+      char* p = GetItemVariable<char*>(this, item);
       if (p == nullptr) {
         send.KeyQuotedString(item.name, nullptr, inherited);
       } else {
@@ -1890,14 +1898,14 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
     }
     case CFG_TYPE_STDSTR:
     case CFG_TYPE_STDSTRDIR: {
-      const std::string& p = GetItemVariable<std::string&>(item);
+      const std::string& p = *GetItemVariablePointer<std::string*>(this, item);
       send.KeyQuotedString(item.name, p, inherited);
       break;
     }
     case CFG_TYPE_MD5PASSWORD:
     case CFG_TYPE_CLEARPASSWORD:
     case CFG_TYPE_AUTOPASSWORD: {
-      s_password* password = GetItemVariablePointer<s_password*>(item);
+      s_password* password = GetItemVariablePointer<s_password*>(this, item);
 
       if (password && password->value != NULL) {
         PoolMem value;
@@ -1922,53 +1930,59 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
       break;
     }
     case CFG_TYPE_LABEL:
-      send.KeyQuotedString(item.name, GetName(item, tapelabels), inherited);
+      send.KeyQuotedString(item.name, GetName(this, item, tapelabels),
+                           inherited);
       break;
     case CFG_TYPE_INT16:
-      send.KeySignedInt(item.name, GetItemVariable<int16_t>(item), inherited);
+      send.KeySignedInt(item.name, GetItemVariable<int16_t>(this, item),
+                        inherited);
       break;
     case CFG_TYPE_PINT16:
-      send.KeyUnsignedInt(item.name, GetItemVariable<uint16_t>(item),
+      send.KeyUnsignedInt(item.name, GetItemVariable<uint16_t>(this, item),
                           inherited);
       break;
     case CFG_TYPE_INT32:
-      send.KeySignedInt(item.name, GetItemVariable<int32_t>(item), inherited);
+      send.KeySignedInt(item.name, GetItemVariable<int32_t>(this, item),
+                        inherited);
       break;
     case CFG_TYPE_PINT32:
-      send.KeyUnsignedInt(item.name, GetItemVariable<uint32_t>(item),
+      send.KeyUnsignedInt(item.name, GetItemVariable<uint32_t>(this, item),
                           inherited);
       break;
     case CFG_TYPE_INT64:
-      send.KeySignedInt(item.name, GetItemVariable<int64_t>(item), inherited);
+      send.KeySignedInt(item.name, GetItemVariable<int64_t>(this, item),
+                        inherited);
       break;
     case CFG_TYPE_SPEED:
-      send.KeyUnsignedInt(item.name, GetItemVariable<uint64_t>(item),
+      send.KeyUnsignedInt(item.name, GetItemVariable<uint64_t>(this, item),
                           inherited);
       break;
     case CFG_TYPE_SIZE64: {
-      const std::string& value = Print64BitConfigNumberSiPrefixFormat(&item);
+      const std::string& value
+          = Print64BitConfigNumberSiPrefixFormat(this, &item);
       send.KeyString(item.name, value, inherited);
       break;
     }
     case CFG_TYPE_SIZE32: {
-      const std::string& value = Print32BitConfigNumberSiPrefixFormat(&item);
+      const std::string& value
+          = Print32BitConfigNumberSiPrefixFormat(this, &item);
       send.KeyString(item.name, value, inherited);
       break;
     }
     case CFG_TYPE_TIME: {
-      const std::string& value = PrintConfigTime(&item);
+      const std::string& value = PrintConfigTime(this, &item);
       send.KeyString(item.name, value, inherited);
       break;
     }
     case CFG_TYPE_BOOL: {
-      send.KeyBool(item.name, GetItemVariable<bool>(item), inherited);
+      send.KeyBool(item.name, GetItemVariable<bool>(this, item), inherited);
       break;
     }
     case CFG_TYPE_STR_VECTOR:
     case CFG_TYPE_STR_VECTOR_OF_DIRS: {
       // One line for each member of the list
       const std::vector<std::string>& list
-          = GetItemVariable<std::vector<std::string>&>(item);
+          = *GetItemVariablePointer<std::vector<std::string>*>(this, item);
       send.KeyMultipleStringsOnePerLine(item.name, list, inherited);
       break;
     }
@@ -1977,20 +1991,21 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
     case CFG_TYPE_PLUGIN_NAMES: {
       // One line for each member of the list
       send.KeyMultipleStringsOnePerLine(
-          item.name, GetItemVariable<alist<const char*>*>(item), inherited);
+          item.name, GetItemVariable<alist<const char*>*>(this, item),
+          inherited);
       break;
     }
     case CFG_TYPE_ALIST_RES: {
       // Each member of the list is comma-separated
       send.KeyMultipleStringsOnePerLine(
-          item.name, GetItemVariable<alist<const char*>*>(item),
+          item.name, GetItemVariable<alist<const char*>*>(this, item),
           GetResourceName, inherited, true, false);
       break;
     }
     case CFG_TYPE_RES: {
       BareosResource* res;
 
-      res = GetItemVariable<BareosResource*>(item);
+      res = GetItemVariable<BareosResource*>(this, item);
       if (res != NULL && res->resource_name_ != NULL) {
         send.KeyQuotedString(item.name, res->resource_name_, inherited);
       } else {
@@ -1999,9 +2014,10 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
       break;
     }
     case CFG_TYPE_BIT: {
-      send.KeyBool(item.name,
-                   BitIsSet(item.code, GetItemVariablePointer<char*>(item)),
-                   inherited);
+      send.KeyBool(
+          item.name,
+          BitIsSet(item.code, GetItemVariablePointer<char*>(this, item)),
+          inherited);
       break;
     }
     case CFG_TYPE_MSGS:
@@ -2009,7 +2025,7 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
        * MessagesResource::PrintConfig() */
       break;
     case CFG_TYPE_ADDRESSES: {
-      dlist<IPADDR>* addrs = GetItemVariable<dlist<IPADDR>*>(item);
+      dlist<IPADDR>* addrs = GetItemVariable<dlist<IPADDR>*>(this, item);
       IPADDR* adr;
       send.ArrayStart(item.name, inherited, "%s = {\n");
       foreach_dlist (adr, addrs) {
@@ -2030,7 +2046,7 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
       /* This is a non-generic type call back to the daemon to get things
        * printed. */
       if (my_config.print_res_) {
-        my_config.print_res_(item, send, hide_sensitive_data, inherited,
+        my_config.print_res_(this, item, send, hide_sensitive_data, inherited,
                              verbose);
       }
       break;
@@ -2055,8 +2071,6 @@ bool BareosResource::PrintConfig(OutputFormatterResource& send,
   // Make sure the resource class has any items.
   if (!my_config.resource_definitions_[rindex].items) { return true; }
   items = my_config.resource_definitions_[rindex].items;
-
-  *my_config.resource_definitions_[rindex].allocated_resource_ = this;
 
   send.ResourceStart(my_config.ResGroupToStr(rcode_),
                      my_config.ResToStr(rcode_), resource_name_, internal_);

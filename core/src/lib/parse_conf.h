@@ -71,8 +71,7 @@ struct ResourceTable {
 
   using init_fun = void();
   init_fun* ResourceSpecificInitializer; /* this allocates memory */
-  BareosResource** allocated_resource_;
-
+  BareosResource* const* allocated_resource_;
   struct Alias {
     const char* name;
     const char* group_name;
@@ -182,7 +181,8 @@ typedef void(STORE_RES_HANDLER)(LEX* lc,
                                 int index,
                                 int pass,
                                 BareosResource** configuration_resources);
-typedef void(PRINT_RES_HANDLER)(const ResourceItem& item,
+typedef void(PRINT_RES_HANDLER)(const BareosResource* res,
+                                const ResourceItem& item,
                                 OutputFormatterResource& send,
                                 bool hide_sensitive_data,
                                 bool inherited,
@@ -474,8 +474,12 @@ class ConfigResourcesContainer {
 bool PrintMessage(void* sock, const char* fmt, ...);
 bool IsTlsConfigured(TlsResource* tls_resource);
 
-const char* GetName(const ResourceItem& item, s_kw* keywords);
-bool HasDefaultValue(const ResourceItem& item, s_kw* keywords);
+const char* GetName(const BareosResource* res,
+                    const ResourceItem& item,
+                    s_kw* keywords);
+bool HasDefaultValue(const BareosResource* res,
+                     const ResourceItem& item,
+                     s_kw* keywords);
 
 // Data type routines
 DatatypeName* GetDatatype(int number);
