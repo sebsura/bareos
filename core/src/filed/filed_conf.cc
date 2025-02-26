@@ -183,7 +183,7 @@ static void StoreCipher(LEX* lc, const ResourceItem* item, int index, int)
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /**

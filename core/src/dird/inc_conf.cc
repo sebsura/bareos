@@ -991,7 +991,7 @@ static void StoreNewinc(LEX* lc, const ResourceItem* item, int index, int pass)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /**

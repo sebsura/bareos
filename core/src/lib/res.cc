@@ -266,7 +266,7 @@ void ConfigurationParser::StoreMsgs(LEX* lc,
   Dmsg2(900, "StoreMsgs pass=%d code=%d\n", pass, item->code);
 
   MessagesResource* message_resource
-      = dynamic_cast<MessagesResource*>(*item->allocated_resource);
+      = dynamic_cast<MessagesResource*>(item->allocated_resource());
 
   if (!message_resource) {
     Dmsg0(900, "Could not dynamic_cast to MessageResource\n");
@@ -429,7 +429,7 @@ void ConfigurationParser::StoreName(LEX* lc,
   *p = strdup(lc->str);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /*
@@ -449,7 +449,7 @@ void ConfigurationParser::StoreStrname(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a string at specified address
@@ -462,7 +462,7 @@ void ConfigurationParser::StoreStr(LEX* lc,
   if (pass == 1) { SetItemVariableFreeMemory<char*>(*item, strdup(lc->str)); }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a string at specified address
@@ -475,7 +475,7 @@ void ConfigurationParser::StoreStdstr(LEX* lc,
   if (pass == 1) { SetItemVariable<std::string>(*item, lc->str); }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /*
@@ -499,7 +499,7 @@ void ConfigurationParser::StoreDir(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 void ConfigurationParser::StoreStdstrdir(LEX* lc,
@@ -516,7 +516,7 @@ void ConfigurationParser::StoreStdstrdir(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a password at specified address in MD5 coding
@@ -540,7 +540,7 @@ void ConfigurationParser::StoreMd5Password(LEX* lc,
                     strlen(empty_password_md5_hash))
             == 0) {
           scan_err1(lc, "Empty Password not allowed in Resource \"%s\"\n",
-                    (*item->allocated_resource)->resource_name_);
+                    item->allocated_resource()->resource_name_);
           return;
         }
       }
@@ -579,7 +579,7 @@ void ConfigurationParser::StoreMd5Password(LEX* lc,
       if (item->is_required()) {
         if (strnlen(lc->str, MAX_NAME_LENGTH) == 0) {
           scan_err1(lc, "Empty Password not allowed in Resource \"%s\"\n",
-                    (*item->allocated_resource)->resource_name_);
+                    item->allocated_resource()->resource_name_);
           return;
         }
       }
@@ -600,7 +600,7 @@ void ConfigurationParser::StoreMd5Password(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a password at specified address in MD5 coding
@@ -620,7 +620,7 @@ void ConfigurationParser::StoreClearpassword(LEX* lc,
       if (strnlen(lc->str, MAX_NAME_LENGTH) == 0) {
         scan_err1(
             lc, "Empty Password not allowed in Resource \"%s\" not allowed.\n",
-            (*item->allocated_resource)->resource_name_);
+            item->allocated_resource()->resource_name_);
         return;
       }
     }
@@ -630,7 +630,7 @@ void ConfigurationParser::StoreClearpassword(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /*
@@ -665,7 +665,7 @@ void ConfigurationParser::StoreRes(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /*
@@ -707,7 +707,7 @@ void ConfigurationParser::StoreAlistRes(LEX* lc,
     token = LexGetToken(lc, BCT_ALL);
   }
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a std::string in an std::vector<std::string>.
@@ -741,7 +741,7 @@ void ConfigurationParser::StoreStdVectorStr(LEX* lc,
     token = LexGetToken(lc, BCT_ALL);
   }
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a string in an alist.
@@ -785,7 +785,7 @@ void ConfigurationParser::StoreAlistStr(LEX* lc,
     token = LexGetToken(lc, BCT_ALL);
   }
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /*
@@ -833,7 +833,7 @@ void ConfigurationParser::StoreAlistDir(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a list of plugin names to load by the daemon on startup.
@@ -881,7 +881,7 @@ void ConfigurationParser::StorePluginNames(LEX* lc,
     }
   }
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /*
@@ -924,7 +924,7 @@ void ConfigurationParser::store_int16(LEX* lc,
   SetItemVariable<int16_t>(*item, lc->u.int16_val);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 void ConfigurationParser::store_int32(LEX* lc,
@@ -936,7 +936,7 @@ void ConfigurationParser::store_int32(LEX* lc,
   SetItemVariable<int32_t>(*item, lc->u.int32_val);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a positive integer at specified address
@@ -949,7 +949,7 @@ void ConfigurationParser::store_pint16(LEX* lc,
   SetItemVariable<uint16_t>(*item, lc->u.pint16_val);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 void ConfigurationParser::store_pint32(LEX* lc,
@@ -961,7 +961,7 @@ void ConfigurationParser::store_pint32(LEX* lc,
   SetItemVariable<uint32_t>(*item, lc->u.pint32_val);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store an 64 bit integer at specified address
@@ -974,7 +974,7 @@ void ConfigurationParser::store_int64(LEX* lc,
   SetItemVariable<int64_t>(*item, lc->u.int64_val);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a size in bytes
@@ -1046,7 +1046,7 @@ void ConfigurationParser::store_int_unit(LEX* lc,
   }
   if (token != BCT_EOL) { ScanToEol(lc); }
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
   Dmsg0(900, "Leave store_unit\n");
 }
 
@@ -1116,7 +1116,7 @@ void ConfigurationParser::StoreTime(LEX* lc,
   }
   if (token != BCT_EOL) { ScanToEol(lc); }
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a yes/no in a bit field
@@ -1138,7 +1138,7 @@ void ConfigurationParser::StoreBit(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store a bool in a bit field
@@ -1159,7 +1159,7 @@ void ConfigurationParser::StoreBool(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store Tape Label Type (BAREOS, ANSI, IBM)
@@ -1184,7 +1184,7 @@ void ConfigurationParser::StoreLabel(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /*
@@ -1329,7 +1329,7 @@ void ConfigurationParser::StoreAddresses(LEX* lc,
     scan_err1(lc, T_("Expected a end of block }, got: %s"), lc->str);
   }
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 void ConfigurationParser::StoreAddressesAddress(LEX* lc,

@@ -315,7 +315,7 @@ static bool SaveResource(int type,
      *
      * currently, this is the best place to free that */
 
-    BareosResource* res = *items[0].allocated_resource;
+    BareosResource* res = items[0].allocated_resource();
 
     if (res) {
       if (res->resource_name_) {

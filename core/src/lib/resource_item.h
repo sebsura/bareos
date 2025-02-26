@@ -177,12 +177,12 @@ struct ResourceItem {
   ResourceItem(const char* name_,
                const int type_,
                std::size_t offset_,
-               BareosResource** allocated_resource_,
+               BareosResource* const* allocated_resource_,
                ResourceItemFlags&& resource_flags)
       : name{name_}
       , type{type_}
       , offset{offset_}
-      , allocated_resource{allocated_resource_}
+      , temp__allocated_resource{allocated_resource_}
       , code{resource_flags.extra.value_or(0)}
       , aliases{std::move(resource_flags.aliases)}
       , required{resource_flags.required}
@@ -201,7 +201,7 @@ struct ResourceItem {
   const char* name{}; /* Resource name i.e. Director, ... */
   int type{};
   std::size_t offset{};
-  BareosResource** allocated_resource{};
+  BareosResource* const* temp__allocated_resource{};
   int32_t code{}; /* Item code/additional info */
   std::vector<std::string> aliases{};
   bool required{};
@@ -219,17 +219,19 @@ struct ResourceItem {
    * Every new directive should have a description. */
   const char* description{};
 
-  void SetPresent() const { (*allocated_resource)->SetMemberPresent(name); }
+  void SetPresent() const { allocated_resource()->SetMemberPresent(name); }
 
-  bool IsPresent() const
-  {
-    return (*allocated_resource)->IsMemberPresent(name);
-  }
+  bool IsPresent() const { return allocated_resource()->IsMemberPresent(name); }
 
   bool is_required() const { return required; }
   bool is_platform_specific() const { return platform_specific; }
   bool is_deprecated() const { return deprecated; }
   bool has_no_eq() const { return no_equal; }
+
+  BareosResource* allocated_resource() const
+  {
+    return *temp__allocated_resource;
+  }
 };
 
 static inline void* CalculateAddressOfMemberVariable(BareosResource* res,
@@ -274,12 +276,12 @@ auto GetItemVariablePointer(const BareosResource* res, const ResourceItem& item)
 
 template <typename P> P GetItemVariable(const ResourceItem& item)
 {
-  return GetItemVariable<P>(*item.allocated_resource, item);
+  return GetItemVariable<P>(item.allocated_resource(), item);
 }
 
 template <typename P> P GetItemVariablePointer(const ResourceItem& item)
 {
-  return GetItemVariablePointer<P>(*item.allocated_resource, item);
+  return GetItemVariablePointer<P>(item.allocated_resource(), item);
 }
 
 template <typename P, typename V>

@@ -116,7 +116,6 @@ static CounterResource* res_counter;
 static DeviceResource* res_dev;
 static UserResource* res_user;
 
-
 /* clang-format off */
 
 static const ResourceItem dir_items[] = {
@@ -2419,7 +2418,7 @@ static void StorePooltype(LEX* lc,
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 static void StoreActiononpurge(LEX* lc,
@@ -2447,7 +2446,7 @@ static void StoreActiononpurge(LEX* lc,
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /**
@@ -2496,7 +2495,7 @@ static void StoreDevice(LEX* lc,
 
     ScanToEol(lc);
     item->SetPresent();
-    ClearBit(index, (*item->allocated_resource)->inherit_content_);
+    ClearBit(index, item->allocated_resource()->inherit_content_);
   } else {
     my_config->StoreResource(CFG_TYPE_ALIST_RES, lc, item, index, pass);
   }
@@ -2523,7 +2522,7 @@ static void StoreMigtype(LEX* lc, const ResourceItem* item, int index)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store JobType (backup, verify, restore)
@@ -2546,7 +2545,7 @@ static void StoreJobtype(LEX* lc, const ResourceItem* item, int index, int)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store Protocol (Native, NDMP/NDMP_BAREOS, NDMP_NATIVE)
@@ -2569,7 +2568,7 @@ static void StoreProtocoltype(LEX* lc, const ResourceItem* item, int index, int)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 static void StoreReplace(LEX* lc, const ResourceItem* item, int index, int)
@@ -2592,7 +2591,7 @@ static void StoreReplace(LEX* lc, const ResourceItem* item, int index, int)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store Auth Protocol (Native, NDMPv2, NDMPv3, NDMPv4)
@@ -2619,7 +2618,7 @@ static void StoreAuthprotocoltype(LEX* lc,
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store authentication type (Mostly for NDMP like clear or MD5).
@@ -2643,7 +2642,7 @@ static void StoreAuthtype(LEX* lc, const ResourceItem* item, int index, int)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store Job Level (Full, Incremental, ...)
@@ -2667,7 +2666,7 @@ static void StoreLevel(LEX* lc, const ResourceItem* item, int index, int)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /**
@@ -2679,7 +2678,7 @@ static void StoreAutopassword(LEX* lc,
                               int index,
                               int pass)
 {
-  switch ((*item->allocated_resource)->rcode_) {
+  switch (item->allocated_resource()->rcode_) {
     case R_DIRECTOR:
       /* As we need to store both clear and MD5 hashed within the same
        * resource class we use the item->code as a hint default is 0
@@ -2697,14 +2696,14 @@ static void StoreAutopassword(LEX* lc,
     case R_CLIENT:
       if (pass == 2) {
         auto* res = dynamic_cast<ClientResource*>(my_config->GetResWithName(
-            R_CLIENT, (*item->allocated_resource)->resource_name_));
+            R_CLIENT, item->allocated_resource()->resource_name_));
         ASSERT(res);
 
         if (res_client->Protocol != res->Protocol) {
           scan_err1(lc,
                     "Trying to store password to resource \"%s\", but protocol "
                     "is not known.\n",
-                    (*item->allocated_resource)->resource_name_);
+                    item->allocated_resource()->resource_name_);
         }
       }
       switch (res_client->Protocol) {
@@ -2722,14 +2721,14 @@ static void StoreAutopassword(LEX* lc,
     case R_STORAGE:
       if (pass == 2) {
         auto* res = dynamic_cast<StorageResource*>(my_config->GetResWithName(
-            R_STORAGE, (*item->allocated_resource)->resource_name_));
+            R_STORAGE, item->allocated_resource()->resource_name_));
         ASSERT(res);
 
         if (res_store->Protocol != res->Protocol) {
           scan_err1(lc,
                     "Trying to store password to resource \"%s\", but protocol "
                     "is not known.\n",
-                    (*item->allocated_resource)->resource_name_);
+                    item->allocated_resource()->resource_name_);
         }
       }
       switch (res_store->Protocol) {
@@ -2779,7 +2778,7 @@ static void StoreAcl(LEX* lc, const ResourceItem* item, int index, int pass)
     token = LexGetToken(lc, BCT_ALL);
   }
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 static void StoreAudit(LEX* lc, const ResourceItem* item, int index, int pass)
@@ -2805,7 +2804,7 @@ static void StoreAudit(LEX* lc, const ResourceItem* item, int index, int pass)
     break;
   }
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 static void StoreRunscriptWhen(LEX* lc, const ResourceItem* item, int, int)
@@ -3054,7 +3053,7 @@ bail_out:
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /**

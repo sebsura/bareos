@@ -276,7 +276,7 @@ static void StoreAuthenticationType(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store password either clear if for NDMP or MD5 hashed for native.
@@ -285,7 +285,7 @@ static void StoreAutopassword(LEX* lc,
                               int index,
                               int pass)
 {
-  switch ((*item->allocated_resource)->rcode_) {
+  switch (item->allocated_resource()->rcode_) {
     case R_DIRECTOR:
       /* As we need to store both clear and MD5 hashed within the same
        * resource class we use the item->code as a hint default is 0
@@ -342,7 +342,7 @@ static void StoreIoDirection(LEX* lc, const ResourceItem* item, int index, int)
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 // Store the compression algorithm to use on a certain device.
@@ -368,7 +368,7 @@ static void StoreCompressionalgorithm(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, (*item->allocated_resource)->inherit_content_);
+  ClearBit(index, item->allocated_resource()->inherit_content_);
 }
 
 /**
@@ -763,7 +763,7 @@ static bool SaveResource(int type,
   // save previously discovered pointers into dynamic memory
   if (pass == 2) {
     BareosResource* allocated_resource = my_config->GetResWithName(
-        type, (*items[0].allocated_resource)->resource_name_);
+        type, items[0].allocated_resource()->resource_name_);
     if (allocated_resource && !allocated_resource->Validate()) { return false; }
     switch (type) {
       case R_DEVICE:
@@ -829,7 +829,7 @@ static bool SaveResource(int type,
      *
      * currently, this is the best place to free that */
 
-    BareosResource* res = *items[0].allocated_resource;
+    BareosResource* res = items[0].allocated_resource();
 
     if (res) {
       if (res->resource_name_) {
