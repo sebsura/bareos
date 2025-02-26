@@ -2186,8 +2186,8 @@ json_t* json_items(gsl::span<const ResourceItem> items)
 
   for (auto& item : items) {
     json_object_set_new(json, item.name, json_item(&item));
-    for (const auto& alias : item.aliases) {
-      json_object_set_new(json, alias.c_str(), json_item(&item, true));
+    if (item.alias) {
+      json_object_set_new(json, item.alias, json_item(&item, true));
     }
   }
 

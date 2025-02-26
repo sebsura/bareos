@@ -947,11 +947,8 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
                               JobResource* source,
                               JobResource* dest)
 {
-  uint32_t offset;
-
   for (size_t i = 0; i < items.size(); ++i) {
     auto& item = items[i];
-    offset = item.offset;
     if (!dest->IsMemberPresent(item.name)
         && source->IsMemberPresent(item.name)) {
       switch (item.type) {
@@ -961,8 +958,8 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           char **def_svalue, **svalue;
 
           // Handle strings and directory strings
-          def_svalue = (char**)((char*)(source) + offset);
-          svalue = (char**)((char*)dest + offset);
+          def_svalue = (char**)item.member_address(source);
+          svalue = (char**)item.member_address(dest);
           if (*svalue) { free(*svalue); }
           *svalue = strdup(*def_svalue);
           dest->SetMemberPresent(item.name);
@@ -973,8 +970,8 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           char **def_svalue, **svalue;
 
           // Handle resources
-          def_svalue = (char**)((char*)(source) + offset);
-          svalue = (char**)((char*)dest + offset);
+          def_svalue = (char**)item.member_address(source);
+          svalue = (char**)item.member_address(dest);
           if (*svalue) {
             Pmsg1(000, T_("Hey something is wrong. p=0x%lu\n"), *svalue);
           }
@@ -987,11 +984,11 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           alist<const char*>*orig_list, **new_list;
 
           // Handle alist strings
-          orig_list = *(alist<const char*>**)((char*)(source) + offset);
+          orig_list = *(alist<const char*>**)item.member_address(source);
 
           // See if there is anything on the list.
           if (orig_list && orig_list->size()) {
-            new_list = (alist<const char*>**)((char*)(dest) + offset);
+            new_list = (alist<const char*>**)item.member_address(dest);
 
             if (!*new_list) {
               *new_list = new alist<const char*>(10, owned_by_alist);
@@ -1008,11 +1005,11 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           alist<BareosResource*>*orig_list, **new_list;
 
           // Handle alist resources
-          orig_list = *(alist<BareosResource*>**)((char*)(source) + offset);
+          orig_list = *(alist<BareosResource*>**)item.member_address(source);
 
           // See if there is anything on the list.
           if (orig_list && orig_list->size()) {
-            new_list = (alist<BareosResource*>**)((char*)(dest) + offset);
+            new_list = (alist<BareosResource*>**)item.member_address(dest);
 
             if (!*new_list) {
               *new_list = new alist<BareosResource*>(10, not_owned_by_alist);
@@ -1030,12 +1027,12 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
 
           // Handle ACL lists.
           orig_list
-              = ((alist<const char*>**)((char*)(source) + offset))[item.code];
+              = ((alist<const char*>**)item.member_address(source))[item.code];
 
           // See if there is anything on the list.
           if (orig_list && orig_list->size()) {
             new_list = &(
-                ((alist<const char*>**)((char*)(dest) + offset))[item.code]);
+                ((alist<const char*>**)item.member_address(dest))[item.code]);
 
             if (!*new_list) {
               *new_list = new alist<const char*>(10, owned_by_alist);
@@ -1061,8 +1058,8 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
 
           /* Handle integer fields
            *    Note, our StoreBit does not handle bitmaped fields */
-          def_ivalue = (uint32_t*)((char*)(source) + offset);
-          ivalue = (uint32_t*)((char*)dest + offset);
+          def_ivalue = (uint32_t*)item.member_address(source);
+          ivalue = (uint32_t*)item.member_address(dest);
           *ivalue = *def_ivalue;
           dest->SetMemberPresent(item.name);
           SetBit(i, dest->inherit_content_);
@@ -1075,8 +1072,8 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           int64_t *def_lvalue, *lvalue;
 
           // Handle 64 bit integer fields
-          def_lvalue = (int64_t*)((char*)(source) + offset);
-          lvalue = (int64_t*)((char*)dest + offset);
+          def_lvalue = (int64_t*)item.member_address(source);
+          lvalue = (int64_t*)item.member_address(dest);
           *lvalue = *def_lvalue;
           dest->SetMemberPresent(item.name);
           SetBit(i, dest->inherit_content_);
@@ -1086,8 +1083,8 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           bool *def_bvalue, *bvalue;
 
           // Handle bool fields
-          def_bvalue = (bool*)((char*)(source) + offset);
-          bvalue = (bool*)((char*)dest + offset);
+          def_bvalue = (bool*)item.member_address(source);
+          bvalue = (bool*)item.member_address(dest);
           *bvalue = *def_bvalue;
           dest->SetMemberPresent(item.name);
           SetBit(i, dest->inherit_content_);
@@ -1097,8 +1094,8 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           s_password *s_pwd, *d_pwd;
 
           // Handle password fields
-          s_pwd = (s_password*)((char*)(source) + offset);
-          d_pwd = (s_password*)((char*)(dest) + offset);
+          s_pwd = (s_password*)item.member_address(source);
+          d_pwd = (s_password*)item.member_address(dest);
 
           d_pwd->encoding = s_pwd->encoding;
           d_pwd->value = strdup(s_pwd->value);

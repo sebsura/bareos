@@ -340,18 +340,17 @@ int ConfigurationParser::GetResourceItemIndex(
     if (Bstrcasecmp(item.name, name)) {
       return true;
     }
-    for (auto& alias : item.aliases) {
-      if (Bstrcasecmp(alias.c_str(), name)) {
-        std::string warning
-          = "Found alias usage \"" + alias
-          + "\" in configuration which is discouraged, consider using \""
-          + item.name + "\" instead.";
-        if (std::find(warnings_.begin(), warnings_.end(), warning)
-            == warnings_.end()) {
-          AddWarning(warning);
-        }
-        return true;
+
+    if (item.alias && Bstrcasecmp(item.alias, name)) {
+      std::string warning
+        = "Found alias usage \"" + std::string{item.alias}
+        + "\" in configuration which is discouraged, consider using \""
+        + item.name + "\" instead.";
+      if (std::find(warnings_.begin(), warnings_.end(), warning)
+          == warnings_.end()) {
+        AddWarning(warning);
       }
+      return true;
     }
 
     return false;

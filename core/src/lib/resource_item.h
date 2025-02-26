@@ -53,20 +53,13 @@ struct IntroducedIn {
 };
 
 struct Code {
-  size_t value;
+  int32_t value;
 };
 
 struct Required {};
 
 struct Alias {
-  std::vector<std::string> aliases;
-
-  template <typename... Ts>
-  Alias(Ts... args)
-    : aliases{ std::forward<Ts>(args)...}
-  {
-    static_assert(sizeof...(Ts) > 0, "You need to specify at least one alias.");
-  }
+  const char* name;
 };
 
 struct UsesNoEquals {};
@@ -94,7 +87,8 @@ template <typename What, typename... Args> struct is_present {
 };
 
 
-template <typename T, typename... Ts> T* get_if(std::tuple<Ts...>& tuple)
+template <typename T, typename... Ts>
+constexpr T* get_if(std::tuple<Ts...>& tuple)
 {
   if constexpr (is_present<T, Ts...>::value) {
     return &std::get<T>(tuple);
@@ -107,14 +101,14 @@ struct ResourceItemFlags {
   std::optional<config::Version> introduced_in{};
   std::optional<config::Version> deprecated_since{};
   const char* default_value{};
-  std::optional<int> extra{};
+  std::optional<int32_t> extra{};
   bool required{};
-  std::vector<std::string> aliases{};
+  const char* alt_name{};
   bool platform_specific{};
   bool no_equals{};
   const char* description{};
 
-  template <typename... Types> ResourceItemFlags(Types&&... values)
+  template <typename... Types> constexpr ResourceItemFlags(Types&&... values)
   {
     static_assert(
         (is_present<Types, config::DefaultValue, config::IntroducedIn,
@@ -157,7 +151,7 @@ struct ResourceItemFlags {
     if (auto* code = get_if<config::Code>(tup)) { extra = code->value; }
     if (auto* _ = get_if<config::Required>(tup)) { required = true; }
     if (auto* alias = get_if<config::Alias>(tup)) {
-      aliases = std::move(alias->aliases);
+      alt_name = alias->name;
     }
     if (auto* _ = get_if<config::UsesNoEquals>(tup)) { no_equals = true; }
     if (auto* _ = get_if<config::PlatformSpecific>(tup)) {
@@ -174,17 +168,20 @@ struct ResourceItemFlags {
  * each resource. It is used to define the configuration tables.
  */
 struct ResourceItem {
-  ResourceItem(const char* name_,
-               const int type_,
-               std::size_t offset_,
-               BareosResource* const* allocated_resource_,
-               ResourceItemFlags&& resource_flags)
+  using resource_fun = BareosResource*();
+  using address_fun = char*(BareosResource*);
+
+  constexpr ResourceItem(const char* name_,
+                         const int type_,
+                         resource_fun* res_fun_,
+                         address_fun* addr_fun_,
+                         ResourceItemFlags&& resource_flags)
       : name{name_}
       , type{type_}
-      , offset{offset_}
-      , temp__allocated_resource{allocated_resource_}
-      , code{resource_flags.extra.value_or(0)}
-      , aliases{std::move(resource_flags.aliases)}
+      , res_fun{res_fun_}
+      , addr_fun{addr_fun_}
+      , code{resource_flags.extra.value_or(int32_t{})}
+      , alias{resource_flags.alt_name}
       , required{resource_flags.required}
       , deprecated{resource_flags.deprecated_since.has_value()}
       , platform_specific{resource_flags.platform_specific}
@@ -200,10 +197,10 @@ struct ResourceItem {
 
   const char* name{}; /* Resource name i.e. Director, ... */
   int type{};
-  std::size_t offset{};
-  BareosResource* const* temp__allocated_resource{};
+  resource_fun* res_fun{};
+  address_fun* addr_fun{};
   int32_t code{}; /* Item code/additional info */
-  std::vector<std::string> aliases{};
+  const char* alias{};
   bool required{};
   bool deprecated{};
   bool platform_specific{};
@@ -228,25 +225,26 @@ struct ResourceItem {
   bool is_deprecated() const { return deprecated; }
   bool has_no_eq() const { return no_equal; }
 
-  BareosResource* allocated_resource() const
+  BareosResource* allocated_resource() const { return (*res_fun)(); }
+
+  char* member_address(BareosResource* res) const { return (*addr_fun)(res); }
+  const char* member_address(const BareosResource* res) const
   {
-    return *temp__allocated_resource;
+    return (*addr_fun)(const_cast<BareosResource*>(res));
   }
 };
 
 static inline void* CalculateAddressOfMemberVariable(BareosResource* res,
                                                      const ResourceItem& item)
 {
-  char* base = reinterpret_cast<char*>(res);
-  return static_cast<void*>(base + item.offset);
+  return item.member_address(res);
 }
 
 static inline const void* CalculateAddressOfMemberVariable(
     const BareosResource* res,
     const ResourceItem& item)
 {
-  const char* base = reinterpret_cast<const char*>(res);
-  return static_cast<const void*>(base + item.offset);
+  return item.member_address(res);
 }
 
 template <typename P>

@@ -48,15 +48,21 @@ class ConfigurationParser;
 class ConfigResourcesContainer;
 /* For storing name_addr items in res_items table */
 
+#define RESOURCE_GET(res_name) +[]() -> BareosResource* { return res_name; }
+#define GET_MEMBER(res_name, mem_name)                       \
+  +[](BareosResource* res) -> char* {                        \
+    auto* typed_ptr = dynamic_cast<decltype(res_name)>(res); \
+    ASSERT(typed_ptr);                                       \
+    return reinterpret_cast<char*>(&typed_ptr->mem_name);    \
+  }
+
 /* using offsetof on non-standard-layout types is conditionally supported. As
  * all the compiler we're currently using support this, it should be safe to
  * use. It is at least safer to use than the undefined behaviour we previously
  * utilized.
  */
-#define ITEM(c, m)                                     \
-  offsetof(std::remove_pointer<decltype(c)>::type, m), \
-      reinterpret_cast<BareosResource**>(&c)
-#define ITEMC(c) 0, reinterpret_cast<BareosResource**>(&c)
+#define ITEM(c, m) RESOURCE_GET(c), GET_MEMBER(c, m)
+#define ITEMC(c) RESOURCE_GET(c), nullptr
 
 /*
  * Master Resource configuration structure definition
