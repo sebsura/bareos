@@ -174,33 +174,29 @@ void ConfigurationParser::SetResourceDefaultsParserPass2(
 
 void ConfigurationParser::SetAllResourceDefaultsIterateOverItems(
     int rcode,
-    const ResourceItem items[],
+    gsl::span<const ResourceItem> items,
     std::function<void(ConfigurationParser&, const ResourceItem*)> SetDefaults)
 {
-  int res_item_index = 0;
+  if (items.size() >= MAX_RES_ITEMS) {
+    Emsg1(M_ERROR_TERM, 0, T_("Too many items in %s resource\n"),
+          resource_definitions_[rcode].name);
+  }
 
-  while (items[res_item_index].name) {
-    SetDefaults(*this, &items[res_item_index]);
+  for (size_t item_idx = 0; item_idx < items.size(); ++item_idx) {
+    auto& item = items[item_idx];
+    SetDefaults(*this, &item);
 
     if (!omit_defaults_) {
-      SetBit(res_item_index,
-             (*items[res_item_index].allocated_resource)->inherit_content_);
+      SetBit(item_idx, (*item.allocated_resource)->inherit_content_);
     }
 
-    (*items[res_item_index].allocated_resource)->rcode_ = rcode;
-
-    res_item_index++;
-
-    if (res_item_index >= MAX_RES_ITEMS) {
-      Emsg1(M_ERROR_TERM, 0, T_("Too many items in %s resource\n"),
-            resource_definitions_[rcode].name);
-    }
+    (*item.allocated_resource)->rcode_ = rcode;
   }
 }
 
 void ConfigurationParser::SetAllResourceDefaultsByParserPass(
     int rcode,
-    const ResourceItem items[],
+    gsl::span<const ResourceItem> items,
     int pass)
 {
   std::function<void(ConfigurationParser&, const ResourceItem*)> SetDefaults;
@@ -226,7 +222,7 @@ void ConfigurationParser::SetAllResourceDefaultsByParserPass(
 
 void ConfigurationParser::InitResource(
     int rcode,
-    const ResourceItem items[],
+    gsl::span<const ResourceItem> items,
     int pass,
     std::function<void()> ResourceSpecificInitializer)
 {

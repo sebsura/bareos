@@ -53,6 +53,7 @@ typedef struct json_t json_t;
 #include "lib/alist.h"
 #include "lib/api_mode.h"
 #include <stdint.h>
+#include <gsl/span>
 
 class PoolMem;
 
@@ -268,7 +269,7 @@ struct ResourceItem;
 
 json_t* json_item(s_kw* item);
 json_t* json_item(const ResourceItem* item, bool is_alias = false);
-json_t* json_items(const ResourceItem items[]);
+json_t* json_items(gsl::span<const ResourceItem> items);
 #endif
 
 #endif  // BAREOS_LIB_OUTPUT_FORMATTER_H_

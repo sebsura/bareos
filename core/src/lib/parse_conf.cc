@@ -332,44 +332,48 @@ const ResourceTable* ConfigurationParser::GetResourceTable(
 }
 
 int ConfigurationParser::GetResourceItemIndex(
-    const ResourceItem* resource_items_,
-    const char* item)
+    gsl::span<const ResourceItem> resource_items,
+    const char* item_name)
 {
-  for (int i = 0; resource_items_[i].name; i++) {
-    if (Bstrcasecmp(resource_items_[i].name, item)) {
-      return i;
-    } else {
-      for (const auto& alias : resource_items_[i].aliases) {
-        if (Bstrcasecmp(alias.c_str(), item)) {
-          std::string warning
-              = "Found alias usage \"" + alias
-                + "\" in configuration which is discouraged, consider using \""
-                + resource_items_[i].name + "\" instead.";
-          if (std::find(warnings_.begin(), warnings_.end(), warning)
-              == warnings_.end()) {
-            AddWarning(warning);
-          }
-          return i;
+  auto is_name_for_item = [this](const ResourceItem& item,
+                                 const char* name) -> bool {
+    if (Bstrcasecmp(item.name, name)) {
+      return true;
+    }
+    for (auto& alias : item.aliases) {
+      if (Bstrcasecmp(alias.c_str(), name)) {
+        std::string warning
+          = "Found alias usage \"" + alias
+          + "\" in configuration which is discouraged, consider using \""
+          + item.name + "\" instead.";
+        if (std::find(warnings_.begin(), warnings_.end(), warning)
+            == warnings_.end()) {
+          AddWarning(warning);
         }
+        return true;
       }
     }
+
+    return false;
+  };
+  if (auto found = std::find_if(resource_items.begin(), resource_items.end(),
+                                [item_name, &is_name_for_item](auto& item) {
+                                  return is_name_for_item(item, item_name);
+                                });
+      found != resource_items.end()) {
+    return found - resource_items.begin();
   }
+
   return -1;
 }
 
 const ResourceItem* ConfigurationParser::GetResourceItem(
-    const ResourceItem* resource_items_,
-    const char* item)
+    gsl::span<const ResourceItem> resource_items,
+    const char* item_name)
 {
-  const ResourceItem* result = nullptr;
-  int i = -1;
-
-  if (resource_items_) {
-    i = GetResourceItemIndex(resource_items_, item);
-    if (i >= 0) { result = &resource_items_[i]; }
-  }
-
-  return result;
+  auto idx = GetResourceItemIndex(resource_items, item_name);
+  if (idx < 0) { return nullptr; }
+  return &resource_items[idx];
 }
 
 #if defined(HAVE_WIN32)

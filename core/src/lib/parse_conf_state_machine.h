@@ -26,6 +26,8 @@
 
 #include "lib/lex.h"
 
+#include <gsl/span>
+
 class ConfigurationParser;
 class BareosResource;
 struct ResourceTable;
@@ -84,7 +86,7 @@ class ConfigParserStateMachine {
 
   struct {
     int rcode_ = 0;
-    const ResourceItem* resource_items_ = nullptr;
+    gsl::span<const ResourceItem> resource_items_{};
     BareosResource* allocated_resource_ = nullptr;
   } currently_parsed_resource_;
 

@@ -53,7 +53,9 @@
 namespace storagedaemon {
 
 static void FreeResource(BareosResource* sres, int type);
-static bool SaveResource(int type, const ResourceItem* items, int pass);
+static bool SaveResource(int type,
+                         gsl::span<const ResourceItem> items,
+                         int pass);
 static void DumpResource(int type,
                          BareosResource* reshdr,
                          bool sendit(void* sock, const char* fmt, ...),
@@ -117,7 +119,6 @@ static const ResourceItem store_items[] = {
   { "EnableKtls", CFG_TYPE_BOOL, ITEM(res_store, enable_ktls_), { config::DefaultValue{"false"}, config::Description{"If set to \"yes\", Bareos will allow the SSL implementation to use Kernel TLS."}, config::IntroducedIn{23, 0, 0}}},
     TLS_COMMON_CONFIG(res_store),
     TLS_CERT_CONFIG(res_store),
-  {}
 };
 
 static const ResourceItem dir_items[] = {
@@ -129,7 +130,6 @@ static const ResourceItem dir_items[] = {
   { "KeyEncryptionKey", CFG_TYPE_AUTOPASSWORD, ITEM(res_dir, keyencrkey), {config::Code{1}}},
     TLS_COMMON_CONFIG(res_dir),
     TLS_CERT_CONFIG(res_dir),
-  {}
 };
 
 static const ResourceItem ndmp_items[] = {
@@ -139,7 +139,6 @@ static const ResourceItem ndmp_items[] = {
   { "Password", CFG_TYPE_AUTOPASSWORD, ITEM(res_ndmp, password), {config::Required{}}},
   { "AuthType", CFG_TYPE_AUTHTYPE, ITEM(res_ndmp, AuthType), {config::DefaultValue{"None"}}},
   { "LogLevel", CFG_TYPE_PINT32, ITEM(res_ndmp, LogLevel), {config::DefaultValue{"4"}}},
-  {}
 };
 
 static const ResourceItem dev_items[] = {
@@ -208,7 +207,6 @@ static const ResourceItem dev_items[] = {
   { "CollectStatistics", CFG_TYPE_BOOL, ITEM(res_dev, collectstats), {config::DefaultValue{"true"}}},
   { "EofOnErrorIsEot", CFG_TYPE_BOOL, ITEM(res_dev, eof_on_error_is_eot), {config::IntroducedIn{18, 2, 4}, config::Description{"If Yes, Bareos will treat any read error at an end-of-file mark as end-of-tape. You should only set this option if your tape-drive fails to detect end-of-tape while reading."}}},
   { "Count", CFG_TYPE_PINT32, ITEM(res_dev, count), {config::DefaultValue{"1"}, config::Description{"If Count is set to (1 < Count < 10000), this resource will be multiplied Count times. The names of multiplied resources will have a serial number (0001, 0002, ...) attached. If set to 1 only this single resource will be used and its name will not be altered."}}},
-  {}
 };
 
 static const ResourceItem autochanger_items[] = {
@@ -217,7 +215,6 @@ static const ResourceItem autochanger_items[] = {
   { "Device", CFG_TYPE_ALIST_RES, ITEM(res_changer, device_resources), {config::Required{}, config::Code{R_DEVICE}}},
   { "ChangerDevice", CFG_TYPE_STRNAME, ITEM(res_changer, changer_name), {config::Required{}}},
   { "ChangerCommand", CFG_TYPE_STRNAME, ITEM(res_changer, changer_command), {config::Required{}}},
-  {}
 };
 
 static constexpr ResourceTable resources[] = {
@@ -735,32 +732,38 @@ static void DumpResource(int type,
   }
 }
 
-static bool SaveResource(int type, const ResourceItem* items, int pass)
+static bool SaveResource(int type,
+                         gsl::span<const ResourceItem> items,
+                         int pass)
 {
-  int i;
   int error = 0;
 
   // Ensure that all required items are present
-  for (i = 0; items[i].name; i++) {
-    if (items[i].is_required()) {
-      if (!items[i].IsPresent()) {
+  if (items.size() >= MAX_RES_ITEMS) {
+    Emsg1(M_ERROR_TERM, 0, T_("Too many items in \"%s\" resource\n"),
+          resources[type].name);
+  }
+  for (auto& item : items) {
+    if (item.is_required()) {
+      if (!item.IsPresent()) {
         Emsg2(
             M_ERROR_TERM, 0,
             T_("\"%s\" item is required in \"%s\" resource, but not found.\n"),
-            items[i].name, resources[type].name);
+            item.name, resources[type].name);
       }
-    }
-
-    if (i >= MAX_RES_ITEMS) {
-      Emsg1(M_ERROR_TERM, 0, T_("Too many items in \"%s\" resource\n"),
-            resources[type].name);
     }
   }
 
+  if (items.size() == 0) {
+    Emsg1(M_ERROR_TERM, 0, T_("Too few items in \"%s\" resource\n"),
+          resources[type].name);
+
+    return 0;
+  }
   // save previously discovered pointers into dynamic memory
   if (pass == 2) {
     BareosResource* allocated_resource = my_config->GetResWithName(
-        type, (*items->allocated_resource)->resource_name_);
+        type, (*items[0].allocated_resource)->resource_name_);
     if (allocated_resource && !allocated_resource->Validate()) { return false; }
     switch (type) {
       case R_DEVICE:

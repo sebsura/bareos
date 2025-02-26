@@ -2059,7 +2059,6 @@ bool BareosResource::PrintConfig(OutputFormatterResource& send,
                                  bool hide_sensitive_data,
                                  bool verbose)
 {
-  const ResourceItem* items;
   int rindex;
 
   // If entry is not used, then there is nothing to print.
@@ -2069,13 +2068,13 @@ bool BareosResource::PrintConfig(OutputFormatterResource& send,
   // don't dump internal resources.
   if ((internal_) && (!verbose)) { return true; }
   // Make sure the resource class has any items.
-  if (!my_config.resource_definitions_[rindex].items) { return true; }
-  items = my_config.resource_definitions_[rindex].items;
+  if (my_config.resource_definitions_[rindex].items.empty()) { return true; }
+  auto& items = my_config.resource_definitions_[rindex].items;
 
   send.ResourceStart(my_config.ResGroupToStr(rcode_),
                      my_config.ResToStr(rcode_), resource_name_, internal_);
 
-  for (int i = 0; items[i].name; i++) {
+  for (size_t i = 0; i < items.size(); i++) {
     bool inherited = BitIsSet(i, inherit_content_);
     if (internal_) { inherited = true; }
     PrintResourceItem(items[i], my_config, send, hide_sensitive_data, inherited,
@@ -2181,16 +2180,14 @@ json_t* json_item(s_kw* item)
   return json;
 }
 
-json_t* json_items(const ResourceItem items[])
+json_t* json_items(gsl::span<const ResourceItem> items)
 {
   json_t* json = json_object();
 
-  if (items) {
-    for (int i = 0; items[i].name; i++) {
-      json_object_set_new(json, items[i].name, json_item(&items[i]));
-      for (const auto& alias : items[i].aliases) {
-        json_object_set_new(json, alias.c_str(), json_item(&items[i], true));
-      }
+  for (auto& item : items) {
+    json_object_set_new(json, item.name, json_item(&item));
+    for (const auto& alias : item.aliases) {
+      json_object_set_new(json, alias.c_str(), json_item(&item, true));
     }
   }
 

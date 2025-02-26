@@ -69,10 +69,10 @@ struct ResourceTable {
     const char* group_name;
   };
 
-  const char* name;      /* Resource name */
-  const char* groupname; /* Resource name in plural form */
-  const ResourceItem* items; /* List of resource keywords */
-  uint32_t rcode;            /* Code if needed */
+  const char* name;                    /* Resource name */
+  const char* groupname;               /* Resource name in plural form */
+  gsl::span<const ResourceItem> items; /* List of resource keywords */
+  uint32_t rcode;                      /* Code if needed */
 
 
   using init_fun = void();
@@ -263,7 +263,7 @@ class ConfigurationParser {
   void RestoreResourcesContainer(std::shared_ptr<ConfigResourcesContainer>&&);
 
   void InitResource(int rcode,
-                    const ResourceItem items[],
+                    gsl::span<const ResourceItem> items,
                     int pass,
                     std::function<void()> ResourceSpecificInitializer);
   bool AppendToResourcesChain(BareosResource* new_resource, int rcode);
@@ -278,8 +278,9 @@ class ConfigurationParser {
                      bool hide_sensitive_data = false);
   int GetResourceCode(const char* resource_type);
   const ResourceTable* GetResourceTable(const char* resource_type_name);
-  int GetResourceItemIndex(const ResourceItem* res_table, const char* item);
-  const ResourceItem* GetResourceItem(const ResourceItem* res_table,
+  int GetResourceItemIndex(gsl::span<const ResourceItem> res_table,
+                           const char* item);
+  const ResourceItem* GetResourceItem(gsl::span<const ResourceItem> res_table,
                                       const char* item);
   bool GetPathOfResource(PoolMem& path,
                          const char* component,
@@ -426,11 +427,11 @@ class ConfigurationParser {
                  LEX_ERROR_HANDLER* ScanError,
                  LEX_WARNING_HANDLER* scan_warning) const;
   void SetAllResourceDefaultsByParserPass(int rcode,
-                                          const ResourceItem items[],
+                                          gsl::span<const ResourceItem> items,
                                           int pass);
   void SetAllResourceDefaultsIterateOverItems(
       int rcode,
-      const ResourceItem items[],
+      gsl::span<const ResourceItem> items,
       std::function<void(ConfigurationParser&, const ResourceItem*)>
           SetDefaults);
   void SetResourceDefaultsParserPass1(const ResourceItem* item);

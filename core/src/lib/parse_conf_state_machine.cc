@@ -100,7 +100,7 @@ void ConfigParserStateMachine::FreeUnusedMemoryFromPass2()
       delete currently_parsed_resource_.allocated_resource_;
     }
     currently_parsed_resource_.rcode_ = 0;
-    currently_parsed_resource_.resource_items_ = nullptr;
+    currently_parsed_resource_.resource_items_ = {};
     currently_parsed_resource_.allocated_resource_ = nullptr;
   }
 }
@@ -234,7 +234,7 @@ ConfigParserStateMachine::ParserInitResource(int token)
 
   bool init_done = false;
 
-  if (resource_table && resource_table->items) {
+  if (resource_table && !resource_table->items.empty()) {
     currently_parsed_resource_.rcode_ = resource_table->rcode;
     currently_parsed_resource_.resource_items_ = resource_table->items;
 

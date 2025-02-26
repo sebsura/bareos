@@ -26,7 +26,11 @@ struct ResourceItem;
 class BareosResource;
 class ConfigurationParser;
 
-typedef bool (*SaveResourceCb_t)(int type, const ResourceItem* item, int pass);
+#include <gsl/span>
+
+typedef bool (*SaveResourceCb_t)(int type,
+                                 gsl::span<const ResourceItem> items,
+                                 int pass);
 typedef void (*DumpResourceCb_t)(int type,
                                  BareosResource* res,
                                  bool sendmsg(void* sock, const char* fmt, ...),

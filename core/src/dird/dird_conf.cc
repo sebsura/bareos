@@ -89,7 +89,9 @@ extern void StoreRun(LEX* lc, const ResourceItem* item, int index, int pass);
 
 static void CreateAndAddUserAgentConsoleResource(
     ConfigurationParser& my_config);
-static bool SaveResource(int type, const ResourceItem* items, int pass);
+static bool SaveResource(int type,
+                         gsl::span<const ResourceItem> items,
+                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* ures,
@@ -152,7 +154,6 @@ static const ResourceItem dir_items[] = {
   { "EnableKtls", CFG_TYPE_BOOL, ITEM(res_dir, enable_ktls_), { config::DefaultValue{"false"}, config::Description{"If set to \"yes\", Bareos will allow the SSL implementation to use Kernel TLS."}, config::IntroducedIn{23, 0, 0}}},
    TLS_COMMON_CONFIG(res_dir),
    TLS_CERT_CONFIG(res_dir),
-  {}
 };
 
 #define USER_ACL(resource, ACL_lists) \
@@ -171,7 +172,6 @@ static const ResourceItem profile_items[] = {
   { "Name", CFG_TYPE_NAME, ITEM(res_profile, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
   { "Description", CFG_TYPE_STR, ITEM(res_profile, description_), {config::Description{"Additional information about the resource. Only used for UIs."}}},
   USER_ACL(res_profile, ACL_lists),
-  {}
 };
 
 #define ACL_PROFILE(resource) \
@@ -186,7 +186,6 @@ static const ResourceItem con_items[] = {
   { "UsePamAuthentication", CFG_TYPE_BOOL, ITEM(res_con, use_pam_authentication_), {config::IntroducedIn{18, 2, 4}, config::DefaultValue{"false"}, config::Description{"If set to yes, PAM will be used to authenticate the user on this console. Otherwise, only the credentials of this console resource are used for authentication."}}},
    TLS_COMMON_CONFIG(res_con),
    TLS_CERT_CONFIG(res_con),
-  {}
 };
 
 static const ResourceItem user_items[] = {
@@ -194,7 +193,6 @@ static const ResourceItem user_items[] = {
   { "Description", CFG_TYPE_STR, ITEM(res_user, description_), {}},
   USER_ACL(res_user, user_acl.ACL_lists),
   ACL_PROFILE(res_user),
-  {}
 };
 
 static const ResourceItem client_items[] = {
@@ -229,7 +227,6 @@ static const ResourceItem client_items[] = {
   { "NdmpUseLmdb", CFG_TYPE_BOOL, ITEM(res_client, ndmp_use_lmdb), {config::DefaultValue{"true"}}},
    TLS_COMMON_CONFIG(res_client),
    TLS_CERT_CONFIG(res_client),
-  {}
 };
 
 static const ResourceItem store_items[] = {
@@ -257,7 +254,6 @@ static const ResourceItem store_items[] = {
   { "NdmpChangerDevice", CFG_TYPE_STRNAME, ITEM(res_store, ndmp_changer_device), {config::IntroducedIn{16, 2, 4}, config::Description{"Allows direct control of a Storage Daemon Auto Changer device by the Director. Only used in NDMP_NATIVE environments."}}},
    TLS_COMMON_CONFIG(res_store),
    TLS_CERT_CONFIG(res_store),
-  {}
 };
 
 static const ResourceItem cat_items[] = {
@@ -279,7 +275,6 @@ static const ResourceItem cat_items[] = {
   { "IncConnections", CFG_TYPE_PINT32, ITEM(res_cat, pooling_increment_connections), {config::DefaultValue{"1"}, config::Description{"This directive is used by the experimental database pooling functionality. Only use this for non production sites. This sets the number of connections to add to a database pool when not enough connections are available on the pool anymore."}}},
   { "IdleTimeout", CFG_TYPE_PINT32, ITEM(res_cat, pooling_idle_timeout), {config::DefaultValue{"30"}, config::Description{"This directive is used by the experimental database pooling functionality. Only use this for non production sites.  This sets the idle time after which a database pool should be shrinked."}}},
   { "ValidateTimeout", CFG_TYPE_PINT32, ITEM(res_cat, pooling_validate_timeout), {config::DefaultValue{"120"}, config::Description{"This directive is used by the experimental database pooling functionality. Only use this for non production sites. This sets the validation timeout after which the database connection is polled to see if its still alive."}}},
-  {}
 };
 
 const ResourceItem job_items[] = {
@@ -367,7 +362,6 @@ const ResourceItem job_items[] = {
   { "AlwaysIncrementalMaxFullAge", CFG_TYPE_TIME, ITEM(res_job, AlwaysIncrementalMaxFullAge), {config::IntroducedIn{16, 2, 4}, config::Description{"If \"AlwaysIncrementalMaxFullAge\" is set, during consolidations only incremental backups will be considered while the Full Backup remains to reduce the amount of data being consolidated. Only if the Full Backup is older than \"AlwaysIncrementalMaxFullAge\", the Full Backup will be part of the consolidation to avoid the Full Backup becoming too old ."}}},
   { "MaxFullConsolidations", CFG_TYPE_PINT32, ITEM(res_job, MaxFullConsolidations), {config::IntroducedIn{16, 2, 4}, config::DefaultValue{"0"}, config::Description{"If \"AlwaysIncrementalMaxFullAge\" is configured, do not run more than \"MaxFullConsolidations\" consolidation jobs that include the Full backup."}}},
   { "RunOnIncomingConnectInterval", CFG_TYPE_TIME, ITEM(res_job, RunOnIncomingConnectInterval), {config::IntroducedIn{19, 2, 4}, config::DefaultValue{"0"}, config::Description{"The interval specifies the time between the most recent successful backup (counting from start time) and the event of a client initiated connection. When this interval is exceeded the job is started automatically."}}},
-  {}
 };
 
 static const ResourceItem fs_items[] = {
@@ -377,7 +371,6 @@ static const ResourceItem fs_items[] = {
   { "Exclude", CFG_TYPE_INCEXC, ITEMC(res_fs), {config::UsesNoEquals{}, config::Code{1}}},
   { "IgnoreFileSetChanges", CFG_TYPE_BOOL, ITEM(res_fs, ignore_fs_changes), {config::DefaultValue{"false"}}},
   { "EnableVSS", CFG_TYPE_BOOL, ITEM(res_fs, enable_vss), {config::DefaultValue{"true"}}},
-  {}
 };
 
 static const ResourceItem sch_items[] = {
@@ -385,7 +378,6 @@ static const ResourceItem sch_items[] = {
   { "Description", CFG_TYPE_STR, ITEM(res_sch, description_), {}},
   { "Run", CFG_TYPE_RUN, ITEM(res_sch, run), {}},
   { "Enabled", CFG_TYPE_BOOL, ITEM(res_sch, enabled), {config::DefaultValue{"true"}, config::Description{"En- or disable this resource."}}},
-  {}
 };
 
 static const ResourceItem pool_items[] = {
@@ -421,7 +413,6 @@ static const ResourceItem pool_items[] = {
   { "JobRetention", CFG_TYPE_TIME, ITEM(res_pool, JobRetention), {}},
   { "MinimumBlockSize", CFG_TYPE_SIZE32, ITEM(res_pool, MinBlocksize), {}},
   { "MaximumBlockSize", CFG_TYPE_SIZE32, ITEM(res_pool, MaxBlocksize), {config::IntroducedIn{14, 2, 0}}},
-  {}
 };
 
 static const ResourceItem counter_items[] = {
@@ -431,7 +422,6 @@ static const ResourceItem counter_items[] = {
   { "Maximum", CFG_TYPE_PINT32, ITEM(res_counter, MaxValue), {config::DefaultValue{"2147483647"}}},
   { "WrapCounter", CFG_TYPE_RES, ITEM(res_counter, WrapCounter), {config::Code{R_COUNTER}}},
   { "Catalog", CFG_TYPE_RES, ITEM(res_counter, Catalog), {config::Code{R_CATALOG}}},
-  {}
 };
 
 #include "lib/messages_resource_items.h"
@@ -472,7 +462,7 @@ static constexpr ResourceTable dird_resource_tables[] = {
       [] (){ res_profile = new ProfileResource(); }, +[]() -> BareosResource* { return res_profile; } },
   { "Console", "Consoles", con_items, R_CONSOLE,
       [] (){ res_con = new ConsoleResource(); }, +[]() -> BareosResource* { return res_con; } },
-  { "Device", "Devices", NULL, R_DEVICE,/* info obtained from SD */
+  { "Device", "Devices", {}, R_DEVICE,/* info obtained from SD */
       [] (){ res_dev = new DeviceResource(); }, +[]() -> BareosResource* { return res_dev; } },
   { "User", "Users", user_items, R_USER,
       [] (){ res_user = new UserResource(); }, +[]() -> BareosResource* { return res_user; } },
@@ -499,7 +489,6 @@ static const ResourceItem runscript_items[] = {
   { "AbortJobOnError", CFG_TYPE_RUNSCRIPT_BOOL, ITEM(res_runscript, fail_on_error), {}},
   { "RunsWhen", CFG_TYPE_RUNSCRIPT_WHEN, ITEM(res_runscript, when), {}},
   { "RunsOnClient", CFG_TYPE_RUNSCRIPT_TARGET, ITEMC(res_runscript), {}},
-  {}
 };
 
 /* clang-format on */
@@ -722,13 +711,13 @@ json_t* json_datatype(const int type, s_jt items[])
   return json;
 }
 
-json_t* json_datatype(const int type, const ResourceItem items[])
+json_t* json_datatype(const int type, gsl::span<const ResourceItem> items)
 {
   json_t* json = json_datatype_header(type, "sub");
-  if (items) {
+  if (!items.empty()) {
     json_t* values = json_object();
-    for (int i = 0; items[i].name; i++) {
-      json_object_set_new(values, items[i].name, json_item(&items[i]));
+    for (auto& item : items) {
+      json_object_set_new(values, item.name, json_item(&item));
     }
     json_object_set_new(json, "values", values);
   }
@@ -898,11 +887,11 @@ static bool CmdlineItem(PoolMem* buffer, const ResourceItem* item)
   return true;
 }
 
-static bool CmdlineItems(PoolMem* buffer, const ResourceItem items[])
+static bool CmdlineItems(PoolMem* buffer, gsl::span<const ResourceItem> items)
 {
-  if (!items) { return false; }
+  if (items.empty()) { return false; }
 
-  for (int i = 0; items[i].name; i++) { CmdlineItem(buffer, &items[i]); }
+  for (auto& item : items) { CmdlineItem(buffer, &item); }
 
   return true;
 }
@@ -927,7 +916,7 @@ const char* GetUsageStringForConsoleConfigureCommand()
     for (const auto& table : dird_resource_tables) {
       /* Only one Director is allowed.
        * If the resource have not items, there is no need to add it. */
-      if ((table.rcode != R_DIRECTOR) && (table.items)) {
+      if ((table.rcode != R_DIRECTOR) && (table.items.size() > 0)) {
         configure_usage_string->strcat("add ");
         resourcename.strcpy(table.name);
         resourcename.toLower();
@@ -955,17 +944,18 @@ void DestroyConfigureUsageString()
  * Propagate the settings from source BareosResource to dest BareosResource
  * using the RES_ITEMS array.
  */
-static void PropagateResource(const ResourceItem* items,
+static void PropagateResource(gsl::span<const ResourceItem> items,
                               JobResource* source,
                               JobResource* dest)
 {
   uint32_t offset;
 
-  for (int i = 0; items[i].name; i++) {
-    offset = items[i].offset;
-    if (!dest->IsMemberPresent(items[i].name)
-        && source->IsMemberPresent(items[i].name)) {
-      switch (items[i].type) {
+  for (size_t i = 0; i < items.size(); ++i) {
+    auto& item = items[i];
+    offset = item.offset;
+    if (!dest->IsMemberPresent(item.name)
+        && source->IsMemberPresent(item.name)) {
+      switch (item.type) {
         case CFG_TYPE_STR:
         case CFG_TYPE_DIR:
         case CFG_TYPE_DIR_OR_CMD: {
@@ -976,7 +966,7 @@ static void PropagateResource(const ResourceItem* items,
           svalue = (char**)((char*)dest + offset);
           if (*svalue) { free(*svalue); }
           *svalue = strdup(*def_svalue);
-          dest->SetMemberPresent(items[i].name);
+          dest->SetMemberPresent(item.name);
           SetBit(i, dest->inherit_content_);
           break;
         }
@@ -990,7 +980,7 @@ static void PropagateResource(const ResourceItem* items,
             Pmsg1(000, T_("Hey something is wrong. p=0x%lu\n"), *svalue);
           }
           *svalue = *def_svalue;
-          dest->SetMemberPresent(items[i].name);
+          dest->SetMemberPresent(item.name);
           SetBit(i, dest->inherit_content_);
           break;
         }
@@ -1010,7 +1000,7 @@ static void PropagateResource(const ResourceItem* items,
 
             for (auto* str : orig_list) { (*new_list)->append(strdup(str)); }
 
-            dest->SetMemberPresent(items[i].name);
+            dest->SetMemberPresent(item.name);
             SetBit(i, dest->inherit_content_);
           }
           break;
@@ -1031,7 +1021,7 @@ static void PropagateResource(const ResourceItem* items,
 
             for (auto* res : orig_list) { (*new_list)->append(res); }
 
-            dest->SetMemberPresent(items[i].name);
+            dest->SetMemberPresent(item.name);
             SetBit(i, dest->inherit_content_);
           }
           break;
@@ -1040,13 +1030,13 @@ static void PropagateResource(const ResourceItem* items,
           alist<const char*>*orig_list, **new_list;
 
           // Handle ACL lists.
-          orig_list = ((alist<const char*>**)((char*)(source)
-                                              + offset))[items[i].code];
+          orig_list
+              = ((alist<const char*>**)((char*)(source) + offset))[item.code];
 
           // See if there is anything on the list.
           if (orig_list && orig_list->size()) {
-            new_list = &((
-                (alist<const char*>**)((char*)(dest) + offset))[items[i].code]);
+            new_list = &(
+                ((alist<const char*>**)((char*)(dest) + offset))[item.code]);
 
             if (!*new_list) {
               *new_list = new alist<const char*>(10, owned_by_alist);
@@ -1054,7 +1044,7 @@ static void PropagateResource(const ResourceItem* items,
 
             for (auto* str : orig_list) { (*new_list)->append(strdup(str)); }
 
-            dest->SetMemberPresent(items[i].name);
+            dest->SetMemberPresent(item.name);
             SetBit(i, dest->inherit_content_);
           }
           break;
@@ -1075,7 +1065,7 @@ static void PropagateResource(const ResourceItem* items,
           def_ivalue = (uint32_t*)((char*)(source) + offset);
           ivalue = (uint32_t*)((char*)dest + offset);
           *ivalue = *def_ivalue;
-          dest->SetMemberPresent(items[i].name);
+          dest->SetMemberPresent(item.name);
           SetBit(i, dest->inherit_content_);
           break;
         }
@@ -1089,7 +1079,7 @@ static void PropagateResource(const ResourceItem* items,
           def_lvalue = (int64_t*)((char*)(source) + offset);
           lvalue = (int64_t*)((char*)dest + offset);
           *lvalue = *def_lvalue;
-          dest->SetMemberPresent(items[i].name);
+          dest->SetMemberPresent(item.name);
           SetBit(i, dest->inherit_content_);
           break;
         }
@@ -1100,7 +1090,7 @@ static void PropagateResource(const ResourceItem* items,
           def_bvalue = (bool*)((char*)(source) + offset);
           bvalue = (bool*)((char*)dest + offset);
           *bvalue = *def_bvalue;
-          dest->SetMemberPresent(items[i].name);
+          dest->SetMemberPresent(item.name);
           SetBit(i, dest->inherit_content_);
           break;
         }
@@ -1113,14 +1103,14 @@ static void PropagateResource(const ResourceItem* items,
 
           d_pwd->encoding = s_pwd->encoding;
           d_pwd->value = strdup(s_pwd->value);
-          dest->SetMemberPresent(items[i].name);
+          dest->SetMemberPresent(item.name);
           SetBit(i, dest->inherit_content_);
           break;
         }
         default:
           Dmsg2(200,
                 "Don't know how to propagate resource %s of configtype %d\n",
-                items[i].name, items[i].type);
+                item.name, item.type);
           break;
       }
     }
@@ -1130,7 +1120,7 @@ static void PropagateResource(const ResourceItem* items,
 
 // Ensure that all required items are present
 bool ValidateResource(int res_type,
-                      const ResourceItem* items,
+                      gsl::span<const ResourceItem> items,
                       BareosResource* res)
 {
   if (res_type == R_JOBDEFS) {
@@ -1140,22 +1130,23 @@ bool ValidateResource(int res_type,
     return false;
   }
 
-  for (int i = 0; items[i].name; i++) {
-    if (items[i].is_required()) {
-      if (!res->IsMemberPresent(items[i].name)) {
+
+  // If this triggers, take a look at lib/parse_conf.h
+  if (items.size() >= MAX_RES_ITEMS) {
+    Emsg1(M_ERROR, 0, T_("Too many items in %s resource\n"),
+          my_config->ResToStr(res_type));
+    return false;
+  }
+
+  for (auto& item : items) {
+    if (item.is_required()) {
+      if (!res->IsMemberPresent(item.name)) {
         Jmsg(NULL, M_ERROR, 0,
              T_("\"%s\" directive in %s \"%s\" resource is required, but not "
                 "found.\n"),
-             items[i].name, my_config->ResToStr(res_type), res->resource_name_);
+             item.name, my_config->ResToStr(res_type), res->resource_name_);
         return false;
       }
-    }
-
-    // If this triggers, take a look at lib/parse_conf.h
-    if (i >= MAX_RES_ITEMS) {
-      Emsg1(M_ERROR, 0, T_("Too many items in %s resource\n"),
-            my_config->ResToStr(res_type));
-      return false;
     }
   }
 
@@ -2129,7 +2120,7 @@ static void FreeIncludeExcludeItem(IncludeExcludeItem* incexe)
   delete incexe;
 }
 
-static bool UpdateResourcePointer(int type, const ResourceItem* items)
+static bool UpdateResourcePointer(int type, gsl::span<const ResourceItem> items)
 {
   switch (type) {
     case R_PROFILE:
@@ -2254,9 +2245,8 @@ static bool UpdateResourcePointer(int type, const ResourceItem* items)
         p->run_cmds = res_job->run_cmds;
         p->RunScripts = res_job->RunScripts;
         if ((p->RunScripts) && (p->RunScripts->size() > 0)) {
-          for (int i = 0; items[i].name; i++) {
+          for (size_t i = 0; i < items.size(); i++) {
             if (Bstrcasecmp(items[i].name, "RunScript")) {
-              // SetBit(i, p->item_present_);
               ClearBit(i, p->inherit_content_);
             }
           }
@@ -2994,7 +2984,7 @@ static void StoreRunscript(LEX* lc,
     }
 
     bool keyword_ok = false;
-    for (int i = 0; runscript_items[i].name; i++) {
+    for (size_t i = 0; i < std::size(runscript_items); i++) {
       if (Bstrcasecmp(runscript_items[i].name, lc->str)) {
         token = LexGetToken(lc, BCT_SKIP_EOL);
         if (token != BCT_EQUALS) {
@@ -3975,7 +3965,9 @@ static void FreeResource(BareosResource* res, int type)
  * pointers because they may not have been defined until
  * later in pass 1.
  */
-static bool SaveResource(int type, const ResourceItem* items, int pass)
+static bool SaveResource(int type,
+                         gsl::span<const ResourceItem> items,
+                         int pass)
 {
   BareosResource* allocated_resource
       = dird_resource_tables[type].get_resource();
@@ -3986,8 +3978,9 @@ static bool SaveResource(int type, const ResourceItem* items, int pass)
        * If they differ from the default,
        * the set the main directive to be set. */
       if ((res_dir->DIRaddrs) && (res_dir->DIRaddrs->size() > 0)) {
-        for (int i = 0; items[i].name; i++) {
-          if (Bstrcasecmp(items[i].name, "DirAddresses")) {
+        for (size_t i = 0; i < items.size(); ++i) {
+          auto& item = items[i];
+          if (Bstrcasecmp(item.name, "DirAddresses")) {
             // SetBit(i, allocated_resource->item_present_);
             ClearBit(i, allocated_resource->inherit_content_);
           }

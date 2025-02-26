@@ -56,7 +56,9 @@
 
 namespace filedaemon {
 
-static bool SaveResource(int type, const ResourceItem* items, int pass);
+static bool SaveResource(int type,
+                         gsl::span<const ResourceItem> items,
+                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* reshdr,
@@ -118,7 +120,6 @@ static const ResourceItem cli_items[] = {
   { "EnableKtls", CFG_TYPE_BOOL, ITEM(res_client, enable_ktls_), { config::DefaultValue{"false"}, config::Description{"If set to \"yes\", Bareos will allow the SSL implementation to use Kernel TLS."}, config::IntroducedIn{23, 0, 0}}},
     TLS_COMMON_CONFIG(res_client),
     TLS_CERT_CONFIG(res_client),
-  {}
 };
 // Directors that can use our services
 static const ResourceItem dir_items[] = {
@@ -135,7 +136,6 @@ static const ResourceItem dir_items[] = {
   { "AllowedJobCommand", CFG_TYPE_ALIST_STR, ITEM(res_dir, allowed_job_cmds), {}},
     TLS_COMMON_CONFIG(res_dir),
     TLS_CERT_CONFIG(res_dir),
-    {}
 };
 // Message resource
 #include "lib/messages_resource_items.h"
@@ -403,18 +403,19 @@ static void FreeResource(BareosResource* res, int type)
  * the resource. If this is pass 2, we update any resource
  * pointers (currently only in the Job resource).
  */
-static bool SaveResource(int type, const ResourceItem* items, int pass)
+static bool SaveResource(int type,
+                         gsl::span<const ResourceItem> items,
+                         int pass)
 {
-  int i;
   int error = 0;
 
   // Ensure that all required items are present
-  for (i = 0; items[i].name; i++) {
-    if (items[i].is_required()) {
-      if (!items[i].IsPresent()) {
+  for (auto& item : items) {
+    if (item.is_required()) {
+      if (!item.IsPresent()) {
         Emsg2(M_ABORT, 0,
               T_("%s item is required in %s resource, but not found.\n"),
-              items[i].name, resources[type].name);
+              item.name, resources[type].name);
       }
     }
   }

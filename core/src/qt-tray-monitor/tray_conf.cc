@@ -56,7 +56,9 @@
 
 static const std::string default_config_filename("tray-monitor.conf");
 
-static bool SaveResource(int type, const ResourceItem* items, int pass);
+static bool SaveResource(int type,
+                         gsl::span<const ResourceItem> items,
+                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* reshdr,
@@ -93,7 +95,6 @@ static const ResourceItem mon_items[] = {
   { "DirConnectTimeout", CFG_TYPE_TIME, ITEM(res_monitor, DIRConnectTimeout), {config::DefaultValue{"10"}}},
     TLS_COMMON_CONFIG(res_monitor),
     TLS_CERT_CONFIG(res_monitor),
-  {}
 };
 
 /*
@@ -108,7 +109,6 @@ static const ResourceItem dir_items[] = {
   { "Address", CFG_TYPE_STR, ITEM(res_dir, address), {config::Required{}}},
     TLS_COMMON_CONFIG(res_dir),
     TLS_CERT_CONFIG(res_dir),
-  {}
 };
 
 /*
@@ -124,7 +124,6 @@ static const ResourceItem client_items[] = {
   { "Password", CFG_TYPE_MD5PASSWORD, ITEM(res_client, password), {config::Required{}}},
     TLS_COMMON_CONFIG(res_client),
     TLS_CERT_CONFIG(res_client),
-  {}
 };
 
 /*
@@ -142,7 +141,6 @@ static const ResourceItem store_items[] = {
   { "SdPassword", CFG_TYPE_MD5PASSWORD, ITEM(res_store, password), {}},
     TLS_COMMON_CONFIG(res_store),
     TLS_CERT_CONFIG(res_store),
-  {}
 };
 
 /*
@@ -154,7 +152,6 @@ static const ResourceItem con_font_items[] = {
   { "Name", CFG_TYPE_NAME, ITEM(res_font, resource_name_), {config::Required{}}},
   { "Description", CFG_TYPE_STR, ITEM(res_font, description_), {}},
   { "Font", CFG_TYPE_STR, ITEM(res_font, fontface), {}},
-  {}
 };
 
 /*
@@ -270,24 +267,25 @@ static void FreeResource(BareosResource* res, int type)
  * pointers because they may not have been defined until
  * later in pass 1.
  */
-static bool SaveResource(int type, const ResourceItem* items, int pass)
+static bool SaveResource(int type,
+                         gsl::span<const ResourceItem> items,
+                         int pass)
 {
-  int i;
   int error = 0;
 
+  /* If this triggers, take a look at lib/parse_conf.h */
+  if (items.size() >= MAX_RES_ITEMS) {
+    Emsg1(M_ERROR_TERM, 0, T_("Too many items in %s resource\n"),
+          resource_definitions[type].name);
+  }
   // Ensure that all required items are present
-  for (i = 0; items[i].name; i++) {
-    if (items[i].is_required()) {
-      if (!items[i].IsPresent()) {
+  for (auto& item : items) {
+    if (item.is_required()) {
+      if (!item.IsPresent()) {
         Emsg2(M_ERROR_TERM, 0,
               T_("%s item is required in %s resource, but not found.\n"),
-              items[i].name, resource_definitions[type].name);
+              item.name, resource_definitions[type].name);
       }
-    }
-    /* If this triggers, take a look at lib/parse_conf.h */
-    if (i >= MAX_RES_ITEMS) {
-      Emsg1(M_ERROR_TERM, 0, T_("Too many items in %s resource\n"),
-            resource_definitions[type].name);
     }
   }
 

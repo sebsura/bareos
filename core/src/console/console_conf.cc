@@ -36,7 +36,9 @@
 
 namespace console {
 
-static bool SaveResource(int type, const ResourceItem* items, int pass);
+static bool SaveResource(int type,
+                         gsl::span<const ResourceItem> items,
+                         int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
                          BareosResource* reshdr,
@@ -62,7 +64,6 @@ static const ResourceItem cons_items[] = {
   { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_cons, heartbeat_interval), {config::DefaultValue{"0"}}},
   TLS_COMMON_CONFIG(res_cons),
   TLS_CERT_CONFIG(res_cons),
-  {}
 };
 
 static const ResourceItem dir_items[] = {
@@ -74,7 +75,6 @@ static const ResourceItem dir_items[] = {
   { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_dir, heartbeat_interval), {config::DefaultValue{"0"}}},
   TLS_COMMON_CONFIG(res_dir),
   TLS_CERT_CONFIG(res_dir),
-  {}
 };
 
 static constexpr ResourceTable resources[] = {
@@ -160,18 +160,19 @@ static void FreeResource(BareosResource* res, int type)
   if (next_resource) { FreeResource(next_resource, type); }
 }
 
-static bool SaveResource(int type, const ResourceItem* items, int pass)
+static bool SaveResource(int type,
+                         gsl::span<const ResourceItem> items,
+                         int pass)
 {
-  int i;
   int error = 0;
 
   // Ensure that all required items are present
-  for (i = 0; items[i].name; i++) {
-    if (items[i].is_required()) {
-      if (!items[i].IsPresent()) {
+  for (auto& item : items) {
+    if (item.is_required()) {
+      if (!item.IsPresent()) {
         Emsg2(M_ABORT, 0,
               T_("%s item is required in %s resource, but not found.\n"),
-              items[i].name, resources[type].name);
+              item.name, resources[type].name);
       }
     }
   }

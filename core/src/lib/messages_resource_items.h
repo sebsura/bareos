@@ -51,7 +51,6 @@ static const ResourceItem msgs_items[] = {
   { "Console", CFG_TYPE_MSGS, ITEMC(res_msgs), {config::Code{static_cast<int>(MessageDestinationCode::kConsole)}}},
   { "Operator", CFG_TYPE_MSGS, ITEMC(res_msgs), {config::Code{static_cast<int>(MessageDestinationCode::kOperator)}}},
   { "Catalog", CFG_TYPE_MSGS, ITEMC(res_msgs), {config::Code{static_cast<int>(MessageDestinationCode::kCatalog)}}},
-  {}
 };
 
 /* clang-format on */

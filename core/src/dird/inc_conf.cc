@@ -235,7 +235,6 @@ const ResourceItem newinc_items[] = {
   { "Plugin", CFG_TYPE_PLUGINNAME, 0, nullptr, {}},
   { "ExcludeDirContaining", CFG_TYPE_EXCLUDEDIR, 0, nullptr, {}},
   { "Options", CFG_TYPE_OPTIONS, 0, nullptr, {}},
-  {}
 };
 
 /* Items that are valid in an Options resource
@@ -278,7 +277,6 @@ const ResourceItem options_items[] = {
   { "AutoExclude", CFG_TYPE_OPTION, 0, nullptr, {}},
   { "ForceEncryption", CFG_TYPE_OPTION, 0, nullptr, {}},
   { "Meta", CFG_TYPE_META, 0, nullptr, {}},
-  {}
 };
 
 /* clang-format on */
@@ -725,7 +723,7 @@ static void StoreOptionsRes(LEX* lc,
       return;
     }
     bool found = false;
-    for (int i = 0; options_items[i].name; i++) {
+    for (size_t i = 0; i < std::size(options_items); i++) {
       if (Bstrcasecmp(options_items[i].name, lc->str)) {
         token = LexGetToken(lc, BCT_SKIP_EOL);
         if (token != BCT_EQUALS) {
@@ -935,7 +933,7 @@ static void StoreNewinc(LEX* lc, const ResourceItem* item, int index, int pass)
       return;
     }
     bool found = false;
-    for (int i = 0; newinc_items[i].name; i++) {
+    for (size_t i = 0; i < std::size(newinc_items); i++) {
       bool options = Bstrcasecmp(lc->str, "options");
       if (Bstrcasecmp(newinc_items[i].name, lc->str)) {
         if (!options) {
