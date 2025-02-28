@@ -3,7 +3,7 @@
 
    Copyright (C) 2006-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -469,7 +469,7 @@ bool DoMacRun(JobControlRecord* jcr)
 
   Dmsg0(20, "Start read data.\n");
 
-  if (jcr->sd_impl->NumReadVolumes == 0) {
+  if (BsrCount(jcr->sd_impl->read_session) == 0) {
     Jmsg(jcr, M_FATAL, 0, T_("No Volume names found for %s.\n"), Type);
     goto bail_out;
   }
@@ -487,12 +487,10 @@ bool DoMacRun(JobControlRecord* jcr)
     }
 
     Dmsg1(100, "read_dcr=%p\n", jcr->sd_impl->read_dcr);
-    Dmsg3(200, "Found %d volumes names for %s. First=%s\n",
-          jcr->sd_impl->NumReadVolumes, Type,
-          jcr->sd_impl->VolList->VolumeName);
 
     // Ready devices for reading.
-    if (!AcquireDeviceForRead(jcr->sd_impl->read_dcr)) {
+    if (!AcquireDeviceForRead(jcr->sd_impl->read_session,
+                              jcr->sd_impl->read_dcr)) {
       ok = false;
       acquire_fail = true;
       goto bail_out;
@@ -557,8 +555,8 @@ bool DoMacRun(JobControlRecord* jcr)
 
     cb_data data{};
     // Read all data and send it to remote SD.
-    ok = ReadRecords(jcr->sd_impl->read_dcr, CloneRecordToRemoteSd,
-                     MountNextReadVolume, &data);
+    ok = ReadRecords(jcr->sd_impl->read_session, jcr->sd_impl->read_dcr,
+                     CloneRecordToRemoteSd, MountNextReadVolume, &data);
 
     /* Send the last EOD to close the last data transfer and a next EOD to
      * signal the remote we are done. */
@@ -596,13 +594,11 @@ bool DoMacRun(JobControlRecord* jcr)
 
     Dmsg2(100, "read_dcr=%p write_dcr=%p\n", jcr->sd_impl->read_dcr,
           jcr->sd_impl->dcr);
-    Dmsg3(200, "Found %d volumes names for %s. First=%s\n",
-          jcr->sd_impl->NumReadVolumes, Type,
-          jcr->sd_impl->VolList->VolumeName);
 
     // Ready devices for reading and writing.
     if (!AcquireDeviceForAppend(jcr->sd_impl->dcr)
-        || !AcquireDeviceForRead(jcr->sd_impl->read_dcr)) {
+        || !AcquireDeviceForRead(jcr->sd_impl->read_session,
+                                 jcr->sd_impl->read_dcr)) {
       ok = false;
       acquire_fail = true;
       goto bail_out;
@@ -654,8 +650,8 @@ bool DoMacRun(JobControlRecord* jcr)
 
     cb_data data{};
     // Read all data and make a local clone of it.
-    ok = ReadRecords(jcr->sd_impl->read_dcr, CloneRecordInternally,
-                     MountNextReadVolume, &data);
+    ok = ReadRecords(jcr->sd_impl->read_session, jcr->sd_impl->read_dcr,
+                     CloneRecordInternally, MountNextReadVolume, &data);
   }
 
 bail_out:

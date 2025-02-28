@@ -315,7 +315,7 @@ static void DoBlocks(char*)
         // no special handling required
         break;
       case DeviceControlRecord::ReadStatus::EndOfTape:
-        if (!MountNextReadVolume(dcr)) {
+        if (!MountNextReadVolume(jcr->sd_impl->read_session, dcr)) {
           Jmsg(jcr, M_INFO, 0,
                T_("Got EOM at file %u on device %s, Volume \"%s\"\n"),
                dev->file, dev->print_name(), dcr->VolumeName);
@@ -383,7 +383,10 @@ static bool jobs_cb(DeviceControlRecord* t_dcr, DeviceRecord* t_rec)
 }
 
 /* Do list job records */
-static void do_jobs(char*) { ReadRecords(dcr, jobs_cb, MountNextReadVolume); }
+static void do_jobs(char*)
+{
+  ReadRecords(jcr->sd_impl->read_session, dcr, jobs_cb, MountNextReadVolume);
+}
 
 /* Do an ls type listing of an archive */
 static void do_ls(char*)
@@ -392,7 +395,7 @@ static void do_ls(char*)
     DumpVolumeLabel(dev);
     return;
   }
-  ReadRecords(dcr, RecordCb, MountNextReadVolume);
+  ReadRecords(jcr->sd_impl->read_session, dcr, RecordCb, MountNextReadVolume);
   printf("%u files and directories found.\n", num_files);
 }
 

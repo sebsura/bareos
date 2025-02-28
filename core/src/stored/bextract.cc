@@ -451,7 +451,8 @@ static void DoExtract(char* devname,
   acl_data.last_fname = GetPoolMemory(PM_FNAME);
   xattr_data.last_fname = GetPoolMemory(PM_FNAME);
 
-  ReadRecords(g_dcr, RecordCb, MountNextReadVolume);
+  ReadRecords(g_jcr->sd_impl->read_session, g_dcr, RecordCb,
+              MountNextReadVolume);
 
   /* If output file is still open, it was the last one in the
    * archive since we just hit an end of file, so close the file. */

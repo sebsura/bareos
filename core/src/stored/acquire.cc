@@ -77,7 +77,7 @@ static int const rdebuglevel = 100;
 /* Forward referenced functions */
 static void AttachDcrToDev(DeviceControlRecord* dcr);
 static void DetachDcrFromDev(DeviceControlRecord* dcr);
-static void SetDcrFromVol(DeviceControlRecord* dcr, VolumeList* vol);
+static void SetDcrFromVol(DeviceControlRecord* dcr, bsr_volume_item vol);
 
 /**
  * Acquire device for reading.
@@ -88,17 +88,16 @@ static void SetDcrFromVol(DeviceControlRecord* dcr, VolumeList* vol);
  *  Returns: NULL if failed for any reason
  *           dcr  if successful
  */
-bool AcquireDeviceForRead(DeviceControlRecord* dcr)
+bool AcquireDeviceForRead(ReadSession& sess, DeviceControlRecord* dcr)
 {
   Device* dev;
   JobControlRecord* jcr = dcr->jcr;
   bool retval = false;
   bool tape_previously_mounted;
-  VolumeList* vol;
   bool try_autochanger = true;
-  int i;
   int vol_label_status;
   int retry = 0;
+  std::optional<bsr_volume_item> vol;
 
   Enter(rdebuglevel);
   dev = dcr->dev;
@@ -116,25 +115,13 @@ bool AcquireDeviceForRead(DeviceControlRecord* dcr)
   }
 
   /* Find next Volume, if any */
-  vol = jcr->sd_impl->VolList;
+  vol = CurrentVolume(sess);
   if (!vol) {
-    char ed1[50];
-    Jmsg(jcr, M_FATAL, 0,
-         T_("No volumes specified for reading. Job %s canceled.\n"),
-         edit_int64(jcr->JobId, ed1));
-    goto get_out;
-  }
-  jcr->sd_impl->CurReadVolume++;
-  for (i = 1; i < jcr->sd_impl->CurReadVolume; i++) { vol = vol->next; }
-  if (!vol) {
-    Jmsg(jcr, M_FATAL, 0,
-         T_("Logic error: no next volume to read. Numvol=%d Curvol=%d\n"),
-         jcr->sd_impl->NumReadVolumes, jcr->sd_impl->CurReadVolume);
+    Jmsg(jcr, M_FATAL, 0, T_("Logic error: no next volume to read\n"));
     goto get_out; /* should not happen */
   }
-  SetDcrFromVol(dcr, vol);
-
-  Dmsg2(rdebuglevel, "Want Vol=%s Slot=%d\n", vol->VolumeName, vol->Slot);
+  Dmsg2(rdebuglevel, "Want Vol=%s Slot=%d\n", vol->volume_name, vol->slot);
+  SetDcrFromVol(dcr, *vol);
 
   /* If the MediaType requested for this volume is not the
    * same as the current drive, we attempt to find the same
@@ -169,7 +156,7 @@ bool AcquireDeviceForRead(DeviceControlRecord* dcr)
     jcr->sd_impl->read_dcr = dcr;
     rctx.any_drive = true;
     rctx.device_name = vol->device;
-    director_storage store(false, "", vol->MediaType, dcr->pool_name,
+    director_storage store(false, "", vol->media_type, dcr->pool_name,
                            dcr->pool_type);
     rctx.store = &store;
     CleanDevice(dcr); /* clean up the dcr */
@@ -194,20 +181,20 @@ bool AcquireDeviceForRead(DeviceControlRecord* dcr)
       Dmsg1(50, "Media Type change.  New read device %s chosen.\n",
             dev->print_name());
 
-      bstrncpy(dcr->VolumeName, vol->VolumeName, sizeof(dcr->VolumeName));
-      dcr->setVolCatName(vol->VolumeName);
-      bstrncpy(dcr->media_type, vol->MediaType, sizeof(dcr->media_type));
-      dcr->VolCatInfo.Slot = vol->Slot;
-      dcr->VolCatInfo.InChanger = vol->Slot > 0;
+      bstrncpy(dcr->VolumeName, vol->volume_name, sizeof(dcr->VolumeName));
+      dcr->setVolCatName(vol->volume_name);
+      bstrncpy(dcr->media_type, vol->media_type, sizeof(dcr->media_type));
+      dcr->VolCatInfo.Slot = vol->slot;
+      dcr->VolCatInfo.InChanger = vol->slot > 0;
       bstrncpy(dcr->pool_name, store.pool_name.c_str(), sizeof(dcr->pool_name));
       bstrncpy(dcr->pool_type, store.pool_type.c_str(), sizeof(dcr->pool_type));
     } else {
       /* error */
       Jmsg1(jcr, M_FATAL, 0,
             T_("No suitable device found to read Volume \"%s\"\n"),
-            vol->VolumeName);
+            vol->volume_name);
       Dmsg1(rdebuglevel, "No suitable device found to read Volume \"%s\"\n",
-            vol->VolumeName);
+            vol->volume_name);
       goto get_out;
     }
   }
@@ -217,7 +204,7 @@ bool AcquireDeviceForRead(DeviceControlRecord* dcr)
   dev->ClearUnload();
 
   if (dev->vol && dev->vol->IsSwapping()) {
-    dev->vol->SetSlotNumber(vol->Slot);
+    dev->vol->SetSlotNumber(vol->slot);
     Dmsg3(rdebuglevel, "swapping: slot=%d Vol=%s dev=%s\n", dev->vol->GetSlot(),
           dev->vol->vol_name, dev->print_name());
   }
@@ -259,7 +246,7 @@ bool AcquireDeviceForRead(DeviceControlRecord* dcr)
     dcr->DoUnload();
     dcr->DoSwapping(false /*!IsWriting*/);
     dcr->DoLoad(false /*!IsWriting*/);
-    SetDcrFromVol(dcr, vol); /* refresh dcr with desired volume info */
+    SetDcrFromVol(dcr, *vol); /* refresh dcr with desired volume info */
 
     /* This code ensures that the device is ready for reading. If it is a file,
      * it opens it. If it is a tape, it checks the volume name */
@@ -804,15 +791,15 @@ void FreeDeviceControlRecord(DeviceControlRecord* dcr)
   delete dcr;
 }
 
-static void SetDcrFromVol(DeviceControlRecord* dcr, VolumeList* vol)
+static void SetDcrFromVol(DeviceControlRecord* dcr, bsr_volume_item vol)
 {
   /* Note, if we want to be able to work from a .bsr file only
    *  for disaster recovery, we must "simulate" reading the catalog */
-  bstrncpy(dcr->VolumeName, vol->VolumeName, sizeof(dcr->VolumeName));
-  dcr->setVolCatName(vol->VolumeName);
-  bstrncpy(dcr->media_type, vol->MediaType, sizeof(dcr->media_type));
-  dcr->VolCatInfo.Slot = vol->Slot;
-  dcr->VolCatInfo.InChanger = vol->Slot > 0;
+  bstrncpy(dcr->VolumeName, vol.volume_name, sizeof(dcr->VolumeName));
+  dcr->setVolCatName(vol.volume_name);
+  bstrncpy(dcr->media_type, vol.media_type, sizeof(dcr->media_type));
+  dcr->VolCatInfo.Slot = vol.slot;
+  dcr->VolCatInfo.InChanger = vol.slot > 0;
 }
 
 } /* namespace storagedaemon */

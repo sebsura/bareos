@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -67,17 +67,14 @@ bool DoReadData(JobControlRecord* jcr)
     return false;
   }
 
-  if (jcr->sd_impl->NumReadVolumes == 0) {
+  if (BsrCount(jcr->sd_impl->read_session) == 0) {
     Jmsg(jcr, M_FATAL, 0, T_("No Volume names found for restore.\n"));
     fd->fsend(FD_error);
     return false;
   }
 
-  Dmsg2(200, "Found %d volumes names to restore. First=%s\n",
-        jcr->sd_impl->NumReadVolumes, jcr->sd_impl->VolList->VolumeName);
-
   // Ready device for reading
-  if (!AcquireDeviceForRead(dcr)) {
+  if (!AcquireDeviceForRead(jcr->sd_impl->read_session, dcr)) {
     fd->fsend(FD_error);
     return false;
   }
@@ -91,7 +88,8 @@ bool DoReadData(JobControlRecord* jcr)
   // Tell File daemon we will send data
   fd->fsend(OK_data);
   jcr->sendJobStatus(JS_Running);
-  ok = ReadRecords(dcr, RecordCb, MountNextReadVolume);
+  ok = ReadRecords(jcr->sd_impl->read_session, dcr, RecordCb,
+                   MountNextReadVolume);
 
   // Send end of data to FD
   fd->signal(BNET_EOD);

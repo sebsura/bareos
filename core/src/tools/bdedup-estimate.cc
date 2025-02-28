@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2023-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2023-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -229,7 +229,8 @@ bool read_records(const std::vector<std::string>& volumenames)
     }
   }
 
-  ReadRecords(dcr, RecordCallback, storagedaemon::MountNextReadVolume);
+  ReadRecords(jcr->sd_impl->read_session, dcr, RecordCallback,
+              storagedaemon::MountNextReadVolume);
 
   CleanDevice(jcr->sd_impl->dcr);
 

@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -33,6 +33,7 @@
  * any modifications.
  */
 
+#include "stored/read_record.h"
 #include "include/bareos.h"
 #include "stored/stored.h"
 #include "stored/butil.h"
@@ -184,12 +185,13 @@ void ReadContextSetRecord(DeviceControlRecord* dcr, READ_CTX* rctx)
  *
  * Any fatal error sets the status bool to false.
  */
-bool ReadNextBlockFromDevice(DeviceControlRecord* dcr,
+bool ReadNextBlockFromDevice(ReadSession& sess,
+                             DeviceControlRecord* dcr,
                              Session_Label* sessrec,
                              bool RecordCb(DeviceControlRecord* dcr,
                                            DeviceRecord* rec,
                                            void* user_data),
-                             bool mount_cb(DeviceControlRecord* dcr),
+                             MountCommand* mount_cb,
                              void* user_data,
                              bool* status)
 {
@@ -207,7 +209,7 @@ bool ReadNextBlockFromDevice(DeviceControlRecord* dcr,
              dcr->dev->file, dcr->dev->print_name(), dcr->VolumeName);
 
         VolumeUnused(dcr); /* mark volume unused */
-        if (!mount_cb(dcr)) {
+        if (!mount_cb(sess, dcr)) {
           Jmsg(jcr, M_INFO, 0, T_("End of all volumes.\n"));
           if (RecordCb) {
             /* Create EOT Label so that Media record may
@@ -383,11 +385,12 @@ bool ReadNextRecordFromBlock(DeviceControlRecord* dcr,
  *
  * You must not change any values in the DeviceRecord packet
  */
-bool ReadRecords(DeviceControlRecord* dcr,
+bool ReadRecords(ReadSession& sess,
+                 DeviceControlRecord* dcr,
                  bool RecordCb(DeviceControlRecord* dcr,
                                DeviceRecord* rec,
                                void* user_data),
-                 bool mount_cb(DeviceControlRecord* dcr),
+                 MountCommand* mount_cb,
                  void* user_data)
 {
   JobControlRecord* jcr = dcr->jcr;
@@ -406,7 +409,7 @@ bool ReadRecords(DeviceControlRecord* dcr,
     }
 
     // Read the next block into our buffers.
-    if (!ReadNextBlockFromDevice(dcr, &rctx->sessrec, RecordCb, mount_cb,
+    if (!ReadNextBlockFromDevice(sess, dcr, &rctx->sessrec, RecordCb, mount_cb,
                                  user_data, &ok)) {
       break;
     }
@@ -501,11 +504,12 @@ static bool NoUserData(DeviceControlRecord* dcr,
   return RecordCb(dcr, rec);
 }
 
-bool ReadRecords(DeviceControlRecord* dcr,
+bool ReadRecords(ReadSession& sess,
+                 DeviceControlRecord* dcr,
                  bool RecordCb(DeviceControlRecord* dcr, DeviceRecord* rec),
-                 bool mount_cb(DeviceControlRecord* dcr))
+                 MountCommand* mount_cb)
 {
-  return ReadRecords(dcr, &NoUserData, mount_cb,
+  return ReadRecords(sess, dcr, &NoUserData, mount_cb,
                      reinterpret_cast<void*>(RecordCb));
 }
 

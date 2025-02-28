@@ -865,23 +865,21 @@ bool DeviceControlRecord::IsTapePositionOk()
  * If we are reading, we come here at the end of the tape
  *  and see if there are more volumes to be mounted.
  */
-bool MountNextReadVolume(DeviceControlRecord* dcr)
+bool MountNextReadVolume(ReadSession& sess, DeviceControlRecord* dcr)
 {
   Device* dev = dcr->dev;
   JobControlRecord* jcr = dcr->jcr;
-  Dmsg2(90, "NumReadVolumes=%d CurReadVolume=%d\n",
-        jcr->sd_impl->NumReadVolumes, jcr->sd_impl->CurReadVolume);
 
   VolumeUnused(dcr); /* release current volume */
   // End Of Tape -- mount next Volume (if another specified)
-  if (jcr->sd_impl->NumReadVolumes > 1
-      && jcr->sd_impl->CurReadVolume < jcr->sd_impl->NumReadVolumes) {
+  if (auto vol = CurrentVolume(sess)) {
     dev->Lock();
     dev->close(dcr);
     dev->SetRead();
     dcr->SetReserved();
     dev->Unlock();
-    if (!AcquireDeviceForRead(dcr)) {
+    // todo: maybe acquire device for read should just take a volume ...
+    if (!AcquireDeviceForRead(sess, dcr)) {
       Jmsg2(jcr, M_FATAL, 0, T_("Cannot open Dev=%s, Vol=%s\n"),
             dev->print_name(), dcr->VolumeName);
       return false;

@@ -120,7 +120,7 @@ static void unfillcmd();
 static int FlushBlock(DeviceBlock* block);
 static bool QuickieCb(DeviceControlRecord* dcr, DeviceRecord* rec);
 static bool CompareBlocks(DeviceBlock* last_block, DeviceBlock* block);
-static bool MyMountNextReadVolume(DeviceControlRecord* dcr);
+static bool MyMountNextReadVolume(ReadSession& sess, DeviceControlRecord* dcr);
 static void scan_blocks();
 static void SetVolumeName(const char* VolName, int volnum);
 static void rawfill_cmd();
@@ -2438,17 +2438,18 @@ static bool do_unfill()
   last_file = last_file1;
   last_block = last_block1;
 
-  FreeRestoreVolumeList(g_jcr);
+  // FreeRestoreVolumeList(g_jcr);
   g_jcr->sd_impl->read_session.bsr = nullptr;
   bstrncpy(g_dcr->VolumeName, "TestVolume1|TestVolume2",
            sizeof(g_dcr->VolumeName));
-  CreateRestoreVolumeList(g_jcr);
-  if (g_jcr->sd_impl->VolList != nullptr) {
-    g_jcr->sd_impl->VolList->Slot = 1;
-    if (g_jcr->sd_impl->VolList->next != nullptr) {
-      g_jcr->sd_impl->VolList->next->Slot = 2;
-    }
-  }
+  // TODO(ssura): make simple bsr here
+  // CreateRestoreVolumeList(g_jcr);
+  // if (g_jcr->sd_impl->VolList != nullptr) {
+  //  g_jcr->sd_impl->VolList->Slot = 1;
+  //  if (g_jcr->sd_impl->VolList->next != nullptr) {
+  //    g_jcr->sd_impl->VolList->next->Slot = 2;
+  //  }
+  //}
 
   SetVolumeName("TestVolume1", 1);
 
@@ -2469,7 +2470,7 @@ static bool do_unfill()
   g_dev->num_writers = 0;
   g_jcr->sd_impl->dcr->clear_will_write();
 
-  if (!AcquireDeviceForRead(g_dcr)) {
+  if (!AcquireDeviceForRead(g_jcr->sd_impl->read_session, g_dcr)) {
     Pmsg1(-1, "%s", g_dev->errmsg);
     goto bail_out;
   }
@@ -2484,7 +2485,8 @@ static bool do_unfill()
   Pmsg2(-1, T_("Reading the first 10'000 records from %u:%u.\n"), g_dev->file,
         g_dev->block_num);
   quickie_count = 0;
-  ReadRecords(g_dcr, QuickieCb, MyMountNextReadVolume);
+  ReadRecords(g_jcr->sd_impl->read_session, g_dcr, QuickieCb,
+              MyMountNextReadVolume);
   Pmsg4(-1, T_("Reposition from %u:%u to %u:%u\n"), g_dev->file,
         g_dev->block_num, last_file, last_block_num);
   if (!g_dev->Reposition(g_dcr, last_file, last_block_num)) {
@@ -2528,7 +2530,7 @@ static bool do_unfill()
   }
 
   g_dev->ClearRead();
-  if (!AcquireDeviceForRead(g_dcr)) {
+  if (!AcquireDeviceForRead(g_jcr->sd_impl->read_session, g_dcr)) {
     Pmsg1(-1, "%s", g_dev->errmsg);
     goto bail_out;
   }
@@ -3002,7 +3004,7 @@ bool BTAPE_DCR::DirAskSysopToCreateAppendableVolume()
 
 DeviceControlRecord* BTAPE_DCR::get_new_spooling_dcr() { return new BTAPE_DCR; }
 
-static bool MyMountNextReadVolume(DeviceControlRecord* t_dcr)
+static bool MyMountNextReadVolume(ReadSession& sess, DeviceControlRecord* t_dcr)
 {
   char ec1[50], ec2[50];
   uint64_t rate;
@@ -3032,7 +3034,7 @@ static bool MyMountNextReadVolume(DeviceControlRecord* t_dcr)
   SetVolumeName("TestVolume2", 2);
 
   g_dev->close(t_dcr);
-  if (!AcquireDeviceForRead(t_dcr)) {
+  if (!AcquireDeviceForRead(sess, t_dcr)) {
     Pmsg2(0, T_("Cannot open Dev=%s, Vol=%s\n"), g_dev->print_name(),
           t_dcr->VolumeName);
     return false;

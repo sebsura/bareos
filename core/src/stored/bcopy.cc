@@ -255,7 +255,8 @@ int main(int argc, char* argv[])
   }
   out_block = out_jcr->sd_impl->dcr->block;
 
-  bool ok = ReadRecords(in_jcr->sd_impl->dcr, RecordCb, MountNextReadVolume);
+  bool ok = ReadRecords(in_jcr->sd_impl->read_session, in_jcr->sd_impl->dcr,
+                        RecordCb, MountNextReadVolume);
 
   if (ok || out_dev->CanWrite()) {
     if (!out_jcr->sd_impl->dcr->WriteBlockToDevice()) {

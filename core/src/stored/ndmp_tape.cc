@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -358,8 +358,9 @@ static inline bool bndmp_read_data_from_block(JobControlRecord* jcr,
       }
     } else {
       // Read the next block into our buffers.
-      if (!ReadNextBlockFromDevice(dcr, &rctx->sessrec, NULL,
-                                   MountNextReadVolume, NULL, &ok)) {
+      if (!ReadNextBlockFromDevice(jcr->sd_impl->read_session, dcr,
+                                   &rctx->sessrec, NULL, MountNextReadVolume,
+                                   NULL, &ok)) {
         return false;
       }
 
@@ -653,16 +654,15 @@ extern "C" ndmp9_error bndmp_tape_open(struct ndm_session* sess,
     if (!jcr->sd_impl->acquired_storage) {
       Dmsg0(20, "Start read data.\n");
 
-      if (jcr->sd_impl->NumReadVolumes == 0) {
+      if (BsrCount(jcr->sd_impl->read_session) == 0) {
         Jmsg(jcr, M_FATAL, 0, T_("No Volume names found for restore.\n"));
         goto bail_out;
       }
 
-      Dmsg2(200, "Found %d volumes names to restore. First=%s\n",
-            jcr->sd_impl->NumReadVolumes, jcr->sd_impl->VolList->VolumeName);
-
       // Ready device for reading
-      if (!AcquireDeviceForRead(dcr)) { goto bail_out; }
+      if (!AcquireDeviceForRead(jcr->sd_impl->read_session, dcr)) {
+        goto bail_out;
+      }
 
       // Let any SD plugin setup the record translation
       if (GeneratePluginEvent(jcr, bSdEventSetupRecordTranslation, dcr)
@@ -686,8 +686,9 @@ extern "C" ndmp9_error bndmp_tape_open(struct ndm_session* sess,
       jcr->sd_impl->read_session.rctx = rctx;
 
       // Read the first block and setup record processing.
-      if (!ReadNextBlockFromDevice(dcr, &rctx->sessrec, NULL,
-                                   MountNextReadVolume, NULL, &ok)) {
+      if (!ReadNextBlockFromDevice(jcr->sd_impl->read_session, dcr,
+                                   &rctx->sessrec, NULL, MountNextReadVolume,
+                                   NULL, &ok)) {
         Jmsg1(jcr, M_FATAL, 0, T_("Read session label failed. ERR=%s\n"),
               dcr->dev->bstrerror());
         goto bail_out;

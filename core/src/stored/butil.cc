@@ -71,7 +71,6 @@ JobControlRecord* SetupDummyJcr(const char* name,
   jcr->sd_impl->director = director;
   jcr->VolSessionId = 1;
   jcr->VolSessionTime = (uint32_t)time(NULL);
-  jcr->sd_impl->NumReadVolumes = 0;
   jcr->sd_impl->NumWriteVolumes = 0;
   jcr->JobId = 0;
   jcr->setJobType(JT_CONSOLE);
@@ -213,11 +212,11 @@ static bool setup_to_access_device(DeviceControlRecord* dcr,
   bstrncpy(dcr->dev_name, device_resource->archive_device_string,
            sizeof(dcr->dev_name));
 
-  CreateRestoreVolumeList(jcr);
-
   if (readonly) { /* read only access? */
     Dmsg0(100, "Acquire device for read\n");
-    if (!AcquireDeviceForRead(dcr)) { return false; }
+    if (!AcquireDeviceForRead(jcr->sd_impl->read_session, dcr)) {
+      return false;
+    }
     jcr->sd_impl->read_dcr = dcr;
   } else {
     if (!FirstOpenDevice(dcr)) {
@@ -259,8 +258,6 @@ static void MyFreeJcr(JobControlRecord* jcr)
     FreePoolMemory(jcr->comment);
     jcr->comment = NULL;
   }
-
-  if (jcr->sd_impl->VolList) { FreeRestoreVolumeList(jcr); }
 
   if (jcr->sd_impl->dcr) {
     FreeDeviceControlRecord(jcr->sd_impl->dcr);

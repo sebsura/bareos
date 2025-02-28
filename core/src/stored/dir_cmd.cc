@@ -3,7 +3,7 @@
 
    Copyright (C) 2001-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -1289,8 +1289,6 @@ static inline bool GetBootstrapFile(JobControlRecord* jcr, BareosSocket* sock)
   if (debug_level >= 10) {
     libbareos::DumpBsr(jcr->sd_impl->read_session.bsr, true);
   }
-  /* If we got a bootstrap, we are reading, so create read volume list */
-  CreateRestoreVolumeList(jcr);
   ok = true;
 
 bail_out:

@@ -357,7 +357,8 @@ int main(int argc, char* argv[])
  * the end of writing a tape by wiffling through the attached
  * jcrs creating jobmedia records.
  */
-static bool BscanMountNextReadVolume(DeviceControlRecord* dcr)
+static bool BscanMountNextReadVolume(ReadSession& sess,
+                                     DeviceControlRecord* dcr)
 {
   bool status;
   Device* my_dev = dcr->dev;
@@ -391,7 +392,7 @@ static bool BscanMountNextReadVolume(DeviceControlRecord* dcr)
    * we call mount_next... with bscan's jcr because that is where we
    * have the Volume list, but we get attached.
    */
-  status = MountNextReadVolume(dcr);
+  status = MountNextReadVolume(sess, dcr);
   if (showProgress) {
     char ed1[50];
     struct stat sb;
@@ -422,7 +423,8 @@ static void do_scan()
   fr = fr_empty;
 
   // Detach bscan's jcr as we are not a real Job on the tape
-  ReadRecords(bjcr->sd_impl->read_dcr, RecordCb, BscanMountNextReadVolume);
+  ReadRecords(bjcr->sd_impl->read_session, bjcr->sd_impl->read_dcr, RecordCb,
+              BscanMountNextReadVolume);
 
   if (update_db) {
     db->WriteBatchFileRecords(bjcr); /* used by bulk batch file insert */

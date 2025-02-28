@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -60,6 +60,25 @@ struct DeviceWaitTimes {
   int32_t num_wait{};
 };
 
+struct bsr_volume_item {
+  const char* volume_name;
+  const char* media_type;
+  const char* device;
+  int slot;
+};
+
+static inline std::optional<bsr_volume_item> CurrentVolume(
+    const ReadSession& sess)
+{
+  (void)sess;
+  return std::nullopt;
+}
+static inline size_t BsrCount(const ReadSession& sess)
+{
+  (void)sess;
+  return 0;
+}
+
 }  // namespace storagedaemon
 
 
@@ -76,10 +95,7 @@ struct StoredJcrImpl {
   POOLMEM* fileset_name{};        /**< FileSet */
   POOLMEM* fileset_md5{};         /**< MD5 for FileSet */
   POOLMEM* backup_format{};       /**< Backup format used when doing a NDMP backup */
-  storagedaemon::VolumeList* VolList{}; /**< List to read */
   int32_t NumWriteVolumes{};      /**< Number of volumes written */
-  int32_t NumReadVolumes{};       /**< Total number of volumes to read */
-  int32_t CurReadVolume{};        /**< Current read volume number */
   int32_t label_errors{};         /**< Count of label errors */
   bool session_opened{};
   bool remote_replicate{};        /**< Replicate data to remote SD */
