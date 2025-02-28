@@ -39,9 +39,15 @@ class DirectorResource;
 struct BootStrapRecord;
 struct director_storage;
 
+struct bsr_volume_item {
+  const char* volume_name;
+  const char* media_type;
+  const char* device;
+  int slot;
+};
+
 struct ReadSession {
   READ_CTX* rctx{};
-  BootStrapRecord* bsr{};
   bool mount_next_volume{};
   uint32_t read_VolSessionId{};
   uint32_t read_VolSessionTime{};
@@ -49,6 +55,22 @@ struct ReadSession {
   uint32_t read_EndFile{};
   uint32_t read_StartBlock{};
   uint32_t read_EndBlock{};
+
+  void set_bsr(BootStrapRecord* in)
+  {
+    bsr = in;
+    current_bsr = in;
+  }
+
+  friend void MoveToNextVolume(ReadSession& sess);
+  friend BootStrapRecord* CurrentBsr(const ReadSession& sess);
+  friend BootStrapRecord* RootBsr(const ReadSession& sess);
+  friend std::optional<bsr_volume_item> CurrentVolume(const ReadSession& sess);
+  friend size_t BsrCount(const ReadSession& sess);
+
+ private:
+  BootStrapRecord* bsr{};
+  BootStrapRecord* current_bsr{};
 };
 
 struct DeviceWaitTimes {
@@ -59,25 +81,6 @@ struct DeviceWaitTimes {
   int32_t rem_wait_sec{};
   int32_t num_wait{};
 };
-
-struct bsr_volume_item {
-  const char* volume_name;
-  const char* media_type;
-  const char* device;
-  int slot;
-};
-
-static inline std::optional<bsr_volume_item> CurrentVolume(
-    const ReadSession& sess)
-{
-  (void)sess;
-  return std::nullopt;
-}
-static inline size_t BsrCount(const ReadSession& sess)
-{
-  (void)sess;
-  return 0;
-}
 
 }  // namespace storagedaemon
 

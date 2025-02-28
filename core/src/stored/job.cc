@@ -394,9 +394,9 @@ void StoredFreeJcr(JobControlRecord* jcr)
 
   if (jcr->sd_impl->backup_format) { FreeMemory(jcr->sd_impl->backup_format); }
 
-  if (jcr->sd_impl->read_session.bsr) {
-    libbareos::FreeBsr(jcr->sd_impl->read_session.bsr);
-    jcr->sd_impl->read_session.bsr = NULL;
+  if (RootBsr(jcr->sd_impl->read_session)) {
+    libbareos::FreeBsr(RootBsr(jcr->sd_impl->read_session));
+    jcr->sd_impl->read_session.set_bsr(NULL);
   }
 
   if (jcr->sd_impl->read_session.rctx) {

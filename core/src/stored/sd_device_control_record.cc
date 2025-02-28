@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2020 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -22,7 +22,9 @@
 */
 
 #include "include/bareos.h"
+#include "stored/stored_jcr_impl.h"
 #include "stored/sd_device_control_record.h"
+#include "stored/bsr.h"
 
 namespace storagedaemon {
 
@@ -30,5 +32,40 @@ DeviceControlRecord* StorageDaemonDeviceControlRecord::get_new_spooling_dcr()
 {
   return new StorageDaemonDeviceControlRecord;
 }
+
+void MoveToNextVolume(ReadSession& sess)
+{
+  sess.current_bsr = sess.current_bsr->next;
+}
+
+BootStrapRecord* CurrentBsr(const ReadSession& sess)
+{
+  return sess.current_bsr;
+}
+
+BootStrapRecord* RootBsr(const ReadSession& sess) { return sess.bsr; }
+
+std::optional<bsr_volume_item> CurrentVolume(const ReadSession& sess)
+{
+  auto* bsr = CurrentBsr(sess);
+  if (!bsr) { return std::nullopt; }
+
+  bsr_volume_item vol = {
+      .volume_name = bsr->volume->VolumeName,
+      .media_type = bsr->volume->MediaType,
+      .device = bsr->volume->device,
+      .slot = bsr->volume->Slot,
+  };
+
+  return vol;
+}
+
+size_t BsrCount(const ReadSession& sess)
+{
+  size_t count = 0;
+  for (auto* bsr = RootBsr(sess); bsr; bsr = bsr->next) { count += 1; }
+  return count;
+}
+
 
 }  // namespace storagedaemon

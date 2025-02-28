@@ -31,6 +31,15 @@ using MountCommand = bool(ReadSession& sess, DeviceControlRecord*);
 READ_CTX* new_read_context(void);
 void FreeReadContext(READ_CTX* rctx);
 void ReadContextSetRecord(DeviceControlRecord* dcr, READ_CTX* rctx);
+enum class ReadBlockStatus
+{
+  Ok,
+  EndOfVolume,
+  Error,
+};
+
+ReadBlockStatus ReadBlockFromDevice(DeviceControlRecord* dcr);
+
 bool ReadNextBlockFromDevice(ReadSession& sess,
                              DeviceControlRecord* dcr,
                              Session_Label* sessrec,

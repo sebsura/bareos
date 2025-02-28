@@ -1280,14 +1280,14 @@ static inline bool GetBootstrapFile(JobControlRecord* jcr, BareosSocket* sock)
   }
   fclose(bs);
   Dmsg0(10, "=== end bootstrap file ===\n");
-  jcr->sd_impl->read_session.bsr
-      = libbareos::parse_bsr(jcr, jcr->RestoreBootstrap);
-  if (!jcr->sd_impl->read_session.bsr) {
+  jcr->sd_impl->read_session.set_bsr(
+      libbareos::parse_bsr(jcr, jcr->RestoreBootstrap));
+  if (!RootBsr(jcr->sd_impl->read_session)) {
     Jmsg(jcr, M_FATAL, 0, T_("Error parsing bootstrap file.\n"));
     goto bail_out;
   }
   if (debug_level >= 10) {
-    libbareos::DumpBsr(jcr->sd_impl->read_session.bsr, true);
+    libbareos::DumpBsr(RootBsr(jcr->sd_impl->read_session), true);
   }
   ok = true;
 

@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -295,14 +295,14 @@ bail_out:
 BootStrapRecord* PositionDeviceToFirstFile(JobControlRecord* jcr,
                                            DeviceControlRecord* dcr)
 {
-  BootStrapRecord* bsr = NULL;
   Device* dev = dcr->dev;
   uint32_t file, block;
   /* Now find and position to first file and block
    *   on this tape. */
-  if (jcr->sd_impl->read_session.bsr) {
-    jcr->sd_impl->read_session.bsr->Reposition = true;
-    bsr = find_next_bsr(jcr->sd_impl->read_session.bsr, dev);
+
+  if (auto* bsr = CurrentBsr(jcr->sd_impl->read_session)) {
+    // bsr->Reposition = true;
+    // bsr = find_next_bsr(bsr, dev);
     if (GetBsrStartAddr(bsr, &file, &block) > 0) {
       Jmsg(jcr, M_INFO, 0,
            T_("Forward spacing Volume \"%s\" to file:block %u:%u.\n"),
@@ -310,7 +310,7 @@ BootStrapRecord* PositionDeviceToFirstFile(JobControlRecord* jcr,
       dev->Reposition(dcr, file, block);
     }
   }
-  return bsr;
+  return nullptr;
 }
 
 /**
@@ -323,15 +323,14 @@ bool TryDeviceRepositioning(JobControlRecord* jcr,
                             DeviceRecord* rec,
                             DeviceControlRecord* dcr)
 {
-  BootStrapRecord* bsr;
   Device* dev = dcr->dev;
 
-  bsr = find_next_bsr(jcr->sd_impl->read_session.bsr, dev);
-  if (bsr == NULL && jcr->sd_impl->read_session.bsr->mount_next_volume) {
+  auto* bsr = CurrentBsr(jcr->sd_impl->read_session);
+  if (bsr == NULL && RootBsr(jcr->sd_impl->read_session)->mount_next_volume) {
     Dmsg0(500, "Would mount next volume here\n");
     Dmsg2(500, "Current position (file:block) %u:%u\n", dev->file,
           dev->block_num);
-    jcr->sd_impl->read_session.bsr->mount_next_volume = false;
+    RootBsr(jcr->sd_impl->read_session)->mount_next_volume = false;
     if (!dev->AtEot()) {
       /* Set EOT flag to force mount of next Volume */
       jcr->sd_impl->read_session.mount_next_volume = true;

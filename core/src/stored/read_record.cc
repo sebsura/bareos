@@ -176,6 +176,37 @@ void ReadContextSetRecord(DeviceControlRecord* dcr, READ_CTX* rctx)
   rctx->rec = rec;
 }
 
+ReadBlockStatus ReadBlockFromDevice(DeviceControlRecord* dcr)
+{
+  while (!dcr->jcr->IsJobCanceled()) {
+    switch (dcr->ReadBlockFromDevice(CHECK_BLOCK_NUMBERS)) {
+      case DeviceControlRecord::Error: {
+        Dmsg3(200, "Error on device %s, Volume \"%s\": Err=%s\n",
+              dcr->dev->print_name(), dcr->VolumeName, dcr->dev->errmsg);
+        return ReadBlockStatus::Error;
+      } break;
+      case DeviceControlRecord::Ok: {
+        Dmsg3(200, "Read block on device %s, Volume \"%s\"\n",
+              dcr->dev->print_name(), dcr->VolumeName);
+        return ReadBlockStatus::Ok;
+      } break;
+      case DeviceControlRecord::EndOfFile: {
+        Dmsg3(200, "End of file %u on device %s, Volume \"%s\"\n",
+              dcr->dev->file, dcr->dev->print_name(), dcr->VolumeName);
+        continue;
+      } break;
+      case DeviceControlRecord::EndOfTape: {
+        Dmsg3(200, "Reached end of volume on device %s, Volume \"%s\"\n",
+              dcr->dev->print_name(), dcr->VolumeName);
+        return ReadBlockStatus::EndOfVolume;
+      } break;
+    }
+  }
+
+  // not sure what we could return here
+  return ReadBlockStatus::EndOfVolume;
+}
+
 /**
  * Read the next block from the device and handle any volume
  * switches etc.
@@ -199,11 +230,11 @@ bool ReadNextBlockFromDevice(ReadSession& sess,
   DeviceRecord* trec;
 
   while (1) {
-    switch (dcr->ReadBlockFromDevice(CHECK_BLOCK_NUMBERS)) {
-      case DeviceControlRecord::ReadStatus::Ok:
+    switch (ReadBlockFromDevice(dcr)) {
+      case ReadBlockStatus::Ok: {
         // no handling required if read was successful
-        break;
-      case DeviceControlRecord::ReadStatus::EndOfTape:
+      } break;
+      case ReadBlockStatus::EndOfVolume: {
         Jmsg(jcr, M_INFO, 0,
              T_("End of Volume at file %u on device %s, Volume \"%s\"\n"),
              dcr->dev->file, dcr->dev->print_name(), dcr->VolumeName);
@@ -219,15 +250,15 @@ bool ReadNextBlockFromDevice(ReadSession& sess,
             trec->FileIndex = EOT_LABEL;
             trec->File = dcr->dev->file;
             *status = RecordCb(dcr, trec, user_data);
-            if (jcr->sd_impl->read_session.mount_next_volume) {
-              jcr->sd_impl->read_session.mount_next_volume = false;
+            if (sess.mount_next_volume) {
+              sess.mount_next_volume = false;
               dcr->dev->ClearEot();
             }
             FreeRecord(trec);
           }
           return false;
         }
-        jcr->sd_impl->read_session.mount_next_volume = false;
+        sess.mount_next_volume = false;
 
         /* We just have a new tape up, now read the label (first record)
          *  and pass it off to the callback routine, then continue
@@ -243,25 +274,24 @@ bool ReadNextBlockFromDevice(ReadSession& sess,
 
         // After reading label, we must read first data block
         continue;
-      case DeviceControlRecord::ReadStatus::EndOfFile:
-        Dmsg3(200, "End of file %u on device %s, Volume \"%s\"\n",
-              dcr->dev->file, dcr->dev->print_name(), dcr->VolumeName);
-        continue;
-      default:
-        if (dcr->dev->IsShortBlock()) {
-          Jmsg1(jcr, M_ERROR, 0, "%s", dcr->dev->errmsg);
-          continue;
-        } else {
-          // I/O error or strange end of tape
-          DisplayTapeErrorStatus(jcr, dcr->dev);
-          if (forge_on || jcr->sd_impl->ignore_label_errors) {
-            dcr->dev->fsr(1); /* try skipping bad record */
-            Pmsg0(000, T_("Did fsr in attemp to skip bad record.\n"));
+      } break;
+      case ReadBlockStatus::Error: {
+        default:
+          if (dcr->dev->IsShortBlock()) {
+            Jmsg1(jcr, M_ERROR, 0, "%s", dcr->dev->errmsg);
             continue;
+          } else {
+            // I/O error or strange end of tape
+            DisplayTapeErrorStatus(jcr, dcr->dev);
+            if (forge_on || jcr->sd_impl->ignore_label_errors) {
+              dcr->dev->fsr(1); /* try skipping bad record */
+              Pmsg0(000, T_("Did fsr in attemp to skip bad record.\n"));
+              continue;
+            }
+            *status = false;
+            return false;
           }
-          *status = false;
-          return false;
-        }
+      } break;
     }
 
     Dmsg2(debuglevel, "Read new block at pos=%u:%u\n", dcr->dev->file,
@@ -313,39 +343,33 @@ bool ReadNextRecordFromBlock(DeviceControlRecord* dcr,
       return false;
     }
 
+    ASSERT(CurrentBsr(jcr->sd_impl->read_session) != nullptr);
     // Some sort of label?
     if (rec->FileIndex < 0) {
       HandleSessionRecord(dcr->dev, rec, &rctx->sessrec);
-      if (jcr->sd_impl->read_session.bsr) {
-        // We just check block FI and FT not FileIndex
-        rec->match_stat
-            = MatchBsrBlock(jcr->sd_impl->read_session.bsr, dcr->block);
-      } else {
-        rec->match_stat = 0;
-      }
+      rec->match_stat
+          = MatchBsrBlock(CurrentBsr(jcr->sd_impl->read_session), dcr->block);
 
       return true;
     }
 
     // Apply BootStrapRecord filter
-    if (jcr->sd_impl->read_session.bsr) {
-      rec->match_stat = MatchBsr(jcr->sd_impl->read_session.bsr, rec,
-                                 &dev->VolHdr, &rctx->sessrec, jcr);
-      if (rec->match_stat == -1) { /* no more possible matches */
-        *done = true;              /* all items found, stop */
-        Dmsg2(debuglevel, "All done=(file:block) %u:%u\n", dev->file,
-              dev->block_num);
-        return false;
-      } else if (rec->match_stat == 0) { /* no match */
-        Dmsg4(debuglevel,
-              "BootStrapRecord no match: clear rem=%d FI=%d before SetEof pos "
-              "%u:%u\n",
-              rec->remainder, rec->FileIndex, dev->file, dev->block_num);
-        rec->remainder = 0;
-        ClearBit(REC_PARTIAL_RECORD, rec->state_bits);
-        if (TryDeviceRepositioning(jcr, rec, dcr)) { return false; }
-        continue; /* we don't want record, read next one */
-      }
+    rec->match_stat = MatchBsr(CurrentBsr(jcr->sd_impl->read_session), rec,
+                               &dev->VolHdr, &rctx->sessrec, jcr);
+    if (rec->match_stat == -1) { /* no more possible matches */
+      *done = true;              /* all items found, stop */
+      Dmsg2(debuglevel, "All done=(file:block) %u:%u\n", dev->file,
+            dev->block_num);
+      return false;
+    } else if (rec->match_stat == 0) { /* no match */
+      Dmsg4(debuglevel,
+            "BootStrapRecord no match: clear rem=%d FI=%d before SetEof pos "
+            "%u:%u\n",
+            rec->remainder, rec->FileIndex, dev->file, dev->block_num);
+      rec->remainder = 0;
+      ClearBit(REC_PARTIAL_RECORD, rec->state_bits);
+      if (TryDeviceRepositioning(jcr, rec, dcr)) { return false; }
+      continue; /* we don't want record, read next one */
     }
 
     dcr->VolLastIndex = rec->FileIndex; /* let caller know where we are */
@@ -361,7 +385,7 @@ bool ReadNextRecordFromBlock(DeviceControlRecord* dcr,
 
     if (rctx->lastFileIndex != READ_NO_FILEINDEX
         && rctx->lastFileIndex != rec->FileIndex) {
-      if (IsThisBsrDone(jcr->sd_impl->read_session.bsr, rec)
+      if (IsThisBsrDone(CurrentBsr(jcr->sd_impl->read_session), rec)
           && TryDeviceRepositioning(jcr, rec, dcr)) {
         Dmsg2(debuglevel, "This bsr done, break pos %u:%u\n", dev->file,
               dev->block_num);
@@ -400,7 +424,7 @@ bool ReadRecords(ReadSession& sess,
 
   rctx = new_read_context();
   PositionDeviceToFirstFile(jcr, dcr);
-  jcr->sd_impl->read_session.mount_next_volume = false;
+  sess.mount_next_volume = false;
 
   while (ok && !done) {
     if (jcr->IsJobCanceled()) {
@@ -409,9 +433,52 @@ bool ReadRecords(ReadSession& sess,
     }
 
     // Read the next block into our buffers.
-    if (!ReadNextBlockFromDevice(sess, dcr, &rctx->sessrec, RecordCb, mount_cb,
-                                 user_data, &ok)) {
-      break;
+    switch (ReadBlockFromDevice(dcr)) {
+      case ReadBlockStatus::Ok: {
+        // everything went fine, lets continue ...
+      } break;
+      case ReadBlockStatus::EndOfVolume: {
+        MoveToNextVolume(sess);
+        done = mount_cb(sess, dcr);
+
+        if (!ok) {
+          /* Create EOT Label so that Media record may
+           *  be properly updated because this is the last
+           *  tape. */
+          Jmsg(jcr, M_INFO, 0, T_("End of all volumes.\n"));
+          if (RecordCb) {
+            /* Create EOT Label so that Media record may
+             *  be properly updated because this is the last
+             *  tape. */
+            auto* trec = new_record();
+            trec->FileIndex = EOT_LABEL;
+            trec->File = dcr->dev->file;
+            ok = RecordCb(dcr, trec, user_data);
+            if (sess.mount_next_volume) {
+              sess.mount_next_volume = false;
+              dcr->dev->ClearEot();
+            }
+            FreeRecord(trec);
+          }
+        }
+        continue;  // try again with next tape
+      } break;
+      case ReadBlockStatus::Error: {
+        if (dcr->dev->IsShortBlock()) {
+          Jmsg1(jcr, M_ERROR, 0, "%s", dcr->dev->errmsg);
+          continue;
+        } else {
+          // I/O error or strange end of tape
+          DisplayTapeErrorStatus(jcr, dcr->dev);
+          if (forge_on || jcr->sd_impl->ignore_label_errors) {
+            dcr->dev->fsr(1); /* try skipping bad record */
+            Pmsg0(000, T_("Did fsr in attemp to skip bad record.\n"));
+            continue;
+          }
+          ok = false;
+          continue;  // break out of the while
+        }
+      } break;
     }
 
     /* Get a new record for each Job as defined by VolSessionId and

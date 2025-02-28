@@ -2439,7 +2439,7 @@ static bool do_unfill()
   last_block = last_block1;
 
   // FreeRestoreVolumeList(g_jcr);
-  g_jcr->sd_impl->read_session.bsr = nullptr;
+  g_jcr->sd_impl->read_session.set_bsr(nullptr);
   bstrncpy(g_dcr->VolumeName, "TestVolume1|TestVolume2",
            sizeof(g_dcr->VolumeName));
   // TODO(ssura): make simple bsr here

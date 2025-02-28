@@ -67,7 +67,7 @@ JobControlRecord* SetupDummyJcr(const char* name,
   jcr->sd_impl = new StoredJcrImpl;
   register_jcr(jcr);
 
-  jcr->sd_impl->read_session.bsr = bsr;
+  jcr->sd_impl->read_session.set_bsr(bsr);
   jcr->sd_impl->director = director;
   jcr->VolSessionId = 1;
   jcr->VolSessionTime = (uint32_t)time(NULL);
@@ -176,7 +176,7 @@ static bool setup_to_access_device(DeviceControlRecord* dcr,
     VolName[0] = 0;
   }
 
-  if (!jcr->sd_impl->read_session.bsr && VolName[0] == 0) {
+  if (!CurrentBsr(jcr->sd_impl->read_session) && VolName[0] == 0) {
     if (!bstrncmp(dev_name, "/dev/", 5)) {
       /* Try stripping file part */
       p = dev_name + strlen(dev_name);
