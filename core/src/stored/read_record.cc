@@ -581,14 +581,14 @@ bool ReadRecordsFromBsr(BootStrapRecord* bsr,
       //         rctx->lastFileIndex, rec->FileIndex);
       // }
 
-      auto* rec = dcr->rec;
+      auto* rec = rctx->rec;
 
-      if (rctx->rec->FileIndex < 0) {
+      if (rec->FileIndex < 0) {
         /* Note, we pass *all* labels to the callback routine. If
          *  he wants to know if they matched the bsr, then he must
          *  check the match_stat in the record */
         rec->match_stat = MatchBsrBlock(bsr, dcr->block);
-        ok = RecordCb(dcr, rctx->rec, user_data);
+        ok = RecordCb(dcr, rec, user_data);
       } else {
         rec->match_stat
             = MatchBsr(bsr, rec, &dcr->dev->VolHdr, &rctx->sessrec, jcr);
@@ -602,12 +602,12 @@ bool ReadRecordsFromBsr(BootStrapRecord* bsr,
 
         Dmsg6(debuglevel,
               "OK callback. recno=%d state_bits=%s blk=%d SI=%d ST=%d FI=%d\n",
-              rctx->records_processed, rec_state_bits_to_str(rctx->rec),
+              rctx->records_processed, rec_state_bits_to_str(rec),
               dcr->block->BlockNumber, rctx->rec->VolSessionId,
               rctx->rec->VolSessionTime, rctx->rec->FileIndex);
 
         // Perform record translations.
-        dcr->before_rec = rctx->rec;
+        dcr->before_rec = rec;
         dcr->after_rec = NULL;
 
         /* We want the plugins to be called in reverse order so we give the
