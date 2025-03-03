@@ -318,7 +318,12 @@ ReadRecordStatus ReadRecordFromBlock(DeviceControlRecord* dcr, READ_CTX* rctx)
   if (!ReadRecordFromBlock(dcr, rec)) {
     Dmsg3(400, "!read-break. state_bits=%s blk=%d rem=%d\n",
           rec_state_bits_to_str(rec), block->BlockNumber, rec->remainder);
-    return ReadRecordStatus::Error;
+
+    if (IsBlockEmpty(rec)) {
+      return ReadRecordStatus::BlockEnd;
+    } else {
+      return ReadRecordStatus::Error;
+    }
   }
 
   Dmsg5(debuglevel, "read-OK. state_bits=%s blk=%d rem=%d file:block=%u:%u\n",
