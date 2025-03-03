@@ -116,6 +116,8 @@ JobControlRecord* SetupJcr(const char* name,
 
   if (!bsr && !VolumeName.empty()) {
     bstrncpy(dcr->VolumeName, VolumeName.c_str(), sizeof(dcr->VolumeName));
+    bsr = libbareos::simple_bsr(jcr, VolumeName);
+    jcr->sd_impl->read_session.set_bsr(bsr);
   }
 
   bstrncpy(dcr->pool_name, "Default", sizeof(dcr->pool_name));

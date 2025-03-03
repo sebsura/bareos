@@ -293,6 +293,10 @@ int main(int argc, char* argv[])
   }
 
   DeviceControlRecord* dcr = new DeviceControlRecord;
+
+  if (!bsr && !volumes.empty()) {
+    bsr = libbareos::simple_bsr(nullptr, volumes);
+  }
   bjcr = SetupJcr("bscan", device_name.data(), bsr, director, dcr, volumes,
                   true);
   if (!bjcr) { exit(BEXIT_FAILURE); }

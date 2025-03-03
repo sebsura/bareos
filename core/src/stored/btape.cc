@@ -2439,18 +2439,18 @@ static bool do_unfill()
   last_file = last_file1;
   last_block = last_block1;
 
-  // FreeRestoreVolumeList(g_jcr);
-  g_jcr->sd_impl->read_session.set_bsr(nullptr);
   bstrncpy(g_dcr->VolumeName, "TestVolume1|TestVolume2",
            sizeof(g_dcr->VolumeName));
-  // TODO(ssura): make simple bsr here
-  // CreateRestoreVolumeList(g_jcr);
-  // if (g_jcr->sd_impl->VolList != nullptr) {
-  //  g_jcr->sd_impl->VolList->Slot = 1;
-  //  if (g_jcr->sd_impl->VolList->next != nullptr) {
-  //    g_jcr->sd_impl->VolList->next->Slot = 2;
-  //  }
-  //}
+  auto* l_bsr = libbareos::simple_bsr(g_jcr, g_dcr->VolumeName);
+
+  if (l_bsr && l_bsr->volume) {
+    l_bsr->volume->Slot = 1;
+    if (l_bsr->next && l_bsr->next->volume) { l_bsr->next->volume->Slot = 2; }
+  }
+
+  g_jcr->sd_impl->read_session.set_bsr(l_bsr);
+
+  ReserveReadVolumes(g_jcr, l_bsr);
 
   SetVolumeName("TestVolume1", 1);
 

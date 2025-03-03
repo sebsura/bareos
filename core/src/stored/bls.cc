@@ -245,7 +245,6 @@ int main(int argc, char* argv[])
   if (!bsrName.empty()) {
     bsr = libbareos::parse_bsr(nullptr, bsrName.data());
   } else {
-    ASSERT(!VolumeNames.empty());
     bsr = libbareos::simple_bsr(nullptr, VolumeNames);
   }
 

@@ -49,11 +49,12 @@ run_bconsole "$tmp/bconcmds"
 
 expect_device_listing()
 {
+  echo "Testing $1 ..."
   log_no_device="${tmp}/no-device-$1.out"
   "$2" -c "${conf}" &> "$log_no_device" || :
   if ! grep -q "\"FileStorage\"" "$log_no_device" || ! grep -q "\"FileStorage2\"" "$log_no_device"; then
     echo "Expected listing of available devices if no device is specified but not found in output, instead got:"
-    cat $log_no_device
+    cat "$log_no_device"
     stop_bareos
     exit 1
   fi

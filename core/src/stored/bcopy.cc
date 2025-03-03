@@ -204,6 +204,10 @@ int main(int argc, char* argv[])
   Dmsg0(100, "About to setup input jcr\n");
 
   DeviceControlRecord* in_dcr = new DeviceControlRecord;
+
+  if (!bsr && !inputVolumes.empty()) {
+    bsr = libbareos::simple_bsr(nullptr, inputVolumes);
+  }
   in_jcr = SetupJcr("bcopy", input_archive.data(), bsr, director, in_dcr,
                     inputVolumes, true); /* read device */
   if (!in_jcr) { exit(BEXIT_FAILURE); }

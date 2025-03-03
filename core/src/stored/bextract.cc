@@ -255,6 +255,11 @@ int main(int argc, char* argv[])
   }
 
   where = directory_to_store_files.data();
+
+  if (!bsr && !VolumeNames.empty()) {
+    bsr = libbareos::simple_bsr(nullptr, VolumeNames);
+  }
+
   DoExtract(archive_device_name.data(), VolumeNames, bsr, director);
 
   if (bsr) { libbareos::FreeBsr(bsr); }
