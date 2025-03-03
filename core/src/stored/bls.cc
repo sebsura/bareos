@@ -242,11 +242,14 @@ int main(int argc, char* argv[])
 
   if (ff->included_files_list == nullptr) { AddFnameToIncludeList(ff, 0, "/"); }
 
+  if (!bsrName.empty()) {
+    bsr = libbareos::parse_bsr(nullptr, bsrName.data());
+  } else {
+    ASSERT(!VolumeNames.empty());
+    bsr = libbareos::simple_bsr(nullptr, VolumeNames);
+  }
 
   for (std::string device : device_names) {
-    if (!bsrName.empty()) {
-      bsr = libbareos::parse_bsr(nullptr, bsrName.data());
-    }
     dcr = new DeviceControlRecord;
     jcr = SetupJcr("bls", device.data(), bsr, director, dcr, VolumeNames,
                    true); /* read device */

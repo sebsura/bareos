@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -959,6 +959,49 @@ void FreeBsr(storagedaemon::BootStrapRecord* bsr)
 
   // Now get the next one
   FreeBsr(next_bsr);
+}
+
+storagedaemon::BootStrapRecord* simple_bsr(JobControlRecord* jcr
+                                           [[maybe_unused]],
+                                           std::string_view VolumeNames)
+{
+  storagedaemon::BootStrapRecord* first = nullptr;
+  storagedaemon::BootStrapRecord* last = nullptr;
+
+  for (;;) {
+    auto pos = VolumeNames.find_first_of('|');
+
+    auto volname = VolumeNames.substr(0, pos);
+
+    auto* volume_bsr = new_bsr();
+
+    // bsr are still based on malloc/free
+
+    void* memory = calloc(1, sizeof(*volume_bsr->volume));
+    volume_bsr->volume = (storagedaemon::BsrVolume*)memory;
+
+    auto str_len
+        = std::max(sizeof(volume_bsr->volume->VolumeName) - 1, volname.size());
+    memcpy(volume_bsr->volume->VolumeName, volname.data(), str_len);
+    volume_bsr->volume->VolumeName[str_len] = '\0';
+
+    if (last == nullptr) {
+      ASSERT(first == nullptr);
+      first = last = volume_bsr;
+    } else {
+      last->next = volume_bsr;
+      volume_bsr->prev = last;
+      last = volume_bsr;
+    }
+
+    if (pos == VolumeNames.npos) {
+      break;
+    } else {
+      VolumeNames.remove_prefix(pos + 1);
+    }
+  }
+
+  return first;
 }
 
 } /* namespace libbareos */
