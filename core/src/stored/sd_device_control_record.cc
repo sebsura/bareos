@@ -45,19 +45,12 @@ BootStrapRecord* CurrentBsr(const ReadSession& sess)
 
 BootStrapRecord* RootBsr(const ReadSession& sess) { return sess.bsr; }
 
-std::optional<bsr_volume_item> CurrentVolume(const ReadSession& sess)
+const BsrVolume* CurrentVolume(const ReadSession& sess)
 {
   auto* bsr = CurrentBsr(sess);
-  if (!bsr) { return std::nullopt; }
+  if (!bsr) { return nullptr; }
 
-  bsr_volume_item vol = {
-      .volume_name = bsr->volume->VolumeName,
-      .media_type = bsr->volume->MediaType,
-      .device = bsr->volume->device,
-      .slot = bsr->volume->Slot,
-  };
-
-  return vol;
+  return bsr->volume;
 }
 
 size_t BsrCount(const ReadSession& sess)

@@ -96,6 +96,12 @@ static int MatchStream(BootStrapRecord* bsr,
                        BsrStream* stream,
                        DeviceRecord* rec,
                        bool done);
+static int MatchSingle(BootStrapRecord* bsr,
+                       DeviceRecord* rec,
+                       Volume_Label* volrec,
+                       Session_Label* sessrec,
+                       bool done,
+                       JobControlRecord* jcr);
 static int MatchAll(BootStrapRecord* bsr,
                     DeviceRecord* rec,
                     Volume_Label* volrec,
@@ -202,22 +208,7 @@ int MatchBsr(BootStrapRecord* bsr,
              Session_Label* sessrec,
              JobControlRecord* jcr)
 {
-  int status;
-
-  /* The bsr->Reposition flag is set any time a bsr is done.
-   *   In this case, we can probably Reposition the
-   *   tape to the next available bsr position. */
-  if (bsr) {
-    bsr->Reposition = false;
-    status = MatchAll(bsr, rec, volrec, sessrec, true, jcr);
-    /* Note, bsr->Reposition is set by MatchAll when
-     *  a bsr is done. We turn it off if a match was
-     *  found or if we cannot use positioning */
-    if (status != 0 || !bsr->use_positioning) { bsr->Reposition = false; }
-  } else {
-    status = 1; /* no bsr => match all */
-  }
-  return status;
+  return MatchSingle(bsr, rec, volrec, sessrec, true, jcr);
 }
 
 /**
@@ -382,18 +373,12 @@ bool IsThisBsrDone(BootStrapRecord*, DeviceRecord* rec)
   return false;
 }
 
-/**
- * Match all the components of current record
- *   returns  1 on match
- *   returns  0 no match
- *   returns -1 no additional matches possible
- */
-static int MatchAll(BootStrapRecord* bsr,
-                    DeviceRecord* rec,
-                    Volume_Label* volrec,
-                    Session_Label* sessrec,
-                    bool done,
-                    JobControlRecord* jcr)
+static int MatchSingle(BootStrapRecord* bsr,
+                       DeviceRecord* rec,
+                       Volume_Label* volrec,
+                       Session_Label* sessrec,
+                       bool done,
+                       JobControlRecord* jcr)
 {
   Dmsg0(dbglevel, "Enter MatchAll\n");
   if (bsr->done) {
@@ -504,15 +489,33 @@ static int MatchAll(BootStrapRecord* bsr,
   return 1;
 
 no_match:
-  if (bsr->next) {
-    return MatchAll(bsr->next, rec, volrec, sessrec, bsr->done && done, jcr);
-  }
   if (bsr->done && done) {
     Dmsg0(dbglevel, "Leave match all -1\n");
     return -1;
   }
   Dmsg0(dbglevel, "Leave match all 0\n");
   return 0;
+}
+
+/**
+ * Match all the components of current record
+ *   returns  1 on match
+ *   returns  0 no match
+ *   returns -1 no additional matches possible
+ */
+static int MatchAll(BootStrapRecord* bsr,
+                    DeviceRecord* rec,
+                    Volume_Label* volrec,
+                    Session_Label* sessrec,
+                    bool done,
+                    JobControlRecord* jcr)
+{
+  auto result = MatchSingle(bsr, rec, volrec, sessrec, done, jcr);
+  if (result > 0) { return result; }
+  if (bsr->next) {
+    return MatchAll(bsr->next, rec, volrec, sessrec, done, jcr);
+  }
+  return result;
 }
 
 static int MatchVolume(BootStrapRecord* bsr,

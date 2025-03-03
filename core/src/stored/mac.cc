@@ -489,7 +489,7 @@ bool DoMacRun(JobControlRecord* jcr)
     Dmsg1(100, "read_dcr=%p\n", jcr->sd_impl->read_dcr);
 
     // Ready devices for reading.
-    if (!AcquireDeviceForRead(jcr->sd_impl->read_session,
+    if (!AcquireDeviceForRead(CurrentVolume(jcr->sd_impl->read_session),
                               jcr->sd_impl->read_dcr)) {
       ok = false;
       acquire_fail = true;
@@ -597,7 +597,7 @@ bool DoMacRun(JobControlRecord* jcr)
 
     // Ready devices for reading and writing.
     if (!AcquireDeviceForAppend(jcr->sd_impl->dcr)
-        || !AcquireDeviceForRead(jcr->sd_impl->read_session,
+        || !AcquireDeviceForRead(CurrentVolume(jcr->sd_impl->read_session),
                                  jcr->sd_impl->read_dcr)) {
       ok = false;
       acquire_fail = true;

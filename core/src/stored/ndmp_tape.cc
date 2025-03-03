@@ -660,7 +660,8 @@ extern "C" ndmp9_error bndmp_tape_open(struct ndm_session* sess,
       }
 
       // Ready device for reading
-      if (!AcquireDeviceForRead(jcr->sd_impl->read_session, dcr)) {
+      if (!AcquireDeviceForRead(CurrentVolume(jcr->sd_impl->read_session),
+                                dcr)) {
         goto bail_out;
       }
 
@@ -678,7 +679,8 @@ extern "C" ndmp9_error bndmp_tape_open(struct ndm_session* sess,
 
       Dmsg1(50, "Begin reading device=%s\n", dcr->dev->print_name());
 
-      PositionDeviceToFirstFile(jcr, dcr);
+      PositionDeviceToFirstFile(CurrentBsr(jcr->sd_impl->read_session), jcr,
+                                dcr);
       jcr->sd_impl->read_session.mount_next_volume = false;
 
       // Allocate a new read context for this Job.

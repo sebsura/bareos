@@ -25,8 +25,9 @@
 
 namespace storagedaemon {
 struct ReadSession;
+struct BsrVolume;
 
-using MountCommand = bool(ReadSession& sess, DeviceControlRecord*);
+using MountCommand = bool(const BsrVolume*, DeviceControlRecord*);
 
 READ_CTX* new_read_context(void);
 void FreeReadContext(READ_CTX* rctx);

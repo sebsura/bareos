@@ -214,7 +214,7 @@ static bool setup_to_access_device(DeviceControlRecord* dcr,
 
   if (readonly) { /* read only access? */
     Dmsg0(100, "Acquire device for read\n");
-    if (!AcquireDeviceForRead(jcr->sd_impl->read_session, dcr)) {
+    if (!AcquireDeviceForRead(CurrentVolume(jcr->sd_impl->read_session), dcr)) {
       return false;
     }
     jcr->sd_impl->read_dcr = dcr;

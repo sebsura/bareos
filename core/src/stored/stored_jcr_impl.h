@@ -38,6 +38,7 @@ class DeviceControlRecord;
 class DirectorResource;
 struct BootStrapRecord;
 struct director_storage;
+struct BsrVolume;
 
 struct bsr_volume_item {
   const char* volume_name;
@@ -65,7 +66,7 @@ struct ReadSession {
   friend void MoveToNextVolume(ReadSession& sess);
   friend BootStrapRecord* CurrentBsr(const ReadSession& sess);
   friend BootStrapRecord* RootBsr(const ReadSession& sess);
-  friend std::optional<bsr_volume_item> CurrentVolume(const ReadSession& sess);
+  friend const BsrVolume* CurrentVolume(const ReadSession& sess);
   friend size_t BsrCount(const ReadSession& sess);
 
  private:

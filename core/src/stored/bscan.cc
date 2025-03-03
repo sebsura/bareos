@@ -357,7 +357,7 @@ int main(int argc, char* argv[])
  * the end of writing a tape by wiffling through the attached
  * jcrs creating jobmedia records.
  */
-static bool BscanMountNextReadVolume(ReadSession& sess,
+static bool BscanMountNextReadVolume(const BsrVolume* vol,
                                      DeviceControlRecord* dcr)
 {
   bool status;
@@ -392,7 +392,7 @@ static bool BscanMountNextReadVolume(ReadSession& sess,
    * we call mount_next... with bscan's jcr because that is where we
    * have the Volume list, but we get attached.
    */
-  status = MountNextReadVolume(sess, dcr);
+  status = MountNextReadVolume(vol, dcr);
   if (showProgress) {
     char ed1[50];
     struct stat sb;

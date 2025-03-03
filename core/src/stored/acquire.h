@@ -28,10 +28,10 @@ namespace storagedaemon {
 class Device;
 class DeviceControlRecord;
 struct BlockSizeBoundaries;
-struct ReadSession;
+struct BsrVolume;
 
 DeviceControlRecord* AcquireDeviceForAppend(DeviceControlRecord* dcr);
-bool AcquireDeviceForRead(ReadSession& sess, DeviceControlRecord* dcr);
+bool AcquireDeviceForRead(const BsrVolume* sess, DeviceControlRecord* dcr);
 bool ReleaseDevice(DeviceControlRecord* dcr);
 bool CleanDevice(DeviceControlRecord* dcr);
 void SetupNewDcrDevice(JobControlRecord* jcr,

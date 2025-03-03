@@ -120,7 +120,8 @@ static void unfillcmd();
 static int FlushBlock(DeviceBlock* block);
 static bool QuickieCb(DeviceControlRecord* dcr, DeviceRecord* rec);
 static bool CompareBlocks(DeviceBlock* last_block, DeviceBlock* block);
-static bool MyMountNextReadVolume(ReadSession& sess, DeviceControlRecord* dcr);
+static bool MyMountNextReadVolume(const BsrVolume* vol,
+                                  DeviceControlRecord* dcr);
 static void scan_blocks();
 static void SetVolumeName(const char* VolName, int volnum);
 static void rawfill_cmd();
@@ -2470,7 +2471,8 @@ static bool do_unfill()
   g_dev->num_writers = 0;
   g_jcr->sd_impl->dcr->clear_will_write();
 
-  if (!AcquireDeviceForRead(g_jcr->sd_impl->read_session, g_dcr)) {
+  if (!AcquireDeviceForRead(CurrentVolume(g_jcr->sd_impl->read_session),
+                            g_dcr)) {
     Pmsg1(-1, "%s", g_dev->errmsg);
     goto bail_out;
   }
@@ -2530,7 +2532,8 @@ static bool do_unfill()
   }
 
   g_dev->ClearRead();
-  if (!AcquireDeviceForRead(g_jcr->sd_impl->read_session, g_dcr)) {
+  if (!AcquireDeviceForRead(CurrentVolume(g_jcr->sd_impl->read_session),
+                            g_dcr)) {
     Pmsg1(-1, "%s", g_dev->errmsg);
     goto bail_out;
   }
@@ -3004,7 +3007,8 @@ bool BTAPE_DCR::DirAskSysopToCreateAppendableVolume()
 
 DeviceControlRecord* BTAPE_DCR::get_new_spooling_dcr() { return new BTAPE_DCR; }
 
-static bool MyMountNextReadVolume(ReadSession& sess, DeviceControlRecord* t_dcr)
+static bool MyMountNextReadVolume(const BsrVolume* vol,
+                                  DeviceControlRecord* t_dcr)
 {
   char ec1[50], ec2[50];
   uint64_t rate;
@@ -3034,7 +3038,7 @@ static bool MyMountNextReadVolume(ReadSession& sess, DeviceControlRecord* t_dcr)
   SetVolumeName("TestVolume2", 2);
 
   g_dev->close(t_dcr);
-  if (!AcquireDeviceForRead(sess, t_dcr)) {
+  if (!AcquireDeviceForRead(vol, t_dcr)) {
     Pmsg2(0, T_("Cannot open Dev=%s, Vol=%s\n"), g_dev->print_name(),
           t_dcr->VolumeName);
     return false;

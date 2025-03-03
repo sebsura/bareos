@@ -74,7 +74,7 @@ bool DoReadData(JobControlRecord* jcr)
   }
 
   // Ready device for reading
-  if (!AcquireDeviceForRead(jcr->sd_impl->read_session, dcr)) {
+  if (!AcquireDeviceForRead(CurrentVolume(jcr->sd_impl->read_session), dcr)) {
     fd->fsend(FD_error);
     return false;
   }

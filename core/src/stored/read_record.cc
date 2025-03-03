@@ -240,7 +240,7 @@ bool ReadNextBlockFromDevice(ReadSession& sess,
              dcr->dev->file, dcr->dev->print_name(), dcr->VolumeName);
 
         VolumeUnused(dcr); /* mark volume unused */
-        if (!mount_cb(sess, dcr)) {
+        if (!mount_cb(CurrentVolume(sess), dcr)) {
           Jmsg(jcr, M_INFO, 0, T_("End of all volumes.\n"));
           if (RecordCb) {
             /* Create EOT Label so that Media record may
@@ -270,7 +270,7 @@ bool ReadNextBlockFromDevice(ReadSession& sess,
         if (RecordCb) { RecordCb(dcr, trec, user_data); }
 
         FreeRecord(trec);
-        PositionDeviceToFirstFile(jcr, dcr);
+        PositionDeviceToFirstFile(CurrentBsr(sess), jcr, dcr);
 
         // After reading label, we must read first data block
         continue;
@@ -298,6 +298,73 @@ bool ReadNextBlockFromDevice(ReadSession& sess,
           dcr->dev->block_num);
     return true;
   }
+}
+
+enum class ReadRecordStatus
+{
+  Ok,
+  BlockEnd,
+  Error,
+};
+
+ReadRecordStatus ReadRecordFromBlock(DeviceControlRecord* dcr, READ_CTX* rctx)
+{
+  // JobControlRecord* jcr = dcr->jcr;
+  Device* dev = dcr->dev;
+  DeviceBlock* block = dcr->block;
+  DeviceRecord* rec = rctx->rec;
+
+
+  if (!ReadRecordFromBlock(dcr, rec)) {
+    Dmsg3(400, "!read-break. state_bits=%s blk=%d rem=%d\n",
+          rec_state_bits_to_str(rec), block->BlockNumber, rec->remainder);
+    return ReadRecordStatus::Error;
+  }
+
+  Dmsg5(debuglevel, "read-OK. state_bits=%s blk=%d rem=%d file:block=%u:%u\n",
+        rec_state_bits_to_str(rec), block->BlockNumber, rec->remainder,
+        dev->file, dev->block_num);
+
+  /* At this point, we have at least a record header.
+   *  Now decide if we want this record or not, but remember
+   *  before accessing the record, we may need to read again to
+   *  get all the data. */
+  rctx->records_processed++;
+  Dmsg6(debuglevel, "recno=%d state_bits=%s blk=%d SI=%d ST=%d FI=%d\n",
+        rctx->records_processed, rec_state_bits_to_str(rec), block->BlockNumber,
+        rec->VolSessionId, rec->VolSessionTime, rec->FileIndex);
+
+  if (rec->FileIndex == EOM_LABEL) { /* end of tape? */
+    Dmsg0(40, "Get EOM LABEL\n");
+    // TODO(ssura): is this correct ?
+    return ReadRecordStatus::BlockEnd;
+  }
+  // Some sort of label?
+  if (rec->FileIndex < 0) {
+    HandleSessionRecord(dcr->dev, rec, &rctx->sessrec);
+    // rec->match_stat
+    //   = MatchBsrBlock(CurrentBsr(jcr->sd_impl->read_session), dcr->block);
+
+    return ReadRecordStatus::Ok;
+  }
+
+  dcr->VolLastIndex = rec->FileIndex; /* let caller know where we are */
+
+  if (IsPartialRecord(rec)) {
+    // partial records can only happen at the end of a block
+    Dmsg6(debuglevel,
+          "Partial, break. recno=%d state_bits=%s blk=%d SI=%d ST=%d FI=%d\n",
+          rctx->records_processed, rec_state_bits_to_str(rec),
+          block->BlockNumber, rec->VolSessionId, rec->VolSessionTime,
+          rec->FileIndex);
+    return ReadRecordStatus::BlockEnd;
+  }
+
+  Dmsg2(debuglevel, "==== LastIndex=%d FileIndex=%d\n", rctx->lastFileIndex,
+        rec->FileIndex);
+  rctx->lastFileIndex = rec->FileIndex;
+
+  return ReadRecordStatus::Ok;
 }
 
 /**
@@ -403,65 +470,52 @@ bool ReadNextRecordFromBlock(DeviceControlRecord* dcr,
   }
 }
 
-/**
- * This subroutine reads all the records and passes them back to your
- * callback routine (also mount routine at EOM).
- *
- * You must not change any values in the DeviceRecord packet
- */
-bool ReadRecords(ReadSession& sess,
-                 DeviceControlRecord* dcr,
-                 bool RecordCb(DeviceControlRecord* dcr,
-                               DeviceRecord* rec,
-                               void* user_data),
-                 MountCommand* mount_cb,
-                 void* user_data)
+bool ReadRecordsFromBsr(BootStrapRecord* bsr,
+                        READ_CTX* rctx,
+                        DeviceControlRecord* dcr,
+                        bool RecordCb(DeviceControlRecord* dcr,
+                                      DeviceRecord* rec,
+                                      void* user_data),
+                        void* user_data)
 {
   JobControlRecord* jcr = dcr->jcr;
-  READ_CTX* rctx;
-  bool ok = true;
-  bool done = false;
+  PositionDeviceToFirstFile(bsr, jcr, dcr);
 
-  rctx = new_read_context();
-  PositionDeviceToFirstFile(jcr, dcr);
-  sess.mount_next_volume = false;
-
-  while (ok && !done) {
-    if (jcr->IsJobCanceled()) {
-      ok = false;
-      break;
-    }
-
+  while (!jcr->IsJobCanceled()) {
     // Read the next block into our buffers.
     switch (ReadBlockFromDevice(dcr)) {
       case ReadBlockStatus::Ok: {
         // everything went fine, lets continue ...
       } break;
       case ReadBlockStatus::EndOfVolume: {
-        MoveToNextVolume(sess);
-        done = mount_cb(sess, dcr);
+        // a bsr refers to exactly one volume
+        // and never goes backwards on the volume,
+        // so if the volume is done, then so is the bsr
+        return true;
+        // MoveToNextVolume(sess);
+        // done = mount_cb(sess, dcr);
 
-        if (!ok) {
-          /* Create EOT Label so that Media record may
-           *  be properly updated because this is the last
-           *  tape. */
-          Jmsg(jcr, M_INFO, 0, T_("End of all volumes.\n"));
-          if (RecordCb) {
-            /* Create EOT Label so that Media record may
-             *  be properly updated because this is the last
-             *  tape. */
-            auto* trec = new_record();
-            trec->FileIndex = EOT_LABEL;
-            trec->File = dcr->dev->file;
-            ok = RecordCb(dcr, trec, user_data);
-            if (sess.mount_next_volume) {
-              sess.mount_next_volume = false;
-              dcr->dev->ClearEot();
-            }
-            FreeRecord(trec);
-          }
-        }
-        continue;  // try again with next tape
+        // if (!ok) {
+        //   /* Create EOT Label so that Media record may
+        //    *  be properly updated because this is the last
+        //    *  tape. */
+        //   Jmsg(jcr, M_INFO, 0, T_("End of all volumes.\n"));
+        //   if (RecordCb) {
+        //     /* Create EOT Label so that Media record may
+        //      *  be properly updated because this is the last
+        //      *  tape. */
+        //     auto* trec = new_record();
+        //     trec->FileIndex = EOT_LABEL;
+        //     trec->File = dcr->dev->file;
+        //     ok = RecordCb(dcr, trec, user_data);
+        //     if (sess.mount_next_volume) {
+        //       sess.mount_next_volume = false;
+        //       dcr->dev->ClearEot();
+        //     }
+        //     FreeRecord(trec);
+        //   }
+        // }
+        // continue;  // try again with next tape
       } break;
       case ReadBlockStatus::Error: {
         if (dcr->dev->IsShortBlock()) {
@@ -475,8 +529,7 @@ bool ReadRecords(ReadSession& sess,
             Pmsg0(000, T_("Did fsr in attemp to skip bad record.\n"));
             continue;
           }
-          ok = false;
-          continue;  // break out of the while
+          return false;
         }
       } break;
     }
@@ -498,17 +551,55 @@ bool ReadRecords(ReadSession& sess,
     Dmsg1(debuglevel, "Block %s empty\n",
           IsBlockEmpty(rctx->rec) ? "is" : "NOT");
 
+    bool ok = true;
     /* Process the block and read all records in the block and send
      * them to the defined callback. */
     while (ok && !IsBlockEmpty(rctx->rec)) {
-      if (!ReadNextRecordFromBlock(dcr, rctx, &done)) { break; }
+      switch (ReadRecordFromBlock(dcr, rctx)) {
+        case ReadRecordStatus::Ok: {
+          // go on
+        } break;
+        case ReadRecordStatus::BlockEnd: {
+          // TODO(ssura): lets hope that IsBlockEmpty works
+          continue;
+        } break;
+        case ReadRecordStatus::Error: {
+          ok = false;
+          continue;
+        } break;
+      }
+
+      // if (rctx->lastFileIndex != READ_NO_FILEINDEX
+      //     && rctx->lastFileIndex != rec->FileIndex) {
+      //   if (IsThisBsrDone(CurrentBsr(jcr->sd_impl->read_session), rec)
+      //       && TryDeviceRepositioning(jcr, rec, dcr)) {
+      //     Dmsg2(debuglevel, "This bsr done, break pos %u:%u\n", dev->file,
+      //           dev->block_num);
+      //     return false;
+      //   }
+      //   Dmsg2(debuglevel, "==== inside LastIndex=%d FileIndex=%d\n",
+      //         rctx->lastFileIndex, rec->FileIndex);
+      // }
+
+      auto* rec = dcr->rec;
 
       if (rctx->rec->FileIndex < 0) {
         /* Note, we pass *all* labels to the callback routine. If
          *  he wants to know if they matched the bsr, then he must
          *  check the match_stat in the record */
+        rec->match_stat = MatchBsrBlock(bsr, dcr->block);
         ok = RecordCb(dcr, rctx->rec, user_data);
       } else {
+        rec->match_stat
+            = MatchBsr(bsr, rec, &dcr->dev->VolHdr, &rctx->sessrec, jcr);
+        if (rec->match_stat == 0) {
+          // no match
+          continue;
+        } else if (rec->match_stat == -1) {
+          // no more matches possible
+          return true;
+        }
+
         Dmsg6(debuglevel,
               "OK callback. recno=%d state_bits=%s blk=%d SI=%d ST=%d FI=%d\n",
               rctx->records_processed, rec_state_bits_to_str(rctx->rec),
@@ -519,8 +610,7 @@ bool ReadRecords(ReadSession& sess,
         dcr->before_rec = rctx->rec;
         dcr->after_rec = NULL;
 
-        /*
-         * We want the plugins to be called in reverse order so we give the
+        /* We want the plugins to be called in reverse order so we give the
          * GeneratePluginEvent() the reverse argument so it knows that we want
          * the plugins to be called in that order. */
         if (GeneratePluginEvent(jcr, bSdEventReadRecordTranslation, dcr, true)
@@ -550,11 +640,47 @@ bool ReadRecords(ReadSession& sess,
     }
     Dmsg2(debuglevel, "After end recs in block. pos=%u:%u\n", dcr->dev->file,
           dcr->dev->block_num);
+    if (!ok) { return false; }
   }
-  // Dmsg2(debuglevel, "Position=(file:block) %u:%u\n", dcr->dev->file,
-  // dcr->dev->block_num);
+
+  return true;
+}
+
+/**
+ * This subroutine reads all the records and passes them back to your
+ * callback routine (also mount routine at EOM).
+ *
+ * You must not change any values in the DeviceRecord packet */
+bool ReadRecords(ReadSession& sess,
+                 DeviceControlRecord* dcr,
+                 bool RecordCb(DeviceControlRecord* dcr,
+                               DeviceRecord* rec,
+                               void* user_data),
+                 MountCommand* mount_cb,
+                 void* user_data)
+{
+  JobControlRecord* jcr = dcr->jcr;
+  bool ok = true;
+
+  READ_CTX* rctx = new_read_context();
+
+  for (auto* bsr = RootBsr(sess); bsr; bsr = bsr->next) {
+    auto* prev = bsr->prev;
+    if (prev && prev->volume != bsr->volume) {
+      // switch volume
+      if (!mount_cb(bsr->volume, dcr)) {
+        ok = false;
+        break;
+      }
+    }
+    if (!ReadRecordsFromBsr(bsr, rctx, dcr, RecordCb, user_data)) {
+      ok = false;
+      break;
+    }
+  }
 
   FreeReadContext(rctx);
+
   PrintBlockReadErrors(jcr, dcr->block);
 
   return ok;

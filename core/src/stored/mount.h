@@ -23,7 +23,7 @@
 
 namespace storagedaemon {
 
-bool MountNextReadVolume(ReadSession& sess, DeviceControlRecord* dcr);
+bool MountNextReadVolume(const BsrVolume* vol, DeviceControlRecord* dcr);
 
 } /* namespace storagedaemon */
 

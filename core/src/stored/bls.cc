@@ -315,7 +315,8 @@ static void DoBlocks(char*)
         // no special handling required
         break;
       case DeviceControlRecord::ReadStatus::EndOfTape:
-        if (!MountNextReadVolume(jcr->sd_impl->read_session, dcr)) {
+        if (!MountNextReadVolume(CurrentVolume(jcr->sd_impl->read_session),
+                                 dcr)) {
           Jmsg(jcr, M_INFO, 0,
                T_("Got EOM at file %u on device %s, Volume \"%s\"\n"),
                dev->file, dev->print_name(), dcr->VolumeName);
