@@ -1289,6 +1289,9 @@ static inline bool GetBootstrapFile(JobControlRecord* jcr, BareosSocket* sock)
   if (debug_level >= 10) {
     libbareos::DumpBsr(RootBsr(jcr->sd_impl->read_session), true);
   }
+
+  ReserveReadVolumes(jcr, RootBsr(jcr->sd_impl->read_session));
+
   ok = true;
 
 bail_out:

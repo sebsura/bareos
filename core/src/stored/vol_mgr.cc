@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2013 Free Software Foundation Europe e.V.
-   Copyright (C) 2015-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2015-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -909,6 +909,17 @@ void FreeTempVolList(dlist<VolumeReservationItem>* temp_vol_list)
 {
   FreeVolumeList("temp_vol_list", temp_vol_list);
   delete temp_vol_list;
+}
+
+bool ReserveReadVolumes(JobControlRecord* jcr,
+                        storagedaemon::BootStrapRecord* bsr)
+{
+  for (auto* current = bsr; current; current = current->next) {
+    for (auto* vol = current->volume; vol; vol = vol->next) {
+      AddReadVolume(jcr, vol->VolumeName);
+    }
+  }
+  return true;
 }
 
 } /* namespace storagedaemon */
