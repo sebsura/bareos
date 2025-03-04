@@ -487,6 +487,28 @@ bool ReadRecordsFromBsr(BootStrapRecord* bsr,
   PositionDeviceToFirstFile(bsr, jcr, dcr);
 
   while (!jcr->IsJobCanceled()) {
+    if (rctx->rec && rctx->rec->bsr == bsr) switch (dcr->dev->GetSeekMode()) {
+        case SeekMode::NOSEEK: {
+          // intentionally left blank, as im not sure how to check it here
+        } break;
+        case SeekMode::FILE_BLOCK: {
+          if (!ShouldReadMore_FileBlock(bsr, rctx->rec->File,
+                                        rctx->rec->Block)) {
+            Jmsg(dcr->jcr, M_INFO, 0, "Early end at %u:%u\n", rctx->rec->File,
+                 rctx->rec->Block);
+            return true;
+          }
+        } break;
+        case SeekMode::BYTES: {
+          if (!ShouldReadMore_Addr(
+                  bsr, ((uint64_t)rctx->rec->File << 32) | rctx->rec->Block)) {
+            Jmsg(dcr->jcr, M_INFO, 0, "Early end at %lu\n",
+                 ((uint64_t)rctx->rec->File << 32) | rctx->rec->Block);
+            return true;
+          }
+        } break;
+      }
+
     // Read the next block into our buffers.
     switch (ReadBlockFromDevice(dcr)) {
       case ReadBlockStatus::Ok: {

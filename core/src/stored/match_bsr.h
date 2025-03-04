@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -34,6 +34,11 @@ bool IsThisBsrDone(BootStrapRecord* bsr, DeviceRecord* rec);
 uint64_t GetBsrStartAddr(BootStrapRecord* bsr,
                          uint32_t* file = NULL,
                          uint32_t* block = NULL);
+
+bool ShouldReadMore_FileBlock(BootStrapRecord* bsr,
+                              uint32_t file,
+                              uint32_t block);
+bool ShouldReadMore_Addr(BootStrapRecord* bsr, uint64_t address);
 
 } /* namespace storagedaemon */
 

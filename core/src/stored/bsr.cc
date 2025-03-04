@@ -755,4 +755,41 @@ uint64_t GetBsrStartAddr(BootStrapRecord* bsr, uint32_t* file, uint32_t* block)
 
   return bsr_addr;
 }
+
+
+bool ShouldReadMore_FileBlock(BootStrapRecord* bsr,
+                              uint32_t file,
+                              uint32_t block)
+{
+  if (!bsr->volfile || !bsr->voladdr) {
+    // if necessary information is not given, then we stay on the safe side
+    // and say 'yes, do read more'
+
+    return true;
+  }
+
+  if (file == bsr->volfile->efile && block == bsr->volblock->eblock) {
+    // we definitely reached the end
+    return false;
+  }
+
+  return true;
+}
+
+bool ShouldReadMore_Addr(BootStrapRecord* bsr, uint64_t address)
+{
+  if (!bsr->voladdr) {
+    // if necessary information is not given, then we stay on the safe side
+    // and say 'yes, do read more'
+
+    return true;
+  }
+
+  if (address == bsr->voladdr->eaddr) {
+    // we definitely reached the end
+    return false;
+  }
+
+  return true;
+}
 } /* namespace storagedaemon */
