@@ -693,7 +693,9 @@ bool ReadRecords(ReadSession& sess,
 
   for (auto* bsr = RootBsr(sess); bsr; bsr = bsr->next) {
     auto* prev = bsr->prev;
-    if (prev && prev->volume != bsr->volume) {
+    if (prev
+        && !bstrncmp(prev->volume->VolumeName, bsr->volume->VolumeName,
+                     sizeof(prev->volume->VolumeName))) {
       // switch volume
       if (!mount_cb(bsr->volume, dcr)) {
         ok = false;
