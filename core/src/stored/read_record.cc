@@ -45,6 +45,8 @@
 #include "stored/read_ctx.h"
 #include "include/jcr.h"
 
+#include <netinet/in.h>
+
 namespace storagedaemon {
 
 static const int debuglevel = 500;
@@ -637,6 +639,269 @@ bool ReadRecordsFromBsr(BootStrapRecord* bsr,
   return true;
 }
 
+static bool NoUserData(DeviceControlRecord* dcr,
+                       DeviceRecord* rec,
+                       void* user_data)
+{
+  auto* RecordCb
+      = reinterpret_cast<bool (*)(DeviceControlRecord* dcr, DeviceRecord* rec)>(
+          user_data);
+
+  return RecordCb(dcr, rec);
+}
+
+bool ReadRecords(ReadSession& sess,
+                 DeviceControlRecord* dcr,
+                 bool RecordCb(DeviceControlRecord* dcr, DeviceRecord* rec),
+                 MountCommand* mount_cb)
+{
+  return ReadRecords(sess, dcr, &NoUserData, mount_cb,
+                     reinterpret_cast<void*>(RecordCb));
+}
+
+struct BlockRef {
+  uint32_t VolSessionId, VolSessionTime;
+  std::string_view data;
+
+  uint32_t session_id() const { return VolSessionId; }
+  uint32_t session_time() const { return VolSessionTime; }
+};
+
+struct RecordId {
+  int32_t findex;
+  int32_t stream;
+  uint32_t session_id;
+  uint32_t session_time;
+
+  friend bool operator!=(const RecordId& l, const RecordId& r)
+  {
+    return l.findex != r.findex || l.stream != r.stream
+           || l.session_id != r.session_id || l.session_time != r.session_time;
+  }
+};
+
+struct PartialRecordRef {
+  RecordId id;
+  uint32_t total_data_bytes;
+  std::string_view record_data;
+
+  std::optional<RecordId> is_continuation_of() const { return {}; }
+};
+
+struct RecordReader {
+  RecordReader(const BlockRef& b, JobControlRecord* jcr_) : block{&b}, jcr{jcr_}
+  {
+  }
+
+  struct RecordHeader {
+    int32_t findex;
+    int32_t stream;
+    uint32_t data_bytes;
+  };
+
+  bool empty() const { return block->data.size() != pointer; }
+
+  std::optional<PartialRecordRef> read_record()
+  {
+    auto& data = block->data;
+    if (data.size() < pointer + sizeof(RecordHeader)) { return std::nullopt; }
+
+    const char* bytes = &data[pointer];
+
+    RecordHeader hdr;
+    memcpy(&hdr, bytes, sizeof(hdr));
+    hdr.findex = ntohl(hdr.findex);
+    hdr.stream = ntohl(hdr.stream);
+    hdr.data_bytes = ntohl(hdr.data_bytes);
+
+    PartialRecordRef ref;
+    ref.id = {
+        .findex = hdr.findex,
+        .stream = hdr.stream,
+        .session_id = block->session_id(),
+        .session_time = block->session_time(),
+    };
+    ref.total_data_bytes = hdr.data_bytes;
+
+    std::size_t bytes_in_block = std::min(
+        size_t{hdr.data_bytes}, data.size() - pointer - sizeof(RecordHeader));
+
+    if (ref.is_continuation_of()) {
+      // continuation records always have their "correct" size
+      if (bytes_in_block != hdr.data_bytes) {
+        Jmsg(jcr, M_ERROR, 0,
+             "Encountered continuation record with bad size %lu != %lu\n",
+             bytes_in_block, hdr.data_bytes);
+
+        return std::nullopt;
+      }
+    }
+
+    ref.record_data
+        = std::string_view{bytes + sizeof(RecordHeader), bytes_in_block};
+
+    pointer += bytes_in_block + sizeof(RecordHeader);
+
+    return ref;
+  }
+
+  const BlockRef* block{nullptr};
+  size_t pointer{0};
+  JobControlRecord* jcr;
+};
+
+struct BlockReader {
+  BlockReader(MountCommand* cmd, BootStrapRecord* bsr)
+      : mount_cmd{cmd}, root{bsr}
+  {
+  }
+
+  std::optional<BlockRef> NextBlock(JobControlRecord*)
+  {
+    if (!current) {}
+
+    return {};
+  }
+
+  bool done() const { return false; }
+
+  MountCommand* mount_cmd;
+  BootStrapRecord* root;
+  BootStrapRecord* current{};
+};
+
+struct RecordRef {
+  RecordId id;
+  std::string_view record_data;
+};
+
+struct RecordBuilder {
+  JobControlRecord* jcr{};
+  std::optional<RecordId> id{};
+  std::size_t total_size{};
+  std::vector<char> data{};
+
+  RecordBuilder(JobControlRecord* jcr_) : jcr{jcr_} {}
+
+  bool reset()
+  {
+    id.reset();
+    data.clear();
+    total_size = 0;
+    return true;
+  }
+
+  bool absorb(PartialRecordRef ref)
+  {
+    auto cont_id = ref.is_continuation_of();
+    if (!id) {
+      if (cont_id) {
+        // record cannot start at continuation records
+        Jmsg(jcr, M_ERROR, 0,
+             "Encountered out of place partial record: { FIndex = %d, Stream = "
+             "%d, SessionId = %u, SessionTime = %u }\n",
+             ref.id.findex, ref.id.stream, ref.id.session_id,
+             ref.id.session_time);
+        return false;
+      }
+
+      id = ref.id;
+      total_size = ref.total_data_bytes;
+
+      data.reserve(total_size);
+      data.insert(data.end(), ref.record_data.begin(), ref.record_data.end());
+
+      return true;
+    } else {
+      // if we have already started a record, we can only absord matching
+      // continuation records
+      if (!cont_id || *id != cont_id) {
+        Jmsg(jcr, M_ERROR, 0,
+             "Expected matching continuation record for { FIndex = %d, Stream "
+             "= %d, SessionId = %u, SessionTime = %u }, but got: { FIndex = "
+             "%d, Stream = %d, SessionId = %u, SessionTime = %u }\n",
+             id->findex, id->stream, id->session_id, id->session_time,
+             ref.id.findex, ref.id.stream, ref.id.session_id,
+             ref.id.session_time);
+
+        return false;
+      }
+
+      if (total_size < data.size() + ref.record_data.size()) {
+        // the sizes do noth match up
+        Jmsg(jcr, M_ERROR, 0,
+             "Continuation record is too big: { FIndex = %d, Stream = %d, "
+             "SessionId = %u, SessionTime = %u } has size %lu but %lu/%lu is "
+             "already used\n",
+             ref.id.findex, ref.id.stream, ref.id.session_id,
+             ref.id.session_time, ref.record_data.size(), data.size(),
+             total_size);
+
+        return false;
+      }
+
+      data.insert(data.end(), ref.record_data.begin(), ref.record_data.end());
+
+      return true;
+    }
+  }
+
+  bool finished() { return id && data.size() == total_size; }
+
+  RecordRef build()
+  {
+    ASSERT(finished());
+    return RecordRef{*id, {data.data(), data.size()}};
+  }
+};
+
+
+template <typename F>
+static bool ReadRecords(JobControlRecord* jcr,
+                        BlockReader& blocks,
+                        RecordBuilder& rec_builder,
+                        F cb)
+{
+  while (blocks.done()) {
+    auto block = blocks.NextBlock(jcr);
+
+    if (!block) {
+      // could not read block
+      Jmsg(jcr, M_ERROR, 0, "Could not read block\n");
+      return false;
+    }
+
+    RecordReader reader{*block, jcr};
+    while (!reader.empty()) {
+      auto partial_rec = reader.read_record();
+
+      if (!partial_rec) {
+        // bad block
+        Jmsg(jcr, M_ERROR, 0, "Could not read record from block\n");
+        return false;
+      }
+
+      if (!rec_builder.absorb(*partial_rec)) {
+        // something went wrong in our logic
+        Jmsg(jcr, M_ERROR, 0, "Could not fuse partial records\n");
+        return false;
+      }
+
+      if (rec_builder.finished()) {
+        if (!cb(rec_builder.build())) {
+          // user error
+          Jmsg(jcr, M_ERROR, 0, "Error occured during user routine\n");
+          return false;
+        }
+
+        rec_builder.reset();
+      }
+    }
+  }
+
+  return true;
+}
+
 /**
  * This subroutine reads all the records and passes them back to your
  * callback routine (also mount routine at EOM).
@@ -653,7 +918,9 @@ bool ReadRecords(ReadSession& sess,
   JobControlRecord* jcr = dcr->jcr;
   bool ok = true;
 
+
   READ_CTX* rctx = new_read_context();
+  // RecordBuilder rec_builder{jcr};
 
   for (auto* bsr = RootBsr(sess); bsr; bsr = bsr->next) {
     auto* prev = bsr->prev;
@@ -666,6 +933,12 @@ bool ReadRecords(ReadSession& sess,
         break;
       }
     }
+    // BlockReader blocks{mount_cb, bsr};
+
+    // ReadRecords(jcr, blocks, rec_builder,
+    //             [](RecordRef) -> bool { return true; });
+
+
     if (!ReadRecordsFromBsr(bsr, rctx, dcr, RecordCb, user_data)) {
       ok = false;
       break;
@@ -700,24 +973,5 @@ bool ReadRecords(ReadSession& sess,
   return ok;
 }
 
-static bool NoUserData(DeviceControlRecord* dcr,
-                       DeviceRecord* rec,
-                       void* user_data)
-{
-  auto* RecordCb
-      = reinterpret_cast<bool (*)(DeviceControlRecord* dcr, DeviceRecord* rec)>(
-          user_data);
-
-  return RecordCb(dcr, rec);
-}
-
-bool ReadRecords(ReadSession& sess,
-                 DeviceControlRecord* dcr,
-                 bool RecordCb(DeviceControlRecord* dcr, DeviceRecord* rec),
-                 MountCommand* mount_cb)
-{
-  return ReadRecords(sess, dcr, &NoUserData, mount_cb,
-                     reinterpret_cast<void*>(RecordCb));
-}
 
 } /* namespace storagedaemon */
