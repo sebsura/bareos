@@ -519,30 +519,6 @@ bool ReadRecordsFromBsr(BootStrapRecord* bsr,
         // and never goes backwards on the volume,
         // so if the volume is done, then so is the bsr
         return true;
-        // MoveToNextVolume(sess);
-        // done = mount_cb(sess, dcr);
-
-        // if (!ok) {
-        //   /* Create EOT Label so that Media record may
-        //    *  be properly updated because this is the last
-        //    *  tape. */
-        //   Jmsg(jcr, M_INFO, 0, T_("End of all volumes.\n"));
-        //   if (RecordCb) {
-        //     /* Create EOT Label so that Media record may
-        //      *  be properly updated because this is the last
-        //      *  tape. */
-        //     auto* trec = new_record();
-        //     trec->FileIndex = EOT_LABEL;
-        //     trec->File = dcr->dev->file;
-        //     ok = RecordCb(dcr, trec, user_data);
-        //     if (sess.mount_next_volume) {
-        //       sess.mount_next_volume = false;
-        //       dcr->dev->ClearEot();
-        //     }
-        //     FreeRecord(trec);
-        //   }
-        // }
-        // continue;  // try again with next tape
       } break;
       case ReadBlockStatus::Error: {
         if (dcr->dev->IsShortBlock()) {
@@ -595,18 +571,6 @@ bool ReadRecordsFromBsr(BootStrapRecord* bsr,
           continue;
         } break;
       }
-
-      // if (rctx->lastFileIndex != READ_NO_FILEINDEX
-      //     && rctx->lastFileIndex != rec->FileIndex) {
-      //   if (IsThisBsrDone(CurrentBsr(jcr->sd_impl->read_session), rec)
-      //       && TryDeviceRepositioning(jcr, rec, dcr)) {
-      //     Dmsg2(debuglevel, "This bsr done, break pos %u:%u\n", dev->file,
-      //           dev->block_num);
-      //     return false;
-      //   }
-      //   Dmsg2(debuglevel, "==== inside LastIndex=%d FileIndex=%d\n",
-      //         rctx->lastFileIndex, rec->FileIndex);
-      // }
 
       auto* rec = rctx->rec;
 
@@ -705,6 +669,27 @@ bool ReadRecords(ReadSession& sess,
     if (!ReadRecordsFromBsr(bsr, rctx, dcr, RecordCb, user_data)) {
       ok = false;
       break;
+    }
+  }
+
+  if (ok) {
+    /* Create EOT Label so that Media record may
+     *  be properly updated because this is the last
+     *  tape. */
+    Jmsg(jcr, M_INFO, 0, T_("End of all volumes.\n"));
+    if (RecordCb) {
+      /* Create EOT Label so that Media record may
+       *  be properly updated because this is the last
+       *  tape. */
+      auto* trec = new_record();
+      trec->FileIndex = EOT_LABEL;
+      trec->File = dcr->dev->file;
+      ok = RecordCb(dcr, trec, user_data);
+      if (sess.mount_next_volume) {
+        sess.mount_next_volume = false;
+        dcr->dev->ClearEot();
+      }
+      FreeRecord(trec);
     }
   }
 
