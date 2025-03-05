@@ -31,9 +31,7 @@ storagedaemon::BootStrapRecord* parse_bsr(JobControlRecord* jcr, char* lf);
 storagedaemon::BootStrapRecord* simple_bsr(JobControlRecord* jcr,
                                            std::string_view VolumeNames);
 void FreeBsr(storagedaemon::BootStrapRecord* bsr);
-void DumpBsr(storagedaemon::BootStrapRecord* bsr, bool recurse);
-
-void DumpBsr(storagedaemon::BootStrapRecord* bsr, bool recurse);
+void DumpBsr(storagedaemon::BootStrapRecord* bsr);
 
 } /* namespace libbareos */
 

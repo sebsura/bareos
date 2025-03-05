@@ -33,14 +33,9 @@ DeviceControlRecord* StorageDaemonDeviceControlRecord::get_new_spooling_dcr()
   return new StorageDaemonDeviceControlRecord;
 }
 
-void MoveToNextVolume(ReadSession& sess)
+BootStrapEntry* CurrentBsr(const ReadSession& sess)
 {
-  sess.current_bsr = sess.current_bsr->next;
-}
-
-BootStrapRecord* CurrentBsr(const ReadSession& sess)
-{
-  return sess.current_bsr;
+  return &sess.bsr->entries[sess.current_entry];
 }
 
 BootStrapRecord* RootBsr(const ReadSession& sess) { return sess.bsr; }
@@ -55,9 +50,7 @@ const BsrVolume* CurrentVolume(const ReadSession& sess)
 
 size_t BsrCount(const ReadSession& sess)
 {
-  size_t count = 0;
-  for (auto* bsr = RootBsr(sess); bsr; bsr = bsr->next) { count += 1; }
-  return count;
+  return RootBsr(sess)->entries.size();
 }
 
 

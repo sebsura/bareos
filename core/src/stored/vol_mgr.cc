@@ -914,8 +914,8 @@ void FreeTempVolList(dlist<VolumeReservationItem>* temp_vol_list)
 bool ReserveReadVolumes(JobControlRecord* jcr,
                         storagedaemon::BootStrapRecord* bsr)
 {
-  for (auto* current = bsr; current; current = current->next) {
-    for (auto* vol = current->volume; vol; vol = vol->next) {
+  for (auto& entry : bsr->entries) {
+    for (auto* vol = entry.volume; vol; vol = vol->next) {
       AddReadVolume(jcr, vol->VolumeName);
     }
   }

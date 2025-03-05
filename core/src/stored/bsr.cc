@@ -108,12 +108,8 @@ static int MatchAll(BootStrapRecord* bsr,
                     Session_Label* sessrec,
                     bool done,
                     JobControlRecord* jcr);
-static int MatchBlockSesstime(BootStrapRecord* bsr,
-                              BsrSessionTime* sesstime,
-                              DeviceBlock* block);
-static int MatchBlockSessid(BootStrapRecord* bsr,
-                            BsrSessionId* sessid,
-                            DeviceBlock* block);
+static int MatchBlockSesstime(BsrSessionTime* sesstime, DeviceBlock* block);
+static int MatchBlockSessid(BsrSessionId* sessid, DeviceBlock* block);
 static BootStrapRecord* find_smallest_volfile(BootStrapRecord* fbsr,
                                               BootStrapRecord* bsr);
 
@@ -129,40 +125,33 @@ static BootStrapRecord* find_smallest_volfile(BootStrapRecord* fbsr,
  *                  that can match the bsr).
  *
  */
-int MatchBsrBlock(BootStrapRecord* bsr, DeviceBlock* block)
+int MatchBsrBlock(BootStrapEntry const& entry, DeviceBlock* block)
 {
-  if (!bsr || !bsr->use_fast_rejection || (block->BlockVer < 2)) {
+  if (!entry.root->use_fast_rejection || (block->BlockVer < 2)) {
     return 1; /* cannot fast reject */
   }
 
-  for (; bsr; bsr = bsr->next) {
-    if (!MatchBlockSesstime(bsr, bsr->sesstime, block)) { continue; }
-    if (!MatchBlockSessid(bsr, bsr->sessid, block)) { continue; }
-    return 1;
-  }
-  return 0;
+  if (!MatchBlockSesstime(entry.sesstime, block)) { return 0; }
+  if (!MatchBlockSessid(entry.sessid, block)) { return 0; }
+  return 1;
 }
 
-static int MatchBlockSesstime(BootStrapRecord* bsr,
-                              BsrSessionTime* sesstime,
-                              DeviceBlock* block)
+static int MatchBlockSesstime(BsrSessionTime* sesstime, DeviceBlock* block)
 {
   if (!sesstime) { return 1; /* no specification matches all */ }
   if (sesstime->sesstime == block->VolSessionTime) { return 1; }
-  if (sesstime->next) { return MatchBlockSesstime(bsr, sesstime->next, block); }
+  if (sesstime->next) { return MatchBlockSesstime(sesstime->next, block); }
   return 0;
 }
 
-static int MatchBlockSessid(BootStrapRecord* bsr,
-                            BsrSessionId* sessid,
-                            DeviceBlock* block)
+static int MatchBlockSessid(BsrSessionId* sessid, DeviceBlock* block)
 {
   if (!sessid) { return 1; /* no specification matches all */ }
   if (sessid->sessid <= block->VolSessionId
       && sessid->sessid2 >= block->VolSessionId) {
     return 1;
   }
-  if (sessid->next) { return MatchBlockSessid(bsr, sessid->next, block); }
+  if (sessid->next) { return MatchBlockSessid(sessid->next, block); }
   return 0;
 }
 
@@ -209,47 +198,6 @@ int MatchBsr(BootStrapRecord* bsr,
              JobControlRecord* jcr)
 {
   return MatchSingle(bsr, rec, volrec, sessrec, true, jcr);
-}
-
-/**
- * Find the next bsr that applies to the current tape.
- *   It is the one with the smallest VolFile position.
- */
-BootStrapRecord* find_next_bsr(BootStrapRecord* root_bsr, Device* dev)
-{
-  BootStrapRecord* bsr;
-  BootStrapRecord* found_bsr = NULL;
-
-  /* Do tape/disk seeking only if CAP_POSITIONBLOCKS is on */
-  if (!root_bsr) {
-    Dmsg0(dbglevel, "NULL root bsr pointer passed to find_next_bsr.\n");
-    return NULL;
-  }
-  if (!root_bsr->use_positioning || !root_bsr->Reposition
-      || !dev->HasCap(CAP_POSITIONBLOCKS)) {
-    Dmsg2(dbglevel, "No nxt_bsr use_pos=%d repos=%d\n",
-          root_bsr->use_positioning, root_bsr->Reposition);
-    return NULL;
-  }
-  Dmsg2(dbglevel, "use_pos=%d repos=%d\n", root_bsr->use_positioning,
-        root_bsr->Reposition);
-  root_bsr->mount_next_volume = false;
-  /* Walk through all bsrs to find the next one to use => smallest file,block */
-  for (bsr = root_bsr; bsr; bsr = bsr->next) {
-    if (bsr->done || !MatchVolume(bsr, bsr->volume, &dev->VolHdr, 1)) {
-      continue;
-    }
-    if (found_bsr == NULL) {
-      found_bsr = bsr;
-    } else {
-      found_bsr = find_smallest_volfile(found_bsr, bsr);
-    }
-  }
-  /* If we get to this point and found no bsr, it means
-   *  that any additional bsr's must apply to the next
-   *  tape, so set a flag. */
-  if (found_bsr == NULL) { root_bsr->mount_next_volume = true; }
-  return found_bsr;
 }
 
 /**
@@ -729,22 +677,24 @@ static int MatchFindex(BootStrapRecord* bsr,
   return 0;
 }
 
-uint64_t GetBsrStartAddr(BootStrapRecord* bsr, uint32_t* file, uint32_t* block)
+uint64_t GetBsrStartAddr(const BootStrapEntry& bsr_entry,
+                         uint32_t* file,
+                         uint32_t* block)
 {
   uint64_t bsr_addr = 0;
   uint32_t sfile = 0, sblock = 0;
 
   if (bsr) {
-    if (bsr->voladdr) {
-      bsr_addr = bsr->voladdr->saddr;
+    if (bsr_entry.voladdr) {
+      bsr_addr = bsr_entry.voladdr->saddr;
       sfile = bsr_addr >> 32;
       sblock = (uint32_t)bsr_addr;
 
-    } else if (bsr->volfile && bsr->volblock) {
-      bsr_addr
-          = (((uint64_t)bsr->volfile->sfile) << 32) | bsr->volblock->sblock;
-      sfile = bsr->volfile->sfile;
-      sblock = bsr->volblock->sblock;
+    } else if (bsr_entry.volfile && bsr_entry.volblock) {
+      bsr_addr = (((uint64_t)bsr_entry.volfile->sfile) << 32)
+                 | bsr_entry.volblock->sblock;
+      sfile = bsr_entry.volfile->sfile;
+      sblock = bsr_entry.volblock->sblock;
     }
   }
 

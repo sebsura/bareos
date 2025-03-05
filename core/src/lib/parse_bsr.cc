@@ -134,10 +134,7 @@ struct kw_items items[] = {{"volume", store_vol},
 // Create a storagedaemon::BootStrapRecord record
 static storagedaemon::BootStrapRecord* new_bsr()
 {
-  storagedaemon::BootStrapRecord* bsr = (storagedaemon::BootStrapRecord*)malloc(
-      sizeof(storagedaemon::BootStrapRecord));
-  memset(bsr, 0, sizeof(storagedaemon::BootStrapRecord));
-  return bsr;
+  return new storagedaemon::BootStrapRecord{};
 }
 
 // Format a scanner error message
@@ -215,8 +212,8 @@ static inline bool IsFastRejectionOk(storagedaemon::BootStrapRecord* bsr)
   /* Although, this can be optimized, for the moment, require
    *  all bsrs to have both sesstime and sessid set before
    *  we do fast rejection. */
-  for (; bsr; bsr = bsr->next) {
-    if (!(bsr->sesstime && bsr->sessid)) { return false; }
+  for (auto& entry : bsr->entries) {
+    if (!entry.sesstime || !entry.sessid) { return false; }
   }
   return true;
 }
@@ -226,8 +223,8 @@ static inline bool IsPositioningOk(storagedaemon::BootStrapRecord* bsr)
   /* Every bsr should have a volfile entry and a volblock entry
    * or a VolAddr
    *   if we are going to use positioning */
-  for (; bsr; bsr = bsr->next) {
-    if (!((bsr->volfile && bsr->volblock) || bsr->voladdr)) { return false; }
+  for (auto& entry : bsr->entries) {
+    if (!entry.volfile || !entry.volblock) { return false; }
   }
   return true;
 }
@@ -284,8 +281,30 @@ storagedaemon::BootStrapRecord* parse_bsr(JobControlRecord* jcr, char* fname)
     root_bsr->use_fast_rejection = IsFastRejectionOk(root_bsr);
     root_bsr->use_positioning = IsPositioningOk(root_bsr);
   }
-  for (bsr = root_bsr; bsr; bsr = bsr->next) { bsr->root = root_bsr; }
+  for (auto& entry : root_bsr->entries) { entry.root = root_bsr; }
   return root_bsr;
+}
+
+storagedaemon::BootStrapEntry& get_entry(storagedaemon::BootStrapRecord* bsr)
+{
+  if (bsr->entries.empty()) { return bsr->entries.emplace_back(); }
+
+  auto& current_entry = bsr->entries.back();
+
+  return current_entry;
+}
+template <typename T>
+storagedaemon::BootStrapEntry& get_entry(
+    storagedaemon::BootStrapRecord* bsr,
+    T storagedaemon::BootStrapEntry::* member)
+{
+  if (bsr->entries.empty()) { return bsr->entries.emplace_back(); }
+
+  auto& current_entry = bsr->entries.back();
+
+  if (current_entry.*member) { return bsr->entries.emplace_back(); }
+
+  return current_entry;
 }
 
 static storagedaemon::BootStrapRecord* store_vol(
@@ -298,11 +317,10 @@ static storagedaemon::BootStrapRecord* store_vol(
 
   token = LexGetToken(lc, BCT_STRING);
   if (token == BCT_ERROR) { return NULL; }
-  if (bsr->volume) {
-    bsr->next = new_bsr();
-    bsr->next->prev = bsr;
-    bsr = bsr->next;
-  }
+
+
+  auto current_entry = get_entry(bsr, &storagedaemon::BootStrapEntry::volume);
+
   /* This may actually be more than one volume separated by a |
    * If so, separate them.
    */
@@ -315,10 +333,10 @@ static storagedaemon::BootStrapRecord* store_vol(
     bstrncpy(volume->VolumeName, p, sizeof(volume->VolumeName));
 
     // Add it to the end of the volume chain
-    if (!bsr->volume) {
-      bsr->volume = volume;
+    if (!current_entry.volume) {
+      current_entry.volume = volume;
     } else {
-      storagedaemon::BsrVolume* bc = bsr->volume;
+      storagedaemon::BsrVolume* bc = current_entry.volume;
       for (; bc->next; bc = bc->next) {}
       bc->next = volume;
     }
@@ -336,13 +354,15 @@ static storagedaemon::BootStrapRecord* store_mediatype(
 
   token = LexGetToken(lc, BCT_STRING);
   if (token == BCT_ERROR) { return NULL; }
-  if (!bsr->volume) {
+
+  auto& entry = get_entry(bsr);
+
+  if (!entry.volume) {
     Emsg1(M_ERROR, 0, T_("MediaType %s in bsr at inappropriate place.\n"),
           lc->str);
     return bsr;
   }
-  storagedaemon::BsrVolume* bv;
-  for (bv = bsr->volume; bv; bv = bv->next) {
+  for (auto* bv = entry.volume; bv; bv = bv->next) {
     bstrncpy(bv->MediaType, lc->str, sizeof(bv->MediaType));
   }
   return bsr;
@@ -368,13 +388,15 @@ static storagedaemon::BootStrapRecord* StoreDevice(
 
   token = LexGetToken(lc, BCT_STRING);
   if (token == BCT_ERROR) { return NULL; }
-  if (!bsr->volume) {
+
+  auto& entry = get_entry(bsr);
+
+  if (!entry.volume) {
     Emsg1(M_ERROR, 0, T_("Device \"%s\" in bsr at inappropriate place.\n"),
           lc->str);
     return bsr;
   }
-  storagedaemon::BsrVolume* bv;
-  for (bv = bsr->volume; bv; bv = bv->next) {
+  for (auto* bv = entry.volume; bv; bv = bv->next) {
     bstrncpy(bv->device, lc->str, sizeof(bv->device));
   }
   return bsr;
@@ -387,6 +409,8 @@ static storagedaemon::BootStrapRecord* store_client(
   int token;
   storagedaemon::BsrClient* client;
 
+  auto& entry = get_entry(bsr);
+
   for (;;) {
     token = LexGetToken(lc, BCT_NAME);
     if (token == BCT_ERROR) { return NULL; }
@@ -396,10 +420,10 @@ static storagedaemon::BootStrapRecord* store_client(
     bstrncpy(client->ClientName, lc->str, sizeof(client->ClientName));
 
     // Add it to the end of the client chain
-    if (!bsr->client) {
-      bsr->client = client;
+    if (!entry.client) {
+      entry.client = client;
     } else {
-      storagedaemon::BsrClient* bc = bsr->client;
+      storagedaemon::BsrClient* bc = entry.client;
       for (; bc->next; bc = bc->next) {}
       bc->next = client;
     }
@@ -416,6 +440,8 @@ static storagedaemon::BootStrapRecord* store_job(
   int token;
   storagedaemon::BsrJob* job;
 
+  auto& entry = get_entry(bsr);
+
   for (;;) {
     token = LexGetToken(lc, BCT_NAME);
     if (token == BCT_ERROR) { return NULL; }
@@ -424,11 +450,11 @@ static storagedaemon::BootStrapRecord* store_job(
     bstrncpy(job->Job, lc->str, sizeof(job->Job));
 
     // Add it to the end of the client chain
-    if (!bsr->job) {
-      bsr->job = job;
+    if (!entry.job) {
+      entry.job = job;
     } else {
       // Add to end of chain
-      storagedaemon::BsrJob* bc = bsr->job;
+      storagedaemon::BsrJob* bc = entry.job;
       for (; bc->next; bc = bc->next) {}
       bc->next = job;
     }
@@ -445,6 +471,8 @@ static storagedaemon::BootStrapRecord* store_findex(
   int token;
   storagedaemon::BsrFileIndex* findex;
 
+  auto& entry = get_entry(bsr);
+
   for (;;) {
     token = LexGetToken(lc, BCT_PINT32_RANGE);
     if (token == BCT_ERROR) { return NULL; }
@@ -455,11 +483,11 @@ static storagedaemon::BootStrapRecord* store_findex(
     findex->findex2 = lc->u2.pint32_val;
 
     // Add it to the end of the chain
-    if (!bsr->FileIndex) {
-      bsr->FileIndex = findex;
+    if (!entry.FileIndex) {
+      entry.FileIndex = findex;
     } else {
       // Add to end of chain
-      storagedaemon::BsrFileIndex* bs = bsr->FileIndex;
+      storagedaemon::BsrFileIndex* bs = entry.FileIndex;
       for (; bs->next; bs = bs->next) {}
       bs->next = findex;
     }
@@ -476,6 +504,8 @@ static storagedaemon::BootStrapRecord* store_jobid(
   int token;
   storagedaemon::BsrJobid* jobid;
 
+  auto& entry = get_entry(bsr);
+
   for (;;) {
     token = LexGetToken(lc, BCT_PINT32_RANGE);
     if (token == BCT_ERROR) { return NULL; }
@@ -485,11 +515,11 @@ static storagedaemon::BootStrapRecord* store_jobid(
     jobid->JobId2 = lc->u2.pint32_val;
 
     // Add it to the end of the chain
-    if (!bsr->JobId) {
-      bsr->JobId = jobid;
+    if (!entry.JobId) {
+      entry.JobId = jobid;
     } else {
       // Add to end of chain
-      storagedaemon::BsrJobid* bs = bsr->JobId;
+      storagedaemon::BsrJobid* bs = entry.JobId;
       for (; bs->next; bs = bs->next) {}
       bs->next = jobid;
     }
@@ -505,9 +535,11 @@ static storagedaemon::BootStrapRecord* store_count(
 {
   int token;
 
+  auto& entry = get_entry(bsr);
+
   token = LexGetToken(lc, BCT_PINT32);
   if (token == BCT_ERROR) { return NULL; }
-  bsr->count = lc->u.pint32_val;
+  entry.count = lc->u.pint32_val;
   ScanToEol(lc);
   return bsr;
 }
@@ -522,7 +554,7 @@ static storagedaemon::BootStrapRecord* store_fileregex(
   token = LexGetToken(lc, BCT_STRING);
   if (token == BCT_ERROR) { return NULL; }
 
-  if (bsr->fileregex) free(bsr->fileregex);
+  if (bsr->fileregex) { free(bsr->fileregex); }
   bsr->fileregex = strdup(lc->str);
 
   if (bsr->fileregex_re == NULL) {
@@ -566,6 +598,8 @@ static storagedaemon::BootStrapRecord* store_volfile(
   int token;
   storagedaemon::BsrVolumeFile* volfile;
 
+  auto& entry = get_entry(bsr);
+
   for (;;) {
     token = LexGetToken(lc, BCT_PINT32_RANGE);
     if (token == BCT_ERROR) { return NULL; }
@@ -576,11 +610,11 @@ static storagedaemon::BootStrapRecord* store_volfile(
     volfile->efile = lc->u2.pint32_val;
 
     // Add it to the end of the chain
-    if (!bsr->volfile) {
-      bsr->volfile = volfile;
+    if (!entry.volfile) {
+      entry.volfile = volfile;
     } else {
       // Add to end of chain
-      storagedaemon::BsrVolumeFile* bs = bsr->volfile;
+      storagedaemon::BsrVolumeFile* bs = entry.volfile;
       for (; bs->next; bs = bs->next) {}
       bs->next = volfile;
     }
@@ -598,6 +632,8 @@ static storagedaemon::BootStrapRecord* store_volblock(
   int token;
   storagedaemon::BsrVolumeBlock* volblock;
 
+  auto& entry = get_entry(bsr);
+
   for (;;) {
     token = LexGetToken(lc, BCT_PINT32_RANGE);
     if (token == BCT_ERROR) { return NULL; }
@@ -608,11 +644,11 @@ static storagedaemon::BootStrapRecord* store_volblock(
     volblock->eblock = lc->u2.pint32_val;
 
     // Add it to the end of the chain
-    if (!bsr->volblock) {
-      bsr->volblock = volblock;
+    if (!entry.volblock) {
+      entry.volblock = volblock;
     } else {
       // Add to end of chain
-      storagedaemon::BsrVolumeBlock* bs = bsr->volblock;
+      storagedaemon::BsrVolumeBlock* bs = entry.volblock;
       for (; bs->next; bs = bs->next) {}
       bs->next = volblock;
     }
@@ -630,6 +666,8 @@ static storagedaemon::BootStrapRecord* store_voladdr(
   int token;
   storagedaemon::BsrVolumeAddress* voladdr;
 
+  auto& entry = get_entry(bsr);
+
   for (;;) {
     token = LexGetToken(lc, BCT_PINT64_RANGE);
     if (token == BCT_ERROR) { return NULL; }
@@ -640,11 +678,11 @@ static storagedaemon::BootStrapRecord* store_voladdr(
     voladdr->eaddr = lc->u2.pint64_val;
 
     // Add it to the end of the chain
-    if (!bsr->voladdr) {
-      bsr->voladdr = voladdr;
+    if (!entry.voladdr) {
+      entry.voladdr = voladdr;
     } else {
       // Add to end of chain
-      storagedaemon::BsrVolumeAddress* bs = bsr->voladdr;
+      storagedaemon::BsrVolumeAddress* bs = entry.voladdr;
       for (; bs->next; bs = bs->next) {}
       bs->next = voladdr;
     }
@@ -661,6 +699,8 @@ static storagedaemon::BootStrapRecord* store_sessid(
   int token;
   storagedaemon::BsrSessionId* sid;
 
+  auto& entry = get_entry(bsr);
+
   for (;;) {
     token = LexGetToken(lc, BCT_PINT32_RANGE);
     if (token == BCT_ERROR) { return NULL; }
@@ -671,11 +711,11 @@ static storagedaemon::BootStrapRecord* store_sessid(
     sid->sessid2 = lc->u2.pint32_val;
 
     // Add it to the end of the chain
-    if (!bsr->sessid) {
-      bsr->sessid = sid;
+    if (!entry.sessid) {
+      entry.sessid = sid;
     } else {
       // Add to end of chain
-      storagedaemon::BsrSessionId* bs = bsr->sessid;
+      storagedaemon::BsrSessionId* bs = entry.sessid;
       for (; bs->next; bs = bs->next) {}
       bs->next = sid;
     }
@@ -692,6 +732,8 @@ static storagedaemon::BootStrapRecord* store_sesstime(
   int token;
   storagedaemon::BsrSessionTime* stime;
 
+  auto& entry = get_entry(bsr);
+
   for (;;) {
     token = LexGetToken(lc, BCT_PINT32);
     if (token == BCT_ERROR) { return NULL; }
@@ -701,11 +743,11 @@ static storagedaemon::BootStrapRecord* store_sesstime(
     stime->sesstime = lc->u.pint32_val;
 
     // Add it to the end of the chain
-    if (!bsr->sesstime) {
-      bsr->sesstime = stime;
+    if (!entry.sesstime) {
+      entry.sesstime = stime;
     } else {
       // Add to end of chain
-      storagedaemon::BsrSessionTime* bs = bsr->sesstime;
+      storagedaemon::BsrSessionTime* bs = entry.sesstime;
       for (; bs->next; bs = bs->next) {}
       bs->next = stime;
     }
@@ -722,6 +764,8 @@ static storagedaemon::BootStrapRecord* store_stream(
   int token;
   storagedaemon::BsrStream* stream;
 
+  auto& entry = get_entry(bsr);
+
   for (;;) {
     token = LexGetToken(lc, BCT_INT32);
     if (token == BCT_ERROR) { return NULL; }
@@ -731,11 +775,11 @@ static storagedaemon::BootStrapRecord* store_stream(
     stream->stream = lc->u.int32_val;
 
     // Add it to the end of the chain
-    if (!bsr->stream) {
-      bsr->stream = stream;
+    if (!entry.stream) {
+      entry.stream = stream;
     } else {
       // Add to end of chain
-      storagedaemon::BsrStream* bs = bsr->stream;
+      storagedaemon::BsrStream* bs = entry.stream;
       for (; bs->next; bs = bs->next) {}
       bs->next = stream;
     }
@@ -751,14 +795,16 @@ static storagedaemon::BootStrapRecord* store_slot(
 {
   int token;
 
+  auto& entry = get_entry(bsr);
+
   token = LexGetToken(lc, BCT_PINT32);
   if (token == BCT_ERROR) { return NULL; }
-  if (!bsr->volume) {
+  if (!entry.volume) {
     Emsg1(M_ERROR, 0, T_("Slot %d in bsr at inappropriate place.\n"),
           lc->u.pint32_val);
     return bsr;
   }
-  bsr->volume->Slot = lc->u.pint32_val;
+  entry.volume->Slot = lc->u.pint32_val;
   ScanToEol(lc);
   return bsr;
 }
@@ -875,124 +921,73 @@ static inline void DumpSesstime(storagedaemon::BsrSessionTime* sesstime)
   }
 }
 
-void DumpBsr(storagedaemon::BootStrapRecord* bsr, bool recurse)
+void DumpBsr(storagedaemon::BootStrapRecord* bsr)
 {
   int save_debug = debug_level;
+
   debug_level = 1;
   if (!bsr) {
     Pmsg0(-1, T_("storagedaemon::BootStrapRecord is NULL\n"));
     debug_level = save_debug;
     return;
   }
-  Pmsg1(-1, T_("Next        : 0x%x\n"), bsr->next);
-  Pmsg1(-1, T_("Root bsr    : 0x%x\n"), bsr->root);
-  DumpVolume(bsr->volume);
-  DumpSessid(bsr->sessid);
-  DumpSesstime(bsr->sesstime);
-  DumpVolfile(bsr->volfile);
-  DumpVolblock(bsr->volblock);
-  DumpVoladdr(bsr->voladdr);
-  DumpClient(bsr->client);
-  DumpJobid(bsr->JobId);
-  dump_job(bsr->job);
-  DumpFindex(bsr->FileIndex);
-  if (bsr->count) {
-    Pmsg1(-1, T_("count       : %u\n"), bsr->count);
-    Pmsg1(-1, T_("found       : %u\n"), bsr->found);
-  }
-
+  Pmsg1(-1, T_("Root        : 0x%x\n"), bsr);
   Pmsg1(-1, T_("done        : %s\n"), bsr->done ? T_("yes") : T_("no"));
   Pmsg1(-1, T_("positioning : %d\n"), bsr->use_positioning);
   Pmsg1(-1, T_("fast_reject : %d\n"), bsr->use_fast_rejection);
-  if (recurse && bsr->next) {
+
+  for (auto& entry : bsr->entries) {
+    DumpVolume(entry.volume);
+    DumpSessid(entry.sessid);
+    DumpSesstime(entry.sesstime);
+    DumpVolfile(entry.volfile);
+    DumpVolblock(entry.volblock);
+    DumpVoladdr(entry.voladdr);
+    DumpClient(entry.client);
+    DumpJobid(entry.JobId);
+    dump_job(entry.job);
+    DumpFindex(entry.FileIndex);
+    if (entry.count) {
+      Pmsg1(-1, T_("count       : %u\n"), entry.count);
+      Pmsg1(-1, T_("found       : %u\n"), entry.found);
+    }
+
     Pmsg0(-1, "\n");
-    DumpBsr(bsr->next, true);
   }
+
   debug_level = save_debug;
-}
-
-// Free bsr resources
-static inline void FreeBsrItem(storagedaemon::BootStrapRecord* bsr)
-{
-  if (bsr) {
-    FreeBsrItem(bsr->next);
-    free(bsr);
-  }
-}
-
-// Remove a single item from the bsr tree
-static inline void RemoveBsr(storagedaemon::BootStrapRecord* bsr)
-{
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->volume);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->client);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->sessid);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->sesstime);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->volfile);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->volblock);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->voladdr);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->JobId);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->job);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->FileIndex);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->JobType);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->JobLevel);
-  if (bsr->fileregex) { free(bsr->fileregex); }
-  if (bsr->fileregex_re) {
-    regfree(bsr->fileregex_re);
-    free(bsr->fileregex_re);
-  }
-  if (bsr->attr) { FreeAttr(bsr->attr); }
-  if (bsr->next) { bsr->next->prev = bsr->prev; }
-  if (bsr->prev) { bsr->prev->next = bsr->next; }
-  free(bsr);
 }
 
 // Free all bsrs in chain
 void FreeBsr(storagedaemon::BootStrapRecord* bsr)
 {
-  storagedaemon::BootStrapRecord* next_bsr;
-
   if (!bsr) { return; }
-  next_bsr = bsr->next;
 
-  // Remove (free) current bsr
-  RemoveBsr(bsr);
-
-  // Now get the next one
-  FreeBsr(next_bsr);
+  delete bsr;
 }
 
 storagedaemon::BootStrapRecord* simple_bsr(JobControlRecord* jcr
                                            [[maybe_unused]],
                                            std::string_view VolumeNames)
 {
-  storagedaemon::BootStrapRecord* first = nullptr;
-  storagedaemon::BootStrapRecord* last = nullptr;
+  storagedaemon::BootStrapRecord* bsr = new_bsr();
 
   for (;;) {
     auto pos = VolumeNames.find_first_of('|');
 
     auto volname = VolumeNames.substr(0, pos);
 
-    auto* volume_bsr = new_bsr();
+    auto& volume_entry = get_entry(bsr, &storagedaemon::BootStrapEntry::volume);
 
     // bsr are still based on malloc/free
 
-    void* memory = calloc(1, sizeof(*volume_bsr->volume));
-    volume_bsr->volume = (storagedaemon::BsrVolume*)memory;
+    void* memory = calloc(1, sizeof(*volume_entry.volume));
+    volume_entry.volume = (storagedaemon::BsrVolume*)memory;
 
     auto str_len
-        = std::max(sizeof(volume_bsr->volume->VolumeName) - 1, volname.size());
-    memcpy(volume_bsr->volume->VolumeName, volname.data(), str_len);
-    volume_bsr->volume->VolumeName[str_len] = '\0';
-
-    if (last == nullptr) {
-      ASSERT(first == nullptr);
-      first = last = volume_bsr;
-    } else {
-      last->next = volume_bsr;
-      volume_bsr->prev = last;
-      last = volume_bsr;
-    }
+        = std::max(sizeof(volume_entry.volume->VolumeName) - 1, volname.size());
+    memcpy(volume_entry.volume->VolumeName, volname.data(), str_len);
+    volume_entry.volume->VolumeName[str_len] = '\0';
 
     if (pos == VolumeNames.npos) {
       break;
@@ -1001,7 +996,11 @@ storagedaemon::BootStrapRecord* simple_bsr(JobControlRecord* jcr
     }
   }
 
-  return first;
+  bsr->use_fast_rejection = IsFastRejectionOk(bsr);
+  bsr->use_positioning = IsPositioningOk(bsr);
+  for (auto& entry : bsr->entries) { entry.root = bsr; }
+
+  return bsr;
 }
 
 } /* namespace libbareos */

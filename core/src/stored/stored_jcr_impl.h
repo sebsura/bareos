@@ -24,6 +24,7 @@
 #ifndef BAREOS_STORED_STORED_JCR_IMPL_H_
 #define BAREOS_STORED_STORED_JCR_IMPL_H_
 
+#include "stored/bsr.h"
 #include "stored/read_ctx.h"
 #include "stored/stored_conf.h"
 #include "lib/thread_util.h"
@@ -60,18 +61,18 @@ struct ReadSession {
   void set_bsr(BootStrapRecord* in)
   {
     bsr = in;
-    current_bsr = in;
+    current_entry = 0;
   }
 
   friend void MoveToNextVolume(ReadSession& sess);
-  friend BootStrapRecord* CurrentBsr(const ReadSession& sess);
+  friend BootStrapEntry* CurrentBsr(const ReadSession& sess);
   friend BootStrapRecord* RootBsr(const ReadSession& sess);
   friend const BsrVolume* CurrentVolume(const ReadSession& sess);
   friend size_t BsrCount(const ReadSession& sess);
 
  private:
   BootStrapRecord* bsr{};
-  BootStrapRecord* current_bsr{};
+  size_t current_entry{};
 };
 
 struct DeviceWaitTimes {

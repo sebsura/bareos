@@ -139,17 +139,9 @@ struct BsrStream {
   int32_t stream; /* stream desired */
 };
 
-struct BootStrapRecord {
-  /* NOTE!!! next must be the first item */
-  BootStrapRecord* next;   /* pointer to next one */
-  BootStrapRecord* prev;   /* pointer to previous one */
-  BootStrapRecord* root;   /* root bsr */
-  bool Reposition;         /* set when any bsr is marked done */
-  bool mount_next_volume;  /* set when next volume should be mounted */
-  bool done;               /* set when everything found for this bsr */
-  bool use_fast_rejection; /* set if fast rejection can be used */
-  bool use_positioning;    /* set if we can position the archive */
-  bool skip_file;          /* skip all records for current file */
+struct BootStrapRecord;
+
+struct BootStrapEntry {
   BsrVolume* volume;
   uint32_t count; /* count of files to restore this bsr */
   uint32_t found; /* count of restored files this bsr */
@@ -165,9 +157,20 @@ struct BootStrapRecord {
   BsrJobType* JobType;
   BsrJoblevel* JobLevel;
   BsrStream* stream;
-  char* fileregex; /* set if restore is filtered on filename */
-  regex_t* fileregex_re;
-  Attributes* attr; /* scratch space for unpacking */
+  BootStrapRecord* root; /* root bsr */
+};
+
+struct BootStrapRecord {
+  std::vector<BootStrapEntry> entries{};
+  bool Reposition{};         /* set when any bsr is marked done */
+  bool mount_next_volume{};  /* set when next volume should be mounted */
+  bool done{};               /* set when everything found for this bsr */
+  bool use_fast_rejection{}; /* set if fast rejection can be used */
+  bool use_positioning{};    /* set if we can position the archive */
+  bool skip_file{};          /* skip all records for current file */
+  Attributes* attr{};        /* scratch space for unpacking */
+  char* fileregex;           /* set if restore is filtered on filename */
+  regex_t* fileregex_re;     /* only _one_ fileregex is supported */
 };
 } /* namespace storagedaemon */
 

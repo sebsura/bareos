@@ -29,9 +29,8 @@ int MatchBsr(BootStrapRecord* bsr,
              Session_Label* sesrec,
              JobControlRecord* jcr);
 int MatchBsrBlock(BootStrapRecord* bsr, DeviceBlock* block);
-BootStrapRecord* find_next_bsr(BootStrapRecord* root_bsr, Device* dev);
 bool IsThisBsrDone(BootStrapRecord* bsr, DeviceRecord* rec);
-uint64_t GetBsrStartAddr(BootStrapRecord* bsr,
+uint64_t GetBsrStartAddr(const BootStrapEntry& bsr,
                          uint32_t* file = NULL,
                          uint32_t* block = NULL);
 

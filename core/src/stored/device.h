@@ -29,7 +29,7 @@ bool FixupDeviceBlockWriteError(DeviceControlRecord* dcr, int retries = 4);
 void SetStartVolPosition(DeviceControlRecord* dcr);
 void SetNewVolumeParameters(DeviceControlRecord* dcr);
 void SetNewFileParameters(DeviceControlRecord* dcr);
-BootStrapRecord* PositionDeviceToFirstFile(BootStrapRecord* bsr,
+BootStrapRecord* PositionDeviceToFirstFile(BootStrapEntry* bsr,
                                            JobControlRecord* jcr,
                                            DeviceControlRecord* dcr);
 bool TryDeviceRepositioning(JobControlRecord* jcr,
