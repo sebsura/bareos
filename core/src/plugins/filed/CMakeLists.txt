@@ -111,5 +111,6 @@ if(HAVE_GLUSTERFS AND ENABLE_GFAPI_FD)
 endif()
 
 add_subdirectory(grpc)
+add_subdirectory(hyper-v-backup)
 
 include(DebugEdit)
