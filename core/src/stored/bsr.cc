@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2010 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -176,11 +176,11 @@ static int MatchFileregex(BootStrapRecord* bsr,
     if (UnpackAttributesRecord(jcr, rec->Stream, rec->data, rec->data_len,
                                bsr->attr)) {
       if (regexec(bsr->fileregex_re, bsr->attr->fname, 0, NULL, 0) == 0) {
-        Dmsg2(dbglevel, "Matched pattern, fname=%s FI=%d\n", bsr->attr->fname,
-              rec->FileIndex);
+        Dmsg2(dbglevel, "Matched pattern (%s), fname=%s FI=%d\n",
+              bsr->fileregex, bsr->attr->fname, rec->FileIndex);
       } else {
-        Dmsg2(dbglevel, "Didn't match, skipping fname=%s FI=%d\n",
-              bsr->attr->fname, rec->FileIndex);
+        Dmsg2(dbglevel, "Didn't match (%s), skipping fname=%s FI=%d\n",
+              bsr->fileregex, bsr->attr->fname, rec->FileIndex);
         bsr->skip_file = true;
       }
     }
