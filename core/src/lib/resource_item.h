@@ -38,34 +38,51 @@ template <typename T> class dlist;
 namespace config {
 struct DefaultValue {
   const char* value;
+
+  constexpr explicit DefaultValue(const char* value_) : value{value_} {}
 };
 
 struct Version {
-  size_t major, minor, patch;
+  size_t major{}, minor{}, patch{};
 };
 
 struct DeprecatedSince {
   Version version;
+  constexpr explicit DeprecatedSince(Version value_) : version{value_} {}
+  constexpr explicit DeprecatedSince(size_t major, size_t minor, size_t patch)
+      : version{major, minor, patch}
+  {
+  }
 };
 
 struct IntroducedIn {
   Version version;
+  constexpr explicit IntroducedIn(Version value_) : version{value_} {}
+  constexpr explicit IntroducedIn(size_t major, size_t minor, size_t patch)
+      : version{major, minor, patch}
+  {
+  }
 };
 
 struct Code {
   int32_t value;
+  constexpr explicit Code(int32_t value_) : value{value_} {}
 };
 
 struct Required {};
 
 struct Alias {
   const char* name;
+
+  constexpr explicit Alias(const char* name_) : name{name_} {}
 };
 
 struct UsesNoEquals {};
 
 struct Description {
   const char* text;
+
+  constexpr explicit Description(const char* text_) : text{text_} {}
 };
 
 struct PlatformSpecific {};
@@ -150,9 +167,7 @@ struct ResourceItemFlags {
     }
     if (auto* code = get_if<config::Code>(tup)) { extra = code->value; }
     if (auto* _ = get_if<config::Required>(tup)) { required = true; }
-    if (auto* alias = get_if<config::Alias>(tup)) {
-      alt_name = alias->name;
-    }
+    if (auto* alias = get_if<config::Alias>(tup)) { alt_name = alias->name; }
     if (auto* _ = get_if<config::UsesNoEquals>(tup)) { no_equals = true; }
     if (auto* _ = get_if<config::PlatformSpecific>(tup)) {
       platform_specific = true;
