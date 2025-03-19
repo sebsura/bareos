@@ -118,7 +118,12 @@ static UserResource* res_user;
 
 /* clang-format off */
 
+  // char** NameOf(DirectorResource* res) { return &res->resource_name_; }
+
 static const ResourceItem dir_items[] = {
+  // config::String<DirectorResource, NameOf>(
+  //   "Name"
+  // ),
   { "Name", CFG_TYPE_NAME, ITEM(res_dir, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
   { "Description", CFG_TYPE_STR, ITEM(res_dir, description_), {}},
   { "Messages", CFG_TYPE_RES, ITEM(res_dir, messages), {config::Code{R_MSGS}}},

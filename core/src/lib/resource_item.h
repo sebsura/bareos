@@ -313,4 +313,99 @@ void SetItemVariableFreeMemory(const ResourceItem& item, const V& value)
   (*(P**)p) = (P*)value;
 }
 
+namespace config {
+
+template <typename T, typename U> using MemberFn = U*(T*);
+template <typename T, MemberFn<T, char*>* member_get>
+constexpr ResourceItem String(const char* name)
+{
+  return ResourceItem{name,
+                      CFG_TYPE_STR,
+                      +[]() -> BareosResource* { return nullptr; },
+                      +[](BareosResource* res) {
+                        auto actual_res = dynamic_cast<T*>(res);
+                        return (char*)member_get(actual_res);
+                      },
+                      {}};
+}
+#if 0
+constexpr ResourceItem Directory() { return {}; }
+constexpr ResourceItem Md5Password() { return {}; }
+constexpr ResourceItem ClearPassword() { return {}; }
+constexpr ResourceItem AutoPassword() { return {}; }
+constexpr ResourceItem Name() { return {}; }
+constexpr ResourceItem StrName() { return {}; }
+constexpr ResourceItem Resource() { return {}; }
+constexpr ResourceItem AlistResource() { return {}; }
+constexpr ResourceItem AlistString() { return {}; }
+constexpr ResourceItem AlistDirectory() { return {}; }
+constexpr ResourceItem Int16() { return {}; }
+constexpr ResourceItem PositiveInt16() { return {}; }
+constexpr ResourceItem Int32() { return {}; }
+constexpr ResourceItem PositiveInt32() { return {}; }
+constexpr ResourceItem Messages() { return {}; }
+constexpr ResourceItem Int64() { return {}; }
+constexpr ResourceItem Bit() { return {}; }
+constexpr ResourceItem Bool() { return {}; }
+constexpr ResourceItem Time() { return {}; }
+constexpr ResourceItem Size64() { return {}; }
+constexpr ResourceItem Size32() { return {}; }
+constexpr ResourceItem Speed() { return {}; }
+constexpr ResourceItem Defs() { return {}; }
+constexpr ResourceItem Label() { return {}; }
+constexpr ResourceItem Addresses() { return {}; }
+constexpr ResourceItem Addresses_Address() { return {}; }
+constexpr ResourceItem Addresses_Port() { return {}; }
+constexpr ResourceItem PluginNames() { return {}; }
+constexpr ResourceItem StdString() { return {}; }
+constexpr ResourceItem StdString_Directory() { return {}; }
+constexpr ResourceItem VectorString() { return {}; }
+constexpr ResourceItem VectorString_Directory() { return {}; }
+constexpr ResourceItem DirectoryOrCmd() { return {}; }
+// Director resource types. handlers in dird_conf.
+constexpr ResourceItem Acl() { return {}; }
+constexpr ResourceItem Audit() { return {}; }
+constexpr ResourceItem AuthProtocolType() { return {}; }
+constexpr ResourceItem AuthType() { return {}; }
+constexpr ResourceItem Device() { return {}; }
+constexpr ResourceItem JobType() { return {}; }
+constexpr ResourceItem ProtocolType() { return {}; }
+constexpr ResourceItem Level() { return {}; }
+constexpr ResourceItem Replace() { return {}; }
+constexpr ResourceItem ShortRunscript() { return {}; }
+constexpr ResourceItem Runscript() { return {}; }
+constexpr ResourceItem Runscript_Cmd() { return {}; }
+constexpr ResourceItem Runscript_Target() { return {}; }
+constexpr ResourceItem Runscript_Bool() { return {}; }
+constexpr ResourceItem Runscript_When() { return {}; }
+constexpr ResourceItem MigType() { return {}; }
+constexpr ResourceItem IncExc() { return {}; }
+constexpr ResourceItem Run() { return {}; }
+constexpr ResourceItem ActionOnPurge() { return {}; }
+constexpr ResourceItem PoolType() { return {}; }
+
+// Director fileset options. handlers in dird_conf.
+constexpr ResourceItem FName() { return {}; }
+constexpr ResourceItem PluginName() { return {}; }
+constexpr ResourceItem ExcludeDir() { return {}; }
+constexpr ResourceItem Options() { return {}; }
+constexpr ResourceItem Option() { return {}; }
+constexpr ResourceItem Regex() { return {}; }
+constexpr ResourceItem Base() { return {}; }
+constexpr ResourceItem Wild() { return {}; }
+constexpr ResourceItem Plugin() { return {}; }
+constexpr ResourceItem FsType() { return {}; }
+constexpr ResourceItem Drivetype() { return {}; }
+constexpr ResourceItem Meta() { return {}; }
+
+// Storage daemon resource types
+constexpr ResourceItem MaxBlocksize() { return {}; }
+constexpr ResourceItem IoDirection() { return {}; }
+constexpr ResourceItem CmprsAlgo() { return {}; }
+
+// File daemon resource types
+constexpr ResourceItem Cipher() { return {}; }
+#endif
+}  // namespace config
+
 #endif  // BAREOS_LIB_RESOURCE_ITEM_H_
