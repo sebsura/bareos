@@ -60,7 +60,6 @@
 #include "lib/address_conf.h"
 #include "lib/edit.h"
 #include "lib/parse_conf.h"
-#include "lib/parse_conf_state_machine.h"
 #include "lib/qualified_resource_name_type_converter.h"
 #include "lib/bstringlist.h"
 #include "lib/ascii_control_characters.h"
@@ -220,34 +219,264 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
                                           LEX_ERROR_HANDLER* scan_error,
                                           LEX_WARNING_HANDLER* scan_warning)
 {
-  ConfigParserStateMachine state_machine(config_file_name, caller_ctx,
-                                         scan_error, scan_warning, *this);
-
   Dmsg1(900, "Enter ParseConfigFile(%s)\n", config_file_name);
 
-  do {
-    if (!state_machine.InitParserPass()) { return false; }
+  for (int parser_pass = 1; parser_pass <= 2; ++parser_pass) {
+    // --- init parser pass ---
+    Dmsg1(900, "ParseConfig parser_pass_number_ %d\n", parser_pass);
 
-    if (!state_machine.ParseAllTokens()) {
-      scan_err0(state_machine.lexical_parser_, T_("ParseAllTokens failed."));
+    auto lexical_parser
+        = lex_open_file(nullptr, config_file_name, scan_error, scan_warning);
+    if (!lexical_parser) {
+      lex_error(config_file_name, scan_error, scan_warning);
+      scan_err0(lexical_parser, T_("ParseAllTokens failed."));
       return false;
     }
 
-    switch (state_machine.GetParseError()) {
-      case ConfigParserStateMachine::ParserError::kResourceIncomplete:
-        scan_err0(state_machine.lexical_parser_,
+    LexSetErrorHandlerErrorType(lexical_parser, err_type_);
+
+    lexical_parser->error_counter = 0;
+    lexical_parser->caller_ctx = caller_ctx;
+    // --- init parser pass end ---
+
+    // --- parse all tokens ---
+    {
+      struct CurrentResource {
+        FreeResourceCb_t free_res;
+
+        CurrentResource(FreeResourceCb_t free_res_) : free_res{free_res_} {}
+        CurrentResource(const CurrentResource& free_res_) = delete;
+        CurrentResource& operator=(const CurrentResource& free_res_) = delete;
+        CurrentResource(CurrentResource&& free_res_) = delete;
+        CurrentResource& operator=(CurrentResource&& free_res_) = delete;
+
+        void set(BareosResource* res_,
+                 gsl::span<const ResourceItem> items_,
+                 int rcode_)
+        {
+          res = res_;
+          items = items_;
+          rcode = rcode_;
+        }
+
+        void release()
+        {
+          res = {};
+          items = {};
+          rcode = {};
+        }
+
+        void reset()
+        {
+          if (res) { free_res(res, rcode); }
+          res = {};
+          items = {};
+          rcode = {};
+        }
+
+        operator bool() const { return res != nullptr; }
+
+        ~CurrentResource() { reset(); }
+
+        BareosResource* res{};
+        gsl::span<const ResourceItem> items{};
+        int rcode{};
+      };
+
+      CurrentResource current{FreeResourceCb_};
+      int token;
+      size_t config_level = 0;
+
+      while ((token = LexGetToken(lexical_parser, BCT_ALL)) != BCT_EOF) {
+        Dmsg3(900, "parse resource=%p parser_pass_number_=%d got token=%s\n",
+              current.res, parser_pass, lex_tok_to_str(token));
+
+        auto parsed_text = lexical_parser->str;
+        if (!current) {
+          switch (token) {
+            case BCT_EOL:
+            case BCT_UTF8_BOM: {
+              continue;
+            }
+            case BCT_UTF16_BOM: {
+              scan_err0(lexical_parser,
+                        T_("Currently we cannot handle UTF-16 source files. "
+                           "Please convert the conf file to UTF-8\n"));
+              return false;
+            }
+            case BCT_IDENTIFIER: {
+              // intentionally left blank; continues after switch
+            } break;
+            default: {
+              scan_err1(lexical_parser,
+                        T_("Expected a Resource name identifier, got: %s"),
+                        parsed_text);
+              return false;
+            }
+          }
+
+          ASSERT(token == BCT_IDENTIFIER);
+
+          auto* resource_table = GetResourceTable(parsed_text);
+          if (!resource_table) {
+            scan_err1(lexical_parser,
+                      T_("Expected a Resource name identifier, got: %s"),
+                      parsed_text);
+            return false;
+          }
+
+          // TODO: this should just be a static assert
+          if (resource_table->items.empty()) {
+            scan_err1(
+                lexical_parser,
+                T_("Internal parse error at %s.  No Resource Items found.\n"),
+                parsed_text);
+            return false;
+          }
+
+          current.set(resource_table->create_resource(), resource_table->items,
+                      resource_table->rcode);
+
+          if (!current) {
+            scan_err1(lexical_parser,
+                      T_("Expected a Resource name identifier, got: %s"),
+                      parsed_text);
+            return false;
+          }
+
+          SetAllResourceDefaultsByParserPass(current.rcode, current.items,
+                                             parser_pass);
+        } else {
+          switch (token) {
+            case BCT_BOB: {
+              config_level += 1;
+            } break;
+            case BCT_IDENTIFIER: {
+              if (config_level != 1) {
+                scan_err1(lexical_parser, T_("not in resource definition: %s"),
+                          lexical_parser->str);
+                return false;
+              }
+
+              int resource_item_index
+                  = GetResourceItemIndex(current.items, lexical_parser->str);
+
+              if (resource_item_index >= 0
+                  && (size_t)resource_item_index < current.items.size()) {
+                const ResourceItem* item = nullptr;
+                item = &current.items[resource_item_index];
+                if (!item->has_no_eq()) {
+                  token = LexGetToken(lexical_parser, BCT_SKIP_EOL);
+                  Dmsg1(900, "in BCT_IDENT got token=%s\n",
+                        lex_tok_to_str(token));
+                  if (token != BCT_EQUALS) {
+                    scan_err1(lexical_parser, T_("expected an equals, got: %s"),
+                              lexical_parser->str);
+                    return false;
+                  }
+                }
+
+                if (parser_pass == 1 && item->is_deprecated()) {
+                  AddWarning(std::string("using deprecated keyword ")
+                             + item->name + " on line "
+                             + std::to_string(lexical_parser->line_no)
+                             + " of file " + lexical_parser->fname);
+                }
+
+                Dmsg1(800, "calling handler for %s\n", item->name);
+
+                if (!StoreResource(item->type, lexical_parser, item,
+                                   resource_item_index, parser_pass)) {
+                  if (store_res_) {
+                    store_res_(lexical_parser, item, resource_item_index,
+                               parser_pass,
+                               config_resources_container_
+                                   ->configuration_resources_.data());
+                  }
+                }
+              } else {
+                Dmsg2(900, "config_level_=%d id=%s\n", config_level,
+                      lexical_parser->str);
+                Dmsg1(900, "Keyword = %s\n", lexical_parser->str);
+                scan_err1(lexical_parser,
+                          T_("Keyword \"%s\" not permitted in this resource.\n"
+                             "Perhaps you left the trailing brace off of the "
+                             "previous resource."),
+                          lexical_parser->str);
+                return false;
+              }
+            } break;
+            case BCT_EOB: {
+              config_level -= 1;
+              Dmsg0(900, "BCT_EOB => define new resource\n");
+              if (!current.res->resource_name_) {
+                scan_err0(lexical_parser,
+                          T_("Name not specified for resource"));
+                return false;
+              }
+
+              /* save resource */
+              if (!SaveResourceCb_(current.rcode, current.items, parser_pass)) {
+                scan_err0(lexical_parser, T_("SaveResource failed"));
+                return false;
+              }
+
+              if (parser_pass == 1) {
+                // dont free the resource from pass 1, as thats the one
+                // that gets saved
+                current.release();
+              } else {
+                // free the resource from pass 2 as its not used anymore
+                if (current.res) free(current.res->resource_name_);
+                delete current.res;
+                current.release();
+              }
+            } break;
+            case BCT_EOL: {
+              // intentionally left blank
+            } break;
+
+            default: {
+              scan_err2(lexical_parser,
+                        T_("unexpected token %d %s in resource definition"),
+                        token, lex_tok_to_str(token));
+              return false;
+            }
+          }
+        }
+      }
+
+      if (current) {
+        scan_err0(lexical_parser,
                   T_("End of conf file reached with unclosed resource."));
         return false;
-      case ConfigParserStateMachine::ParserError::kParserError:
-        scan_err0(state_machine.lexical_parser_, T_("Parser Error occurred."));
-        return false;
-      case ConfigParserStateMachine::ParserError::kNoError:
-        break;
+      }
     }
 
-  } while (!state_machine.Finished());
+    // --- parse all tokens end ---
 
-  state_machine.DumpResourcesAfterSecondPass();
+    // --- get parse error ---
+
+    if (lexical_parser->error_counter > 0) {
+      scan_err0(lexical_parser, T_("Parser Error occurred."));
+      return false;
+    }
+
+    // --- get parse error end ---
+
+
+    // --- end parser pass ---
+    while (lexical_parser) { lexical_parser = LexCloseFile(lexical_parser); }
+    // --- end parser pass end ---
+  }
+
+  if (debug_level >= 900) {
+    for (int i = 0; i <= r_num_ - 1; i++) {
+      DumpResourceCb_(i,
+                      config_resources_container_->configuration_resources_[i],
+                      PrintMessage, nullptr, false, false);
+    }
+  }
 
   Dmsg0(900, "Leave ParseConfigFile()\n");
   return true;
@@ -335,17 +564,15 @@ int ConfigurationParser::GetResourceItemIndex(
     gsl::span<const ResourceItem> resource_items,
     const char* item_name)
 {
-  auto is_name_for_item = [this](const ResourceItem& item,
-                                 const char* name) -> bool {
-    if (Bstrcasecmp(item.name, name)) {
-      return true;
-    }
+  auto is_name_for_item
+      = [this](const ResourceItem& item, const char* name) -> bool {
+    if (Bstrcasecmp(item.name, name)) { return true; }
 
     if (item.alias && Bstrcasecmp(item.alias, name)) {
       std::string warning
-        = "Found alias usage \"" + std::string{item.alias}
-        + "\" in configuration which is discouraged, consider using \""
-        + item.name + "\" instead.";
+          = "Found alias usage \"" + std::string{item.alias}
+            + "\" in configuration which is discouraged, consider using \""
+            + item.name + "\" instead.";
       if (std::find(warnings_.begin(), warnings_.end(), warning)
           == warnings_.end()) {
         AddWarning(warning);

@@ -89,6 +89,11 @@ struct ResourceTable {
   std::optional<Alias> alias = {}; /* Resource name and group name aliases */
 
   BareosResource* get_resource() const { return (*resource_fn)(); }
+  BareosResource* create_resource() const
+  {
+    (*ResourceSpecificInitializer)();
+    return (*resource_fn)();
+  }
 };
 
 // Common Resource definitions
