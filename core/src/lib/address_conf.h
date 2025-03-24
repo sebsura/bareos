@@ -59,39 +59,13 @@ class IPADDR {
 
  private:
   i_type type = R_UNDEFINED;
-  sockaddr_storage addr_storage = {};
+  union {
+    sockaddr addr;
+    sockaddr_in addr_in;
+    sockaddr_in6 addr_in6;
+    sockaddr_storage addr_storage = {};
+  };
 
-  const sockaddr* saddr() const {
-    static_assert(sizeof(sockaddr) <= sizeof(addr_storage));
-    static_assert(alignof(typeof(addr_storage)) % alignof(sockaddr) == 0);
-    return reinterpret_cast<const sockaddr*>(&addr_storage);
-  }
-  const sockaddr_in* saddr4() const {
-    static_assert(sizeof(sockaddr_in) <= sizeof(addr_storage));
-    static_assert(alignof(typeof(addr_storage)) % alignof(sockaddr_in) == 0);
-    return reinterpret_cast<const sockaddr_in*>(&addr_storage);
-  }
-  const sockaddr_in6* saddr6() const {
-    static_assert(sizeof(sockaddr_in6) <= sizeof(addr_storage));
-    static_assert(alignof(typeof(addr_storage)) % alignof(sockaddr_in6) == 0);
-    return reinterpret_cast<const sockaddr_in6*>(&addr_storage);
-  }
-
-  sockaddr* saddr() {
-    static_assert(sizeof(sockaddr) <= sizeof(addr_storage));
-    static_assert(alignof(typeof(addr_storage)) % alignof(sockaddr) == 0);
-    return reinterpret_cast<sockaddr*>(&addr_storage);
-  }
-  sockaddr_in* saddr4() {
-    static_assert(sizeof(sockaddr_in) <= sizeof(addr_storage));
-    static_assert(alignof(typeof(addr_storage)) % alignof(sockaddr_in) == 0);
-    return reinterpret_cast<sockaddr_in*>(&addr_storage);
-  }
-  sockaddr_in6* saddr6() {
-    static_assert(sizeof(sockaddr_in6) <= sizeof(addr_storage));
-    static_assert(alignof(typeof(addr_storage)) % alignof(sockaddr_in6) == 0);
-    return reinterpret_cast<sockaddr_in6*>(&addr_storage);
-  }
  public:
   void SetType(i_type o);
   i_type GetType() const;
