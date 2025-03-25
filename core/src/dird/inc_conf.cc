@@ -770,22 +770,16 @@ static void StoreOptionsRes(LEX* lc,
   if (pass == 1) { ApplyDefaultValuesForUnsetOptions(default_values); }
 }
 
-static FilesetResource* GetStaticFilesetResource()
-{
-  FilesetResource* res_fs = nullptr;
-  const ResourceTable* t = my_config->GetResourceTable("FileSet");
-  ASSERT(t);
-  if (t) { res_fs = dynamic_cast<FilesetResource*>(t->get_resource()); }
-  assert(res_fs);
-  return res_fs;
-}
-
 /**
  * Store Filename info. Note, for minor efficiency reasons, we
  * always increase the name buffer by 10 items because we expect
  * to add more entries.
  */
-static void StoreFname(LEX* lc, const ResourceItem*, int pass, bool)
+static void StoreFname(FilesetResource* res_fs,
+                       LEX* lc,
+                       const ResourceItem*,
+                       int pass,
+                       bool)
 {
   int token;
 
@@ -805,7 +799,6 @@ static void StoreFname(LEX* lc, const ResourceItem*, int pass, bool)
         }
         FALLTHROUGH_INTENDED;
       case BCT_QUOTED_STRING: {
-        FilesetResource* res_fs = GetStaticFilesetResource();
         if (res_fs->have_MD5) {
           IGNORE_DEPRECATED_ON;
           MD5_Update(&res_fs->md5c, (unsigned char*)lc->str, lc->str_len);
@@ -832,7 +825,8 @@ static void StoreFname(LEX* lc, const ResourceItem*, int pass, bool)
  * always increase the name buffer by 10 items because we expect
  * to add more entries.
  */
-static void StorePluginName(LEX* lc,
+static void StorePluginName(FilesetResource* res_fs,
+                            LEX* lc,
                             const ResourceItem*,
                             int pass,
                             bool exclude)
@@ -858,8 +852,6 @@ static void StorePluginName(LEX* lc,
         }
         FALLTHROUGH_INTENDED;
       case BCT_QUOTED_STRING: {
-        FilesetResource* res_fs = GetStaticFilesetResource();
-
         if (res_fs->have_MD5) {
           IGNORE_DEPRECATED_ON;
           MD5_Update(&res_fs->md5c, (unsigned char*)lc->str, lc->str_len);
@@ -912,7 +904,9 @@ static void StoreExcludedir(LEX* lc,
  */
 static void StoreNewinc(LEX* lc, const ResourceItem* item, int index, int pass)
 {
-  FilesetResource* res_fs = GetStaticFilesetResource();
+  FilesetResource* res_fs
+      = dynamic_cast<FilesetResource*>(item->allocated_resource());
+  ASSERT(res_fs);
 
   // Store.. functions below only store in pass = 1
   if (pass == 1) { res_incexe = new IncludeExcludeItem; }
@@ -945,10 +939,10 @@ static void StoreNewinc(LEX* lc, const ResourceItem* item, int index, int pass)
         }
         switch (newinc_items[i].type) {
           case CFG_TYPE_FNAME:
-            StoreFname(lc, &newinc_items[i], pass, item->code);
+            StoreFname(res_fs, lc, &newinc_items[i], pass, item->code);
             break;
           case CFG_TYPE_PLUGINNAME:
-            StorePluginName(lc, &newinc_items[i], pass, item->code);
+            StorePluginName(res_fs, lc, &newinc_items[i], pass, item->code);
             break;
           case CFG_TYPE_EXCLUDEDIR:
             StoreExcludedir(lc, &newinc_items[i], pass, item->code);
