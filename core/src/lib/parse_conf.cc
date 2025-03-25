@@ -225,15 +225,22 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
     // --- init parser pass ---
     Dmsg1(900, "ParseConfig parser_pass_number_ %d\n", parser_pass);
 
-    auto lexical_parser
-        = lex_open_file(nullptr, config_file_name, scan_error, scan_warning);
+    struct LexCloser {
+      void operator()(LEX* lex) const
+      {
+        while (lex) { lex = LexCloseFile(lex); }
+      }
+    };
+
+    std::unique_ptr<LEX, LexCloser> lexical_parser{
+        lex_open_file(nullptr, config_file_name, scan_error, scan_warning)};
     if (!lexical_parser) {
       lex_error(config_file_name, scan_error, scan_warning);
-      scan_err0(lexical_parser, T_("ParseAllTokens failed."));
+      // scan_err0(lexical_parser, T_("ParseAllTokens failed."));
       return false;
     }
 
-    LexSetErrorHandlerErrorType(lexical_parser, err_type_);
+    LexSetErrorHandlerErrorType(lexical_parser.get(), err_type_);
 
     lexical_parser->error_counter = 0;
     lexical_parser->caller_ctx = caller_ctx;
@@ -281,7 +288,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
       int token;
       size_t config_level = 0;
 
-      while ((token = LexGetToken(lexical_parser, BCT_ALL)) != BCT_EOF) {
+      while ((token = LexGetToken(lexical_parser.get(), BCT_ALL)) != BCT_EOF) {
         Dmsg3(900, "parse resource=%p parser_pass_number_=%d got token=%s\n",
               current.res, parser_pass, lex_tok_to_str(token));
 
@@ -293,7 +300,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
               continue;
             }
             case BCT_UTF16_BOM: {
-              scan_err0(lexical_parser,
+              scan_err0(lexical_parser.get(),
                         T_("Currently we cannot handle UTF-16 source files. "
                            "Please convert the conf file to UTF-8\n"));
               return false;
@@ -302,7 +309,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
               // intentionally left blank; continues after switch
             } break;
             default: {
-              scan_err1(lexical_parser,
+              scan_err1(lexical_parser.get(),
                         T_("Expected a Resource name identifier, got: %s"),
                         parsed_text);
               return false;
@@ -313,7 +320,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
 
           auto* resource_table = GetResourceTable(parsed_text);
           if (!resource_table) {
-            scan_err1(lexical_parser,
+            scan_err1(lexical_parser.get(),
                       T_("Expected a Resource name identifier, got: %s"),
                       parsed_text);
             return false;
@@ -322,7 +329,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
           // TODO: this should just be a static assert
           if (resource_table->items.empty()) {
             scan_err1(
-                lexical_parser,
+                lexical_parser.get(),
                 T_("Internal parse error at %s.  No Resource Items found.\n"),
                 parsed_text);
             return false;
@@ -331,7 +338,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
           current.set(resource_table->create_resource(), resource_table);
 
           if (!current) {
-            scan_err1(lexical_parser,
+            scan_err1(lexical_parser.get(),
                       T_("Expected a Resource name identifier, got: %s"),
                       parsed_text);
             return false;
@@ -346,7 +353,8 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
             } break;
             case BCT_IDENTIFIER: {
               if (config_level != 1) {
-                scan_err1(lexical_parser, T_("not in resource definition: %s"),
+                scan_err1(lexical_parser.get(),
+                          T_("not in resource definition: %s"),
                           lexical_parser->str);
                 return false;
               }
@@ -359,11 +367,12 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
                 const ResourceItem* item = nullptr;
                 item = &current.tbl->items[resource_item_index];
                 if (!item->has_no_eq()) {
-                  token = LexGetToken(lexical_parser, BCT_SKIP_EOL);
+                  token = LexGetToken(lexical_parser.get(), BCT_SKIP_EOL);
                   Dmsg1(900, "in BCT_IDENT got token=%s\n",
                         lex_tok_to_str(token));
                   if (token != BCT_EQUALS) {
-                    scan_err1(lexical_parser, T_("expected an equals, got: %s"),
+                    scan_err1(lexical_parser.get(),
+                              T_("expected an equals, got: %s"),
                               lexical_parser->str);
                     return false;
                   }
@@ -378,10 +387,10 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
 
                 Dmsg1(800, "calling handler for %s\n", item->name);
 
-                if (!StoreResource(item->type, lexical_parser, item,
+                if (!StoreResource(item->type, lexical_parser.get(), item,
                                    parser_pass)) {
                   if (store_res_) {
-                    store_res_(lexical_parser, item, parser_pass,
+                    store_res_(lexical_parser.get(), item, parser_pass,
                                config_resources_container_
                                    ->configuration_resources_.data());
                   }
@@ -390,7 +399,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
                 Dmsg2(900, "config_level_=%d id=%s\n", config_level,
                       lexical_parser->str);
                 Dmsg1(900, "Keyword = %s\n", lexical_parser->str);
-                scan_err1(lexical_parser,
+                scan_err1(lexical_parser.get(),
                           T_("Keyword \"%s\" not permitted in this resource.\n"
                              "Perhaps you left the trailing brace off of the "
                              "previous resource."),
@@ -402,14 +411,14 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
               config_level -= 1;
               Dmsg0(900, "BCT_EOB => define new resource\n");
               if (!current.res->resource_name_) {
-                scan_err0(lexical_parser,
+                scan_err0(lexical_parser.get(),
                           T_("Name not specified for resource"));
                 return false;
               }
 
               /* save resource */
               if (!SaveResourceCb_(current.res, *current.tbl, parser_pass)) {
-                scan_err0(lexical_parser, T_("SaveResource failed"));
+                scan_err0(lexical_parser.get(), T_("SaveResource failed"));
                 return false;
               }
 
@@ -429,7 +438,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
             } break;
 
             default: {
-              scan_err2(lexical_parser,
+              scan_err2(lexical_parser.get(),
                         T_("unexpected token %d %s in resource definition"),
                         token, lex_tok_to_str(token));
               return false;
@@ -439,7 +448,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
       }
 
       if (current) {
-        scan_err0(lexical_parser,
+        scan_err0(lexical_parser.get(),
                   T_("End of conf file reached with unclosed resource."));
         return false;
       }
@@ -450,16 +459,11 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
     // --- get parse error ---
 
     if (lexical_parser->error_counter > 0) {
-      scan_err0(lexical_parser, T_("Parser Error occurred."));
+      scan_err0(lexical_parser.get(), T_("Parser Error occurred."));
       return false;
     }
 
     // --- get parse error end ---
-
-
-    // --- end parser pass ---
-    while (lexical_parser) { lexical_parser = LexCloseFile(lexical_parser); }
-    // --- end parser pass end ---
   }
 
   if (debug_level >= 900) {
