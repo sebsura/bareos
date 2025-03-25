@@ -61,8 +61,15 @@ class ConfigResourcesContainer;
  * use. It is at least safer to use than the undefined behaviour we previously
  * utilized.
  */
+
+// we are using a template here to get rid of odr problems
+template <typename = void> char* CastResource(BareosResource* res)
+{
+  return reinterpret_cast<char*>(res);
+}
+
 #define ITEM(c, m) RESOURCE_GET(c), GET_MEMBER(c, m)
-#define ITEMC(c) RESOURCE_GET(c), nullptr
+#define ITEMC(c) RESOURCE_GET(c), &CastResource<void>
 
 /*
  * Master Resource configuration structure definition
