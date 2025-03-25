@@ -90,8 +90,7 @@ extern void StoreRun(LEX* lc, const ResourceItem* item, int index, int pass);
 static void CreateAndAddUserAgentConsoleResource(
     ConfigurationParser& my_config);
 static bool SaveResource(BareosResource* res,
-                         int type,
-                         gsl::span<const ResourceItem> items,
+                         const ResourceTable& tbl,
                          int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
@@ -3968,10 +3967,12 @@ static void FreeResource(BareosResource* res, int type)
  * later in pass 1.
  */
 static bool SaveResource(BareosResource* res,
-                         int type,
-                         gsl::span<const ResourceItem> items,
+                         const ResourceTable& tbl,
                          int pass)
 {
+  auto items = tbl.items;
+  ASSERT(res->rcode_ == tbl.rcode);
+  auto type = res->rcode_;
   switch (type) {
     case R_DIRECTOR: {
       /* IP Addresses can be set by multiple directives.

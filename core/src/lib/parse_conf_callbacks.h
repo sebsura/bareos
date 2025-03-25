@@ -25,12 +25,12 @@
 struct ResourceItem;
 class BareosResource;
 class ConfigurationParser;
+struct ResourceTable;
 
 #include <gsl/span>
 
 typedef bool (*SaveResourceCb_t)(BareosResource* res,
-                                 int type,
-                                 gsl::span<const ResourceItem> items,
+                                 const ResourceTable& tbl,
                                  int pass);
 typedef void (*DumpResourceCb_t)(int type,
                                  BareosResource* res,

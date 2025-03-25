@@ -57,8 +57,7 @@
 static const std::string default_config_filename("tray-monitor.conf");
 
 static bool SaveResource(BareosResource* res,
-                         int type,
-                         gsl::span<const ResourceItem> items,
+                         const ResourceTable& tbl,
                          int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
@@ -269,16 +268,17 @@ static void FreeResource(BareosResource* res, int type)
  * later in pass 1.
  */
 static bool SaveResource(BareosResource* res,
-                         int type,
-                         gsl::span<const ResourceItem> items,
+                         const ResourceTable& tbl,
                          int pass)
 {
   int error = 0;
 
+  auto& items = tbl.items;
+  ASSERT(tbl.rcode == res->rcode_);
+
   /* If this triggers, take a look at lib/parse_conf.h */
   if (items.size() >= MAX_RES_ITEMS) {
-    Emsg1(M_ERROR_TERM, 0, T_("Too many items in %s resource\n"),
-          resource_definitions[type].name);
+    Emsg1(M_ERROR_TERM, 0, T_("Too many items in %s resource\n"), tbl.name);
   }
   // Ensure that all required items are present
   for (auto& item : items) {
@@ -286,7 +286,7 @@ static bool SaveResource(BareosResource* res,
       if (!item.IsPresent()) {
         Emsg2(M_ERROR_TERM, 0,
               T_("%s item is required in %s resource, but not found.\n"),
-              item.name, resource_definitions[type].name);
+              item.name, tbl.name);
       }
     }
   }
@@ -296,7 +296,7 @@ static bool SaveResource(BareosResource* res,
    * must copy their addresses from the static record to the allocated
    * record. */
   if (pass == 2) {
-    switch (type) {
+    switch (tbl.rcode) {
       case R_MONITOR:
       case R_CLIENT:
       case R_STORAGE:
@@ -306,7 +306,7 @@ static bool SaveResource(BareosResource* res,
         break;
       default:
         Emsg1(M_ERROR, 0, T_("Unknown resource type %d in SaveResource.\n"),
-              type);
+              tbl.rcode);
         error = 1;
         break;
     }
@@ -332,7 +332,7 @@ static bool SaveResource(BareosResource* res,
 
   if (!error) {
     BareosResource* new_resource = nullptr;
-    switch (type) {
+    switch (tbl.rcode) {
       case R_MONITOR:
         new_resource = res_monitor;
         res_monitor = nullptr;
@@ -357,7 +357,7 @@ static bool SaveResource(BareosResource* res,
         ASSERT(false);
         break;
     }
-    error = my_config->AppendToResourcesChain(new_resource, type) ? 0 : 1;
+    error = my_config->AppendToResourcesChain(new_resource, tbl.rcode) ? 0 : 1;
   }
   return (error == 0);
 }

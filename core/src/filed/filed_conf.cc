@@ -57,8 +57,7 @@
 namespace filedaemon {
 
 static bool SaveResource(BareosResource* res,
-                         int type,
-                         gsl::span<const ResourceItem> items,
+                         const ResourceTable& tbl,
                          int pass);
 static void FreeResource(BareosResource* sres, int type);
 static void DumpResource(int type,
@@ -405,12 +404,13 @@ static void FreeResource(BareosResource* res, int type)
  * pointers (currently only in the Job resource).
  */
 static bool SaveResource(BareosResource* res,
-                         int type,
-                         gsl::span<const ResourceItem> items,
+                         const ResourceTable& tbl,
                          int pass)
 {
-  (void)res;
   int error = 0;
+  auto items = tbl.items;
+  ASSERT(res->rcode_ == tbl.rcode);
+  auto type = res->rcode_;
 
   // Ensure that all required items are present
   for (auto& item : items) {
@@ -418,7 +418,7 @@ static bool SaveResource(BareosResource* res,
       if (!item.IsPresent()) {
         Emsg2(M_ABORT, 0,
               T_("%s item is required in %s resource, but not found.\n"),
-              item.name, resources[type].name);
+              item.name, tbl.name);
       }
     }
   }

@@ -54,8 +54,7 @@ namespace storagedaemon {
 
 static void FreeResource(BareosResource* sres, int type);
 static bool SaveResource(BareosResource* res,
-                         int type,
-                         gsl::span<const ResourceItem> items,
+                         const ResourceTable& tbl,
                          int pass);
 static void DumpResource(int type,
                          BareosResource* reshdr,
@@ -734,16 +733,18 @@ static void DumpResource(int type,
 }
 
 static bool SaveResource(BareosResource* res,
-                         int type,
-                         gsl::span<const ResourceItem> items,
+                         const ResourceTable& tbl,
                          int pass)
 {
   int error = 0;
 
+  auto items = tbl.items;
+  ASSERT(res->rcode_ == tbl.rcode);
+  auto type = res->rcode_;
+
   // Ensure that all required items are present
   if (items.size() >= MAX_RES_ITEMS) {
-    Emsg1(M_ERROR_TERM, 0, T_("Too many items in \"%s\" resource\n"),
-          resources[type].name);
+    Emsg1(M_ERROR_TERM, 0, T_("Too many items in \"%s\" resource\n"), tbl.name);
   }
   for (auto& item : items) {
     if (item.is_required()) {
@@ -751,14 +752,13 @@ static bool SaveResource(BareosResource* res,
         Emsg2(
             M_ERROR_TERM, 0,
             T_("\"%s\" item is required in \"%s\" resource, but not found.\n"),
-            item.name, resources[type].name);
+            item.name, tbl.name);
       }
     }
   }
 
   if (items.size() == 0) {
-    Emsg1(M_ERROR_TERM, 0, T_("Too few items in \"%s\" resource\n"),
-          resources[type].name);
+    Emsg1(M_ERROR_TERM, 0, T_("Too few items in \"%s\" resource\n"), tbl.name);
 
     return 0;
   }
@@ -846,7 +846,7 @@ static bool SaveResource(BareosResource* res,
 
   if (!error) {
     BareosResource* new_resource = nullptr;
-    switch (resources[type].rcode) {
+    switch (tbl.rcode) {
       case R_DIRECTOR:
         new_resource = res_dir;
         res_dir = nullptr;

@@ -250,28 +250,23 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
         CurrentResource(CurrentResource&& free_res_) = delete;
         CurrentResource& operator=(CurrentResource&& free_res_) = delete;
 
-        void set(BareosResource* res_,
-                 gsl::span<const ResourceItem> items_,
-                 int rcode_)
+        void set(BareosResource* res_, const ResourceTable* tbl_)
         {
           res = res_;
-          items = items_;
-          rcode = rcode_;
+          tbl = tbl_;
         }
 
         void release()
         {
           res = {};
-          items = {};
-          rcode = {};
+          tbl = {};
         }
 
         void reset()
         {
-          if (res) { free_res(res, rcode); }
+          if (res) { free_res(res, tbl->rcode); }
           res = {};
-          items = {};
-          rcode = {};
+          tbl = {};
         }
 
         operator bool() const { return res != nullptr; }
@@ -279,8 +274,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
         ~CurrentResource() { reset(); }
 
         BareosResource* res{};
-        gsl::span<const ResourceItem> items{};
-        int rcode{};
+        const ResourceTable* tbl{};
       };
 
       CurrentResource current{FreeResourceCb_};
@@ -334,8 +328,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
             return false;
           }
 
-          current.set(resource_table->create_resource(), resource_table->items,
-                      resource_table->rcode);
+          current.set(resource_table->create_resource(), resource_table);
 
           if (!current) {
             scan_err1(lexical_parser,
@@ -344,8 +337,8 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
             return false;
           }
 
-          SetAllResourceDefaultsByParserPass(current.rcode, current.items,
-                                             parser_pass);
+          SetAllResourceDefaultsByParserPass(current.tbl->rcode,
+                                             current.tbl->items, parser_pass);
         } else {
           switch (token) {
             case BCT_BOB: {
@@ -358,13 +351,13 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
                 return false;
               }
 
-              int resource_item_index
-                  = GetResourceItemIndex(current.items, lexical_parser->str);
+              int resource_item_index = GetResourceItemIndex(
+                  current.tbl->items, lexical_parser->str);
 
               if (resource_item_index >= 0
-                  && (size_t)resource_item_index < current.items.size()) {
+                  && (size_t)resource_item_index < current.tbl->items.size()) {
                 const ResourceItem* item = nullptr;
-                item = &current.items[resource_item_index];
+                item = &current.tbl->items[resource_item_index];
                 if (!item->has_no_eq()) {
                   token = LexGetToken(lexical_parser, BCT_SKIP_EOL);
                   Dmsg1(900, "in BCT_IDENT got token=%s\n",
@@ -416,8 +409,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
               }
 
               /* save resource */
-              if (!SaveResourceCb_(current.res, current.rcode, current.items,
-                                   parser_pass)) {
+              if (!SaveResourceCb_(current.res, *current.tbl, parser_pass)) {
                 scan_err0(lexical_parser, T_("SaveResource failed"));
                 return false;
               }
