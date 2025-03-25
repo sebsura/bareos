@@ -82,7 +82,7 @@ struct ResourceTable {
 
 
   using init_fun = void();
-  init_fun* ResourceSpecificInitializer; /* this allocates memory */
+  init_fun* init_fn; /* this allocates memory */
   using resource_fun = BareosResource*();
   resource_fun* resource_fn;
 
@@ -91,7 +91,7 @@ struct ResourceTable {
   BareosResource* get_resource() const { return (*resource_fn)(); }
   BareosResource* create_resource() const
   {
-    (*ResourceSpecificInitializer)();
+    if (init_fn) { (*init_fn)(); }
     return (*resource_fn)();
   }
 };
