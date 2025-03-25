@@ -46,8 +46,9 @@ class BareosResource {
   std::unordered_set<std::string_view>
       item_present_{}; /* set of resource member names where values were
                           written */
-  char inherit_content_[MAX_RES_ITEMS]{
-      0}; /* Set if item has inherited content */
+  std::unordered_set<std::string_view>
+      item_inherited_{}; /* set of resource member names where values were
+                          written */
   bool internal_{false};
 
   BareosResource() = default;
@@ -67,6 +68,19 @@ class BareosResource {
                                  bool hide_sensitive_data,
                                  bool inherited,
                                  bool verbose);
+
+  bool IsMemberInherited(std::string_view member_name) const
+  {
+    return item_inherited_.find(member_name) != item_inherited_.end();
+  }
+  void SetMemberInherited(std::string_view member_name)
+  {
+    item_inherited_.insert(member_name);
+  }
+  bool UnsetMemberInherited(std::string_view member_name)
+  {
+    return item_inherited_.erase(member_name) > 0;
+  }
 
   bool IsMemberPresent(std::string_view member_name) const
   {

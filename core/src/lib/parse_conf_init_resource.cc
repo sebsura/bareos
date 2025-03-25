@@ -186,9 +186,7 @@ void ConfigurationParser::SetAllResourceDefaultsIterateOverItems(
     auto& item = items[item_idx];
     SetDefaults(*this, &item);
 
-    if (!omit_defaults_) {
-      SetBit(item_idx, item.allocated_resource()->inherit_content_);
-    }
+    if (!omit_defaults_) { item.SetInherited(); }
 
     item.allocated_resource()->rcode_ = rcode;
   }

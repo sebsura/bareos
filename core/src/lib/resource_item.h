@@ -232,8 +232,17 @@ struct ResourceItem {
   const char* description{};
 
   void SetPresent() const { allocated_resource()->SetMemberPresent(name); }
-
   bool IsPresent() const { return allocated_resource()->IsMemberPresent(name); }
+
+  void SetInherited() const { allocated_resource()->SetMemberInherited(name); }
+  void UnsetInherited() const
+  {
+    allocated_resource()->UnsetMemberInherited(name);
+  }
+  bool IsInherited() const
+  {
+    return allocated_resource()->IsMemberInherited(name);
+  }
 
   bool is_required() const { return required; }
   bool is_platform_specific() const { return platform_specific; }

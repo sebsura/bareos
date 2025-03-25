@@ -84,8 +84,8 @@ extern struct s_kw RunFields[];
  */
 static PoolMem* configure_usage_string = NULL;
 
-extern void StoreInc(LEX* lc, const ResourceItem* item, int index, int pass);
-extern void StoreRun(LEX* lc, const ResourceItem* item, int index, int pass);
+extern void StoreInc(LEX* lc, const ResourceItem* item, int pass);
+extern void StoreRun(LEX* lc, const ResourceItem* item, int pass);
 
 static void CreateAndAddUserAgentConsoleResource(
     ConfigurationParser& my_config);
@@ -968,7 +968,7 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           if (*svalue) { free(*svalue); }
           *svalue = strdup(*def_svalue);
           dest->SetMemberPresent(item.name);
-          SetBit(i, dest->inherit_content_);
+          dest->SetMemberInherited(item.name);
           break;
         }
         case CFG_TYPE_RES: {
@@ -982,7 +982,7 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           }
           *svalue = *def_svalue;
           dest->SetMemberPresent(item.name);
-          SetBit(i, dest->inherit_content_);
+          dest->SetMemberInherited(item.name);
           break;
         }
         case CFG_TYPE_ALIST_STR: {
@@ -1002,7 +1002,7 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
             for (auto* str : orig_list) { (*new_list)->append(strdup(str)); }
 
             dest->SetMemberPresent(item.name);
-            SetBit(i, dest->inherit_content_);
+            dest->SetMemberInherited(item.name);
           }
           break;
         }
@@ -1023,7 +1023,7 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
             for (auto* res : orig_list) { (*new_list)->append(res); }
 
             dest->SetMemberPresent(item.name);
-            SetBit(i, dest->inherit_content_);
+            dest->SetMemberInherited(item.name);
           }
           break;
         }
@@ -1046,7 +1046,7 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
             for (auto* str : orig_list) { (*new_list)->append(strdup(str)); }
 
             dest->SetMemberPresent(item.name);
-            SetBit(i, dest->inherit_content_);
+            dest->SetMemberInherited(item.name);
           }
           break;
         }
@@ -1067,7 +1067,7 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           ivalue = (uint32_t*)item.member_address(dest);
           *ivalue = *def_ivalue;
           dest->SetMemberPresent(item.name);
-          SetBit(i, dest->inherit_content_);
+          dest->SetMemberInherited(item.name);
           break;
         }
         case CFG_TYPE_TIME:
@@ -1081,7 +1081,7 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           lvalue = (int64_t*)item.member_address(dest);
           *lvalue = *def_lvalue;
           dest->SetMemberPresent(item.name);
-          SetBit(i, dest->inherit_content_);
+          dest->SetMemberInherited(item.name);
           break;
         }
         case CFG_TYPE_BOOL: {
@@ -1092,7 +1092,7 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           bvalue = (bool*)item.member_address(dest);
           *bvalue = *def_bvalue;
           dest->SetMemberPresent(item.name);
-          SetBit(i, dest->inherit_content_);
+          dest->SetMemberInherited(item.name);
           break;
         }
         case CFG_TYPE_AUTOPASSWORD: {
@@ -1105,7 +1105,7 @@ static void PropagateResource(gsl::span<const ResourceItem> items,
           d_pwd->encoding = s_pwd->encoding;
           d_pwd->value = strdup(s_pwd->value);
           dest->SetMemberPresent(item.name);
-          SetBit(i, dest->inherit_content_);
+          dest->SetMemberInherited(item.name);
           break;
         }
         default:
@@ -2246,16 +2246,16 @@ static bool UpdateResourcePointer(int type, gsl::span<const ResourceItem> items)
         p->run_cmds = res_job->run_cmds;
         p->RunScripts = res_job->RunScripts;
         if ((p->RunScripts) && (p->RunScripts->size() > 0)) {
-          for (size_t i = 0; i < items.size(); i++) {
-            if (Bstrcasecmp(items[i].name, "RunScript")) {
-              ClearBit(i, p->inherit_content_);
+          for (auto& item : items) {
+            if (Bstrcasecmp(item.name, "RunScript")) {
+              p->UnsetMemberInherited(item.name);
             }
           }
         }
 
         Dmsg3(200, "job %s RunScript inherited: %i %i\n",
-              res_job->resource_name_, BitIsSet(69, res_job->inherit_content_),
-              BitIsSet(69, p->inherit_content_));
+              res_job->resource_name_, res_job->IsMemberInherited("RunScript"),
+              p->IsMemberInherited("RunScript"));
 
         /* TODO: JobDefs where/regexwhere doesn't work well (but this is not
          * very useful) We have to SetBit(index, item_present_); or
@@ -2397,10 +2397,7 @@ static bool PopulateJobdefaults()
 
 bool PopulateDefs() { return PopulateJobdefaults(); }
 
-static void StorePooltype(LEX* lc,
-                          const ResourceItem* item,
-                          int index,
-                          int pass)
+static void StorePooltype(LEX* lc, const ResourceItem* item, int pass)
 {
   LexGetToken(lc, BCT_NAME);
   if (pass == 1) {
@@ -2420,13 +2417,10 @@ static void StorePooltype(LEX* lc,
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
-static void StoreActiononpurge(LEX* lc,
-                               const ResourceItem* item,
-                               int index,
-                               int)
+static void StoreActiononpurge(LEX* lc, const ResourceItem* item, int)
 {
   uint32_t* destination = GetItemVariablePointer<uint32_t*>(*item);
 
@@ -2448,7 +2442,7 @@ static void StoreActiononpurge(LEX* lc,
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /**
@@ -2458,7 +2452,6 @@ static void StoreActiononpurge(LEX* lc,
  */
 static void StoreDevice(LEX* lc,
                         const ResourceItem* item,
-                        int index,
                         int pass,
                         BareosResource** configuration_resources)
 {
@@ -2497,14 +2490,14 @@ static void StoreDevice(LEX* lc,
 
     ScanToEol(lc);
     item->SetPresent();
-    ClearBit(index, item->allocated_resource()->inherit_content_);
+    item->UnsetInherited();
   } else {
-    my_config->StoreResource(CFG_TYPE_ALIST_RES, lc, item, index, pass);
+    my_config->StoreResource(CFG_TYPE_ALIST_RES, lc, item, pass);
   }
 }
 
 // Store Migration/Copy type
-static void StoreMigtype(LEX* lc, const ResourceItem* item, int index)
+static void StoreMigtype(LEX* lc, const ResourceItem* item)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the type both in pass 1 and pass 2
@@ -2524,11 +2517,11 @@ static void StoreMigtype(LEX* lc, const ResourceItem* item, int index)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store JobType (backup, verify, restore)
-static void StoreJobtype(LEX* lc, const ResourceItem* item, int index, int)
+static void StoreJobtype(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the type both in pass 1 and pass 2
@@ -2547,11 +2540,11 @@ static void StoreJobtype(LEX* lc, const ResourceItem* item, int index, int)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store Protocol (Native, NDMP/NDMP_BAREOS, NDMP_NATIVE)
-static void StoreProtocoltype(LEX* lc, const ResourceItem* item, int index, int)
+static void StoreProtocoltype(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the type both in pass 1 and pass 2
@@ -2570,10 +2563,10 @@ static void StoreProtocoltype(LEX* lc, const ResourceItem* item, int index, int)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
-static void StoreReplace(LEX* lc, const ResourceItem* item, int index, int)
+static void StoreReplace(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
   // Scan Replacement options
@@ -2593,14 +2586,11 @@ static void StoreReplace(LEX* lc, const ResourceItem* item, int index, int)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store Auth Protocol (Native, NDMPv2, NDMPv3, NDMPv4)
-static void StoreAuthprotocoltype(LEX* lc,
-                                  const ResourceItem* item,
-                                  int index,
-                                  int)
+static void StoreAuthprotocoltype(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the type both in pass 1 and pass 2
@@ -2620,11 +2610,11 @@ static void StoreAuthprotocoltype(LEX* lc,
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store authentication type (Mostly for NDMP like clear or MD5).
-static void StoreAuthtype(LEX* lc, const ResourceItem* item, int index, int)
+static void StoreAuthtype(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the type both in pass 1 and pass 2
@@ -2644,11 +2634,11 @@ static void StoreAuthtype(LEX* lc, const ResourceItem* item, int index, int)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store Job Level (Full, Incremental, ...)
-static void StoreLevel(LEX* lc, const ResourceItem* item, int index, int)
+static void StoreLevel(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
 
@@ -2668,17 +2658,14 @@ static void StoreLevel(LEX* lc, const ResourceItem* item, int index, int)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /**
  * Store password either clear if for NDMP and catalog or MD5 hashed for
  * native.
  */
-static void StoreAutopassword(LEX* lc,
-                              const ResourceItem* item,
-                              int index,
-                              int pass)
+static void StoreAutopassword(LEX* lc, const ResourceItem* item, int pass)
 {
   switch (item->allocated_resource()->rcode_) {
     case R_DIRECTOR:
@@ -2687,11 +2674,10 @@ static void StoreAutopassword(LEX* lc,
        * and for clear we need a code of 1. */
       switch (item->code) {
         case 1:
-          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, index,
-                                   pass);
+          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, index, pass);
+          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
@@ -2712,11 +2698,10 @@ static void StoreAutopassword(LEX* lc,
         case APT_NDMPV2:
         case APT_NDMPV3:
         case APT_NDMPV4:
-          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, index,
-                                   pass);
+          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, index, pass);
+          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
@@ -2737,24 +2722,23 @@ static void StoreAutopassword(LEX* lc,
         case APT_NDMPV2:
         case APT_NDMPV3:
         case APT_NDMPV4:
-          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, index,
-                                   pass);
+          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, index, pass);
+          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
     case R_CATALOG:
-      my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, index, pass);
+      my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
       break;
     default:
-      my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, index, pass);
+      my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
       break;
   }
 }
 
-static void StoreAcl(LEX* lc, const ResourceItem* item, int index, int pass)
+static void StoreAcl(LEX* lc, const ResourceItem* item, int pass)
 {
   alist<const char*>** alistvalue
       = GetItemVariablePointer<alist<const char*>**>(*item);
@@ -2780,10 +2764,10 @@ static void StoreAcl(LEX* lc, const ResourceItem* item, int index, int pass)
     token = LexGetToken(lc, BCT_ALL);
   }
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
-static void StoreAudit(LEX* lc, const ResourceItem* item, int index, int pass)
+static void StoreAudit(LEX* lc, const ResourceItem* item, int pass)
 {
   int token;
   alist<const char*>* list;
@@ -2806,10 +2790,10 @@ static void StoreAudit(LEX* lc, const ResourceItem* item, int index, int pass)
     break;
   }
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
-static void StoreRunscriptWhen(LEX* lc, const ResourceItem* item, int, int)
+static void StoreRunscriptWhen(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
 
@@ -2830,10 +2814,7 @@ static void StoreRunscriptWhen(LEX* lc, const ResourceItem* item, int, int)
   ScanToEol(lc);
 }
 
-static void StoreRunscriptTarget(LEX* lc,
-                                 const ResourceItem* item,
-                                 int,
-                                 int pass)
+static void StoreRunscriptTarget(LEX* lc, const ResourceItem* item, int pass)
 {
   LexGetToken(lc, BCT_STRING);
 
@@ -2861,7 +2842,7 @@ static void StoreRunscriptTarget(LEX* lc,
   ScanToEol(lc);
 }
 
-static void StoreRunscriptCmd(LEX* lc, const ResourceItem* item, int, int pass)
+static void StoreRunscriptCmd(LEX* lc, const ResourceItem* item, int pass)
 {
   LexGetToken(lc, BCT_STRING);
 
@@ -2873,10 +2854,7 @@ static void StoreRunscriptCmd(LEX* lc, const ResourceItem* item, int, int pass)
   ScanToEol(lc);
 }
 
-static void StoreShortRunscript(LEX* lc,
-                                const ResourceItem* item,
-                                int,
-                                int pass)
+static void StoreShortRunscript(LEX* lc, const ResourceItem* item, int pass)
 {
   LexGetToken(lc, BCT_STRING);
   alist<RunScript*>** runscripts
@@ -2933,7 +2911,7 @@ static void StoreShortRunscript(LEX* lc,
  * Store a bool in a bit field without modifing hdr
  * We can also add an option to StoreBool to skip hdr
  */
-static void StoreRunscriptBool(LEX* lc, const ResourceItem* item, int, int)
+static void StoreRunscriptBool(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
   if (Bstrcasecmp(lc->str, "yes") || Bstrcasecmp(lc->str, "true")) {
@@ -2954,10 +2932,7 @@ static void StoreRunscriptBool(LEX* lc, const ResourceItem* item, int, int)
  * resource.  We treat the RunScript like a sort of
  * mini-resource within the Job resource.
  */
-static void StoreRunscript(LEX* lc,
-                           const ResourceItem* item,
-                           int index,
-                           int pass)
+static void StoreRunscript(LEX* lc, const ResourceItem* item, int pass)
 {
   Dmsg1(200, "StoreRunscript: begin StoreRunscript pass=%i\n", pass);
 
@@ -2994,16 +2969,16 @@ static void StoreRunscript(LEX* lc,
         }
         switch (runscript_items[i].type) {
           case CFG_TYPE_RUNSCRIPT_CMD:
-            StoreRunscriptCmd(lc, &runscript_items[i], i, pass);
+            StoreRunscriptCmd(lc, &runscript_items[i], pass);
             break;
           case CFG_TYPE_RUNSCRIPT_TARGET:
-            StoreRunscriptTarget(lc, &runscript_items[i], i, pass);
+            StoreRunscriptTarget(lc, &runscript_items[i], pass);
             break;
           case CFG_TYPE_RUNSCRIPT_BOOL:
-            StoreRunscriptBool(lc, &runscript_items[i], i, pass);
+            StoreRunscriptBool(lc, &runscript_items[i], pass);
             break;
           case CFG_TYPE_RUNSCRIPT_WHEN:
-            StoreRunscriptWhen(lc, &runscript_items[i], i, pass);
+            StoreRunscriptWhen(lc, &runscript_items[i], pass);
             break;
           default:
             break;
@@ -3055,7 +3030,7 @@ bail_out:
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /**
@@ -3191,61 +3166,60 @@ static void InitResourceCb(const ResourceItem* item, int pass)
  */
 static void ParseConfigCb(LEX* lc,
                           const ResourceItem* item,
-                          int index,
                           int pass,
                           BareosResource** configuration_resources)
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
-      StoreAutopassword(lc, item, index, pass);
+      StoreAutopassword(lc, item, pass);
       break;
     case CFG_TYPE_ACL:
-      StoreAcl(lc, item, index, pass);
+      StoreAcl(lc, item, pass);
       break;
     case CFG_TYPE_AUDIT:
-      StoreAudit(lc, item, index, pass);
+      StoreAudit(lc, item, pass);
       break;
     case CFG_TYPE_AUTHPROTOCOLTYPE:
-      StoreAuthprotocoltype(lc, item, index, pass);
+      StoreAuthprotocoltype(lc, item, pass);
       break;
     case CFG_TYPE_AUTHTYPE:
-      StoreAuthtype(lc, item, index, pass);
+      StoreAuthtype(lc, item, pass);
       break;
     case CFG_TYPE_DEVICE:
-      StoreDevice(lc, item, index, pass, configuration_resources);
+      StoreDevice(lc, item, pass, configuration_resources);
       break;
     case CFG_TYPE_JOBTYPE:
-      StoreJobtype(lc, item, index, pass);
+      StoreJobtype(lc, item, pass);
       break;
     case CFG_TYPE_PROTOCOLTYPE:
-      StoreProtocoltype(lc, item, index, pass);
+      StoreProtocoltype(lc, item, pass);
       break;
     case CFG_TYPE_LEVEL:
-      StoreLevel(lc, item, index, pass);
+      StoreLevel(lc, item, pass);
       break;
     case CFG_TYPE_REPLACE:
-      StoreReplace(lc, item, index, pass);
+      StoreReplace(lc, item, pass);
       break;
     case CFG_TYPE_SHRTRUNSCRIPT:
-      StoreShortRunscript(lc, item, index, pass);
+      StoreShortRunscript(lc, item, pass);
       break;
     case CFG_TYPE_RUNSCRIPT:
-      StoreRunscript(lc, item, index, pass);
+      StoreRunscript(lc, item, pass);
       break;
     case CFG_TYPE_MIGTYPE:
-      StoreMigtype(lc, item, index);
+      StoreMigtype(lc, item);
       break;
     case CFG_TYPE_INCEXC:
-      StoreInc(lc, item, index, pass);
+      StoreInc(lc, item, pass);
       break;
     case CFG_TYPE_RUN:
-      StoreRun(lc, item, index, pass);
+      StoreRun(lc, item, pass);
       break;
     case CFG_TYPE_ACTIONONPURGE:
-      StoreActiononpurge(lc, item, index, pass);
+      StoreActiononpurge(lc, item, pass);
       break;
     case CFG_TYPE_POOLTYPE:
-      StorePooltype(lc, item, index, pass);
+      StorePooltype(lc, item, pass);
       break;
     default:
       break;
@@ -3979,13 +3953,7 @@ static bool SaveResource(BareosResource* res,
        * If they differ from the default,
        * the set the main directive to be set. */
       if ((res_dir->DIRaddrs) && (res_dir->DIRaddrs->size() > 0)) {
-        for (size_t i = 0; i < items.size(); ++i) {
-          auto& item = items[i];
-          if (Bstrcasecmp(item.name, "DirAddresses")) {
-            // SetBit(i, allocated_resource->item_present_);
-            ClearBit(i, res->inherit_content_);
-          }
-        }
+        res->UnsetMemberInherited("DirAddresses");
       }
       break;
     }

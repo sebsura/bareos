@@ -165,7 +165,7 @@ static struct s_kw CryptoCiphers[]
        {"aes256hmacsha1", CRYPTO_CIPHER_AES_256_CBC_HMAC_SHA1},
        {NULL, 0}};
 
-static void StoreCipher(LEX* lc, const ResourceItem* item, int index, int)
+static void StoreCipher(LEX* lc, const ResourceItem* item, int)
 {
   int i;
   LexGetToken(lc, BCT_NAME);
@@ -183,7 +183,7 @@ static void StoreCipher(LEX* lc, const ResourceItem* item, int index, int)
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /**
@@ -217,13 +217,12 @@ static void InitResourceCb(const ResourceItem* item, int pass)
  */
 static void ParseConfigCb(LEX* lc,
                           const ResourceItem* item,
-                          int index,
                           int pass,
                           BareosResource**)
 {
   switch (item->type) {
     case CFG_TYPE_CIPHER:
-      StoreCipher(lc, item, index, pass);
+      StoreCipher(lc, item, pass);
       break;
     default:
       break;

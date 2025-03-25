@@ -254,10 +254,7 @@ static s_kw compression_algorithms[]
        {"lzfast", COMPRESS_FZFZ}, {"lz4", COMPRESS_FZ4L},
        {"lz4hc", COMPRESS_FZ4H},  {NULL, 0}};
 
-static void StoreAuthenticationType(LEX* lc,
-                                    const ResourceItem* item,
-                                    int index,
-                                    int)
+static void StoreAuthenticationType(LEX* lc, const ResourceItem* item, int)
 {
   int i;
 
@@ -276,14 +273,11 @@ static void StoreAuthenticationType(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store password either clear if for NDMP or MD5 hashed for native.
-static void StoreAutopassword(LEX* lc,
-                              const ResourceItem* item,
-                              int index,
-                              int pass)
+static void StoreAutopassword(LEX* lc, const ResourceItem* item, int pass)
 {
   switch (item->allocated_resource()->rcode_) {
     case R_DIRECTOR:
@@ -292,30 +286,26 @@ static void StoreAutopassword(LEX* lc,
        * and for clear we need a code of 1. */
       switch (item->code) {
         case 1:
-          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, index,
-                                   pass);
+          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, index, pass);
+          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
     case R_NDMP:
-      my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, index, pass);
+      my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
       break;
     default:
-      my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, index, pass);
+      my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
       break;
   }
 }
 
 // Store Maximum Block Size, and check it is not greater than MAX_BLOCK_LENGTH
-static void StoreMaxblocksize(LEX* lc,
-                              const ResourceItem* item,
-                              int index,
-                              int pass)
+static void StoreMaxblocksize(LEX* lc, const ResourceItem* item, int pass)
 {
-  my_config->StoreResource(CFG_TYPE_SIZE32, lc, item, index, pass);
+  my_config->StoreResource(CFG_TYPE_SIZE32, lc, item, pass);
   if (GetItemVariable<uint32_t>(*item) > MAX_BLOCK_LENGTH) {
     scan_err2(lc,
               T_("Maximum Block Size configured value %u is greater than "
@@ -325,7 +315,7 @@ static void StoreMaxblocksize(LEX* lc,
 }
 
 // Store the IO direction on a certain device.
-static void StoreIoDirection(LEX* lc, const ResourceItem* item, int index, int)
+static void StoreIoDirection(LEX* lc, const ResourceItem* item, int)
 {
   int i;
 
@@ -342,14 +332,11 @@ static void StoreIoDirection(LEX* lc, const ResourceItem* item, int index, int)
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store the compression algorithm to use on a certain device.
-static void StoreCompressionalgorithm(LEX* lc,
-                                      const ResourceItem* item,
-                                      int index,
-                                      int)
+static void StoreCompressionalgorithm(LEX* lc, const ResourceItem* item, int)
 {
   int i;
 
@@ -368,7 +355,7 @@ static void StoreCompressionalgorithm(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /**
@@ -399,25 +386,24 @@ static void InitResourceCb(const ResourceItem* item, int pass)
 
 static void ParseConfigCb(LEX* lc,
                           const ResourceItem* item,
-                          int index,
                           int pass,
                           BareosResource**)
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
-      StoreAutopassword(lc, item, index, pass);
+      StoreAutopassword(lc, item, pass);
       break;
     case CFG_TYPE_AUTHTYPE:
-      StoreAuthenticationType(lc, item, index, pass);
+      StoreAuthenticationType(lc, item, pass);
       break;
     case CFG_TYPE_MAXBLOCKSIZE:
-      StoreMaxblocksize(lc, item, index, pass);
+      StoreMaxblocksize(lc, item, pass);
       break;
     case CFG_TYPE_IODIRECTION:
-      StoreIoDirection(lc, item, index, pass);
+      StoreIoDirection(lc, item, pass);
       break;
     case CFG_TYPE_CMPRSALGO:
-      StoreCompressionalgorithm(lc, item, index, pass);
+      StoreCompressionalgorithm(lc, item, pass);
       break;
     default:
       break;

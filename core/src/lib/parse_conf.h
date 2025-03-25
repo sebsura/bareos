@@ -202,7 +202,6 @@ struct DatatypeName {
 typedef void(INIT_RES_HANDLER)(const ResourceItem* item, int pass);
 typedef void(STORE_RES_HANDLER)(LEX* lc,
                                 const ResourceItem* item,
-                                int index,
                                 int pass,
                                 BareosResource** configuration_resources);
 typedef void(PRINT_RES_HANDLER)(const BareosResource* res,
@@ -320,11 +319,7 @@ class ConfigurationParser {
   void b_UnlockRes(const char* file, int line) const;
   const char* ResToStr(int rcode) const;
   const char* ResGroupToStr(int rcode) const;
-  bool StoreResource(int rcode,
-                     LEX* lc,
-                     const ResourceItem* item,
-                     int index,
-                     int pass);
+  bool StoreResource(int rcode, LEX* lc, const ResourceItem* item, int pass);
   void InitializeQualifiedResourceNameTypeConverter(
       const std::map<int, std::string>&);
   QualifiedResourceNameTypeConverter* GetQualifiedResourceNameTypeConverter()
@@ -386,55 +381,42 @@ class ConfigurationParser {
   bool GetConfigIncludePath(PoolMem& full_path, const char* config_dir);
   bool FindConfigPath(PoolMem& full_path);
   int GetResourceTableIndex(const char* resource_type_name);
-  void StoreMsgs(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreName(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreStrname(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreStr(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreStdstr(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreDir(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreStdstrdir(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreMd5Password(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreClearpassword(LEX* lc,
-                          const ResourceItem* item,
-                          int index,
-                          int pass);
-  void StoreRes(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreAlistRes(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreAlistStr(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreStdVectorStr(LEX* lc,
-                         const ResourceItem* item,
-                         int index,
-                         int pass);
-  void StoreAlistDir(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StorePluginNames(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreDefs(LEX* lc, const ResourceItem* item, int index, int pass);
-  void store_int16(LEX* lc, const ResourceItem* item, int index, int pass);
-  void store_int32(LEX* lc, const ResourceItem* item, int index, int pass);
-  void store_pint16(LEX* lc, const ResourceItem* item, int index, int pass);
-  void store_pint32(LEX* lc, const ResourceItem* item, int index, int pass);
-  void store_int64(LEX* lc, const ResourceItem* item, int index, int pass);
+  void StoreMsgs(LEX* lc, const ResourceItem* item, int pass);
+  void StoreName(LEX* lc, const ResourceItem* item, int pass);
+  void StoreStrname(LEX* lc, const ResourceItem* item, int pass);
+  void StoreStr(LEX* lc, const ResourceItem* item, int pass);
+  void StoreStdstr(LEX* lc, const ResourceItem* item, int pass);
+  void StoreDir(LEX* lc, const ResourceItem* item, int pass);
+  void StoreStdstrdir(LEX* lc, const ResourceItem* item, int pass);
+  void StoreMd5Password(LEX* lc, const ResourceItem* item, int pass);
+  void StoreClearpassword(LEX* lc, const ResourceItem* item, int pass);
+  void StoreRes(LEX* lc, const ResourceItem* item, int pass);
+  void StoreAlistRes(LEX* lc, const ResourceItem* item, int pass);
+  void StoreAlistStr(LEX* lc, const ResourceItem* item, int pass);
+  void StoreStdVectorStr(LEX* lc, const ResourceItem* item, int pass);
+  void StoreAlistDir(LEX* lc, const ResourceItem* item, int pass);
+  void StorePluginNames(LEX* lc, const ResourceItem* item, int pass);
+  void StoreDefs(LEX* lc, const ResourceItem* item, int pass);
+  void store_int16(LEX* lc, const ResourceItem* item, int pass);
+  void store_int32(LEX* lc, const ResourceItem* item, int pass);
+  void store_pint16(LEX* lc, const ResourceItem* item, int pass);
+  void store_pint32(LEX* lc, const ResourceItem* item, int pass);
+  void store_int64(LEX* lc, const ResourceItem* item, int pass);
   void store_int_unit(LEX* lc,
                       const ResourceItem* item,
-                      int index,
                       int pass,
                       bool size32,
                       enum unit_type type);
-  void store_size32(LEX* lc, const ResourceItem* item, int index, int pass);
-  void store_size64(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreSpeed(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreTime(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreBit(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreBool(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreLabel(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreAddresses(LEX* lc, const ResourceItem* item, int index, int pass);
-  void StoreAddressesAddress(LEX* lc,
-                             const ResourceItem* item,
-                             int index,
-                             int pass);
-  void StoreAddressesPort(LEX* lc,
-                          const ResourceItem* item,
-                          int index,
-                          int pass);
+  void store_size32(LEX* lc, const ResourceItem* item, int pass);
+  void store_size64(LEX* lc, const ResourceItem* item, int pass);
+  void StoreSpeed(LEX* lc, const ResourceItem* item, int pass);
+  void StoreTime(LEX* lc, const ResourceItem* item, int pass);
+  void StoreBit(LEX* lc, const ResourceItem* item, int pass);
+  void StoreBool(LEX* lc, const ResourceItem* item, int pass);
+  void StoreLabel(LEX* lc, const ResourceItem* item, int pass);
+  void StoreAddresses(LEX* lc, const ResourceItem* item, int pass);
+  void StoreAddressesAddress(LEX* lc, const ResourceItem* item, int pass);
+  void StoreAddressesPort(LEX* lc, const ResourceItem* item, int pass);
   void ScanTypes(LEX* lc,
                  MessagesResource* msg,
                  MessageDestinationCode dest_code,

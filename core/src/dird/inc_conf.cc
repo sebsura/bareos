@@ -1,4 +1,5 @@
 /*
+                                    int,
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2009 Free Software Foundation Europe e.V.
@@ -221,7 +222,7 @@ static struct s_fs_opt FS_options[]
        {NULL, 0, 0}};
 
 // Imported subroutines
-extern void StoreInc(LEX* lc, const ResourceItem* item, int index, int pass);
+extern void StoreInc(LEX* lc, const ResourceItem* item, int pass);
 
 /* We build the current new Include and Exclude items here */
 static IncludeExcludeItem* res_incexe;
@@ -902,7 +903,7 @@ static void StoreExcludedir(LEX* lc,
  *  resource.  We treat the Include/Exclude like a sort of
  *  mini-resource within the FileSet resource.
  */
-static void StoreNewinc(LEX* lc, const ResourceItem* item, int index, int pass)
+static void StoreNewinc(LEX* lc, const ResourceItem* item, int pass)
 {
   FilesetResource* res_fs
       = dynamic_cast<FilesetResource*>(item->allocated_resource());
@@ -985,14 +986,14 @@ static void StoreNewinc(LEX* lc, const ResourceItem* item, int index, int pass)
 
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /**
  * Store FileSet Include/Exclude info
  *  new style includes are handled in StoreNewinc()
  */
-void StoreInc(LEX* lc, const ResourceItem* item, int index, int pass)
+void StoreInc(LEX* lc, const ResourceItem* item, int pass)
 {
   int token;
 
@@ -1001,7 +1002,7 @@ void StoreInc(LEX* lc, const ResourceItem* item, int index, int pass)
    *  old include has options following the Include. */
   token = LexGetToken(lc, BCT_SKIP_EOL);
   if (token == BCT_BOB) {
-    StoreNewinc(lc, item, index, pass);
+    StoreNewinc(lc, item, pass);
     return;
   }
   scan_err0(lc, T_("Old style Include/Exclude not supported\n"));

@@ -253,10 +253,7 @@ void ConfigurationParser::ScanTypes(LEX* lc,
 }
 
 // Store Messages Destination information
-void ConfigurationParser::StoreMsgs(LEX* lc,
-                                    const ResourceItem* item,
-                                    int index,
-                                    int pass)
+void ConfigurationParser::StoreMsgs(LEX* lc, const ResourceItem* item, int pass)
 {
   int token;
   const char* cmd = nullptr;
@@ -398,7 +395,7 @@ void ConfigurationParser::StoreMsgs(LEX* lc,
   }
   ScanToEol(lc);
   message_resource->SetMemberPresent(item->name);
-  ClearBit(index, message_resource->inherit_content_);
+  item->UnsetInherited();
   Dmsg0(900, "Done StoreMsgs\n");
 }
 
@@ -406,10 +403,7 @@ void ConfigurationParser::StoreMsgs(LEX* lc,
  * This routine is ONLY for resource names
  * Store a name at specified address.
  */
-void ConfigurationParser::StoreName(LEX* lc,
-                                    const ResourceItem* item,
-                                    int index,
-                                    int)
+void ConfigurationParser::StoreName(LEX* lc, const ResourceItem* item, int)
 {
   std::string msg{};
 
@@ -429,7 +423,7 @@ void ConfigurationParser::StoreName(LEX* lc,
   *p = strdup(lc->str);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /*
@@ -438,7 +432,6 @@ void ConfigurationParser::StoreName(LEX* lc,
  */
 void ConfigurationParser::StoreStrname(LEX* lc,
                                        const ResourceItem* item,
-                                       int index,
                                        int pass)
 {
   LexGetToken(lc, BCT_NAME);
@@ -449,33 +442,29 @@ void ConfigurationParser::StoreStrname(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a string at specified address
-void ConfigurationParser::StoreStr(LEX* lc,
-                                   const ResourceItem* item,
-                                   int index,
-                                   int pass)
+void ConfigurationParser::StoreStr(LEX* lc, const ResourceItem* item, int pass)
 {
   LexGetToken(lc, BCT_STRING);
   if (pass == 1) { SetItemVariableFreeMemory<char*>(*item, strdup(lc->str)); }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a string at specified address
 void ConfigurationParser::StoreStdstr(LEX* lc,
                                       const ResourceItem* item,
-                                      int index,
                                       int pass)
 {
   LexGetToken(lc, BCT_STRING);
   if (pass == 1) { SetItemVariable<std::string>(*item, lc->str); }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /*
@@ -483,10 +472,7 @@ void ConfigurationParser::StoreStdstr(LEX* lc,
  * shell expansion except if the string begins with a vertical
  * bar (i.e. it will likely be passed to the shell later).
  */
-void ConfigurationParser::StoreDir(LEX* lc,
-                                   const ResourceItem* item,
-                                   int index,
-                                   int pass)
+void ConfigurationParser::StoreDir(LEX* lc, const ResourceItem* item, int pass)
 {
   LexGetToken(lc, BCT_STRING);
   if (pass == 1) {
@@ -499,12 +485,11 @@ void ConfigurationParser::StoreDir(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 void ConfigurationParser::StoreStdstrdir(LEX* lc,
                                          const ResourceItem* item,
-                                         int index,
                                          int pass)
 {
   LexGetToken(lc, BCT_STRING);
@@ -516,13 +501,12 @@ void ConfigurationParser::StoreStdstrdir(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a password at specified address in MD5 coding
 void ConfigurationParser::StoreMd5Password(LEX* lc,
                                            const ResourceItem* item,
-                                           int index,
                                            int pass)
 {
   LexGetToken(lc, BCT_STRING);
@@ -600,13 +584,12 @@ void ConfigurationParser::StoreMd5Password(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a password at specified address in MD5 coding
 void ConfigurationParser::StoreClearpassword(LEX* lc,
                                              const ResourceItem* item,
-                                             int index,
                                              int pass)
 {
   LexGetToken(lc, BCT_STRING);
@@ -630,7 +613,7 @@ void ConfigurationParser::StoreClearpassword(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /*
@@ -638,10 +621,7 @@ void ConfigurationParser::StoreClearpassword(LEX* lc,
  * If we are in pass 2, do a lookup of the
  * resource.
  */
-void ConfigurationParser::StoreRes(LEX* lc,
-                                   const ResourceItem* item,
-                                   int index,
-                                   int pass)
+void ConfigurationParser::StoreRes(LEX* lc, const ResourceItem* item, int pass)
 {
   LexGetToken(lc, BCT_NAME);
   if (pass == 2) {
@@ -665,7 +645,7 @@ void ConfigurationParser::StoreRes(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /*
@@ -676,7 +656,6 @@ void ConfigurationParser::StoreRes(LEX* lc,
  */
 void ConfigurationParser::StoreAlistRes(LEX* lc,
                                         const ResourceItem* item,
-                                        int index,
                                         int pass)
 {
   alist<BareosResource*>** alistvalue
@@ -707,13 +686,12 @@ void ConfigurationParser::StoreAlistRes(LEX* lc,
     token = LexGetToken(lc, BCT_ALL);
   }
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a std::string in an std::vector<std::string>.
 void ConfigurationParser::StoreStdVectorStr(LEX* lc,
                                             const ResourceItem* item,
-                                            int index,
                                             int pass)
 {
   std::vector<std::string>* list{nullptr};
@@ -741,13 +719,12 @@ void ConfigurationParser::StoreStdVectorStr(LEX* lc,
     token = LexGetToken(lc, BCT_ALL);
   }
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a string in an alist.
 void ConfigurationParser::StoreAlistStr(LEX* lc,
                                         const ResourceItem* item,
-                                        int index,
                                         int pass)
 {
   alist<const char*>** alistvalue
@@ -785,7 +762,7 @@ void ConfigurationParser::StoreAlistStr(LEX* lc,
     token = LexGetToken(lc, BCT_ALL);
   }
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /*
@@ -796,7 +773,6 @@ void ConfigurationParser::StoreAlistStr(LEX* lc,
  */
 void ConfigurationParser::StoreAlistDir(LEX* lc,
                                         const ResourceItem* item,
-                                        int index,
                                         int pass)
 {
   if (pass == 2) {
@@ -833,13 +809,12 @@ void ConfigurationParser::StoreAlistDir(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a list of plugin names to load by the daemon on startup.
 void ConfigurationParser::StorePluginNames(LEX* lc,
                                            const ResourceItem* item,
-                                           int index,
                                            int pass)
 {
   if (pass == 1) {
@@ -881,7 +856,7 @@ void ConfigurationParser::StorePluginNames(LEX* lc,
     }
   }
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /*
@@ -893,10 +868,7 @@ void ConfigurationParser::StorePluginNames(LEX* lc,
  * Note, here item points to the main resource (e.g. Job, not
  *  the jobdefs, which we look up).
  */
-void ConfigurationParser::StoreDefs(LEX* lc,
-                                    const ResourceItem* item,
-                                    int,
-                                    int pass)
+void ConfigurationParser::StoreDefs(LEX* lc, const ResourceItem* item, int pass)
 {
   BareosResource* res;
 
@@ -915,72 +887,56 @@ void ConfigurationParser::StoreDefs(LEX* lc,
 }
 
 // Store an integer at specified address
-void ConfigurationParser::store_int16(LEX* lc,
-                                      const ResourceItem* item,
-                                      int index,
-                                      int)
+void ConfigurationParser::store_int16(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_INT16);
   SetItemVariable<int16_t>(*item, lc->u.int16_val);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
-void ConfigurationParser::store_int32(LEX* lc,
-                                      const ResourceItem* item,
-                                      int index,
-                                      int)
+void ConfigurationParser::store_int32(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_INT32);
   SetItemVariable<int32_t>(*item, lc->u.int32_val);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a positive integer at specified address
-void ConfigurationParser::store_pint16(LEX* lc,
-                                       const ResourceItem* item,
-                                       int index,
-                                       int)
+void ConfigurationParser::store_pint16(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_PINT16);
   SetItemVariable<uint16_t>(*item, lc->u.pint16_val);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
-void ConfigurationParser::store_pint32(LEX* lc,
-                                       const ResourceItem* item,
-                                       int index,
-                                       int)
+void ConfigurationParser::store_pint32(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_PINT32);
   SetItemVariable<uint32_t>(*item, lc->u.pint32_val);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store an 64 bit integer at specified address
-void ConfigurationParser::store_int64(LEX* lc,
-                                      const ResourceItem* item,
-                                      int index,
-                                      int)
+void ConfigurationParser::store_int64(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_INT64);
   SetItemVariable<int64_t>(*item, lc->u.int64_val);
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a size in bytes
 void ConfigurationParser::store_int_unit(LEX* lc,
                                          const ResourceItem* item,
-                                         int index,
                                          int,
                                          bool size32,
                                          enum unit_type type)
@@ -1046,42 +1002,36 @@ void ConfigurationParser::store_int_unit(LEX* lc,
   }
   if (token != BCT_EOL) { ScanToEol(lc); }
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
   Dmsg0(900, "Leave store_unit\n");
 }
 
 // Store a size in bytes
 void ConfigurationParser::store_size32(LEX* lc,
                                        const ResourceItem* item,
-                                       int index,
                                        int pass)
 {
-  store_int_unit(lc, item, index, pass, true /* 32 bit */, STORE_SIZE);
+  store_int_unit(lc, item, pass, true /* 32 bit */, STORE_SIZE);
 }
 
 // Store a size in bytes
 void ConfigurationParser::store_size64(LEX* lc,
                                        const ResourceItem* item,
-                                       int index,
                                        int pass)
 {
-  store_int_unit(lc, item, index, pass, false /* not 32 bit */, STORE_SIZE);
+  store_int_unit(lc, item, pass, false /* not 32 bit */, STORE_SIZE);
 }
 
 // Store a speed in bytes/s
 void ConfigurationParser::StoreSpeed(LEX* lc,
                                      const ResourceItem* item,
-                                     int index,
                                      int pass)
 {
-  store_int_unit(lc, item, index, pass, false /* 64 bit */, STORE_SPEED);
+  store_int_unit(lc, item, pass, false /* 64 bit */, STORE_SPEED);
 }
 
 // Store a time period in seconds
-void ConfigurationParser::StoreTime(LEX* lc,
-                                    const ResourceItem* item,
-                                    int index,
-                                    int)
+void ConfigurationParser::StoreTime(LEX* lc, const ResourceItem* item, int)
 {
   utime_t utime;
   char period[500];
@@ -1116,14 +1066,11 @@ void ConfigurationParser::StoreTime(LEX* lc,
   }
   if (token != BCT_EOL) { ScanToEol(lc); }
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a yes/no in a bit field
-void ConfigurationParser::StoreBit(LEX* lc,
-                                   const ResourceItem* item,
-                                   int index,
-                                   int)
+void ConfigurationParser::StoreBit(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
   char* bitvalue = GetItemVariablePointer<char*>(*item);
@@ -1138,14 +1085,11 @@ void ConfigurationParser::StoreBit(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store a bool in a bit field
-void ConfigurationParser::StoreBool(LEX* lc,
-                                    const ResourceItem* item,
-                                    int index,
-                                    int)
+void ConfigurationParser::StoreBool(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
   if (Bstrcasecmp(lc->str, "yes") || Bstrcasecmp(lc->str, "true")) {
@@ -1159,14 +1103,11 @@ void ConfigurationParser::StoreBool(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 // Store Tape Label Type (BAREOS, ANSI, IBM)
-void ConfigurationParser::StoreLabel(LEX* lc,
-                                     const ResourceItem* item,
-                                     int index,
-                                     int)
+void ConfigurationParser::StoreLabel(LEX* lc, const ResourceItem* item, int)
 {
   LexGetToken(lc, BCT_NAME);
   // Store the label pass 2 so that type is defined
@@ -1184,7 +1125,7 @@ void ConfigurationParser::StoreLabel(LEX* lc,
   }
   ScanToEol(lc);
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 /*
@@ -1217,7 +1158,6 @@ void ConfigurationParser::StoreLabel(LEX* lc,
  */
 void ConfigurationParser::StoreAddresses(LEX* lc,
                                          const ResourceItem* item,
-                                         int index,
                                          int pass)
 {
   int token;
@@ -1329,12 +1269,11 @@ void ConfigurationParser::StoreAddresses(LEX* lc,
     scan_err1(lc, T_("Expected a end of block }, got: %s"), lc->str);
   }
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 
 void ConfigurationParser::StoreAddressesAddress(LEX* lc,
                                                 const ResourceItem* item,
-                                                int,
                                                 int pass)
 {
   int token;
@@ -1358,7 +1297,6 @@ void ConfigurationParser::StoreAddressesAddress(LEX* lc,
 
 void ConfigurationParser::StoreAddressesPort(LEX* lc,
                                              const ResourceItem* item,
-                                             int,
                                              int pass)
 {
   int token;
@@ -1400,106 +1338,105 @@ void ConfigurationParser::StoreAddressesPort(LEX* lc,
 bool ConfigurationParser::StoreResource(int type,
                                         LEX* lc,
                                         const ResourceItem* item,
-                                        int index,
                                         int pass)
 {
   switch (type) {
     case CFG_TYPE_STR:
-      StoreStr(lc, item, index, pass);
+      StoreStr(lc, item, pass);
       break;
     case CFG_TYPE_DIR:
-      StoreDir(lc, item, index, pass);
+      StoreDir(lc, item, pass);
       break;
     case CFG_TYPE_STDSTR:
-      StoreStdstr(lc, item, index, pass);
+      StoreStdstr(lc, item, pass);
       break;
     case CFG_TYPE_STDSTRDIR:
-      StoreStdstrdir(lc, item, index, pass);
+      StoreStdstrdir(lc, item, pass);
       break;
     case CFG_TYPE_MD5PASSWORD:
-      StoreMd5Password(lc, item, index, pass);
+      StoreMd5Password(lc, item, pass);
       break;
     case CFG_TYPE_CLEARPASSWORD:
-      StoreClearpassword(lc, item, index, pass);
+      StoreClearpassword(lc, item, pass);
       break;
     case CFG_TYPE_NAME:
-      StoreName(lc, item, index, pass);
+      StoreName(lc, item, pass);
       break;
     case CFG_TYPE_STRNAME:
-      StoreStrname(lc, item, index, pass);
+      StoreStrname(lc, item, pass);
       break;
     case CFG_TYPE_RES:
-      StoreRes(lc, item, index, pass);
+      StoreRes(lc, item, pass);
       break;
     case CFG_TYPE_ALIST_RES:
-      StoreAlistRes(lc, item, index, pass);
+      StoreAlistRes(lc, item, pass);
       break;
     case CFG_TYPE_ALIST_STR:
-      StoreAlistStr(lc, item, index, pass);
+      StoreAlistStr(lc, item, pass);
       break;
     case CFG_TYPE_STR_VECTOR:
     case CFG_TYPE_STR_VECTOR_OF_DIRS:
-      StoreStdVectorStr(lc, item, index, pass);
+      StoreStdVectorStr(lc, item, pass);
       break;
     case CFG_TYPE_ALIST_DIR:
-      StoreAlistDir(lc, item, index, pass);
+      StoreAlistDir(lc, item, pass);
       break;
     case CFG_TYPE_INT16:
-      store_int16(lc, item, index, pass);
+      store_int16(lc, item, pass);
       break;
     case CFG_TYPE_PINT16:
-      store_pint16(lc, item, index, pass);
+      store_pint16(lc, item, pass);
       break;
     case CFG_TYPE_INT32:
-      store_int32(lc, item, index, pass);
+      store_int32(lc, item, pass);
       break;
     case CFG_TYPE_PINT32:
-      store_pint32(lc, item, index, pass);
+      store_pint32(lc, item, pass);
       break;
     case CFG_TYPE_MSGS:
-      StoreMsgs(lc, item, index, pass);
+      StoreMsgs(lc, item, pass);
       break;
     case CFG_TYPE_INT64:
-      store_int64(lc, item, index, pass);
+      store_int64(lc, item, pass);
       break;
     case CFG_TYPE_BIT:
-      StoreBit(lc, item, index, pass);
+      StoreBit(lc, item, pass);
       break;
     case CFG_TYPE_BOOL:
-      StoreBool(lc, item, index, pass);
+      StoreBool(lc, item, pass);
       break;
     case CFG_TYPE_TIME:
-      StoreTime(lc, item, index, pass);
+      StoreTime(lc, item, pass);
       break;
     case CFG_TYPE_SIZE64:
-      store_size64(lc, item, index, pass);
+      store_size64(lc, item, pass);
       break;
     case CFG_TYPE_SIZE32:
-      store_size32(lc, item, index, pass);
+      store_size32(lc, item, pass);
       break;
     case CFG_TYPE_SPEED:
-      StoreSpeed(lc, item, index, pass);
+      StoreSpeed(lc, item, pass);
       break;
     case CFG_TYPE_DEFS:
-      StoreDefs(lc, item, index, pass);
+      StoreDefs(lc, item, pass);
       break;
     case CFG_TYPE_LABEL:
-      StoreLabel(lc, item, index, pass);
+      StoreLabel(lc, item, pass);
       break;
     case CFG_TYPE_ADDRESSES:
-      StoreAddresses(lc, item, index, pass);
+      StoreAddresses(lc, item, pass);
       break;
     case CFG_TYPE_ADDRESSES_ADDRESS:
-      StoreAddressesAddress(lc, item, index, pass);
+      StoreAddressesAddress(lc, item, pass);
       break;
     case CFG_TYPE_ADDRESSES_PORT:
-      StoreAddressesPort(lc, item, index, pass);
+      StoreAddressesPort(lc, item, pass);
       break;
     case CFG_TYPE_PLUGIN_NAMES:
-      StorePluginNames(lc, item, index, pass);
+      StorePluginNames(lc, item, pass);
       break;
     case CFG_TYPE_DIR_OR_CMD:
-      StoreDir(lc, item, index, pass);
+      StoreDir(lc, item, pass);
       break;
     default:
       return false;
@@ -2075,7 +2012,7 @@ bool BareosResource::PrintConfig(OutputFormatterResource& send,
                      my_config.ResToStr(rcode_), resource_name_, internal_);
 
   for (size_t i = 0; i < items.size(); i++) {
-    bool inherited = BitIsSet(i, inherit_content_);
+    bool inherited = IsMemberInherited(items[i].name);
     if (internal_) { inherited = true; }
     PrintResourceItem(items[i], my_config, send, hide_sensitive_data, inherited,
                       verbose);

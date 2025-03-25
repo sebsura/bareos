@@ -165,7 +165,7 @@ struct s_kw RunFields[] = {{"pool", 'P'},
  *   together.
  *
  */
-void StoreRun(LEX* lc, const ResourceItem* item, int index, int pass)
+void StoreRun(LEX* lc, const ResourceItem* item, int pass)
 {
   char* p;
   int i, j;
@@ -715,6 +715,6 @@ void StoreRun(LEX* lc, const ResourceItem* item, int index, int pass)
 
   lc->options = options; /* Restore scanner options */
   item->SetPresent();
-  ClearBit(index, item->allocated_resource()->inherit_content_);
+  item->UnsetInherited();
 }
 } /* namespace directordaemon */
