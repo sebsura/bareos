@@ -315,6 +315,7 @@ void SetItemVariableFreeMemory(const ResourceItem& item, const V& value)
 
 namespace config {
 
+#if 0
 template <typename T, typename U> using MemberFn = U*(T*);
 template <typename T, MemberFn<T, char*>* member_get>
 constexpr ResourceItem String(const char* name)
@@ -328,7 +329,6 @@ constexpr ResourceItem String(const char* name)
                       },
                       {}};
 }
-#if 0
 constexpr ResourceItem Directory() { return {}; }
 constexpr ResourceItem Md5Password() { return {}; }
 constexpr ResourceItem ClearPassword() { return {}; }
