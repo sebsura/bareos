@@ -56,7 +56,8 @@
 
 static const std::string default_config_filename("tray-monitor.conf");
 
-static bool SaveResource(int type,
+static bool SaveResource(BareosResource* res,
+                         int type,
                          gsl::span<const ResourceItem> items,
                          int pass);
 static void FreeResource(BareosResource* sres, int type);
@@ -267,7 +268,8 @@ static void FreeResource(BareosResource* res, int type)
  * pointers because they may not have been defined until
  * later in pass 1.
  */
-static bool SaveResource(int type,
+static bool SaveResource(BareosResource* res,
+                         int type,
                          gsl::span<const ResourceItem> items,
                          int pass)
 {
@@ -314,8 +316,6 @@ static bool SaveResource(int type,
      * redundant and would not be freed in the dynamic resource_definitions;
      *
      * currently, this is the best place to free that */
-
-    BareosResource* res = items[0].allocated_resource();
 
     if (res) {
       if (res->resource_name_) {

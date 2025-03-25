@@ -28,7 +28,8 @@ class ConfigurationParser;
 
 #include <gsl/span>
 
-typedef bool (*SaveResourceCb_t)(int type,
+typedef bool (*SaveResourceCb_t)(BareosResource* res,
+                                 int type,
                                  gsl::span<const ResourceItem> items,
                                  int pass);
 typedef void (*DumpResourceCb_t)(int type,

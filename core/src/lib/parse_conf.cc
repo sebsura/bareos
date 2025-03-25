@@ -416,7 +416,8 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
               }
 
               /* save resource */
-              if (!SaveResourceCb_(current.rcode, current.items, parser_pass)) {
+              if (!SaveResourceCb_(current.res, current.rcode, current.items,
+                                   parser_pass)) {
                 scan_err0(lexical_parser, T_("SaveResource failed"));
                 return false;
               }

@@ -53,7 +53,8 @@
 namespace storagedaemon {
 
 static void FreeResource(BareosResource* sres, int type);
-static bool SaveResource(int type,
+static bool SaveResource(BareosResource* res,
+                         int type,
                          gsl::span<const ResourceItem> items,
                          int pass);
 static void DumpResource(int type,
@@ -732,7 +733,8 @@ static void DumpResource(int type,
   }
 }
 
-static bool SaveResource(int type,
+static bool SaveResource(BareosResource* res,
+                         int type,
                          gsl::span<const ResourceItem> items,
                          int pass)
 {
@@ -762,8 +764,8 @@ static bool SaveResource(int type,
   }
   // save previously discovered pointers into dynamic memory
   if (pass == 2) {
-    BareosResource* allocated_resource = my_config->GetResWithName(
-        type, items[0].allocated_resource()->resource_name_);
+    BareosResource* allocated_resource
+        = my_config->GetResWithName(type, res->resource_name_);
     if (allocated_resource && !allocated_resource->Validate()) { return false; }
     switch (type) {
       case R_DEVICE:
@@ -828,8 +830,6 @@ static bool SaveResource(int type,
      * redundant and would not be freed in the dynamic resources;
      *
      * currently, this is the best place to free that */
-
-    BareosResource* res = items[0].allocated_resource();
 
     if (res) {
       if (res->resource_name_) {

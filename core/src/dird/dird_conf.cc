@@ -89,7 +89,8 @@ extern void StoreRun(LEX* lc, const ResourceItem* item, int index, int pass);
 
 static void CreateAndAddUserAgentConsoleResource(
     ConfigurationParser& my_config);
-static bool SaveResource(int type,
+static bool SaveResource(BareosResource* res,
+                         int type,
                          gsl::span<const ResourceItem> items,
                          int pass);
 static void FreeResource(BareosResource* sres, int type);
@@ -3966,13 +3967,11 @@ static void FreeResource(BareosResource* res, int type)
  * pointers because they may not have been defined until
  * later in pass 1.
  */
-static bool SaveResource(int type,
+static bool SaveResource(BareosResource* res,
+                         int type,
                          gsl::span<const ResourceItem> items,
                          int pass)
 {
-  BareosResource* allocated_resource
-      = dird_resource_tables[type].get_resource();
-
   switch (type) {
     case R_DIRECTOR: {
       /* IP Addresses can be set by multiple directives.
@@ -3983,7 +3982,7 @@ static bool SaveResource(int type,
           auto& item = items[i];
           if (Bstrcasecmp(item.name, "DirAddresses")) {
             // SetBit(i, allocated_resource->item_present_);
-            ClearBit(i, allocated_resource->inherit_content_);
+            ClearBit(i, res->inherit_content_);
           }
         }
       }
@@ -3995,7 +3994,7 @@ static bool SaveResource(int type,
       /* Check Job requirements after applying JobDefs
        * Ensure that the name item is present however. */
       if (items[0].is_required()) {
-        if (!allocated_resource->IsMemberPresent(items[0].name)) {
+        if (!res->IsMemberPresent(items[0].name)) {
           Emsg2(M_ERROR, 0,
                 T_("%s item is required in %s resource, but not found.\n"),
                 items[0].name, dird_resource_tables[type].name);
@@ -4005,9 +4004,7 @@ static bool SaveResource(int type,
       break;
     default:
       // Ensure that all required items are present
-      if (pass == 1 && !ValidateResource(type, items, allocated_resource)) {
-        return false;
-      }
+      if (pass == 1 && !ValidateResource(type, items, res)) { return false; }
       break;
   }
 
@@ -4024,8 +4021,8 @@ static bool SaveResource(int type,
       case R_DIRECTOR:
         break;
       default: {
-        BareosResource* pass1_resource = my_config->GetResWithName(
-            type, allocated_resource->resource_name_);
+        BareosResource* pass1_resource
+            = my_config->GetResWithName(type, res->resource_name_);
         validation = ValidateResource(type, items, pass1_resource);
       } break;
     }

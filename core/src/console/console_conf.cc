@@ -36,7 +36,8 @@
 
 namespace console {
 
-static bool SaveResource(int type,
+static bool SaveResource(BareosResource* res,
+                         int type,
                          gsl::span<const ResourceItem> items,
                          int pass);
 static void FreeResource(BareosResource* sres, int type);
@@ -160,10 +161,12 @@ static void FreeResource(BareosResource* res, int type)
   if (next_resource) { FreeResource(next_resource, type); }
 }
 
-static bool SaveResource(int type,
+static bool SaveResource(BareosResource* res,
+                         int type,
                          gsl::span<const ResourceItem> items,
                          int pass)
 {
+  (void)res;
   int error = 0;
 
   // Ensure that all required items are present
