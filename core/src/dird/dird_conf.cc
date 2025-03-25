@@ -2450,7 +2450,8 @@ static void StoreActiononpurge(LEX* lc, const ResourceItem* item, int)
  * first reference. The details of the resource are obtained
  * later from the SD.
  */
-static void StoreDevice(LEX* lc,
+static void StoreDevice(ConfigurationParser* parser,
+                        LEX* lc,
                         const ResourceItem* item,
                         int pass,
                         gsl::span<BareosResource*> configuration_resources)
@@ -2492,7 +2493,7 @@ static void StoreDevice(LEX* lc,
     item->SetPresent();
     item->UnsetInherited();
   } else {
-    my_config->StoreResource(CFG_TYPE_ALIST_RES, lc, item, pass);
+    StoreResource(parser, CFG_TYPE_ALIST_RES, lc, item, pass);
   }
 }
 
@@ -2665,7 +2666,10 @@ static void StoreLevel(LEX* lc, const ResourceItem* item, int)
  * Store password either clear if for NDMP and catalog or MD5 hashed for
  * native.
  */
-static void StoreAutopassword(LEX* lc, const ResourceItem* item, int pass)
+static void StoreAutopassword(ConfigurationParser* parser,
+                              LEX* lc,
+                              const ResourceItem* item,
+                              int pass)
 {
   switch (item->allocated_resource()->rcode_) {
     case R_DIRECTOR:
@@ -2674,10 +2678,10 @@ static void StoreAutopassword(LEX* lc, const ResourceItem* item, int pass)
        * and for clear we need a code of 1. */
       switch (item->code) {
         case 1:
-          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+          StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
+          StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
@@ -2698,10 +2702,10 @@ static void StoreAutopassword(LEX* lc, const ResourceItem* item, int pass)
         case APT_NDMPV2:
         case APT_NDMPV3:
         case APT_NDMPV4:
-          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+          StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
+          StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
@@ -2722,18 +2726,18 @@ static void StoreAutopassword(LEX* lc, const ResourceItem* item, int pass)
         case APT_NDMPV2:
         case APT_NDMPV3:
         case APT_NDMPV4:
-          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+          StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
+          StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
     case R_CATALOG:
-      my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+      StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
       break;
     default:
-      my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
+      StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
       break;
   }
 }
@@ -3164,14 +3168,15 @@ static void InitResourceCb(const ResourceItem* item, int pass)
  * callback function for parse_config
  * See ../lib/parse_conf.c, function ParseConfig, for more generic handling.
  */
-static void ParseConfigCb(LEX* lc,
+static void ParseConfigCb(ConfigurationParser* parser,
+                          LEX* lc,
                           const ResourceItem* item,
                           int pass,
                           gsl::span<BareosResource*> configuration_resources)
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
-      StoreAutopassword(lc, item, pass);
+      StoreAutopassword(parser, lc, item, pass);
       break;
     case CFG_TYPE_ACL:
       StoreAcl(lc, item, pass);
@@ -3186,7 +3191,7 @@ static void ParseConfigCb(LEX* lc,
       StoreAuthtype(lc, item, pass);
       break;
     case CFG_TYPE_DEVICE:
-      StoreDevice(lc, item, pass, configuration_resources);
+      StoreDevice(parser, lc, item, pass, configuration_resources);
       break;
     case CFG_TYPE_JOBTYPE:
       StoreJobtype(lc, item, pass);

@@ -387,11 +387,11 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
 
                 Dmsg1(800, "calling handler for %s\n", item->name);
 
-                if (!StoreResource(item->type, lexical_parser.get(), item,
+                if (!StoreResource(this, item->type, lexical_parser.get(), item,
                                    parser_pass)) {
                   if (store_res_) {
                     store_res_(
-                        lexical_parser.get(), item, parser_pass,
+                        this, lexical_parser.get(), item, parser_pass,
                         config_resources_container_->configuration_resources_);
                   }
                 }

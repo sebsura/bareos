@@ -215,7 +215,8 @@ static void InitResourceCb(const ResourceItem* item, int pass)
  * callback function for parse_config
  * See ../lib/parse_conf.c, function ParseConfig, for more generic handling.
  */
-static void ParseConfigCb(LEX* lc,
+static void ParseConfigCb(ConfigurationParser*,
+                          LEX* lc,
                           const ResourceItem* item,
                           int pass,
                           gsl::span<BareosResource*>)

@@ -191,6 +191,17 @@ enum
   CFG_TYPE_CIPHER = 301 /* Encryption Cipher */
 };
 
+namespace config {
+using lexer = LEX;
+
+struct type {
+  virtual ~type() = default;
+
+  virtual bool parse(const ResourceItem* item, lexer* lc, int pass) = 0;
+  virtual bool format(void* Target, char* Buffer, size_t BufSize) = 0;
+};
+};  // namespace config
+
 
 struct DatatypeName {
   const int number;
@@ -200,6 +211,7 @@ struct DatatypeName {
 
 typedef void(INIT_RES_HANDLER)(const ResourceItem* item, int pass);
 typedef void(STORE_RES_HANDLER)(
+    ConfigurationParser*,
     LEX* lc,
     const ResourceItem* item,
     int pass,
@@ -318,7 +330,6 @@ class ConfigurationParser {
   void b_UnlockRes(const char* file, int line) const;
   const char* ResToStr(int rcode) const;
   const char* ResGroupToStr(int rcode) const;
-  bool StoreResource(int rcode, LEX* lc, const ResourceItem* item, int pass);
   void InitializeQualifiedResourceNameTypeConverter(
       const std::map<int, std::string>&);
   QualifiedResourceNameTypeConverter* GetQualifiedResourceNameTypeConverter()
@@ -346,12 +357,6 @@ class ConfigurationParser {
   ConfigurationParser operator=(const ConfigurationParser&) = delete;
 
  private:
-  enum unit_type
-  {
-    STORE_SIZE,
-    STORE_SPEED
-  };
-
   std::string config_default_filename_; /* default config filename, that is
                                            used, if no filename is given */
   std::string config_dir_; /* base directory of configuration files */
@@ -380,48 +385,6 @@ class ConfigurationParser {
   bool GetConfigIncludePath(PoolMem& full_path, const char* config_dir);
   bool FindConfigPath(PoolMem& full_path);
   int GetResourceTableIndex(const char* resource_type_name);
-  void StoreMsgs(LEX* lc, const ResourceItem* item, int pass);
-  void StoreName(LEX* lc, const ResourceItem* item, int pass);
-  void StoreStrname(LEX* lc, const ResourceItem* item, int pass);
-  void StoreStr(LEX* lc, const ResourceItem* item, int pass);
-  void StoreStdstr(LEX* lc, const ResourceItem* item, int pass);
-  void StoreDir(LEX* lc, const ResourceItem* item, int pass);
-  void StoreStdstrdir(LEX* lc, const ResourceItem* item, int pass);
-  void StoreMd5Password(LEX* lc, const ResourceItem* item, int pass);
-  void StoreClearpassword(LEX* lc, const ResourceItem* item, int pass);
-  void StoreRes(LEX* lc, const ResourceItem* item, int pass);
-  void StoreAlistRes(LEX* lc, const ResourceItem* item, int pass);
-  void StoreAlistStr(LEX* lc, const ResourceItem* item, int pass);
-  void StoreStdVectorStr(LEX* lc, const ResourceItem* item, int pass);
-  void StoreAlistDir(LEX* lc, const ResourceItem* item, int pass);
-  void StorePluginNames(LEX* lc, const ResourceItem* item, int pass);
-  void StoreDefs(LEX* lc, const ResourceItem* item, int pass);
-  void store_int16(LEX* lc, const ResourceItem* item, int pass);
-  void store_int32(LEX* lc, const ResourceItem* item, int pass);
-  void store_pint16(LEX* lc, const ResourceItem* item, int pass);
-  void store_pint32(LEX* lc, const ResourceItem* item, int pass);
-  void store_int64(LEX* lc, const ResourceItem* item, int pass);
-  void store_int_unit(LEX* lc,
-                      const ResourceItem* item,
-                      int pass,
-                      bool size32,
-                      enum unit_type type);
-  void store_size32(LEX* lc, const ResourceItem* item, int pass);
-  void store_size64(LEX* lc, const ResourceItem* item, int pass);
-  void StoreSpeed(LEX* lc, const ResourceItem* item, int pass);
-  void StoreTime(LEX* lc, const ResourceItem* item, int pass);
-  void StoreBit(LEX* lc, const ResourceItem* item, int pass);
-  void StoreBool(LEX* lc, const ResourceItem* item, int pass);
-  void StoreLabel(LEX* lc, const ResourceItem* item, int pass);
-  void StoreAddresses(LEX* lc, const ResourceItem* item, int pass);
-  void StoreAddressesAddress(LEX* lc, const ResourceItem* item, int pass);
-  void StoreAddressesPort(LEX* lc, const ResourceItem* item, int pass);
-  void ScanTypes(LEX* lc,
-                 MessagesResource* msg,
-                 MessageDestinationCode dest_code,
-                 const std::string& where,
-                 const std::string& cmd,
-                 const std::string& timestamp_format);
   void lex_error(const char* cf,
                  LEX_ERROR_HANDLER* ScanError,
                  LEX_WARNING_HANDLER* scan_warning) const;
@@ -527,5 +490,11 @@ class ResLocker {
   ResLocker(ResLocker&&) = delete;
   ResLocker& operator=(ResLocker&&) = delete;
 };
+
+bool StoreResource(ConfigurationParser*,
+                   int rcode,
+                   LEX* lc,
+                   const ResourceItem* item,
+                   int pass);
 
 #endif  // BAREOS_LIB_PARSE_CONF_H_

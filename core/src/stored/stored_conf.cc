@@ -277,7 +277,10 @@ static void StoreAuthenticationType(LEX* lc, const ResourceItem* item, int)
 }
 
 // Store password either clear if for NDMP or MD5 hashed for native.
-static void StoreAutopassword(LEX* lc, const ResourceItem* item, int pass)
+static void StoreAutopassword(ConfigurationParser* parser,
+                              LEX* lc,
+                              const ResourceItem* item,
+                              int pass)
 {
   switch (item->allocated_resource()->rcode_) {
     case R_DIRECTOR:
@@ -286,26 +289,29 @@ static void StoreAutopassword(LEX* lc, const ResourceItem* item, int pass)
        * and for clear we need a code of 1. */
       switch (item->code) {
         case 1:
-          my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+          StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
+          StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
     case R_NDMP:
-      my_config->StoreResource(CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+      StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
       break;
     default:
-      my_config->StoreResource(CFG_TYPE_MD5PASSWORD, lc, item, pass);
+      StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
       break;
   }
 }
 
 // Store Maximum Block Size, and check it is not greater than MAX_BLOCK_LENGTH
-static void StoreMaxblocksize(LEX* lc, const ResourceItem* item, int pass)
+static void StoreMaxblocksize(ConfigurationParser* parser,
+                              LEX* lc,
+                              const ResourceItem* item,
+                              int pass)
 {
-  my_config->StoreResource(CFG_TYPE_SIZE32, lc, item, pass);
+  StoreResource(parser, CFG_TYPE_SIZE32, lc, item, pass);
   if (GetItemVariable<uint32_t>(*item) > MAX_BLOCK_LENGTH) {
     scan_err2(lc,
               T_("Maximum Block Size configured value %u is greater than "
@@ -384,20 +390,21 @@ static void InitResourceCb(const ResourceItem* item, int pass)
   }
 }
 
-static void ParseConfigCb(LEX* lc,
+static void ParseConfigCb(ConfigurationParser* parser,
+                          LEX* lc,
                           const ResourceItem* item,
                           int pass,
                           gsl::span<BareosResource*>)
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
-      StoreAutopassword(lc, item, pass);
+      StoreAutopassword(parser, lc, item, pass);
       break;
     case CFG_TYPE_AUTHTYPE:
       StoreAuthenticationType(lc, item, pass);
       break;
     case CFG_TYPE_MAXBLOCKSIZE:
-      StoreMaxblocksize(lc, item, pass);
+      StoreMaxblocksize(parser, lc, item, pass);
       break;
     case CFG_TYPE_IODIRECTION:
       StoreIoDirection(lc, item, pass);
