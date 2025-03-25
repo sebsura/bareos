@@ -43,7 +43,6 @@
 #include <optional>
 
 struct ResourceItem;
-class ConfigParserStateMachine;
 class ConfigurationParser;
 class ConfigResourcesContainer;
 /* For storing name_addr items in res_items table */
@@ -217,7 +216,6 @@ class QualifiedResourceNameTypeConverter;
 
 class ConfigurationParser {
   friend class ConfiguredTlsPolicyGetterPrivate;
-  friend class ConfigParserStateMachine;
 
  public:
   std::string cf_;                             /* Config file parameter */
