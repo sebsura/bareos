@@ -387,7 +387,7 @@ static void InitResourceCb(const ResourceItem* item, int pass)
 static void ParseConfigCb(LEX* lc,
                           const ResourceItem* item,
                           int pass,
-                          BareosResource**)
+                          gsl::span<BareosResource*>)
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:

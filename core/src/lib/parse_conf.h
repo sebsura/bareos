@@ -200,10 +200,11 @@ struct DatatypeName {
 };
 
 typedef void(INIT_RES_HANDLER)(const ResourceItem* item, int pass);
-typedef void(STORE_RES_HANDLER)(LEX* lc,
-                                const ResourceItem* item,
-                                int pass,
-                                BareosResource** configuration_resources);
+typedef void(STORE_RES_HANDLER)(
+    LEX* lc,
+    const ResourceItem* item,
+    int pass,
+    gsl::span<BareosResource*> configuration_resources);
 typedef void(PRINT_RES_HANDLER)(const BareosResource* res,
                                 const ResourceItem& item,
                                 OutputFormatterResource& send,

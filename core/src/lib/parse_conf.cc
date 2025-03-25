@@ -390,9 +390,9 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
                 if (!StoreResource(item->type, lexical_parser.get(), item,
                                    parser_pass)) {
                   if (store_res_) {
-                    store_res_(lexical_parser.get(), item, parser_pass,
-                               config_resources_container_
-                                   ->configuration_resources_.data());
+                    store_res_(
+                        lexical_parser.get(), item, parser_pass,
+                        config_resources_container_->configuration_resources_);
                   }
                 }
               } else {

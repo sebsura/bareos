@@ -2453,7 +2453,7 @@ static void StoreActiononpurge(LEX* lc, const ResourceItem* item, int)
 static void StoreDevice(LEX* lc,
                         const ResourceItem* item,
                         int pass,
-                        BareosResource** configuration_resources)
+                        gsl::span<BareosResource*> configuration_resources)
 {
   int rindex = R_DEVICE;
 
@@ -3167,7 +3167,7 @@ static void InitResourceCb(const ResourceItem* item, int pass)
 static void ParseConfigCb(LEX* lc,
                           const ResourceItem* item,
                           int pass,
-                          BareosResource** configuration_resources)
+                          gsl::span<BareosResource*> configuration_resources)
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
