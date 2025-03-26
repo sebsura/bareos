@@ -86,7 +86,7 @@ static ConsoleFontResource* res_font;
  * name handler value code flags default_value
  */
 static const ResourceItem mon_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_monitor, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_monitor, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_monitor, description_), {}},
   { "Password", CFG_TYPE_MD5PASSWORD, ITEM(res_monitor, password), {config::Required{}}},
   { "RefreshInterval", CFG_TYPE_TIME, ITEM(res_monitor, RefreshInterval), {config::DefaultValue{"60"}}},
@@ -103,7 +103,7 @@ static const ResourceItem mon_items[] = {
  * name handler value code flags default_value
  */
 static const ResourceItem dir_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_dir, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_dir, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_dir, description_), {}},
   { "DirPort", CFG_TYPE_PINT32, ITEM(res_dir, DIRport), {config::DefaultValue{DIR_DEFAULT_PORT}}},
   { "Address", CFG_TYPE_STR, ITEM(res_dir, address), {config::Required{}}},
@@ -117,7 +117,7 @@ static const ResourceItem dir_items[] = {
  * name handler value code flags default_value
  */
 static const ResourceItem client_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_client, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_client, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_client, description_), {}},
   { "Address", CFG_TYPE_STR, ITEM(res_client, address), {config::Required{}}},
   { "FdPort", CFG_TYPE_PINT32, ITEM(res_client, FDport), {config::DefaultValue{FD_DEFAULT_PORT}}},
@@ -132,7 +132,7 @@ static const ResourceItem client_items[] = {
  * name handler value code flags default_value
  */
 static const ResourceItem store_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_store, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_store, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_store, description_), {}},
   { "SdPort", CFG_TYPE_PINT32, ITEM(res_store, SDport), {config::DefaultValue{SD_DEFAULT_PORT}}},
   { "Address", CFG_TYPE_STR, ITEM(res_store, address), {config::Required{}}},
@@ -149,7 +149,7 @@ static const ResourceItem store_items[] = {
  * name handler value code flags default_value
  */
 static const ResourceItem con_font_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_font, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_font, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_font, description_), {}},
   { "Font", CFG_TYPE_STR, ITEM(res_font, fontface), {}},
 };

@@ -29,12 +29,13 @@
 #ifndef BAREOS_LIB_MESSAGES_RESOURCE_ITEMS_H_
 #define BAREOS_LIB_MESSAGES_RESOURCE_ITEMS_H_
 
-#include "lib/message_destination_info.h"
+// #include "lib/message_destination_info.h"
+#include "lib/resource_item.h"
 
 /* clang-format off */
 
 static const ResourceItem msgs_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_msgs, resource_name_), {config::Code{static_cast<int>(MessageDestinationCode::kUndefined)}}},
+  ResourceItem::make<name_item>( "Name", ITEM(res_msgs, resource_name_), {config::Code{static_cast<int>(MessageDestinationCode::kUndefined)}}),
   { "Description", CFG_TYPE_STR, ITEM(res_msgs, description_), {config::Code{static_cast<int>(MessageDestinationCode::kUndefined)}}},
   { "MailCommand", CFG_TYPE_STDSTR, ITEM(res_msgs, mail_cmd_), {config::Code{static_cast<int>(MessageDestinationCode::kUndefined)}}},
   { "OperatorCommand", CFG_TYPE_STDSTR, ITEM(res_msgs, operator_cmd_), {config::Code{static_cast<int>(MessageDestinationCode::kUndefined)}}},

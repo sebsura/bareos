@@ -114,7 +114,7 @@ enum
   CFG_TYPE_MD5PASSWORD = 3,         /* MD5 hashed Password */
   CFG_TYPE_CLEARPASSWORD = 4,       /* Clear text Password */
   CFG_TYPE_AUTOPASSWORD = 5,        /* Password stored in clear when needed otherwise hashed */
-  CFG_TYPE_NAME = 6,                /* Name */
+  //CFG_TYPE_NAME = 6,                /* Name */
   CFG_TYPE_STRNAME = 7,             /* String Name */
   CFG_TYPE_RES = 8,                 /* Resource */
   CFG_TYPE_ALIST_RES = 9,           /* List of resources */
@@ -188,20 +188,11 @@ enum
   CFG_TYPE_CMPRSALGO = 204,    /* Compression Algorithm */
 
   // File daemon resource types
-  CFG_TYPE_CIPHER = 301 /* Encryption Cipher */
+  CFG_TYPE_CIPHER = 301, /* Encryption Cipher */
+
+
+  CFG_TYPE_AUTO = 401,
 };
-
-namespace config {
-using lexer = LEX;
-
-struct type {
-  virtual ~type() = default;
-
-  virtual bool parse(const ResourceItem* item, lexer* lc, int pass) = 0;
-  virtual bool format(void* Target, char* Buffer, size_t BufSize) = 0;
-};
-};  // namespace config
-
 
 struct DatatypeName {
   const int number;

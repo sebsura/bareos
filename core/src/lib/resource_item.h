@@ -178,6 +178,34 @@ struct ResourceItemFlags {
   }
 };
 
+namespace config {
+using lexer = LEX;
+
+struct Type {
+  virtual bool parse(ConfigurationParser* parser,
+                     lexer* lc,
+                     const ResourceItem* item,
+                     int pass) const
+      = 0;
+  virtual bool print(OutputFormatterResource& send,
+                     const char* Name,
+                     const void* Element,
+                     bool hide_sensitive_data,
+                     bool inherited,
+                     bool verbose) const
+      = 0;
+  virtual bool is_same(const void* Element, const char* Text) const = 0;
+
+  const char* name;
+
+  Type() = delete;
+  constexpr Type(const char* name_) : name{name_} { ASSERT(name != nullptr); }
+};
+};  // namespace config
+
+
+template <typename T> static constexpr T instance{};
+
 /*
  * This is the structure that defines the record types (items) permitted within
  * each resource. It is used to define the configuration tables.
@@ -185,6 +213,20 @@ struct ResourceItemFlags {
 struct ResourceItem {
   using resource_fun = BareosResource*();
   using address_fun = char*(BareosResource*);
+
+  template <typename ConfigType>
+  constexpr static ResourceItem make(const char* name_,
+                                     resource_fun* res_fun_,
+                                     address_fun* addr_fun_,
+                                     ResourceItemFlags&& resource_flags)
+  {
+    auto res = ResourceItem{name_, CFG_TYPE_AUTO, res_fun_, addr_fun_,
+                            std::move(resource_flags)};
+
+    res.auto_type = instance<ConfigType>.as_type();
+
+    return res;
+  }
 
   constexpr ResourceItem(const char* name_,
                          const int type_,
@@ -230,6 +272,8 @@ struct ResourceItem {
    * Full sentence.
    * Every new directive should have a description. */
   const char* description{};
+
+  config::Type const* auto_type{};
 
   void SetPresent() const { allocated_resource()->SetMemberPresent(name); }
   bool IsPresent() const { return allocated_resource()->IsMemberPresent(name); }
@@ -416,5 +460,24 @@ constexpr ResourceItem CmprsAlgo() { return {}; }
 constexpr ResourceItem Cipher() { return {}; }
 #endif
 }  // namespace config
+
+struct name_item : config::Type {
+  using type = char*;
+  bool parse(ConfigurationParser* parser,
+             LEX* lc,
+             const ResourceItem* item,
+             int pass) const override;
+  bool print(OutputFormatterResource& send,
+             const char* Name,
+             const void* Element,
+             bool hide_sensitive_data,
+             bool inherited,
+             bool verbose) const override;
+  bool is_same(const void* Element, const char* Text) const override;
+
+  constexpr name_item() : config::Type("Name") {}
+
+  config::Type const* as_type() const { return this; }
+};
 
 #endif  // BAREOS_LIB_RESOURCE_ITEM_H_

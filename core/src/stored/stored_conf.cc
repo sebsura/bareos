@@ -76,7 +76,7 @@ static MessagesResource* res_msgs;
 /* clang-format off */
 
 static const ResourceItem store_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_store, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_store, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_store, description_), {}},
   { "SdPort", CFG_TYPE_ADDRESSES_PORT, ITEM(res_store, SDaddrs), {config::DefaultValue{SD_DEFAULT_PORT}}},
   { "SdAddress", CFG_TYPE_ADDRESSES_ADDRESS, ITEM(res_store, SDaddrs), {config::DefaultValue{SD_DEFAULT_PORT}}},
@@ -122,7 +122,7 @@ static const ResourceItem store_items[] = {
 };
 
 static const ResourceItem dir_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_dir, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>( "Name", ITEM(res_dir, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_dir, description_), {}},
   { "Password", CFG_TYPE_AUTOPASSWORD, ITEM(res_dir, password_), {config::Required{}}},
   { "Monitor", CFG_TYPE_BOOL, ITEM(res_dir, monitor), {}},
@@ -133,7 +133,7 @@ static const ResourceItem dir_items[] = {
 };
 
 static const ResourceItem ndmp_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_ndmp, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_ndmp, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_ndmp, description_), {}},
   { "Username", CFG_TYPE_STR, ITEM(res_ndmp, username), {config::Required{}}},
   { "Password", CFG_TYPE_AUTOPASSWORD, ITEM(res_ndmp, password), {config::Required{}}},
@@ -142,7 +142,7 @@ static const ResourceItem ndmp_items[] = {
 };
 
 static const ResourceItem dev_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_dev, resource_name_), {config::Required{}, config::Description{"Unique identifier of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_dev, resource_name_), {config::Required{}, config::Description{"Unique identifier of the resource."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_dev, description_), {config::Description{"The Description directive provides easier human recognition, but is not used by Bareos directly."}}},
   { "MediaType", CFG_TYPE_STRNAME, ITEM(res_dev, media_type), {config::Required{}}},
   { "DeviceType", CFG_TYPE_STDSTR, ITEM(res_dev, device_type), {config::DefaultValue{""}}},
@@ -210,7 +210,7 @@ static const ResourceItem dev_items[] = {
 };
 
 static const ResourceItem autochanger_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_changer, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name",ITEM(res_changer, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_changer, description_), {}},
   { "Device", CFG_TYPE_ALIST_RES, ITEM(res_changer, device_resources), {config::Required{}, config::Code{R_DEVICE}}},
   { "ChangerDevice", CFG_TYPE_STRNAME, ITEM(res_changer, changer_name), {config::Required{}}},

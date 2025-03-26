@@ -81,7 +81,7 @@ static MessagesResource* res_msgs;
 
 // Client or File daemon "Global" resources
 static const ResourceItem cli_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_client, resource_name_), {config::Required{}, config::Description{"The name of this resource. It is used to reference to it."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_client, resource_name_), {config::Required{}, config::Description{"The name of this resource. It is used to reference to it."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_client, description_), {}},
   { "FdPort", CFG_TYPE_ADDRESSES_PORT, ITEM(res_client, FDaddrs), {config::DefaultValue{FD_DEFAULT_PORT}}},
   { "FdAddress", CFG_TYPE_ADDRESSES_ADDRESS, ITEM(res_client, FDaddrs), {config::DefaultValue{FD_DEFAULT_PORT}}},
@@ -123,7 +123,7 @@ static const ResourceItem cli_items[] = {
 };
 // Directors that can use our services
 static const ResourceItem dir_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_dir, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_dir, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_dir, description_), {}},
   { "Password", CFG_TYPE_MD5PASSWORD, ITEM(res_dir, password_), {config::Required{}}},
   { "Address", CFG_TYPE_STR, ITEM(res_dir, address), {config::Description{"Director Network Address. Only required if \"Connection From Client To Director\" is enabled."}}},

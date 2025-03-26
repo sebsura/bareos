@@ -124,7 +124,7 @@ static const ResourceItem dir_items[] = {
   // config::String<DirectorResource, NameOf>(
   //   "Name"
   // ),
-  { "Name", CFG_TYPE_NAME, ITEM(res_dir, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_dir, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_dir, description_), {}},
   { "Messages", CFG_TYPE_RES, ITEM(res_dir, messages), {config::Code{R_MSGS}}},
   { "DirPort", CFG_TYPE_ADDRESSES_PORT, ITEM(res_dir, DIRaddrs), {config::DefaultValue{DIR_DEFAULT_PORT}}},
@@ -173,7 +173,7 @@ static const ResourceItem dir_items[] = {
   { "PluginOptionsAcl", CFG_TYPE_ACL, ITEM(resource, ACL_lists), {config::Code{PluginOptions_ACL}, config::Description{"Specifies the allowed plugin options. An empty strings allows all Plugin Options."}}}
 
 static const ResourceItem profile_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_profile, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_profile, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_profile, description_), {config::Description{"Additional information about the resource. Only used for UIs."}}},
   USER_ACL(res_profile, ACL_lists),
 };
@@ -182,7 +182,7 @@ static const ResourceItem profile_items[] = {
   { "Profile", CFG_TYPE_ALIST_RES, ITEM(resource, user_acl.profiles), {config::IntroducedIn{14, 2, 3}, config::Code{R_PROFILE}, config::Description{"Profiles can be assigned to a Console. ACL are checked until either a deny ACL is found or an allow ACL. First the console ACL is checked then any profile the console is linked to."}}}
 
 static const ResourceItem con_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_con, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_con, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_con, description_), {}},
   { "Password", CFG_TYPE_AUTOPASSWORD, ITEM(res_con, password_), {config::Required{}}},
   USER_ACL(res_con, user_acl.ACL_lists),
@@ -193,14 +193,14 @@ static const ResourceItem con_items[] = {
 };
 
 static const ResourceItem user_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_user, resource_name_), {config::Required{}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_user, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_user, description_), {}},
   USER_ACL(res_user, user_acl.ACL_lists),
   ACL_PROFILE(res_user),
 };
 
 static const ResourceItem client_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_client, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_client, resource_name_), {config::Required{}}),
   { "Description", CFG_TYPE_STR, ITEM(res_client, description_), {}},
   { "Protocol", CFG_TYPE_AUTHPROTOCOLTYPE, ITEM(res_client, Protocol), {config::IntroducedIn{13, 2, 0}, config::DefaultValue{"Native"}}},
   { "AuthType", CFG_TYPE_AUTHTYPE, ITEM(res_client, AuthType), {config::DefaultValue{"None"}}},
@@ -234,7 +234,7 @@ static const ResourceItem client_items[] = {
 };
 
 static const ResourceItem store_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_store, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_store, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_store, description_), {}},
   { "Protocol", CFG_TYPE_AUTHPROTOCOLTYPE, ITEM(res_store, Protocol), {config::DefaultValue{"Native"}}},
   { "AuthType", CFG_TYPE_AUTHTYPE, ITEM(res_store, AuthType), {config::DefaultValue{"None"}}},
@@ -261,7 +261,7 @@ static const ResourceItem store_items[] = {
 };
 
 static const ResourceItem cat_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_cat, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_cat, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_cat, description_), {}},
   { "DbAddress", CFG_TYPE_STR, ITEM(res_cat, db_address), {config::Alias{"Address"}}},
   { "DbPort", CFG_TYPE_PINT32, ITEM(res_cat, db_port), {config::Alias{"Port"}}},
@@ -282,7 +282,7 @@ static const ResourceItem cat_items[] = {
 };
 
 const ResourceItem job_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_job, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_job, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_job, description_), {}},
   { "Type", CFG_TYPE_JOBTYPE, ITEM(res_job, JobType), {config::Required{}}},
   { "Protocol", CFG_TYPE_PROTOCOLTYPE, ITEM(res_job, Protocol), {config::DefaultValue{"Native"}}},
@@ -369,7 +369,7 @@ const ResourceItem job_items[] = {
 };
 
 static const ResourceItem fs_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_fs, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_fs, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_fs, description_), {}},
   { "Include", CFG_TYPE_INCEXC, ITEMC(res_fs), {config::UsesNoEquals{}, config::Code{0}}},
   { "Exclude", CFG_TYPE_INCEXC, ITEMC(res_fs), {config::UsesNoEquals{}, config::Code{1}}},
@@ -378,14 +378,14 @@ static const ResourceItem fs_items[] = {
 };
 
 static const ResourceItem sch_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_sch, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_sch, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_sch, description_), {}},
   { "Run", CFG_TYPE_RUN, ITEM(res_sch, run), {}},
   { "Enabled", CFG_TYPE_BOOL, ITEM(res_sch, enabled), {config::DefaultValue{"true"}, config::Description{"En- or disable this resource."}}},
 };
 
 static const ResourceItem pool_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_pool, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_pool, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_pool, description_), {}},
   { "PoolType", CFG_TYPE_POOLTYPE, ITEM(res_pool, pool_type), {config::DefaultValue{"Backup"}}},
   { "LabelFormat", CFG_TYPE_STRNAME, ITEM(res_pool, label_format), {}},
@@ -420,7 +420,7 @@ static const ResourceItem pool_items[] = {
 };
 
 static const ResourceItem counter_items[] = {
-  { "Name", CFG_TYPE_NAME, ITEM(res_counter, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}},
+  ResourceItem::make<name_item>("Name", ITEM(res_counter, resource_name_), {config::Required{}, config::Description{"The name of the resource."}}),
   { "Description", CFG_TYPE_STR, ITEM(res_counter, description_), {}},
   { "Minimum", CFG_TYPE_INT32, ITEM(res_counter, MinValue), {config::DefaultValue{"0"}}},
   { "Maximum", CFG_TYPE_PINT32, ITEM(res_counter, MaxValue), {config::DefaultValue{"2147483647"}}},

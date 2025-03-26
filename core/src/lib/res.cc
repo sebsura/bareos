@@ -51,7 +51,14 @@ enum unit_type
   STORE_SPEED
 };
 
+// void PrintMsgs(OutputFormatterResource& send,
+//                void* Element,
+//                bool hide_sensitive_data,
+//                bool inherited,
+//                bool verbose)
+// {
 
+// }
 void StoreMsgs(ConfigurationParser* parser,
                LEX* lc,
                const ResourceItem* item,
@@ -60,6 +67,44 @@ void StoreName(ConfigurationParser* parser,
                LEX* lc,
                const ResourceItem* item,
                int pass);
+void PrintName(OutputFormatterResource& send,
+               const char* Name,
+               const void* Element,
+               bool hide_sensitive_data,
+               bool inherited,
+               bool verbose)
+{
+  (void)verbose;
+  (void)hide_sensitive_data;
+  auto* Data = *reinterpret_cast<char const* const*>(Element);
+  send.KeyQuotedString(Name, Data, inherited);
+}
+
+bool name_item::parse(ConfigurationParser* parser,
+                      LEX* lc,
+                      const ResourceItem* item,
+                      int pass) const
+{
+  StoreName(parser, lc, item, pass);
+  return true;
+}
+bool name_item::print(OutputFormatterResource& send,
+                      const char* Name,
+                      const void* Element,
+                      bool hide_sensitive_data,
+                      bool inherited,
+                      bool verbose) const
+{
+  PrintName(send, Name, Element, hide_sensitive_data, inherited, verbose);
+  return true;
+}
+bool name_item::is_same(const void* Element, const char* Text) const
+{
+  (void)Element;
+  (void)Text;
+  return false;
+}
+
 void StoreStrname(ConfigurationParser* parser,
                   LEX* lc,
                   const ResourceItem* item,
@@ -1530,8 +1575,8 @@ bool StoreResource(ConfigurationParser* parser,
     case CFG_TYPE_CLEARPASSWORD:
       StoreClearpassword(parser, lc, item, pass);
       break;
-    case CFG_TYPE_NAME:
-      StoreName(parser, lc, item, pass);
+    case CFG_TYPE_AUTO:
+      item->auto_type->parse(parser, lc, item, pass);
       break;
     case CFG_TYPE_STRNAME:
       StoreStrname(parser, lc, item, pass);
@@ -1851,9 +1896,13 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
   }
 
   switch (item.type) {
+    case CFG_TYPE_AUTO: {
+      item.auto_type->print(send, item.name,
+                            item.member_address(item.allocated_resource()),
+                            hide_sensitive_data, inherited, verbose);
+    } break;
     case CFG_TYPE_STR:
     case CFG_TYPE_DIR:
-    case CFG_TYPE_NAME:
     case CFG_TYPE_STRNAME: {
       char* p = GetItemVariable<char*>(this, item);
       send.KeyQuotedString(item.name, p, inherited);
@@ -2178,7 +2227,6 @@ static DatatypeName datatype_names[] = {
     {CFG_TYPE_CLEARPASSWORD, "CLEARPASSWORD", "Password as cleartext"},
     {CFG_TYPE_AUTOPASSWORD, "AUTOPASSWORD",
      "Password stored in clear when needed otherwise hashed"},
-    {CFG_TYPE_NAME, "NAME", "Name"},
     {CFG_TYPE_STRNAME, "STRNAME", "String name"},
     {CFG_TYPE_RES, "RES", "Resource"},
     {CFG_TYPE_ALIST_RES, "RESOURCE_LIST", "Resource list"},
