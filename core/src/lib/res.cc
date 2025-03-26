@@ -285,7 +285,7 @@ BareosResource* ConfigurationParser::GetNextRes(int rcode,
 
 const char* ConfigurationParser::ResToStr(int rcode) const
 {
-  if (rcode < 0 || rcode > r_num_ - 1) {
+  if (rcode < 0 || static_cast<size_t>(rcode) >= resource_definitions_.size()) {
     return T_("***UNKNOWN***");
   } else {
     return resource_definitions_[rcode].name;
@@ -294,7 +294,7 @@ const char* ConfigurationParser::ResToStr(int rcode) const
 
 const char* ConfigurationParser::ResGroupToStr(int rcode) const
 {
-  if (rcode < 0 || rcode > r_num_ - 1) {
+  if (rcode < 0 || static_cast<size_t>(rcode) >= resource_definitions_.size()) {
     return T_("***UNKNOWN***");
   } else {
     return resource_definitions_[rcode].groupname;

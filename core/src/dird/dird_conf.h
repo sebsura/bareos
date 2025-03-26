@@ -66,7 +66,6 @@ enum
   R_CONSOLE,
   R_DEVICE,
   R_USER,
-  R_NUM /* Number of entries */
 };
 
 // Some resource attributes

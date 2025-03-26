@@ -90,7 +90,6 @@ ConfigurationParser::ConfigurationParser(
     STORE_RES_HANDLER* store_res,
     PRINT_RES_HANDLER* print_res,
     int32_t err_type,
-    int32_t r_num,
     gsl::span<const ResourceTable> resource_definitions,
     const char* config_default_filename,
     const char* config_include_dir,
@@ -110,7 +109,6 @@ ConfigurationParser::ConfigurationParser(
   store_res_ = store_res;
   print_res_ = print_res;
   err_type_ = err_type;
-  r_num_ = r_num;
   resource_definitions_ = resource_definitions;
   config_default_filename_
       = config_default_filename == nullptr ? "" : config_default_filename;
@@ -467,7 +465,9 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
   }
 
   if (debug_level >= 900) {
-    for (int i = 0; i <= r_num_ - 1; i++) {
+    for (size_t i = 0;
+         i < config_resources_container_->configuration_resources_.size();
+         i++) {
       DumpResourceCb_(i,
                       config_resources_container_->configuration_resources_[i],
                       PrintMessage, nullptr, false, false);
@@ -847,7 +847,7 @@ void ConfigurationParser::DumpResources(bool sendit(void* sock,
                                         void* sock,
                                         bool hide_sensitive_data)
 {
-  for (int i = 0; i <= r_num_ - 1; i++) {
+  for (size_t i = 0; i < resource_definitions_.size(); i++) {
     if (config_resources_container_->configuration_resources_[i]) {
       DumpResourceCb_(i,
                       config_resources_container_->configuration_resources_[i],

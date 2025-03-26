@@ -257,7 +257,7 @@ static void ConfigReadyCallback(ConfigurationParser&) {}
 ConfigurationParser* InitConsConfig(const char* configfile, int exit_code)
 {
   ConfigurationParser* config = new ConfigurationParser(
-      configfile, nullptr, nullptr, nullptr, nullptr, nullptr, exit_code, R_NUM,
+      configfile, nullptr, nullptr, nullptr, nullptr, nullptr, exit_code,
       resources, default_config_filename.c_str(), "bconsole.d",
       ConfigBeforeCallback, ConfigReadyCallback, SaveResource, DumpResource,
       FreeResource);

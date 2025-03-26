@@ -179,7 +179,7 @@ static void ShowDisabledSchedules(UaContext* ua)
 // Enter with Resources locked
 static void ShowAll(UaContext* ua, bool hide_sensitive_data, bool verbose)
 {
-  for (int j = 0; j <= my_config->r_num_ - 1; j++) {
+  for (size_t j = 0; j < my_config->resource_definitions_.size(); j++) {
     switch (j) {
       case R_DEVICE:
         // Skip R_DEVICE since it is really not used or updated

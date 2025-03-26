@@ -585,9 +585,9 @@ ConfigurationParser* InitSdConfig(const char* t_configfile, int exit_code)
 {
   ConfigurationParser* config = new ConfigurationParser(
       t_configfile, nullptr, nullptr, InitResourceCb, ParseConfigCb, nullptr,
-      exit_code, R_NUM, resources, default_config_filename.c_str(),
-      "bareos-sd.d", ConfigBeforeCallback, ConfigReadyCallback, SaveResource,
-      DumpResource, FreeResource);
+      exit_code, resources, default_config_filename.c_str(), "bareos-sd.d",
+      ConfigBeforeCallback, ConfigReadyCallback, SaveResource, DumpResource,
+      FreeResource);
   if (config) { config->r_own_ = R_STORAGE; }
   return config;
 }

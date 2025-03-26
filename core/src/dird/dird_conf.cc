@@ -3654,7 +3654,7 @@ ConfigurationParser* InitDirConfig(const char* t_configfile, int exit_code)
 {
   ConfigurationParser* config = new ConfigurationParser(
       t_configfile, nullptr, nullptr, InitResourceCb, ParseConfigCb,
-      PrintConfigCb, exit_code, R_NUM, dird_resource_tables,
+      PrintConfigCb, exit_code, dird_resource_tables,
       default_config_filename.c_str(), "bareos-dir.d", ConfigBeforeCallback,
       ConfigReadyCallback, SaveResource, DumpResource, FreeResource);
   if (config) { config->r_own_ = R_DIRECTOR; }

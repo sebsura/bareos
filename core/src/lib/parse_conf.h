@@ -244,7 +244,6 @@ class ConfigurationParser {
   bool omit_defaults_{false}; /* Omit config variables with default values when
                           dumping the config */
 
-  int32_t r_num_{0};                      /* number of daemon resource types */
   int32_t r_own_{0};                      /* own resource type */
   BareosResource* own_resource_{nullptr}; /* Pointer to own resource */
   gsl::span<const ResourceTable>
@@ -264,7 +263,6 @@ class ConfigurationParser {
                       STORE_RES_HANDLER* StoreRes,
                       PRINT_RES_HANDLER* print_res,
                       int32_t err_type,
-                      int32_t r_num,
                       gsl::span<const ResourceTable> resources,
                       const char* config_default_filename,
                       const char* config_include_dir,
@@ -417,7 +415,7 @@ class ConfigResourcesContainer {
   std::vector<BareosResource*> configuration_resources_ = {};
   ConfigResourcesContainer(ConfigurationParser* config)
       : free_res{config->FreeResourceCb_}
-      , configuration_resources_(config->r_num_)
+      , configuration_resources_(config->resource_definitions_.size())
   {
     Dmsg1(10, "ConfigResourcesContainer: new configuration_resources_ %p\n",
           configuration_resources_.data());
