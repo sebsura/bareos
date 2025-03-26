@@ -1389,24 +1389,60 @@ bail_out:
 const char* command_name(DWORD commandCode)
 {
   switch (commandCode) {
-  case VDC_Read: { return "read"; }
-  case VDC_Write: { return "write"; }
-  case VDC_ClearError: { return "clear-error"; }
-  case VDC_Rewind: { return "rewind"; }
-  case VDC_WriteMark: { return "write-mark"; }
-  case VDC_SkipMarks: { return "skip-marks"; }
-  case VDC_SkipBlocks: { return "skip-blocks"; }
-  case VDC_Load: { return "load"; }
-  case VDC_GetPosition: { return "get-position"; }
-  case VDC_SetPosition: { return "set-position"; }
-  case VDC_Discard: { return "discard"; }
-  case VDC_Flush: { return "flush"; }
-  case VDC_Snapshot: { return "snapshot"; }
-  case VDC_MountSnapshot: { return "mount-snapshot"; }
-  case VDC_PrepareToFreeze: { return "prepare-to-freeze"; }
-  case VDC_FileInfoBegin: { return "file-info-begin"; }
-  case VDC_FileInfoEnd: { return "file-info-end"; }
-  default: { return "unknown"; }
+    case VDC_Read: {
+      return "read";
+    }
+    case VDC_Write: {
+      return "write";
+    }
+    case VDC_ClearError: {
+      return "clear-error";
+    }
+    case VDC_Rewind: {
+      return "rewind";
+    }
+    case VDC_WriteMark: {
+      return "write-mark";
+    }
+    case VDC_SkipMarks: {
+      return "skip-marks";
+    }
+    case VDC_SkipBlocks: {
+      return "skip-blocks";
+    }
+    case VDC_Load: {
+      return "load";
+    }
+    case VDC_GetPosition: {
+      return "get-position";
+    }
+    case VDC_SetPosition: {
+      return "set-position";
+    }
+    case VDC_Discard: {
+      return "discard";
+    }
+    case VDC_Flush: {
+      return "flush";
+    }
+    case VDC_Snapshot: {
+      return "snapshot";
+    }
+    case VDC_MountSnapshot: {
+      return "mount-snapshot";
+    }
+    case VDC_PrepareToFreeze: {
+      return "prepare-to-freeze";
+    }
+    case VDC_FileInfoBegin: {
+      return "file-info-begin";
+    }
+    case VDC_FileInfoEnd: {
+      return "file-info-end";
+    }
+    default: {
+      return "unknown";
+    }
   }
 }
 
@@ -1430,15 +1466,12 @@ static inline bool PerformVdiIo(PluginContext* ctx,
   }
 
 
-  Dmsg(ctx, debuglevel,
-       "mssqlvdi-fd: Command: %d:%s (size=%d)\n", cmd->commandCode,
-       command_name(cmd->commandCode),
-       cmd->size);
+  Dmsg(ctx, debuglevel, "mssqlvdi-fd: Command: %d:%s (size=%d)\n",
+       cmd->commandCode, command_name(cmd->commandCode), cmd->size);
 
   switch (cmd->commandCode) {
     case VDC_Read:
-      Dmsg(ctx, debuglevel,
-           "mssqlvdi-fd: Read: %d bytes\n", cmd->size);
+      Dmsg(ctx, debuglevel, "mssqlvdi-fd: Read: %d bytes\n", cmd->size);
       /* Make sure the write to the VDIDevice will fit e.g. not a to big IO and
        * that we are currently writing to the device. */
       if ((DWORD)io->count > cmd->size || io->func != IO_WRITE) {
@@ -1451,8 +1484,7 @@ static inline bool PerformVdiIo(PluginContext* ctx,
       }
       break;
     case VDC_Write:
-      Dmsg(ctx, debuglevel,
-           "mssqlvdi-fd: Write: %d bytes\n", cmd->size);
+      Dmsg(ctx, debuglevel, "mssqlvdi-fd: Write: %d bytes\n", cmd->size);
       /* Make sure the read from the VDIDevice will fit e.g. not a to big IO and
        * that we are currently reading from the device. */
       if (cmd->size > (DWORD)io->count || io->func != IO_READ) {
@@ -1474,8 +1506,7 @@ static inline bool PerformVdiIo(PluginContext* ctx,
       *completionCode = ERROR_SUCCESS;
       break;
     default:
-      Dmsg(ctx, debuglevel, "mssqlvdi-fd: Unknown = %d\n",
-          cmd->commandCode);
+      Dmsg(ctx, debuglevel, "mssqlvdi-fd: Unknown = %d\n", cmd->commandCode);
       *completionCode = ERROR_NOT_SUPPORTED;
       goto bail_out;
   }
@@ -1496,8 +1527,7 @@ static inline bool PerformVdiIo(PluginContext* ctx,
   return true;
 
 bail_out:
-  Dmsg(ctx, debuglevel,
-       "mssqlvdi-fd: IO: reached bailout ...\n", cmd->size);
+  Dmsg(ctx, debuglevel, "mssqlvdi-fd: IO: reached bailout ...\n", cmd->size);
   // Report any COM errors.
   comReportError(ctx, hr);
 
@@ -1556,8 +1586,12 @@ static inline bool TearDownVdiDevice(PluginContext* ctx, io_pkt* io)
       int status = 0;
 
       switch (cmd->commandCode) {
-      case VDC_Read: { status = cmd->size; } break;
-      case VDC_Write: { status = cmd->size; } break;
+        case VDC_Read: {
+          status = cmd->size;
+        } break;
+        case VDC_Write: {
+          status = cmd->size;
+        } break;
       }
 
       Jmsg(ctx, M_ERROR,
