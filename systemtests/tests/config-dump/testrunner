@@ -45,7 +45,9 @@ dump_config()
     DESC="dump_config ${configfile} ext=${ext}"
     print_debug "*** start $DESC"
 
+    echo "${BAREOS_DIRECTOR_BINARY} -c ${configfile} --xc > $tmp/bareos-dir-xc-${ext}.conf"
     "${BAREOS_DIRECTOR_BINARY}" -c "${configfile}" --xc > $tmp/bareos-dir-xc-${ext}.conf
+    echo "BAREOS_CONFIG_DIR=${configfile} ${rscripts}/bareos-ctl-dir start (ext = ${ext})"
     BAREOS_CONFIG_DIR="${configfile}" ${rscripts}/bareos-ctl-dir start
 
 cat <<END_OF_DATA >$tmp/bconcmds
