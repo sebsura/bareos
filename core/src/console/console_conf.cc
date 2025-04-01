@@ -183,37 +183,6 @@ static bool SaveResource(BareosResource* res,
 
   // save previously discovered pointers into dynamic memory
   if (pass == 2) {
-    switch (type) {
-      case R_CONSOLE: {
-        ConsoleResource* p = dynamic_cast<ConsoleResource*>(
-            my_config->GetResWithName(R_CONSOLE, res_cons->resource_name_));
-        if (!p) {
-          Emsg1(M_ABORT, 0, T_("Cannot find Console resource %s\n"),
-                res_cons->resource_name_);
-        } else {
-          p->tls_cert_.allowed_certificate_common_names_ = std::move(
-              res_cons->tls_cert_.allowed_certificate_common_names_);
-        }
-        break;
-      }
-      case R_DIRECTOR: {
-        DirectorResource* p = dynamic_cast<DirectorResource*>(
-            my_config->GetResWithName(R_DIRECTOR, res_dir->resource_name_));
-        if (!p) {
-          Emsg1(M_ABORT, 0, T_("Cannot find Director resource %s\n"),
-                res_dir->resource_name_);
-        } else {
-          p->tls_cert_.allowed_certificate_common_names_
-              = std::move(res_dir->tls_cert_.allowed_certificate_common_names_);
-        }
-        break;
-      }
-      default:
-        Emsg1(M_ERROR, 0, T_("Unknown resource type %d\n"), type);
-        error = 1;
-        break;
-    }
-
     /* resource_name_ was already deep copied during 1. pass
      * as matter of fact the remaining allocated memory is
      * redundant and would not be freed in the dynamic resources;

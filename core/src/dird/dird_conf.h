@@ -469,6 +469,17 @@ class JobResource : public BareosResource {
   char* selection_pattern = nullptr;
   JobResource* verify_job = nullptr; /**< Job name to verify */
   JobResource* jobdefs = nullptr;    /**< Job defaults */
+
+  // vvv DONT USE THESE.  THEY ARE JUST FOR PARSING vvv
+
+  std::vector<std::string> before_job{};
+  std::vector<std::string> after_job{};
+  std::vector<std::string> after_failed_job{};
+  std::vector<std::string> client_before_job{};
+  std::vector<std::string> client_after_job{};
+
+  // ^^^ DONT USE THESE.  THEY ARE JUST FOR PARSING ^^^
+
   alist<const char*>* run_cmds = nullptr;         /**< Run commands */
   alist<RunScript*>* RunScripts = nullptr; /**< Run {client} program {after|before} Job */
   alist<const char*>* FdPluginOptions = nullptr; /**< Generic FD plugin options used by this Job */

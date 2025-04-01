@@ -134,6 +134,16 @@ enum
   CFG_TYPE_SPEED = 23,              /* Speed limit */
   CFG_TYPE_DEFS = 24,               /* Definition */
   CFG_TYPE_LABEL = 25,              /* Label */
+  // idea: remove these three
+  // we want to do this with just one ADDRESS
+  // I.e. Address = hostname:port
+  //      Address = ipv4:port
+  //      Address = [ipv6|ipv4|hostname]:port
+  // both :port and the first part are optional
+  //   if address isnt given, then "any" is used instead
+  //   if port isnt given, then default port is used
+  // For compatibility Port = ... will just overwrite the default port
+  //   and addresses are just taken as is (but both are deprecated)
   CFG_TYPE_ADDRESSES = 26,          /* List of ip addresses */
   CFG_TYPE_ADDRESSES_ADDRESS = 27,  /* Ip address */
   CFG_TYPE_ADDRESSES_PORT = 28,     /* Ip port */
@@ -155,17 +165,20 @@ enum
   CFG_TYPE_PROTOCOLTYPE = 56,     /* Protocol */
   CFG_TYPE_LEVEL = 57,            /* Backup Level */
   CFG_TYPE_REPLACE = 58,          /* Replace option */
-  CFG_TYPE_SHRTRUNSCRIPT = 59,    /* Short Runscript definition */
+  // TODO: think of a way to have these entries
+  //   not use the same storage.
+  // CFG_TYPE_SHRTRUNSCRIPT = 59,    /* Short Runscript definition */
   CFG_TYPE_RUNSCRIPT = 60,        /* Runscript */
   CFG_TYPE_RUNSCRIPT_CMD = 61,    /* Runscript Command */
   CFG_TYPE_RUNSCRIPT_TARGET = 62, /* Runscript Target (Host) */
   CFG_TYPE_RUNSCRIPT_BOOL = 63,   /* Runscript Boolean */
   CFG_TYPE_RUNSCRIPT_WHEN = 64,   /* Runscript When expression */
-  CFG_TYPE_MIGTYPE = 65,          /* Migration Type */
-  CFG_TYPE_INCEXC = 66,           /* Include/Exclude item */
-  CFG_TYPE_RUN = 67,              /* Schedule Run Command */
-  CFG_TYPE_ACTIONONPURGE = 68,    /* Action to perform on Purge */
-  CFG_TYPE_POOLTYPE = 69,         /* Pool Type */
+
+  CFG_TYPE_MIGTYPE = 65,       /* Migration Type */
+  CFG_TYPE_INCEXC = 66,        /* Include/Exclude item */
+  CFG_TYPE_RUN = 67,           /* Schedule Run Command */
+  CFG_TYPE_ACTIONONPURGE = 68, /* Action to perform on Purge */
+  CFG_TYPE_POOLTYPE = 69,      /* Pool Type */
 
   // Director fileset options. handlers in dird_conf.
   CFG_TYPE_FNAME = 80,      /* Filename */

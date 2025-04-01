@@ -334,11 +334,11 @@ const ResourceItem job_items[] = {
   { "SpoolSize", CFG_TYPE_SIZE64, ITEM(res_job, spool_size), {}},
   { "RerunFailedLevels", CFG_TYPE_BOOL, ITEM(res_job, rerun_failed_levels), {config::DefaultValue{"false"}}},
   { "PreferMountedVolumes", CFG_TYPE_BOOL, ITEM(res_job, PreferMountedVolumes), {config::DefaultValue{"true"}}},
-  { "RunBeforeJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(res_job, RunScripts), {}},
-  { "RunAfterJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(res_job, RunScripts), {}},
-  { "RunAfterFailedJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(res_job, RunScripts), {}},
-  { "ClientRunBeforeJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(res_job, RunScripts), {}},
-  { "ClientRunAfterJob", CFG_TYPE_SHRTRUNSCRIPT, ITEM(res_job, RunScripts), {}},
+  { "RunBeforeJob", CFG_TYPE_STR_VECTOR, ITEM(res_job, before_job), {}},
+  { "RunAfterJob", CFG_TYPE_STR_VECTOR, ITEM(res_job, after_job), {}},
+  { "RunAfterFailedJob", CFG_TYPE_STR_VECTOR, ITEM(res_job, after_failed_job), {}},
+  { "ClientRunBeforeJob", CFG_TYPE_STR_VECTOR, ITEM(res_job, client_before_job), {}},
+  { "ClientRunAfterJob", CFG_TYPE_STR_VECTOR, ITEM(res_job, client_after_job), {}},
   { "MaximumConcurrentJobs", CFG_TYPE_PINT32, ITEM(res_job, MaxConcurrentJobs), {config::DefaultValue{"1"}}},
   { "RescheduleOnError", CFG_TYPE_BOOL, ITEM(res_job, RescheduleOnError), {config::DefaultValue{"false"}}},
   { "RescheduleInterval", CFG_TYPE_TIME, ITEM(res_job, RescheduleInterval), {config::DefaultValue{"1800"}}},
@@ -2164,8 +2164,6 @@ static bool UpdateResourcePointer(int type, gsl::span<const ResourceItem> items)
               res_con->resource_name_);
         return false;
       } else {
-        p->tls_cert_.allowed_certificate_common_names_
-            = std::move(res_con->tls_cert_.allowed_certificate_common_names_);
         p->user_acl.profiles = res_con->user_acl.profiles;
         p->user_acl.corresponding_resource = p;
       }
@@ -2194,8 +2192,6 @@ static bool UpdateResourcePointer(int type, gsl::span<const ResourceItem> items)
       } else {
         p->plugin_names = res_dir->plugin_names;
         p->messages = res_dir->messages;
-        p->tls_cert_.allowed_certificate_common_names_
-            = std::move(res_dir->tls_cert_.allowed_certificate_common_names_);
       }
       break;
     }
@@ -2208,8 +2204,6 @@ static bool UpdateResourcePointer(int type, gsl::span<const ResourceItem> items)
         return false;
       } else {
         p->paired_storage = res_store->paired_storage;
-        p->tls_cert_.allowed_certificate_common_names_
-            = std::move(res_store->tls_cert_.allowed_certificate_common_names_);
         p->device = res_store->device;
         p->runtime_storage_status
             = GetRuntimeStatus<RuntimeStorageStatus>(p->resource_name_);
@@ -2308,8 +2302,6 @@ static bool UpdateResourcePointer(int type, gsl::span<const ResourceItem> items)
           // No catalog overwrite given use the first catalog definition.
           p->catalog = (CatalogResource*)my_config->GetNextRes(R_CATALOG, NULL);
         }
-        p->tls_cert_.allowed_certificate_common_names_ = std::move(
-            res_client->tls_cert_.allowed_certificate_common_names_);
 
         p->rcs = GetRuntimeStatus<RuntimeClientStatus>(p->resource_name_);
       }
@@ -2372,17 +2364,91 @@ bool PropagateJobdefs(int res_type, JobResource* res)
   return true;
 }
 
+void GenerateRunScripts(JobResource* res)
+{
+  auto* runscripts = res->RunScripts;
+  if (!runscripts) {
+    runscripts = new alist<RunScript*>(10, not_owned_by_alist);
+    res->RunScripts = runscripts;
+  }
+
+  for (auto& cmd : res->before_job) {
+    RunScript* script = new RunScript;
+    script->SetJobCodeCallback(job_code_callback_director);
+    script->SetCommand(cmd.c_str());
+    script->short_form = true;
+    runscripts->append(script);
+
+    script->when = SCRIPT_Before;
+    script->SetTarget("");
+  }
+  for (auto& cmd : res->after_job) {
+    RunScript* script = new RunScript;
+    script->SetJobCodeCallback(job_code_callback_director);
+    script->SetCommand(cmd.c_str());
+    script->short_form = true;
+    runscripts->append(script);
+
+    script->when = SCRIPT_After;
+    script->on_success = true;
+    script->on_failure = false;
+    script->fail_on_error = false;
+    script->SetTarget("");
+  }
+  for (auto& cmd : res->client_after_job) {
+    RunScript* script = new RunScript;
+    script->SetJobCodeCallback(job_code_callback_director);
+    script->SetCommand(cmd.c_str());
+    script->short_form = true;
+    runscripts->append(script);
+
+    script->when = SCRIPT_After;
+    script->on_success = true;
+    script->on_failure = false;
+    script->fail_on_error = false;
+    script->SetTarget("%c");
+  }
+  for (auto& cmd : res->client_before_job) {
+    RunScript* script = new RunScript;
+    script->SetJobCodeCallback(job_code_callback_director);
+    script->SetCommand(cmd.c_str());
+    script->short_form = true;
+    runscripts->append(script);
+
+    script->when = SCRIPT_Before;
+    script->SetTarget("%c");
+  }
+  for (auto& cmd : res->after_failed_job) {
+    RunScript* script = new RunScript;
+    script->SetJobCodeCallback(job_code_callback_director);
+    script->SetCommand(cmd.c_str());
+    script->short_form = true;
+    runscripts->append(script);
+
+    script->when = SCRIPT_After;
+    script->on_failure = true;
+    script->on_success = false;
+    script->fail_on_error = false;
+    script->SetTarget("");
+  }
+}
+
 static bool PopulateJobdefaults()
 {
   JobResource *job, *jobdefs;
   bool retval = true;
 
   // Propagate the content of a JobDefs to another.
-  foreach_res (jobdefs, R_JOBDEFS) { PropagateJobdefs(R_JOBDEFS, jobdefs); }
+  foreach_res (jobdefs, R_JOBDEFS) {
+    GenerateRunScripts(jobdefs);
+    PropagateJobdefs(R_JOBDEFS, jobdefs);
+  }
 
   // Propagate the content of the JobDefs to the actual Job.
   foreach_res (job, R_JOB) {
+    GenerateRunScripts(job);
     PropagateJobdefs(R_JOB, job);
+
 
     // Ensure that all required items are present
     if (!ValidateResource(R_JOB, job_items, job)) {
@@ -2858,58 +2924,62 @@ static void StoreRunscriptCmd(LEX* lc, const ResourceItem* item, int pass)
   ScanToEol(lc);
 }
 
-static void StoreShortRunscript(LEX* lc, const ResourceItem* item, int pass)
-{
-  LexGetToken(lc, BCT_STRING);
-  alist<RunScript*>** runscripts
-      = GetItemVariablePointer<alist<RunScript*>**>(*item);
+// static void StoreShortRunscript(LEX* lc, const ResourceItem* item, int pass)
+// {
+//   LexGetToken(lc, BCT_STRING);
+//   // alist<RunScript*>** runscripts
+//   //     = GetItemVariablePointer<alist<RunScript*>**>(*item);
 
-  if (pass == 2) {
-    Dmsg0(500, "runscript: creating new RunScript object\n");
-    RunScript* script = new RunScript;
 
-    script->SetJobCodeCallback(job_code_callback_director);
+//   auto* storage
+//     = GetItemVariablePointer<std::vector<>**>(*item);
 
-    script->SetCommand(lc->str);
-    if (Bstrcasecmp(item->name, "runbeforejob")) {
-      script->when = SCRIPT_Before;
-      script->SetTarget("");
-    } else if (Bstrcasecmp(item->name, "runafterjob")) {
-      script->when = SCRIPT_After;
-      script->on_success = true;
-      script->on_failure = false;
-      script->fail_on_error = false;
-      script->SetTarget("");
-    } else if (Bstrcasecmp(item->name, "clientrunafterjob")) {
-      script->when = SCRIPT_After;
-      script->on_success = true;
-      script->on_failure = false;
-      script->fail_on_error = false;
-      script->SetTarget("%c");
-    } else if (Bstrcasecmp(item->name, "clientrunbeforejob")) {
-      script->when = SCRIPT_Before;
-      script->SetTarget("%c");
-    } else if (Bstrcasecmp(item->name, "runafterfailedjob")) {
-      script->when = SCRIPT_After;
-      script->on_failure = true;
-      script->on_success = false;
-      script->fail_on_error = false;
-      script->SetTarget("");
-    }
+//   // if (pass == 2) {
+//   //   Dmsg0(500, "runscript: creating new RunScript object\n");
+//   //   RunScript* script = new RunScript;
 
-    // Remember that the entry was configured in the short runscript form.
-    script->short_form = true;
+//   //   script->SetJobCodeCallback(job_code_callback_director);
 
-    if (!*runscripts) {
-      *runscripts = new alist<RunScript*>(10, not_owned_by_alist);
-    }
+//   //   script->SetCommand(lc->str);
+//   //   if (Bstrcasecmp(item->name, "runbeforejob")) {
+//   //     script->when = SCRIPT_Before;
+//   //     script->SetTarget("");
+//   //   } else if (Bstrcasecmp(item->name, "runafterjob")) {
+//   //     script->when = SCRIPT_After;
+//   //     script->on_success = true;
+//   //     script->on_failure = false;
+//   //     script->fail_on_error = false;
+//   //     script->SetTarget("");
+//   //   } else if (Bstrcasecmp(item->name, "clientrunafterjob")) {
+//   //     script->when = SCRIPT_After;
+//   //     script->on_success = true;
+//   //     script->on_failure = false;
+//   //     script->fail_on_error = false;
+//   //     script->SetTarget("%c");
+//   //   } else if (Bstrcasecmp(item->name, "clientrunbeforejob")) {
+//   //     script->when = SCRIPT_Before;
+//   //     script->SetTarget("%c");
+//   //   } else if (Bstrcasecmp(item->name, "runafterfailedjob")) {
+//   //     script->when = SCRIPT_After;
+//   //     script->on_failure = true;
+//   //     script->on_success = false;
+//   //     script->fail_on_error = false;
+//   //     script->SetTarget("");
+//   //   }
 
-    (*runscripts)->append(script);
-    script->Debug();
-  }
+//   //   // Remember that the entry was configured in the short runscript form.
+//   //   script->short_form = true;
 
-  ScanToEol(lc);
-}
+//   //   if (!*runscripts) {
+//   //     *runscripts = new alist<RunScript*>(10, not_owned_by_alist);
+//   //   }
+
+//   //   (*runscripts)->append(script);
+//   //   script->Debug();
+//   // }
+
+//   ScanToEol(lc);
+// }
 
 /**
  * Store a bool in a bit field without modifing hdr
@@ -3205,9 +3275,9 @@ static void ParseConfigCb(ConfigurationParser* parser,
     case CFG_TYPE_REPLACE:
       StoreReplace(lc, item, pass);
       break;
-    case CFG_TYPE_SHRTRUNSCRIPT:
-      StoreShortRunscript(lc, item, pass);
-      break;
+    // case CFG_TYPE_SHRTRUNSCRIPT:
+    //   StoreShortRunscript(lc, item, pass);
+    //   break;
     case CFG_TYPE_RUNSCRIPT:
       StoreRunscript(lc, item, pass);
       break;
@@ -3278,10 +3348,10 @@ static void PrintConfigCb(const BareosResource* res,
       Dmsg0(200, "CFG_TYPE_RUNSCRIPT\n");
       PrintConfigRunscript(res, send, item, inherited, verbose);
       break;
-    case CFG_TYPE_SHRTRUNSCRIPT:
-      /* We don't get here as this type is converted to a CFG_TYPE_RUNSCRIPT
-       * when parsed */
-      break;
+    // case CFG_TYPE_SHRTRUNSCRIPT:
+    //   /* We don't get here as this type is converted to a CFG_TYPE_RUNSCRIPT
+    //    * when parsed */
+    //   break;
     case CFG_TYPE_ACL: {
       alist<const char*>* const* alistvalue
           = GetItemVariablePointer<alist<const char*>**>(res, item);

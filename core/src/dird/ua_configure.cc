@@ -136,15 +136,17 @@ static inline bool config_add_directive(UaContext* ua,
   const ResourceItem* item = NULL;
   std::string format("%-*s%s = %s\n");
 
-  const std::array<int, 15> quotable_types{
-      CFG_TYPE_AUTOPASSWORD,   CFG_TYPE_CLEARPASSWORD, CFG_TYPE_DIR,
-      CFG_TYPE_DIR_OR_CMD,     CFG_TYPE_LABEL,         CFG_TYPE_MD5PASSWORD,
-      CFG_TYPE_NAME,           CFG_TYPE_RES,           CFG_TYPE_RUNSCRIPT_CMD,
-      CFG_TYPE_RUNSCRIPT_WHEN, CFG_TYPE_SHRTRUNSCRIPT, CFG_TYPE_STDSTR,
-      CFG_TYPE_STDSTRDIR,      CFG_TYPE_STR,           CFG_TYPE_STRNAME};
+  const std::array<int, 14> quotable_types{
+      CFG_TYPE_AUTOPASSWORD,  CFG_TYPE_CLEARPASSWORD,
+      CFG_TYPE_DIR,           CFG_TYPE_DIR_OR_CMD,
+      CFG_TYPE_LABEL,         CFG_TYPE_MD5PASSWORD,
+      CFG_TYPE_NAME,          CFG_TYPE_RES,
+      CFG_TYPE_RUNSCRIPT_CMD, CFG_TYPE_RUNSCRIPT_WHEN,
+      CFG_TYPE_STDSTR,        CFG_TYPE_STDSTRDIR,
+      CFG_TYPE_STR,           CFG_TYPE_STRNAME};
 
-  const std::array<int, 3> script_types{
-      CFG_TYPE_RUNSCRIPT_CMD, CFG_TYPE_DIR_OR_CMD, CFG_TYPE_SHRTRUNSCRIPT};
+  const std::array<int, 2> script_types{CFG_TYPE_RUNSCRIPT_CMD,
+                                        CFG_TYPE_DIR_OR_CMD};
 
   std::string temp_value(value);
 

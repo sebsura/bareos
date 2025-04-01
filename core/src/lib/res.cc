@@ -853,13 +853,13 @@ void StoreStdVectorStr(ConfigurationParser*,
                        int pass)
 {
   std::vector<std::string>* list{nullptr};
-  if (pass == 2) {
+  if (pass == 1) {
     list = GetItemVariablePointer<std::vector<std::string>*>(*item);
   }
   int token = BCT_COMMA;
   while (token == BCT_COMMA) {
     LexGetToken(lc, BCT_STRING); /* scan next item */
-    if (pass == 2) {
+    if (pass == 1) {
       Dmsg4(900, "Append %s to vector %p size=%d %s\n", lc->str, list,
             list->size(), item->name);
 
@@ -872,7 +872,7 @@ void StoreStdVectorStr(ConfigurationParser*,
           if (list->at(0) == item->default_value) { list->clear(); }
         }
       }
-      list->push_back(lc->str);
+      list->emplace_back(lc->str);
     }
     token = LexGetToken(lc, BCT_ALL);
   }
@@ -1462,6 +1462,9 @@ void StoreAddressesAddress(ConfigurationParser*,
                      errmsg, sizeof(errmsg))) {
     scan_err2(lc, T_("can't add port (%s) to (%s)"), lc->str, errmsg);
   }
+
+  item->SetPresent();
+  item->UnsetInherited();
 }
 
 void StoreAddressesPort(ConfigurationParser*,
@@ -1502,6 +1505,9 @@ void StoreAddressesPort(ConfigurationParser*,
       scan_err2(lc, T_("can't add port (%s) to (%s)"), lc->str, errmsg);
     }
   }
+
+  item->SetPresent();
+  item->UnsetInherited();
 }
 
 // Generic store resource dispatcher.
@@ -1956,7 +1962,11 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
       // One line for each member of the list
       const std::vector<std::string>& list
           = *GetItemVariablePointer<std::vector<std::string>*>(this, item);
-      send.KeyMultipleStringsOnePerLine(item.name, list, inherited);
+      if (list.size() == 0) {
+        send.KeyString(item.name, "", true);
+      } else {
+        send.KeyMultipleStringsOnePerLine(item.name, list, inherited);
+      }
       break;
     }
     case CFG_TYPE_ALIST_STR:
@@ -2009,12 +2019,27 @@ void BareosResource::PrintResourceItem(const ResourceItem& item,
       send.ArrayEnd(item.name, inherited, "}\n");
       break;
     }
-    case CFG_TYPE_ADDRESSES_PORT:
-      // Is stored in CFG_TYPE_ADDRESSES and printed there.
-      break;
-    case CFG_TYPE_ADDRESSES_ADDRESS:
-      // Is stored in CFG_TYPE_ADDRESSES and printed there.
-      break;
+    case CFG_TYPE_ADDRESSES_PORT: {
+      dlist<IPADDR>* addrs = GetItemVariable<dlist<IPADDR>*>(this, item);
+      // if just a port is given, we bind to :: and 0.0.0.0
+      if (addrs && addrs->size() >= 1) {
+        IPADDR* adr = addrs->first();
+        send.KeyUnsignedInt(item.name, adr->GetPortHostOrder(), inherited);
+      } else {
+        send.KeyString(item.name, "", true);
+      }
+    } break;
+    case CFG_TYPE_ADDRESSES_ADDRESS: {
+      dlist<IPADDR>* addrs = GetItemVariable<dlist<IPADDR>*>(this, item);
+      if (addrs && addrs->size() == 1) {
+        IPADDR* adr = addrs->first();
+        char buffer[128];
+        send.KeyString(item.name, adr->GetAddress(buffer, std::size(buffer)),
+                       inherited);
+      } else {
+        send.KeyString(item.name, "", true);
+      }
+    } break;
     default:
       /* This is a non-generic type call back to the daemon to get things
        * printed. */
@@ -2217,7 +2242,7 @@ static DatatypeName datatype_names[] = {
     {CFG_TYPE_PROTOCOLTYPE, "PROTOCOL_TYPE", "Protocol"},
     {CFG_TYPE_LEVEL, "BACKUP_LEVEL", "Backup Level"},
     {CFG_TYPE_REPLACE, "REPLACE_OPTION", "Replace option"},
-    {CFG_TYPE_SHRTRUNSCRIPT, "RUNSCRIPT_SHORT", "Short Runscript definition"},
+    //{CFG_TYPE_SHRTRUNSCRIPT, "RUNSCRIPT_SHORT", "Short Runscript definition"},
     {CFG_TYPE_RUNSCRIPT, "RUNSCRIPT", "Runscript"},
     {CFG_TYPE_RUNSCRIPT_CMD, "RUNSCRIPT_COMMAND", "Runscript Command"},
     {CFG_TYPE_RUNSCRIPT_TARGET, "RUNSCRIPT_TARGET", "Runscript Target (Host)"},

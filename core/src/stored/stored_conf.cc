@@ -766,18 +766,6 @@ static bool SaveResource(BareosResource* res,
       case R_NDMP:
         // Resources not containing a resource
         break;
-      case R_DIRECTOR: {
-        DirectorResource* p
-            = dynamic_cast<DirectorResource*>(allocated_resource);
-        if (!p) {
-          Emsg1(M_ERROR_TERM, 0, T_("Cannot find Director resource %s\n"),
-                res_dir->resource_name_);
-        } else {
-          p->tls_cert_.allowed_certificate_common_names_
-              = std::move(res_dir->tls_cert_.allowed_certificate_common_names_);
-        }
-        break;
-      }
       case R_STORAGE: {
         StorageResource* p = dynamic_cast<StorageResource*>(allocated_resource);
         if (!p) {
@@ -787,8 +775,6 @@ static bool SaveResource(BareosResource* res,
           p->plugin_names = res_store->plugin_names;
           p->messages = res_store->messages;
           p->backend_directories = res_store->backend_directories;
-          p->tls_cert_.allowed_certificate_common_names_ = std::move(
-              res_store->tls_cert_.allowed_certificate_common_names_);
         }
         break;
       }

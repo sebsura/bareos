@@ -436,8 +436,6 @@ static bool SaveResource(BareosResource* res,
           Emsg1(M_ABORT, 0, T_("Cannot find Director resource %s\n"),
                 res_dir->resource_name_);
         } else {
-          p->tls_cert_.allowed_certificate_common_names_
-              = std::move(res_dir->tls_cert_.allowed_certificate_common_names_);
           p->allowed_script_dirs = res_dir->allowed_script_dirs;
           p->allowed_job_cmds = res_dir->allowed_job_cmds;
         }
@@ -456,8 +454,6 @@ static bool SaveResource(BareosResource* res,
           p->pki_signers = res_client->pki_signers;
           p->pki_recipients = res_client->pki_recipients;
           p->messages = res_client->messages;
-          p->tls_cert_.allowed_certificate_common_names_ = std::move(
-              res_client->tls_cert_.allowed_certificate_common_names_);
           p->allowed_script_dirs = res_client->allowed_script_dirs;
           p->allowed_job_cmds = res_client->allowed_job_cmds;
         }
