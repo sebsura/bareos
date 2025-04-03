@@ -95,6 +95,13 @@ class StorageResource
     : public BareosResource
     , public TlsResource {
  public:
+
+  // vvvv do not use vvvv
+
+  uint32_t default_port;
+  std::vector<std::string> addresses;
+
+  // ^^^^ do not use ^^^^
   dlist<IPADDR>* SDaddrs = nullptr;
   dlist<IPADDR>* SDsrc_addr
       = nullptr; /**< Address to source connections from */

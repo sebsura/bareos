@@ -78,8 +78,8 @@ static MessagesResource* res_msgs;
 static const ResourceItem store_items[] = {
   { "Name", CFG_TYPE_NAME, ITEM(res_store, resource_name_), {config::Required{}}},
   { "Description", CFG_TYPE_STR, ITEM(res_store, description_), {}},
-  { "SdPort", CFG_TYPE_ADDRESSES_PORT, ITEM(res_store, SDaddrs), {config::DefaultValue{SD_DEFAULT_PORT}}},
-  { "SdAddress", CFG_TYPE_ADDRESSES_ADDRESS, ITEM(res_store, SDaddrs), {config::DefaultValue{SD_DEFAULT_PORT}}},
+  { "SdPort", CFG_TYPE_PINT32, ITEM(res_store, default_port), {config::DefaultValue{SD_DEFAULT_PORT}}},
+  { "SdAddress", CFG_TYPE_STR_VECTOR, ITEM(res_store, addresses), {config::DefaultValue{SD_DEFAULT_PORT}}},
   { "SdAddresses", CFG_TYPE_ADDRESSES, ITEM(res_store, SDaddrs), {config::DefaultValue{SD_DEFAULT_PORT}}},
   { "SdSourceAddress", CFG_TYPE_ADDRESSES_ADDRESS, ITEM(res_store, SDsrc_addr), {config::DefaultValue{"0"}}},
   { "WorkingDirectory", CFG_TYPE_DIR, ITEM(res_store, working_directory), {config::DefaultValue{PATH_BAREOS_WORKINGDIR}, config::PlatformSpecific{}}},
@@ -573,8 +573,73 @@ static void CheckAndLoadDeviceBackends(ConfigurationParser& config)
   }
 }
 
+struct created_ip_address {
+  IPADDR::i_type type;
+  int family;
+  std::string hostname;
+  std::string port;
+};
+
+created_ip_address CreateIpAddress(std::string_view to_parse)
+{
+  // we accept
+  // :port
+  // hostname/ipv4[:port]
+  // \\[hostname|ipv4|ipv6\\][:port]
+
+  created_ip_address res = {};
+
+  ASSERT(to_parse.size() > 0);
+
+  switch (to_parse[0]) {
+  case '[': {
+    // case 3
+  } break;
+  case ':': {
+    // case 1
+    res.type = IPADDR::i_type::R_SINGLE_PORT;
+    res.port = std::string{to_parse.substr(1)};
+    res.family = AF_INET;
+  } break;
+  default: {
+    // case 2
+    res.family = AF_INET;
+
+    if (auto pos = to_parse.find_last_of(":"); pos != to_parse.npos) {
+      res.type = IPADDR:i_type::R_SINGLE;
+      res.hostname = std::string{to_parse.substr(0, pos)};
+      res.port = std::string{to_parse.substr(pos + 1)};
+    } else {
+      res.type = IPADDR:i_type::R_SINGLE_ADDR;
+      res.hostname = std::string{to_parse};
+    }
+  } break;
+  }
+
+  return res;
+}
+
+static void ParseAddresses(ConfigurationParser& config)
+{
+  auto* stored_ = config.GetNextRes(R_STORAGE, nullptr);
+  ASSERT(stored_);
+  auto* stored = dynamic_cast<StorageResource*>(stored_);
+  ASSERT(stored_);
+
+  for (auto& address : stored->addresses) {
+    char error_buf[256];
+
+    auto res = CreateIpAddress(address);
+    AddAddress(&stored->SDaddrs,
+               res.type, stored->default_port,
+               res.family, res.hostname.c_str(),
+               res.port.c_str(), error_buf, std::size(error_buf));
+  }
+}
+
 static void ConfigReadyCallback(ConfigurationParser& config)
 {
+  ParseAddresses(config);
   MultiplyConfiguredDevices(config);
   GuessMissingDeviceTypes(config);
   CheckAndLoadDeviceBackends(config);
