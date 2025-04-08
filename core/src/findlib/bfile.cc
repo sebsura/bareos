@@ -3,7 +3,7 @@
 
    Copyright (C) 2003-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -369,7 +369,7 @@ extern "C" HANDLE get_osfhandle(int fd);
 void binit(BareosFilePacket* bfd)
 {
   new (bfd) BareosFilePacket();
-  bfd->filedes = -1;
+  bfd->fh = INVALID_HANDLE_VALUE;
   bfd->use_backup_api = have_win32_api();
 }
 
@@ -838,6 +838,7 @@ ssize_t bread(BareosFilePacket* bfd, void* buf, size_t count)
   if (bfd->cmd_plugin && plugin_bread) {
     // invalid filehandle -> plugin does read
     if (bfd->fh == INVALID_HANDLE_VALUE) {
+      Dmsg1(400, "bread handled in plugin\n");
       return plugin_bread(bfd, buf, count);
     }
     Dmsg1(400, "bread handled in core via bfd->fh=%d\n", bfd->fh);

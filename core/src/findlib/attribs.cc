@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -594,8 +594,7 @@ static bool set_win32_attributes(JobControlRecord* jcr,
   if (!(p_SetFileAttributesW || p_SetFileAttributesA)) { return false; }
 
   if (!p || !*p) { /* we should have attributes */
-    Dmsg2(100, "Attributes missing. of=%s ofd=%d\n", attr->ofname,
-          ofd->filedes);
+    Dmsg2(100, "Attributes missing. of=%s ofd=%d\n", attr->ofname, Bgetfd(ofd));
     if (IsBopen(ofd)) { bclose(ofd); }
     return false;
   } else {
