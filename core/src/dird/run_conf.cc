@@ -165,15 +165,16 @@ struct s_kw RunFields[] = {{"pool", 'P'},
  *   together.
  *
  */
-void StoreRun(LEX* lc, const ResourceItem* item, int pass)
+void StoreRun(BareosResource* res, LEX* lc, const ResourceItem* item, int pass)
 {
+  ASSERT(res == item->allocated_resource());
+
   char* p;
   int i, j;
   int options = lc->options;
   int token, state, state2 = 0, code = 0, code2 = 0;
   bool found;
   utime_t utime;
-  BareosResource* res;
   RunResource res_run;
 
   lc->options |= LOPT_NO_IDENT; /* Want only "strings" */

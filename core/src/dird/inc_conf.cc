@@ -222,7 +222,10 @@ static struct s_fs_opt FS_options[]
        {NULL, 0, 0}};
 
 // Imported subroutines
-extern void StoreInc(LEX* lc, const ResourceItem* item, int pass);
+extern void StoreInc(BareosResource* res,
+                     LEX* lc,
+                     const ResourceItem* item,
+                     int pass);
 
 /* We build the current new Include and Exclude items here */
 static IncludeExcludeItem* res_incexe;
@@ -993,8 +996,9 @@ static void StoreNewinc(LEX* lc, const ResourceItem* item, int pass)
  * Store FileSet Include/Exclude info
  *  new style includes are handled in StoreNewinc()
  */
-void StoreInc(LEX* lc, const ResourceItem* item, int pass)
+void StoreInc(BareosResource* res, LEX* lc, const ResourceItem* item, int pass)
 {
+  ASSERT(res == item->allocated_resource());
   int token;
 
   /* Decide if we are doing a new Include or an old include. The
