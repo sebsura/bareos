@@ -254,8 +254,12 @@ static s_kw compression_algorithms[]
        {"lzfast", COMPRESS_FZFZ}, {"lz4", COMPRESS_FZ4L},
        {"lz4hc", COMPRESS_FZ4H},  {NULL, 0}};
 
-static void StoreAuthenticationType(LEX* lc, const ResourceItem* item, int)
+static void StoreAuthenticationType(BareosResource* res,
+                                    LEX* lc,
+                                    const ResourceItem* item,
+                                    int)
 {
+  ASSERT(res == item->allocated_resource());
   int i;
 
   LexGetToken(lc, BCT_NAME);
@@ -278,11 +282,12 @@ static void StoreAuthenticationType(LEX* lc, const ResourceItem* item, int)
 
 // Store password either clear if for NDMP or MD5 hashed for native.
 static void StoreAutopassword(ConfigurationParser* parser,
+                              BareosResource* res,
                               LEX* lc,
                               const ResourceItem* item,
                               int pass)
 {
-  BareosResource* res = item->allocated_resource();
+  ASSERT(res == item->allocated_resource());
   switch (res->rcode_) {
     case R_DIRECTOR:
       /* As we need to store both clear and MD5 hashed within the same
@@ -308,11 +313,12 @@ static void StoreAutopassword(ConfigurationParser* parser,
 
 // Store Maximum Block Size, and check it is not greater than MAX_BLOCK_LENGTH
 static void StoreMaxblocksize(ConfigurationParser* parser,
+                              BareosResource* res,
                               LEX* lc,
                               const ResourceItem* item,
                               int pass)
 {
-  BareosResource* res = item->allocated_resource();
+  ASSERT(res == item->allocated_resource());
   StoreResource(parser, res, CFG_TYPE_SIZE32, lc, item, pass);
   if (GetItemVariable<uint32_t>(*item) > MAX_BLOCK_LENGTH) {
     scan_err2(lc,
@@ -323,8 +329,12 @@ static void StoreMaxblocksize(ConfigurationParser* parser,
 }
 
 // Store the IO direction on a certain device.
-static void StoreIoDirection(LEX* lc, const ResourceItem* item, int)
+static void StoreIoDirection(BareosResource* res,
+                             LEX* lc,
+                             const ResourceItem* item,
+                             int)
 {
+  ASSERT(res == item->allocated_resource());
   int i;
 
   LexGetToken(lc, BCT_NAME);
@@ -344,8 +354,12 @@ static void StoreIoDirection(LEX* lc, const ResourceItem* item, int)
 }
 
 // Store the compression algorithm to use on a certain device.
-static void StoreCompressionalgorithm(LEX* lc, const ResourceItem* item, int)
+static void StoreCompressionalgorithm(BareosResource* res,
+                                      LEX* lc,
+                                      const ResourceItem* item,
+                                      int)
 {
+  ASSERT(res == item->allocated_resource());
   int i;
 
   LexGetToken(lc, BCT_NAME);
@@ -393,7 +407,7 @@ static void InitResourceCb(const ResourceItem* item, int pass)
 }
 
 static void ParseConfigCb(ConfigurationParser* parser,
-                          BareosResource*,
+                          BareosResource* res,
                           LEX* lc,
                           const ResourceItem* item,
                           int pass,
@@ -401,19 +415,19 @@ static void ParseConfigCb(ConfigurationParser* parser,
 {
   switch (item->type) {
     case CFG_TYPE_AUTOPASSWORD:
-      StoreAutopassword(parser, lc, item, pass);
+      StoreAutopassword(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_AUTHTYPE:
-      StoreAuthenticationType(lc, item, pass);
+      StoreAuthenticationType(res, lc, item, pass);
       break;
     case CFG_TYPE_MAXBLOCKSIZE:
-      StoreMaxblocksize(parser, lc, item, pass);
+      StoreMaxblocksize(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_IODIRECTION:
-      StoreIoDirection(lc, item, pass);
+      StoreIoDirection(res, lc, item, pass);
       break;
     case CFG_TYPE_CMPRSALGO:
-      StoreCompressionalgorithm(lc, item, pass);
+      StoreCompressionalgorithm(res, lc, item, pass);
       break;
     default:
       break;
