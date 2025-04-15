@@ -342,7 +342,7 @@ bool ConfigurationParser::ParseConfigFile(const char* config_file_name,
             return false;
           }
 
-          SetAllResourceDefaultsByParserPass(current.tbl->rcode,
+          SetAllResourceDefaultsByParserPass(current.res, current.tbl->rcode,
                                              current.tbl->items, parser_pass);
         } else {
           switch (token) {

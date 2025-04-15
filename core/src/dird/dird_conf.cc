@@ -3214,8 +3214,11 @@ std::optional<std::string> job_code_callback_director(JobControlRecord* jcr,
  * callback function for init_resource
  * See ../lib/parse_conf.cc, function InitResource, for more generic handling.
  */
-static void InitResourceCb(const ResourceItem* item, int pass)
+static void InitResourceCb(BareosResource* res,
+                           const ResourceItem* item,
+                           int pass)
 {
+  (void)res;
   switch (pass) {
     case 1:
       switch (item->type) {

@@ -38,6 +38,7 @@ static void MakePathName(PoolMem& pathname, const char* str)
 }
 
 void ConfigurationParser::SetResourceDefaultsParserPass1(
+    BareosResource* res,
     const ResourceItem* item)
 {
   Dmsg3(900, "Item=%s defval=%s\n", item->name,
@@ -107,13 +108,14 @@ void ConfigurationParser::SetResourceDefaultsParserPass1(
         break;
       }
       default:
-        if (init_res_) { init_res_(item, 1); }
+        if (init_res_) { init_res_(res, item, 1); }
         break;
     }
   }
 }
 
 void ConfigurationParser::SetResourceDefaultsParserPass2(
+    BareosResource* res,
     const ResourceItem* item)
 {
   Dmsg3(900, "Item=%s defval=%s\n", item->name,
@@ -166,16 +168,19 @@ void ConfigurationParser::SetResourceDefaultsParserPass2(
         break;
       }
       default:
-        if (init_res_) { init_res_(item, 2); }
+        if (init_res_) { init_res_(res, item, 2); }
         break;
     }
   }
 }
 
 void ConfigurationParser::SetAllResourceDefaultsIterateOverItems(
+    BareosResource* res,
     int rcode,
     gsl::span<const ResourceItem> items,
-    std::function<void(ConfigurationParser&, const ResourceItem*)> SetDefaults)
+    std::function<void(ConfigurationParser&,
+                       BareosResource* res,
+                       const ResourceItem*)> SetDefaults)
 {
   if (items.size() >= MAX_RES_ITEMS) {
     Emsg1(M_ERROR_TERM, 0, T_("Too many items in %s resource\n"),
@@ -184,27 +189,32 @@ void ConfigurationParser::SetAllResourceDefaultsIterateOverItems(
 
   for (size_t item_idx = 0; item_idx < items.size(); ++item_idx) {
     auto& item = items[item_idx];
-    SetDefaults(*this, &item);
+    ASSERT(res == item.allocated_resource());
+    SetDefaults(*this, res, &item);
 
     if (!omit_defaults_) { item.SetInherited(); }
 
-    item.allocated_resource()->rcode_ = rcode;
+    res->rcode_ = rcode;
   }
 }
 
 void ConfigurationParser::SetAllResourceDefaultsByParserPass(
+    BareosResource* res,
     int rcode,
     gsl::span<const ResourceItem> items,
     int pass)
 {
-  std::function<void(ConfigurationParser&, const ResourceItem*)> SetDefaults;
+  std::function<void(ConfigurationParser&, BareosResource * res,
+                     const ResourceItem*)>
+      SetDefaults;
 
   switch (pass) {
     case 1:
-      SetDefaults = [rcode](ConfigurationParser& c, const ResourceItem* item) {
-        item->allocated_resource()->rcode_ = rcode;
-        item->allocated_resource()->refcnt_ = 1;
-        c.SetResourceDefaultsParserPass1(item);
+      SetDefaults = [rcode](ConfigurationParser& c, BareosResource* ires,
+                            const ResourceItem* item) {
+        ires->rcode_ = rcode;
+        ires->refcnt_ = 1;
+        c.SetResourceDefaultsParserPass1(ires, item);
       };
       break;
     case 2:
@@ -215,10 +225,11 @@ void ConfigurationParser::SetAllResourceDefaultsByParserPass(
       break;
   }
 
-  SetAllResourceDefaultsIterateOverItems(rcode, items, SetDefaults);
+  SetAllResourceDefaultsIterateOverItems(res, rcode, items, SetDefaults);
 }
 
 void ConfigurationParser::InitResource(
+    BareosResource* res,
     int rcode,
     gsl::span<const ResourceItem> items,
     int pass,
@@ -226,5 +237,5 @@ void ConfigurationParser::InitResource(
 {
   if (ResourceSpecificInitializer) { ResourceSpecificInitializer(); }
 
-  SetAllResourceDefaultsByParserPass(rcode, items, pass);
+  SetAllResourceDefaultsByParserPass(res, rcode, items, pass);
 }

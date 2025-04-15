@@ -194,8 +194,11 @@ static void StoreCipher(LEX* lc,
  * callback function for init_resource
  * See ../lib/parse_conf.c, function InitResource, for more generic handling.
  */
-static void InitResourceCb(const ResourceItem* item, int pass)
+static void InitResourceCb(BareosResource* res,
+                           const ResourceItem* item,
+                           int pass)
 {
+  (void)res;
   switch (pass) {
     case 1:
       switch (item->type) {

@@ -208,7 +208,9 @@ struct DatatypeName {
   const char* description;
 };
 
-typedef void(INIT_RES_HANDLER)(const ResourceItem* item, int pass);
+typedef void(INIT_RES_HANDLER)(BareosResource* res,
+                               const ResourceItem* item,
+                               int pass);
 typedef void(STORE_RES_HANDLER)(
     ConfigurationParser*,
     BareosResource* res,
@@ -288,7 +290,8 @@ class ConfigurationParser {
   std::shared_ptr<ConfigResourcesContainer> BackupResourcesContainer();
   void RestoreResourcesContainer(std::shared_ptr<ConfigResourcesContainer>&&);
 
-  void InitResource(int rcode,
+  void InitResource(BareosResource* res,
+                    int rcode,
                     gsl::span<const ResourceItem> items,
                     int pass,
                     std::function<void()> ResourceSpecificInitializer);
@@ -386,16 +389,21 @@ class ConfigurationParser {
   void lex_error(const char* cf,
                  LEX_ERROR_HANDLER* ScanError,
                  LEX_WARNING_HANDLER* scan_warning) const;
-  void SetAllResourceDefaultsByParserPass(int rcode,
+  void SetAllResourceDefaultsByParserPass(BareosResource* res,
+                                          int rcode,
                                           gsl::span<const ResourceItem> items,
                                           int pass);
   void SetAllResourceDefaultsIterateOverItems(
+      BareosResource* res,
       int rcode,
       gsl::span<const ResourceItem> items,
-      std::function<void(ConfigurationParser&, const ResourceItem*)>
-          SetDefaults);
-  void SetResourceDefaultsParserPass1(const ResourceItem* item);
-  void SetResourceDefaultsParserPass2(const ResourceItem* item);
+      std::function<void(ConfigurationParser&,
+                         BareosResource* res,
+                         const ResourceItem*)> SetDefaults);
+  void SetResourceDefaultsParserPass1(BareosResource* res,
+                                      const ResourceItem* item);
+  void SetResourceDefaultsParserPass2(BareosResource* res,
+                                      const ResourceItem* item);
 };
 
 
