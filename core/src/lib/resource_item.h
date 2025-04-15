@@ -214,10 +214,10 @@ struct ResourceItem {
   using resource_fun = BareosResource*();
   using address_fun = char*(BareosResource*);
 
-  template <typename ConfigType>
+  template <typename ConfigType, typename T>
   constexpr static ResourceItem make(const char* name_,
                                      resource_fun* res_fun_,
-                                     address_fun* addr_fun_,
+                                     member_accessor<T> addr_fun_,
                                      ResourceItemFlags&& resource_flags)
   {
     auto res = ResourceItem{name_, CFG_TYPE_AUTO, res_fun_, addr_fun_,
@@ -228,15 +228,16 @@ struct ResourceItem {
     return res;
   }
 
+  template <typename T>
   constexpr ResourceItem(const char* name_,
                          const int type_,
                          resource_fun* res_fun_,
-                         address_fun* addr_fun_,
+                         member_accessor<T> addr_fun_,
                          ResourceItemFlags&& resource_flags)
       : name{name_}
       , type{type_}
       , res_fun{res_fun_}
-      , addr_fun{addr_fun_}
+      , addr_fun{addr_fun_.address_of}
       , code{resource_flags.extra.value_or(int32_t{})}
       , alias{resource_flags.alt_name}
       , required{resource_flags.required}

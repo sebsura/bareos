@@ -48,11 +48,20 @@ class ConfigResourcesContainer;
 /* For storing name_addr items in res_items table */
 
 #define RESOURCE_GET(res_name) +[]() -> BareosResource* { return res_name; }
-#define GET_MEMBER(res_name, mem_name)                       \
-  +[](BareosResource* res) -> char* {                        \
-    auto* typed_ptr = dynamic_cast<decltype(res_name)>(res); \
-    ASSERT(typed_ptr);                                       \
-    return reinterpret_cast<char*>(&typed_ptr->mem_name);    \
+
+template <typename T> struct member_accessor {
+  char* (*address_of)(BareosResource* res);
+};
+
+
+#define GET_MEMBER(res_name, mem_name)                         \
+  member_accessor<decltype(res_name->mem_name)>                \
+  {                                                            \
+    +[](BareosResource* res) -> char* {                        \
+      auto* typed_ptr = dynamic_cast<decltype(res_name)>(res); \
+      ASSERT(typed_ptr);                                       \
+      return reinterpret_cast<char*>(&typed_ptr->mem_name);    \
+    }                                                          \
   }
 
 /* using offsetof on non-standard-layout types is conditionally supported. As
@@ -62,13 +71,12 @@ class ConfigResourcesContainer;
  */
 
 // we are using a template here to get rid of odr problems
-template <typename = void> char* CastResource(BareosResource* res)
-{
-  return reinterpret_cast<char*>(res);
-}
+
+static constexpr member_accessor<void> no_address
+    = {+[](BareosResource* res) { return reinterpret_cast<char*>(res); }};
 
 #define ITEM(c, m) RESOURCE_GET(c), GET_MEMBER(c, m)
-#define ITEMC(c) RESOURCE_GET(c), &CastResource<void>
+#define ITEMC(c) RESOURCE_GET(c), no_address
 
 /*
  * Master Resource configuration structure definition
