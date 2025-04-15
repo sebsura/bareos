@@ -60,10 +60,12 @@ enum unit_type
 
 // }
 void StoreMsgs(ConfigurationParser* parser,
+               BareosResource* res,
                LEX* lc,
                const ResourceItem* item,
                int pass);
 void StoreName(ConfigurationParser* parser,
+               BareosResource* res,
                LEX* lc,
                const ResourceItem* item,
                int pass);
@@ -85,7 +87,7 @@ bool name_item::parse(ConfigurationParser* parser,
                       const ResourceItem* item,
                       int pass) const
 {
-  StoreName(parser, lc, item, pass);
+  StoreName(parser, item->allocated_resource(), lc, item, pass);
   return true;
 }
 bool name_item::print(OutputFormatterResource& send,
@@ -106,124 +108,154 @@ bool name_item::is_same(const void* Element, const char* Text) const
 }
 
 void StoreStrname(ConfigurationParser* parser,
+                  BareosResource* res,
                   LEX* lc,
                   const ResourceItem* item,
                   int pass);
 void StoreStr(ConfigurationParser* parser,
+              BareosResource* res,
               LEX* lc,
               const ResourceItem* item,
               int pass);
 void StoreStdstr(ConfigurationParser* parser,
+                 BareosResource* res,
                  LEX* lc,
                  const ResourceItem* item,
                  int pass);
 void StoreDir(ConfigurationParser* parser,
+              BareosResource* res,
               LEX* lc,
               const ResourceItem* item,
               int pass);
 void StoreStdstrdir(ConfigurationParser* parser,
+                    BareosResource* res,
                     LEX* lc,
                     const ResourceItem* item,
                     int pass);
 void StoreMd5Password(ConfigurationParser* parser,
+                      BareosResource* res,
                       LEX* lc,
                       const ResourceItem* item,
                       int pass);
 void StoreClearpassword(ConfigurationParser* parser,
+                        BareosResource* res,
                         LEX* lc,
                         const ResourceItem* item,
                         int pass);
 void StoreRes(ConfigurationParser* parser,
+              BareosResource* res,
               LEX* lc,
               const ResourceItem* item,
               int pass);
 void StoreAlistRes(ConfigurationParser* parser,
+                   BareosResource* res,
                    LEX* lc,
                    const ResourceItem* item,
                    int pass);
 void StoreAlistStr(ConfigurationParser* parser,
+                   BareosResource* res,
                    LEX* lc,
                    const ResourceItem* item,
                    int pass);
 void StoreStdVectorStr(ConfigurationParser* parser,
+                       BareosResource* res,
                        LEX* lc,
                        const ResourceItem* item,
                        int pass);
 void StoreAlistDir(ConfigurationParser* parser,
+                   BareosResource* res,
                    LEX* lc,
                    const ResourceItem* item,
                    int pass);
 void StorePluginNames(ConfigurationParser* parser,
+                      BareosResource* res,
                       LEX* lc,
                       const ResourceItem* item,
                       int pass);
 void StoreDefs(ConfigurationParser* parser,
+               BareosResource* res,
                LEX* lc,
                const ResourceItem* item,
                int pass);
-void store_int16(ConfigurationParser* parser,
+void StoreInt16(ConfigurationParser* parser,
+                BareosResource* res,
+                LEX* lc,
+                const ResourceItem* item,
+                int pass);
+void StoreInt32(ConfigurationParser* parser,
+                BareosResource* res,
+                LEX* lc,
+                const ResourceItem* item,
+                int pass);
+void StorePInt16(ConfigurationParser* parser,
+                 BareosResource* res,
                  LEX* lc,
                  const ResourceItem* item,
                  int pass);
-void store_int32(ConfigurationParser* parser,
+void StorePInt32(ConfigurationParser* parser,
+                 BareosResource* res,
                  LEX* lc,
                  const ResourceItem* item,
                  int pass);
-void store_pint16(ConfigurationParser* parser,
+void StoreInt64(ConfigurationParser* parser,
+                BareosResource* res,
+                LEX* lc,
+                const ResourceItem* item,
+                int pass);
+void StoreIntUnit(ConfigurationParser* parser,
+                  BareosResource* res,
                   LEX* lc,
                   const ResourceItem* item,
-                  int pass);
-void store_pint32(ConfigurationParser* parser,
-                  LEX* lc,
-                  const ResourceItem* item,
-                  int pass);
-void store_int64(ConfigurationParser* parser,
+                  int pass,
+                  bool size32,
+                  enum unit_type type);
+void StoreSize32(ConfigurationParser* parser,
+                 BareosResource* res,
                  LEX* lc,
                  const ResourceItem* item,
                  int pass);
-void store_int_unit(ConfigurationParser* parser,
-                    LEX* lc,
-                    const ResourceItem* item,
-                    int pass,
-                    bool size32,
-                    enum unit_type type);
-void store_size32(ConfigurationParser* parser,
-                  LEX* lc,
-                  const ResourceItem* item,
-                  int pass);
-void store_size64(ConfigurationParser* parser,
-                  LEX* lc,
-                  const ResourceItem* item,
-                  int pass);
+void StoreSize64(ConfigurationParser* parser,
+                 BareosResource* res,
+                 LEX* lc,
+                 const ResourceItem* item,
+                 int pass);
 void StoreSpeed(ConfigurationParser* parser,
+                BareosResource* res,
                 LEX* lc,
                 const ResourceItem* item,
                 int pass);
 void StoreTime(ConfigurationParser* parser,
+               BareosResource* res,
                LEX* lc,
                const ResourceItem* item,
                int pass);
 void StoreBit(ConfigurationParser* parser,
+              BareosResource* res,
               LEX* lc,
               const ResourceItem* item,
               int pass);
 void StoreBool(ConfigurationParser* parser,
+               BareosResource* res,
                LEX* lc,
                const ResourceItem* item,
                int pass);
 void StoreLabel(ConfigurationParser* parser,
+                BareosResource* res,
                 LEX* lc,
                 const ResourceItem* item,
                 int pass);
 void StoreAddresses(ConfigurationParser* parser,
+                    BareosResource* res,
                     LEX* lc,
                     const ResourceItem* item,
                     int pass);
 void StoreAddressesAddress(ConfigurationParser* parser,
+                           BareosResource* res,
                            LEX* lc,
                            const ResourceItem* item,
                            int pass);
 void StoreAddressesPort(ConfigurationParser* parser,
+                        BareosResource* res,
                         LEX* lc,
                         const ResourceItem* item,
                         int pass);
@@ -444,10 +476,12 @@ void ScanTypes(LEX* lc,
 
 // Store Messages Destination information
 void StoreMsgs(ConfigurationParser*,
+               BareosResource* res,
                LEX* lc,
                const ResourceItem* item,
                int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   int token;
   const char* cmd = nullptr;
   POOLMEM* dest;
@@ -455,8 +489,7 @@ void StoreMsgs(ConfigurationParser*,
 
   Dmsg2(900, "StoreMsgs pass=%d code=%d\n", pass, item->code);
 
-  MessagesResource* message_resource
-      = dynamic_cast<MessagesResource*>(item->allocated_resource());
+  MessagesResource* message_resource = dynamic_cast<MessagesResource*>(res);
 
   if (!message_resource) {
     Dmsg0(900, "Could not dynamic_cast to MessageResource\n");
@@ -596,8 +629,13 @@ void StoreMsgs(ConfigurationParser*,
  * This routine is ONLY for resource names
  * Store a name at specified address.
  */
-void StoreName(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
+void StoreName(ConfigurationParser*,
+               BareosResource* res,
+               LEX* lc,
+               const ResourceItem* item,
+               int)
 {
+  ASSERT(item->allocated_resource() == res);
   std::string msg{};
 
   LexGetToken(lc, BCT_NAME);
@@ -624,10 +662,12 @@ void StoreName(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
  * A name string is limited to MAX_RES_NAME_LENGTH
  */
 void StoreStrname(ConfigurationParser*,
+                  BareosResource* res,
                   LEX* lc,
                   const ResourceItem* item,
                   int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_NAME);
   if (pass == 1) {
     char** p = GetItemVariablePointer<char**>(*item);
@@ -640,8 +680,13 @@ void StoreStrname(ConfigurationParser*,
 }
 
 // Store a string at specified address
-void StoreStr(ConfigurationParser*, LEX* lc, const ResourceItem* item, int pass)
+void StoreStr(ConfigurationParser*,
+              BareosResource* res,
+              LEX* lc,
+              const ResourceItem* item,
+              int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_STRING);
   if (pass == 1) { SetItemVariableFreeMemory<char*>(*item, strdup(lc->str)); }
   ScanToEol(lc);
@@ -651,10 +696,12 @@ void StoreStr(ConfigurationParser*, LEX* lc, const ResourceItem* item, int pass)
 
 // Store a string at specified address
 void StoreStdstr(ConfigurationParser*,
+                 BareosResource* res,
                  LEX* lc,
                  const ResourceItem* item,
                  int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_STRING);
   if (pass == 1) { SetItemVariable<std::string>(*item, lc->str); }
   ScanToEol(lc);
@@ -667,8 +714,13 @@ void StoreStdstr(ConfigurationParser*,
  * shell expansion except if the string begins with a vertical
  * bar (i.e. it will likely be passed to the shell later).
  */
-void StoreDir(ConfigurationParser*, LEX* lc, const ResourceItem* item, int pass)
+void StoreDir(ConfigurationParser*,
+              BareosResource* res,
+              LEX* lc,
+              const ResourceItem* item,
+              int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_STRING);
   if (pass == 1) {
     char** p = GetItemVariablePointer<char**>(*item);
@@ -684,10 +736,12 @@ void StoreDir(ConfigurationParser*, LEX* lc, const ResourceItem* item, int pass)
 }
 
 void StoreStdstrdir(ConfigurationParser*,
+                    BareosResource* res,
                     LEX* lc,
                     const ResourceItem* item,
                     int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_STRING);
   if (pass == 1) {
     if (lc->str[0] != '|') {
@@ -702,10 +756,12 @@ void StoreStdstrdir(ConfigurationParser*,
 
 // Store a password at specified address in MD5 coding
 void StoreMd5Password(ConfigurationParser*,
+                      BareosResource* res,
                       LEX* lc,
                       const ResourceItem* item,
                       int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_STRING);
   if (pass == 1) { /* free old item */
     s_password* pwd = GetItemVariablePointer<s_password*>(*item);
@@ -721,7 +777,7 @@ void StoreMd5Password(ConfigurationParser*,
                     strlen(empty_password_md5_hash))
             == 0) {
           scan_err1(lc, "Empty Password not allowed in Resource \"%s\"\n",
-                    item->allocated_resource()->resource_name_);
+                    res->resource_name_);
           return;
         }
       }
@@ -760,7 +816,7 @@ void StoreMd5Password(ConfigurationParser*,
       if (item->is_required()) {
         if (strnlen(lc->str, MAX_NAME_LENGTH) == 0) {
           scan_err1(lc, "Empty Password not allowed in Resource \"%s\"\n",
-                    item->allocated_resource()->resource_name_);
+                    res->resource_name_);
           return;
         }
       }
@@ -786,10 +842,12 @@ void StoreMd5Password(ConfigurationParser*,
 
 // Store a password at specified address in MD5 coding
 void StoreClearpassword(ConfigurationParser*,
+                        BareosResource* res,
                         LEX* lc,
                         const ResourceItem* item,
                         int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_STRING);
   if (pass == 1) {
     s_password* pwd = GetItemVariablePointer<s_password*>(*item);
@@ -801,7 +859,7 @@ void StoreClearpassword(ConfigurationParser*,
       if (strnlen(lc->str, MAX_NAME_LENGTH) == 0) {
         scan_err1(
             lc, "Empty Password not allowed in Resource \"%s\" not allowed.\n",
-            item->allocated_resource()->resource_name_);
+            res->resource_name_);
         return;
       }
     }
@@ -820,14 +878,16 @@ void StoreClearpassword(ConfigurationParser*,
  * resource.
  */
 void StoreRes(ConfigurationParser* parser,
+              BareosResource* res,
               LEX* lc,
               const ResourceItem* item,
               int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_NAME);
   if (pass == 2) {
-    BareosResource* res = parser->GetResWithName(item->code, lc->str);
-    if (res == NULL) {
+    BareosResource* pass1_res = parser->GetResWithName(item->code, lc->str);
+    if (pass1_res == NULL) {
       scan_err3(
           lc,
           T_("Could not find config resource \"%s\" referenced on line %d: %s"),
@@ -842,7 +902,7 @@ void StoreRes(ConfigurationParser* parser,
           item->name, lc->line_no, lc->line);
       return;
     }
-    *p = res;
+    *p = pass1_res;
   }
   ScanToEol(lc);
   item->SetPresent();
@@ -856,10 +916,12 @@ void StoreRes(ConfigurationParser* parser,
  * If we are in pass 2, do a lookup of the resource.
  */
 void StoreAlistRes(ConfigurationParser* parser,
+                   BareosResource* res,
                    LEX* lc,
                    const ResourceItem* item,
                    int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   alist<BareosResource*>** alistvalue
       = GetItemVariablePointer<alist<BareosResource*>**>(*item);
   if (pass == 2) {
@@ -873,17 +935,17 @@ void StoreAlistRes(ConfigurationParser* parser,
   while (token == BCT_COMMA) {
     LexGetToken(lc, BCT_NAME); /* scan next item */
     if (pass == 2) {
-      BareosResource* res = parser->GetResWithName(item->code, lc->str);
-      if (res == NULL) {
+      BareosResource* pass1_res = parser->GetResWithName(item->code, lc->str);
+      if (pass1_res == NULL) {
         scan_err3(lc,
                   T_("Could not find config Resource \"%s\" referenced on line "
                      "%d : %s\n"),
                   item->name, lc->line_no, lc->line);
         return;
       }
-      Dmsg5(900, "Append %p (%s) to alist %p size=%d %s\n", res,
-            res->resource_name_, list, list->size(), item->name);
-      list->append(res);
+      Dmsg5(900, "Append %p (%s) to alist %p size=%d %s\n", pass1_res,
+            pass1_res->resource_name_, list, list->size(), item->name);
+      list->append(pass1_res);
     }
     token = LexGetToken(lc, BCT_ALL);
   }
@@ -893,10 +955,12 @@ void StoreAlistRes(ConfigurationParser* parser,
 
 // Store a std::string in an std::vector<std::string>.
 void StoreStdVectorStr(ConfigurationParser*,
+                       BareosResource* res,
                        LEX* lc,
                        const ResourceItem* item,
                        int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   std::vector<std::string>* list{nullptr};
   if (pass == 2) {
     list = GetItemVariablePointer<std::vector<std::string>*>(*item);
@@ -927,10 +991,12 @@ void StoreStdVectorStr(ConfigurationParser*,
 
 // Store a string in an alist.
 void StoreAlistStr(ConfigurationParser*,
+                   BareosResource* res,
                    LEX* lc,
                    const ResourceItem* item,
                    int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   alist<const char*>** alistvalue
       = GetItemVariablePointer<alist<const char*>**>(*item);
   if (pass == 2) {
@@ -976,10 +1042,12 @@ void StoreAlistStr(ConfigurationParser*,
  * shell later).
  */
 void StoreAlistDir(ConfigurationParser*,
+                   BareosResource* res,
                    LEX* lc,
                    const ResourceItem* item,
                    int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   if (pass == 2) {
     alist<const char*>** alistvalue
         = GetItemVariablePointer<alist<const char*>**>(*item);
@@ -1019,10 +1087,12 @@ void StoreAlistDir(ConfigurationParser*,
 
 // Store a list of plugin names to load by the daemon on startup.
 void StorePluginNames(ConfigurationParser*,
+                      BareosResource* res,
                       LEX* lc,
                       const ResourceItem* item,
                       int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   if (pass == 1) {
     ScanToEol(lc);
     return;
@@ -1075,17 +1145,18 @@ void StorePluginNames(ConfigurationParser*,
  *  the jobdefs, which we look up).
  */
 void StoreDefs(ConfigurationParser* parser,
+               BareosResource* res,
                LEX* lc,
                const ResourceItem* item,
                int pass)
 {
-  BareosResource* res;
+  ASSERT(item->allocated_resource() == res);
 
   LexGetToken(lc, BCT_NAME);
   if (pass == 2) {
     Dmsg2(900, "Code=%d name=%s\n", item->code, lc->str);
-    res = parser->GetResWithName(item->code, lc->str);
-    if (res == NULL) {
+    auto* pass1_res = parser->GetResWithName(item->code, lc->str);
+    if (pass1_res == NULL) {
       scan_err3(
           lc, T_("Missing config Resource \"%s\" referenced on line %d : %s\n"),
           lc->str, lc->line_no, lc->line);
@@ -1096,8 +1167,13 @@ void StoreDefs(ConfigurationParser* parser,
 }
 
 // Store an integer at specified address
-void store_int16(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
+void StoreInt16(ConfigurationParser*,
+                BareosResource* res,
+                LEX* lc,
+                const ResourceItem* item,
+                int)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_INT16);
   SetItemVariable<int16_t>(*item, lc->u.int16_val);
   ScanToEol(lc);
@@ -1105,8 +1181,13 @@ void store_int16(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
   item->UnsetInherited();
 }
 
-void store_int32(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
+void StoreInt32(ConfigurationParser*,
+                BareosResource* res,
+                LEX* lc,
+                const ResourceItem* item,
+                int)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_INT32);
   SetItemVariable<int32_t>(*item, lc->u.int32_val);
   ScanToEol(lc);
@@ -1115,8 +1196,13 @@ void store_int32(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
 }
 
 // Store a positive integer at specified address
-void store_pint16(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
+void StorePInt16(ConfigurationParser*,
+                 BareosResource* res,
+                 LEX* lc,
+                 const ResourceItem* item,
+                 int)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_PINT16);
   SetItemVariable<uint16_t>(*item, lc->u.pint16_val);
   ScanToEol(lc);
@@ -1124,8 +1210,13 @@ void store_pint16(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
   item->UnsetInherited();
 }
 
-void store_pint32(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
+void StorePInt32(ConfigurationParser*,
+                 BareosResource* res,
+                 LEX* lc,
+                 const ResourceItem* item,
+                 int)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_PINT32);
   SetItemVariable<uint32_t>(*item, lc->u.pint32_val);
   ScanToEol(lc);
@@ -1134,8 +1225,13 @@ void store_pint32(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
 }
 
 // Store an 64 bit integer at specified address
-void store_int64(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
+void StoreInt64(ConfigurationParser*,
+                BareosResource* res,
+                LEX* lc,
+                const ResourceItem* item,
+                int)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_INT64);
   SetItemVariable<int64_t>(*item, lc->u.int64_val);
   ScanToEol(lc);
@@ -1144,12 +1240,14 @@ void store_int64(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
 }
 
 // Store a size in bytes
-void store_int_unit(LEX* lc,
-                    const ResourceItem* item,
-                    int,
-                    bool size32,
-                    enum unit_type type)
+void StoreIntUnit(LEX* lc,
+                  BareosResource* res,
+                  const ResourceItem* item,
+                  int,
+                  bool size32,
+                  enum unit_type type)
 {
+  ASSERT(item->allocated_resource() == res);
   uint64_t uvalue;
   char bsize[500];
 
@@ -1216,35 +1314,46 @@ void store_int_unit(LEX* lc,
 }
 
 // Store a size in bytes
-void store_size32(ConfigurationParser*,
-                  LEX* lc,
-                  const ResourceItem* item,
-                  int pass)
+void StoreSize32(ConfigurationParser*,
+                 BareosResource* res,
+                 LEX* lc,
+                 const ResourceItem* item,
+                 int pass)
 {
-  store_int_unit(lc, item, pass, true /* 32 bit */, STORE_SIZE);
+  ASSERT(item->allocated_resource() == res);
+  StoreIntUnit(lc, res, item, pass, true /* 32 bit */, STORE_SIZE);
 }
 
 // Store a size in bytes
-void store_size64(ConfigurationParser*,
-                  LEX* lc,
-                  const ResourceItem* item,
-                  int pass)
+void StoreSize64(ConfigurationParser*,
+                 BareosResource* res,
+                 LEX* lc,
+                 const ResourceItem* item,
+                 int pass)
 {
-  store_int_unit(lc, item, pass, false /* not 32 bit */, STORE_SIZE);
+  ASSERT(item->allocated_resource() == res);
+  StoreIntUnit(lc, res, item, pass, false /* not 32 bit */, STORE_SIZE);
 }
 
 // Store a speed in bytes/s
 void StoreSpeed(ConfigurationParser*,
+                BareosResource* res,
                 LEX* lc,
                 const ResourceItem* item,
                 int pass)
 {
-  store_int_unit(lc, item, pass, false /* 64 bit */, STORE_SPEED);
+  ASSERT(item->allocated_resource() == res);
+  StoreIntUnit(lc, res, item, pass, false /* 64 bit */, STORE_SPEED);
 }
 
 // Store a time period in seconds
-void StoreTime(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
+void StoreTime(ConfigurationParser*,
+               BareosResource* res,
+               LEX* lc,
+               const ResourceItem* item,
+               int)
 {
+  ASSERT(item->allocated_resource() == res);
   utime_t utime;
   char period[500];
 
@@ -1282,8 +1391,13 @@ void StoreTime(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
 }
 
 // Store a yes/no in a bit field
-void StoreBit(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
+void StoreBit(ConfigurationParser*,
+              BareosResource* res,
+              LEX* lc,
+              const ResourceItem* item,
+              int)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_NAME);
   char* bitvalue = GetItemVariablePointer<char*>(*item);
   if (Bstrcasecmp(lc->str, "yes") || Bstrcasecmp(lc->str, "true")) {
@@ -1301,8 +1415,13 @@ void StoreBit(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
 }
 
 // Store a bool in a bit field
-void StoreBool(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
+void StoreBool(ConfigurationParser*,
+               BareosResource* res,
+               LEX* lc,
+               const ResourceItem* item,
+               int)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_NAME);
   if (Bstrcasecmp(lc->str, "yes") || Bstrcasecmp(lc->str, "true")) {
     SetItemVariable<bool>(*item, true);
@@ -1319,8 +1438,13 @@ void StoreBool(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
 }
 
 // Store Tape Label Type (BAREOS, ANSI, IBM)
-void StoreLabel(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
+void StoreLabel(ConfigurationParser*,
+                BareosResource* res,
+                LEX* lc,
+                const ResourceItem* item,
+                int)
 {
+  ASSERT(item->allocated_resource() == res);
   LexGetToken(lc, BCT_NAME);
   // Store the label pass 2 so that type is defined
   int i;
@@ -1369,10 +1493,12 @@ void StoreLabel(ConfigurationParser*, LEX* lc, const ResourceItem* item, int)
  *   = { ipv4 { port = 4711 } }
  */
 void StoreAddresses(ConfigurationParser*,
+                    BareosResource* res,
                     LEX* lc,
                     const ResourceItem* item,
                     int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   int token;
   int exist;
   int family = 0;
@@ -1486,10 +1612,12 @@ void StoreAddresses(ConfigurationParser*,
 }
 
 void StoreAddressesAddress(ConfigurationParser*,
+                           BareosResource* res,
                            LEX* lc,
                            const ResourceItem* item,
                            int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   int token;
   char errmsg[1024];
   int port = str_to_int32(item->default_value);
@@ -1510,10 +1638,12 @@ void StoreAddressesAddress(ConfigurationParser*,
 }
 
 void StoreAddressesPort(ConfigurationParser*,
+                        BareosResource* res,
                         LEX* lc,
                         const ResourceItem* item,
                         int pass)
 {
+  ASSERT(item->allocated_resource() == res);
   int token;
   char errmsg[1024];
   int port = str_to_int32(item->default_value);
@@ -1557,104 +1687,103 @@ bool StoreResource(ConfigurationParser* parser,
                    const ResourceItem* item,
                    int pass)
 {
-  (void)res;
   switch (type) {
     case CFG_TYPE_STR:
-      StoreStr(parser, lc, item, pass);
+      StoreStr(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_DIR:
-      StoreDir(parser, lc, item, pass);
+      StoreDir(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_STDSTR:
-      StoreStdstr(parser, lc, item, pass);
+      StoreStdstr(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_STDSTRDIR:
-      StoreStdstrdir(parser, lc, item, pass);
+      StoreStdstrdir(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_MD5PASSWORD:
-      StoreMd5Password(parser, lc, item, pass);
+      StoreMd5Password(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_CLEARPASSWORD:
-      StoreClearpassword(parser, lc, item, pass);
+      StoreClearpassword(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_AUTO:
       item->auto_type->parse(parser, lc, item, pass);
       break;
     case CFG_TYPE_STRNAME:
-      StoreStrname(parser, lc, item, pass);
+      StoreStrname(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_RES:
-      StoreRes(parser, lc, item, pass);
+      StoreRes(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_ALIST_RES:
-      StoreAlistRes(parser, lc, item, pass);
+      StoreAlistRes(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_ALIST_STR:
-      StoreAlistStr(parser, lc, item, pass);
+      StoreAlistStr(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_STR_VECTOR:
     case CFG_TYPE_STR_VECTOR_OF_DIRS:
-      StoreStdVectorStr(parser, lc, item, pass);
+      StoreStdVectorStr(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_ALIST_DIR:
-      StoreAlistDir(parser, lc, item, pass);
+      StoreAlistDir(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_INT16:
-      store_int16(parser, lc, item, pass);
+      StoreInt16(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_PINT16:
-      store_pint16(parser, lc, item, pass);
+      StorePInt16(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_INT32:
-      store_int32(parser, lc, item, pass);
+      StoreInt32(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_PINT32:
-      store_pint32(parser, lc, item, pass);
+      StorePInt32(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_MSGS:
-      StoreMsgs(parser, lc, item, pass);
+      StoreMsgs(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_INT64:
-      store_int64(parser, lc, item, pass);
+      StoreInt64(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_BIT:
-      StoreBit(parser, lc, item, pass);
+      StoreBit(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_BOOL:
-      StoreBool(parser, lc, item, pass);
+      StoreBool(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_TIME:
-      StoreTime(parser, lc, item, pass);
+      StoreTime(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_SIZE64:
-      store_size64(parser, lc, item, pass);
+      StoreSize64(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_SIZE32:
-      store_size32(parser, lc, item, pass);
+      StoreSize32(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_SPEED:
-      StoreSpeed(parser, lc, item, pass);
+      StoreSpeed(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_DEFS:
-      StoreDefs(parser, lc, item, pass);
+      StoreDefs(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_LABEL:
-      StoreLabel(parser, lc, item, pass);
+      StoreLabel(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_ADDRESSES:
-      StoreAddresses(parser, lc, item, pass);
+      StoreAddresses(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_ADDRESSES_ADDRESS:
-      StoreAddressesAddress(parser, lc, item, pass);
+      StoreAddressesAddress(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_ADDRESSES_PORT:
-      StoreAddressesPort(parser, lc, item, pass);
+      StoreAddressesPort(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_PLUGIN_NAMES:
-      StorePluginNames(parser, lc, item, pass);
+      StorePluginNames(parser, res, lc, item, pass);
       break;
     case CFG_TYPE_DIR_OR_CMD:
-      StoreDir(parser, lc, item, pass);
+      StoreDir(parser, res, lc, item, pass);
       break;
     default:
       return false;
