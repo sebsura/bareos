@@ -165,8 +165,12 @@ static struct s_kw CryptoCiphers[]
        {"aes256hmacsha1", CRYPTO_CIPHER_AES_256_CBC_HMAC_SHA1},
        {NULL, 0}};
 
-static void StoreCipher(LEX* lc, const ResourceItem* item, int)
+static void StoreCipher(LEX* lc,
+                        BareosResource* res,
+                        const ResourceItem* item,
+                        int)
 {
+  ASSERT(res == item->allocated_resource());
   int i;
   LexGetToken(lc, BCT_NAME);
 
@@ -216,7 +220,7 @@ static void InitResourceCb(const ResourceItem* item, int pass)
  * See ../lib/parse_conf.c, function ParseConfig, for more generic handling.
  */
 static void ParseConfigCb(ConfigurationParser*,
-                          BareosResource*,
+                          BareosResource* res,
                           LEX* lc,
                           const ResourceItem* item,
                           int pass,
@@ -224,7 +228,7 @@ static void ParseConfigCb(ConfigurationParser*,
 {
   switch (item->type) {
     case CFG_TYPE_CIPHER:
-      StoreCipher(lc, item, pass);
+      StoreCipher(lc, res, item, pass);
       break;
     default:
       break;
