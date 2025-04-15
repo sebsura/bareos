@@ -203,6 +203,7 @@ struct DatatypeName {
 typedef void(INIT_RES_HANDLER)(const ResourceItem* item, int pass);
 typedef void(STORE_RES_HANDLER)(
     ConfigurationParser*,
+    BareosResource* res,
     LEX* lc,
     const ResourceItem* item,
     int pass,
@@ -481,6 +482,7 @@ class ResLocker {
 };
 
 bool StoreResource(ConfigurationParser*,
+                   BareosResource* res,
                    int rcode,
                    LEX* lc,
                    const ResourceItem* item,

@@ -2493,7 +2493,8 @@ static void StoreDevice(ConfigurationParser* parser,
     item->SetPresent();
     item->UnsetInherited();
   } else {
-    StoreResource(parser, CFG_TYPE_ALIST_RES, lc, item, pass);
+    StoreResource(parser, item->allocated_resource(), CFG_TYPE_ALIST_RES, lc,
+                  item, pass);
   }
 }
 
@@ -2671,73 +2672,74 @@ static void StoreAutopassword(ConfigurationParser* parser,
                               const ResourceItem* item,
                               int pass)
 {
-  switch (item->allocated_resource()->rcode_) {
+  BareosResource* res = item->allocated_resource();
+  switch (res->rcode_) {
     case R_DIRECTOR:
       /* As we need to store both clear and MD5 hashed within the same
        * resource class we use the item->code as a hint default is 0
        * and for clear we need a code of 1. */
       switch (item->code) {
         case 1:
-          StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+          StoreResource(parser, res, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
+          StoreResource(parser, res, CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
     case R_CLIENT:
       if (pass == 2) {
-        auto* res = dynamic_cast<ClientResource*>(my_config->GetResWithName(
-            R_CLIENT, item->allocated_resource()->resource_name_));
-        ASSERT(res);
+        auto* pass1_res = dynamic_cast<ClientResource*>(
+            my_config->GetResWithName(R_CLIENT, res->resource_name_));
+        ASSERT(pass1_res);
 
-        if (res_client->Protocol != res->Protocol) {
+        if (res_client->Protocol != pass1_res->Protocol) {
           scan_err1(lc,
                     "Trying to store password to resource \"%s\", but protocol "
                     "is not known.\n",
-                    item->allocated_resource()->resource_name_);
+                    res->resource_name_);
         }
       }
       switch (res_client->Protocol) {
         case APT_NDMPV2:
         case APT_NDMPV3:
         case APT_NDMPV4:
-          StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+          StoreResource(parser, res, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
+          StoreResource(parser, res, CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
     case R_STORAGE:
       if (pass == 2) {
-        auto* res = dynamic_cast<StorageResource*>(my_config->GetResWithName(
-            R_STORAGE, item->allocated_resource()->resource_name_));
-        ASSERT(res);
+        auto* pass1_res = dynamic_cast<StorageResource*>(
+            my_config->GetResWithName(R_STORAGE, res->resource_name_));
+        ASSERT(pass1_res);
 
-        if (res_store->Protocol != res->Protocol) {
+        if (res_store->Protocol != pass1_res->Protocol) {
           scan_err1(lc,
                     "Trying to store password to resource \"%s\", but protocol "
                     "is not known.\n",
-                    item->allocated_resource()->resource_name_);
+                    res->resource_name_);
         }
       }
       switch (res_store->Protocol) {
         case APT_NDMPV2:
         case APT_NDMPV3:
         case APT_NDMPV4:
-          StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+          StoreResource(parser, res, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
+          StoreResource(parser, res, CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
     case R_CATALOG:
-      StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+      StoreResource(parser, res, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
       break;
     default:
-      StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
+      StoreResource(parser, res, CFG_TYPE_MD5PASSWORD, lc, item, pass);
       break;
   }
 }
@@ -3169,6 +3171,7 @@ static void InitResourceCb(const ResourceItem* item, int pass)
  * See ../lib/parse_conf.c, function ParseConfig, for more generic handling.
  */
 static void ParseConfigCb(ConfigurationParser* parser,
+                          BareosResource*,
                           LEX* lc,
                           const ResourceItem* item,
                           int pass,

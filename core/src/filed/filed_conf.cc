@@ -216,6 +216,7 @@ static void InitResourceCb(const ResourceItem* item, int pass)
  * See ../lib/parse_conf.c, function ParseConfig, for more generic handling.
  */
 static void ParseConfigCb(ConfigurationParser*,
+                          BareosResource*,
                           LEX* lc,
                           const ResourceItem* item,
                           int pass,

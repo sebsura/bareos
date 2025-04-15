@@ -282,25 +282,26 @@ static void StoreAutopassword(ConfigurationParser* parser,
                               const ResourceItem* item,
                               int pass)
 {
-  switch (item->allocated_resource()->rcode_) {
+  BareosResource* res = item->allocated_resource();
+  switch (res->rcode_) {
     case R_DIRECTOR:
       /* As we need to store both clear and MD5 hashed within the same
        * resource class we use the item->code as a hint default is 0
        * and for clear we need a code of 1. */
       switch (item->code) {
         case 1:
-          StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+          StoreResource(parser, res, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
           break;
         default:
-          StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
+          StoreResource(parser, res, CFG_TYPE_MD5PASSWORD, lc, item, pass);
           break;
       }
       break;
     case R_NDMP:
-      StoreResource(parser, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
+      StoreResource(parser, res, CFG_TYPE_CLEARPASSWORD, lc, item, pass);
       break;
     default:
-      StoreResource(parser, CFG_TYPE_MD5PASSWORD, lc, item, pass);
+      StoreResource(parser, res, CFG_TYPE_MD5PASSWORD, lc, item, pass);
       break;
   }
 }
@@ -311,7 +312,8 @@ static void StoreMaxblocksize(ConfigurationParser* parser,
                               const ResourceItem* item,
                               int pass)
 {
-  StoreResource(parser, CFG_TYPE_SIZE32, lc, item, pass);
+  BareosResource* res = item->allocated_resource();
+  StoreResource(parser, res, CFG_TYPE_SIZE32, lc, item, pass);
   if (GetItemVariable<uint32_t>(*item) > MAX_BLOCK_LENGTH) {
     scan_err2(lc,
               T_("Maximum Block Size configured value %u is greater than "
@@ -391,6 +393,7 @@ static void InitResourceCb(const ResourceItem* item, int pass)
 }
 
 static void ParseConfigCb(ConfigurationParser* parser,
+                          BareosResource*,
                           LEX* lc,
                           const ResourceItem* item,
                           int pass,

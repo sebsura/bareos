@@ -1551,11 +1551,13 @@ void StoreAddressesPort(ConfigurationParser*,
 
 // Generic store resource dispatcher.
 bool StoreResource(ConfigurationParser* parser,
+                   BareosResource* res,
                    int type,
                    LEX* lc,
                    const ResourceItem* item,
                    int pass)
 {
+  (void)res;
   switch (type) {
     case CFG_TYPE_STR:
       StoreStr(parser, lc, item, pass);
