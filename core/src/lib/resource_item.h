@@ -206,6 +206,130 @@ struct Type {
 
 template <typename T> static constexpr T instance{};
 
+
+namespace config {
+template <int32_t Code, typename T> struct MemberType {
+  static constexpr int32_t code() { return Code; };
+  using CType = T;
+};
+
+template <int32_t Code, typename T>
+static constexpr MemberType<Code, T> make_member_type()
+{
+  return {};
+};
+};  // namespace config
+
+struct crypto_cypher_t;
+struct IoDirection;
+struct IPADDR;
+struct DeviceResource;
+
+namespace config {
+static constexpr auto Str = make_member_type<CFG_TYPE_STR, char*>();
+static constexpr auto Dir = make_member_type<CFG_TYPE_DIR, char*>();
+static constexpr auto Md5password
+    = make_member_type<CFG_TYPE_MD5PASSWORD, s_password>();
+static constexpr auto Clearpassword
+    = make_member_type<CFG_TYPE_CLEARPASSWORD, s_password>();
+static constexpr auto Autopassword
+    = make_member_type<CFG_TYPE_AUTOPASSWORD, s_password>();
+static constexpr auto Strname = make_member_type<CFG_TYPE_STRNAME, char*>();
+static constexpr auto Res = make_member_type<CFG_TYPE_RES, BareosResource*>();
+static constexpr auto AlistRes
+    = make_member_type<CFG_TYPE_ALIST_RES, alist<BareosResource*>*>();
+static constexpr auto AlistStr
+    = make_member_type<CFG_TYPE_ALIST_STR, alist<char*>*>();
+static constexpr auto AlistDir
+    = make_member_type<CFG_TYPE_ALIST_DIR, alist<char*>*>();
+static constexpr auto Int16 = make_member_type<CFG_TYPE_INT16, int16_t>();
+static constexpr auto Pint16 = make_member_type<CFG_TYPE_PINT16, uint16_t>();
+static constexpr auto Int32 = make_member_type<CFG_TYPE_INT32, int32_t>();
+static constexpr auto Pint32 = make_member_type<CFG_TYPE_PINT32, uint32_t>();
+static constexpr auto Msgs = make_member_type<CFG_TYPE_MSGS, BareosResource*>();
+static constexpr auto Int64 = make_member_type<CFG_TYPE_INT64, int64_t>();
+static constexpr auto Bit = make_member_type<CFG_TYPE_BIT, char*>();
+static constexpr auto Bool = make_member_type<CFG_TYPE_BOOL, bool>();
+static constexpr auto Time = make_member_type<CFG_TYPE_TIME, time_t>();
+static constexpr auto Size64 = make_member_type<CFG_TYPE_SIZE64, uint64_t>();
+static constexpr auto Size32 = make_member_type<CFG_TYPE_SIZE32, uint32_t>();
+static constexpr auto Speed = make_member_type<CFG_TYPE_SPEED, int64_t>();
+static constexpr auto Defs = make_member_type<CFG_TYPE_DEFS, void>();
+static constexpr auto Label = make_member_type<CFG_TYPE_LABEL, int32_t>();
+static constexpr auto Addresses
+    = make_member_type<CFG_TYPE_ADDRESSES, dlist<IPADDR>*>();
+static constexpr auto AddressesAddress
+    = make_member_type<CFG_TYPE_ADDRESSES_ADDRESS, dlist<IPADDR>*>();
+static constexpr auto AddressesPort
+    = make_member_type<CFG_TYPE_ADDRESSES_PORT, dlist<IPADDR>*>();
+static constexpr auto PluginNames
+    = make_member_type<CFG_TYPE_PLUGIN_NAMES, alist<const char*>*>();
+static constexpr auto Stdstr = make_member_type<CFG_TYPE_STDSTR, std::string>();
+static constexpr auto Stdstrdir
+    = make_member_type<CFG_TYPE_STDSTRDIR, std::string>();
+static constexpr auto StrVector
+    = make_member_type<CFG_TYPE_STR_VECTOR, std::vector<std::string>>();
+static constexpr auto StrVectorOfDirs
+    = make_member_type<CFG_TYPE_STR_VECTOR_OF_DIRS, std::vector<std::string>>();
+static constexpr auto DirOrCmd = make_member_type<CFG_TYPE_DIR_OR_CMD, char*>();
+static constexpr auto Acl
+    = make_member_type<CFG_TYPE_ACL, alist<const char*>*>();
+static constexpr auto Audit
+    = make_member_type<CFG_TYPE_AUDIT, alist<const char*>*>();
+static constexpr auto Authprotocoltype
+    = make_member_type<CFG_TYPE_AUTHPROTOCOLTYPE, uint32_t>();
+static constexpr auto Authtype
+    = make_member_type<CFG_TYPE_AUTHTYPE, uint32_t>();
+static constexpr auto Device
+    = make_member_type<CFG_TYPE_DEVICE, alist<DeviceResource*>*>();
+static constexpr auto Jobtype = make_member_type<CFG_TYPE_JOBTYPE, uint32_t>();
+static constexpr auto Protocoltype
+    = make_member_type<CFG_TYPE_PROTOCOLTYPE, uint32_t>();
+static constexpr auto Level = make_member_type<CFG_TYPE_LEVEL, uint32_t>();
+static constexpr auto Replace = make_member_type<CFG_TYPE_REPLACE, uint32_t>();
+static constexpr auto Shrtrunscript
+    = make_member_type<CFG_TYPE_SHRTRUNSCRIPT, void>();
+static constexpr auto Runscript = make_member_type<CFG_TYPE_RUNSCRIPT, void>();
+static constexpr auto RunscriptCmd
+    = make_member_type<CFG_TYPE_RUNSCRIPT_CMD, void>();
+static constexpr auto RunscriptTarget
+    = make_member_type<CFG_TYPE_RUNSCRIPT_TARGET, void>();
+static constexpr auto RunscriptBool
+    = make_member_type<CFG_TYPE_RUNSCRIPT_BOOL, void>();
+static constexpr auto RunscriptWhen
+    = make_member_type<CFG_TYPE_RUNSCRIPT_WHEN, void>();
+static constexpr auto Migtype = make_member_type<CFG_TYPE_MIGTYPE, void>();
+static constexpr auto Incexc = make_member_type<CFG_TYPE_INCEXC, void>();
+static constexpr auto Run = make_member_type<CFG_TYPE_RUN, void>();
+static constexpr auto Actiononpurge
+    = make_member_type<CFG_TYPE_ACTIONONPURGE, void>();
+static constexpr auto Pooltype = make_member_type<CFG_TYPE_POOLTYPE, void>();
+static constexpr auto Fname = make_member_type<CFG_TYPE_FNAME, void>();
+static constexpr auto Pluginname
+    = make_member_type<CFG_TYPE_PLUGINNAME, void>();
+static constexpr auto Excludedir
+    = make_member_type<CFG_TYPE_EXCLUDEDIR, void>();
+static constexpr auto Options = make_member_type<CFG_TYPE_OPTIONS, void>();
+static constexpr auto Option = make_member_type<CFG_TYPE_OPTION, void>();
+static constexpr auto Regex = make_member_type<CFG_TYPE_REGEX, void>();
+static constexpr auto Base = make_member_type<CFG_TYPE_BASE, void>();
+static constexpr auto Wild = make_member_type<CFG_TYPE_WILD, void>();
+static constexpr auto Plugin = make_member_type<CFG_TYPE_PLUGIN, void>();
+static constexpr auto Fstype = make_member_type<CFG_TYPE_FSTYPE, void>();
+static constexpr auto Drivetype = make_member_type<CFG_TYPE_DRIVETYPE, void>();
+static constexpr auto Meta = make_member_type<CFG_TYPE_META, void>();
+static constexpr auto Maxblocksize
+    = make_member_type<CFG_TYPE_MAXBLOCKSIZE, uint32_t>();
+static constexpr auto Iodirection
+    = make_member_type<CFG_TYPE_IODIRECTION, IoDirection>();
+static constexpr auto Cmprsalgo
+    = make_member_type<CFG_TYPE_CMPRSALGO, uint32_t>();
+static constexpr auto Cipher
+    = make_member_type<CFG_TYPE_CIPHER, crypto_cypher_t>();
+// static constexpr auto Auto = make_member_type<CFG_TYPE_AUTO, void>();
+};  // namespace config
+
+
 /*
  * This is the structure that defines the record types (items) permitted within
  * each resource. It is used to define the configuration tables.
@@ -301,6 +425,28 @@ struct ResourceItem {
   {
     return (*addr_fun)(const_cast<BareosResource*>(res));
   }
+
+#if 0
+
+  //idea:
+
+  // resource item looks like this
+  virtual bool parse_from(...) = 0;
+  virtual bool format_to(...) = 0;
+
+  // each "type" is then actually a class that extends ResourceItem
+
+  struct name : ResourceItem
+  {
+    member_address<char*> address_of(void*);
+
+    bool parse_from(...) override { ... }
+    bool format_to(...) override { ... }
+
+  };
+
+
+#endif
 };
 
 static inline void* CalculateAddressOfMemberVariable(BareosResource* res,
