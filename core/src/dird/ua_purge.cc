@@ -480,14 +480,12 @@ void PurgeJobsFromCatalog(UaContext* ua, const char* jobs)
 bool PurgeJobsFromVolume(UaContext* ua, MediaDbRecord* mr, bool force)
 {
   bool status
-      = bstrcmp(mr->VolStatus, "Unlabeled") || bstrcmp(mr->VolStatus, "Append")
-        || bstrcmp(mr->VolStatus, "Full") || bstrcmp(mr->VolStatus, "Used")
-        || bstrcmp(mr->VolStatus, "Error");
+      = bstrcmp(mr->VolStatus, "Append") || bstrcmp(mr->VolStatus, "Full")
+        || bstrcmp(mr->VolStatus, "Used") || bstrcmp(mr->VolStatus, "Error");
   if (!status) {
     ua->ErrorMsg(
         T_("\nVolume \"%s\" has VolStatus \"%s\" and cannot be purged.\n"
-           "The VolStatus must be: Unlabeled, Append, Full, Used or Error to "
-           "be "
+           "The VolStatus must be: Append, Full, Used or Error to be "
            "purged.\n"),
         mr->VolumeName, mr->VolStatus);
     return false;
@@ -791,7 +789,7 @@ bail_out:
 }
 
 /**
- * If volume status is Unlabeled, Append, Full, Used, or Error, mark it Purged
+ * If volume status is Append, Full, Used, or Error, mark it Purged
  * Purged volumes can then be recycled (if enabled).
  */
 bool MarkMediaPurged(UaContext* ua, MediaDbRecord* mr)
@@ -799,8 +797,7 @@ bool MarkMediaPurged(UaContext* ua, MediaDbRecord* mr)
   JobControlRecord* jcr = ua->jcr;
   bool status;
 
-  status = bstrcmp(mr->VolStatus, "Unlabeled")
-           || bstrcmp(mr->VolStatus, "Append") || bstrcmp(mr->VolStatus, "Full")
+  status = bstrcmp(mr->VolStatus, "Append") || bstrcmp(mr->VolStatus, "Full")
            || bstrcmp(mr->VolStatus, "Used") || bstrcmp(mr->VolStatus, "Error");
 
   if (status) {
