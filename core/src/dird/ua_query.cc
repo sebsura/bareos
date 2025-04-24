@@ -58,6 +58,11 @@ static POOLMEM* substitute_prompts(UaContext* ua,
  */
 bool QueryCmd(UaContext* ua, const char*)
 {
+  if (!me->query_file) {
+    ua->ErrorMsg(T_("Directive QueryFile(Director -> Director) not specified in Director \"%s\", can't perform query command.\n"), me->resource_name_);
+    return false;
+  }
+
   FILE* fd = NULL;
   POOLMEM* query = GetPoolMemory(PM_MESSAGE);
   char line[1000];
