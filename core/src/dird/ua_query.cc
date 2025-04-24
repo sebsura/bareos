@@ -3,7 +3,7 @@
 
    Copyright (C) 2001-2006 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -59,7 +59,9 @@ static POOLMEM* substitute_prompts(UaContext* ua,
 bool QueryCmd(UaContext* ua, const char*)
 {
   if (!me->query_file) {
-    ua->ErrorMsg(T_("Directive QueryFile(Director -> Director) not specified in Director \"%s\", can't perform query command.\n"), me->resource_name_);
+    ua->ErrorMsg(T_("Directive QueryFile(Director -> Director) not specified "
+                    "in Director \"%s\", can't perform query command.\n"),
+                 me->resource_name_);
     return false;
   }
 
