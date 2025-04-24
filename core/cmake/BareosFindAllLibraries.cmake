@@ -186,6 +186,23 @@ endif()
 option(ENABLE_GRPC "Build with grpc support" OFF)
 
 if(ENABLE_GRPC)
+  find_package(absl REQUIRED)
+  set(absl_LIBRARIES
+      absl::algorithm
+      absl::base
+      absl::debugging
+      absl::flat_hash_map
+      absl::memory
+      absl::meta
+      absl::numeric
+      absl::str_format
+      absl::strings
+      absl::synchronization
+      absl::time
+      absl::log_internal_check_op
+  )
+  message(STATUS "Using absl version ${absl_VERSION}")
+  message(STATUS "absl lib: ${absl_LIBRARIES}")
   find_package(Protobuf 3.12.0 REQUIRED)
   # Workaround of https://github.com/protocolbuffers/protobuf/issues/18307 The
   # latest (BSD variants) protobuf builds are forcibly bound to libupd, so
