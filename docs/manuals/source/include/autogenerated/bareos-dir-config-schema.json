@@ -80,8 +80,7 @@
         "QueryFile": {
           "datatype": "DIRECTORY",
           "code": 0,
-          "equals": true,
-          "required": true
+          "equals": true
         },
         "WorkingDirectory": {
           "datatype": "DIRECTORY",
