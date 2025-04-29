@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -29,6 +29,8 @@
 #define BAREOS_LIB_LEX_H_
 
 #include "include/bareos.h"
+
+#include <memory>
 
 /* Lex get_char() return values */
 #define L_EOF (-1)
@@ -97,19 +99,19 @@ class Bpipe; /* forward reference */
 
 /* Lexical context */
 typedef struct s_lex_context {
-  struct s_lex_context* next; /* pointer to next lexical context */
-  int options;                /* scan options */
-  char* fname;                /* filename */
-  FILE* fd;                   /* file descriptor */
-  POOLMEM* line;              /* input line */
-  POOLMEM* str;               /* string being scanned */
-  int str_len;                /* length of string */
-  int str_max_len;            /* maximum length of string */
-  int line_no;                /* file line number */
-  int col_no;                 /* char position on line */
-  int begin_line_no;          /* line no of beginning of string */
-  enum lex_state state;       /* lex_state variable */
-  int ch;                     /* last char/L_VAL returned by get_char */
+  std::unique_ptr<s_lex_context> next; /* pointer to next lexical context */
+  std::string content{};
+  std::size_t current{};
+  int options;          /* scan options */
+  char* fname;          /* filename */
+  POOLMEM* str;         /* string being scanned */
+  int str_len;          /* length of string */
+  int str_max_len;      /* maximum length of string */
+  int line_no;          /* file line number */
+  int col_no;           /* char position on line */
+  int begin_line_no;    /* line no of beginning of string */
+  enum lex_state state; /* lex_state variable */
+  int ch;               /* last char/L_VAL returned by get_char */
   int token;
   union {
     uint16_t pint16_val;
@@ -137,7 +139,9 @@ typedef struct s_lex_context {
   int err_type; /* message level for ScanError (M_..) */
   int error_counter;
   void* caller_ctx; /* caller private data */
-  Bpipe* bpipe;     /* set if we are piping */
+
+
+  char* line{nullptr};  // todo: make this a reality
 } LEX;
 
 typedef void(LEX_ERROR_HANDLER)(const char* file,
@@ -152,18 +156,19 @@ typedef void(LEX_WARNING_HANDLER)(const char* file,
                                   ...);
 
 // Lexical scanning errors in parsing conf files
-#define scan_err0(lc, msg) lc->ScanError(__FILE__, __LINE__, lc, msg)
-#define scan_err1(lc, msg, a1) lc->ScanError(__FILE__, __LINE__, lc, msg, a1)
+#define scan_err0(lc, msg) (lc)->ScanError(__FILE__, __LINE__, (lc), msg)
+#define scan_err1(lc, msg, a1) \
+  (lc)->ScanError(__FILE__, __LINE__, (lc), msg, a1)
 #define scan_err2(lc, msg, a1, a2) \
-  lc->ScanError(__FILE__, __LINE__, lc, msg, a1, a2)
+  (lc)->ScanError(__FILE__, __LINE__, (lc), msg, a1, a2)
 #define scan_err3(lc, msg, a1, a2, a3) \
-  lc->ScanError(__FILE__, __LINE__, lc, msg, a1, a2, a3)
+  (lc)->ScanError(__FILE__, __LINE__, (lc), msg, a1, a2, a3)
 #define scan_err4(lc, msg, a1, a2, a3, a4) \
-  lc->ScanError(__FILE__, __LINE__, lc, msg, a1, a2, a3, a4)
+  (lc)->ScanError(__FILE__, __LINE__, (lc), msg, a1, a2, a3, a4)
 #define scan_err5(lc, msg, a1, a2, a3, a4, a5) \
-  lc->ScanError(__FILE__, __LINE__, lc, msg, a1, a2, a3, a4, a5)
+  (lc)->ScanError(__FILE__, __LINE__, (lc), msg, a1, a2, a3, a4, a5)
 #define scan_err6(lc, msg, a1, a2, a3, a4, a5, a6) \
-  lc->ScanError(__FILE__, __LINE__, lc, msg, a1, a2, a3, a4, a5, a6)
+  (lc)->ScanError(__FILE__, __LINE__, (lc), msg, a1, a2, a3, a4, a5, a6)
 
 // Lexical scanning warnings in parsing conf files
 #define scan_warn0(lc, msg) lc->scan_warning(__FILE__, __LINE__, lc, msg)

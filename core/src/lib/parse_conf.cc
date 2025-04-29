@@ -189,26 +189,24 @@ void ConfigurationParser::lex_error(const char* cf,
                                     LEX_WARNING_HANDLER* scan_warning) const
 {
   // We must create a lex packet to print the error
-  LEX* lexical_parser_ = (LEX*)malloc(sizeof(LEX));
-  memset(lexical_parser_, 0, sizeof(LEX));
+  LEX lexical_parser{};
 
   if (ScanError) {
-    lexical_parser_->ScanError = ScanError;
+    lexical_parser.ScanError = ScanError;
   } else {
-    LexSetDefaultErrorHandler(lexical_parser_);
+    LexSetDefaultErrorHandler(&lexical_parser);
   }
 
   if (scan_warning) {
-    lexical_parser_->scan_warning = scan_warning;
+    lexical_parser.scan_warning = scan_warning;
   } else {
-    LexSetDefaultWarningHandler(lexical_parser_);
+    LexSetDefaultWarningHandler(&lexical_parser);
   }
 
-  LexSetErrorHandlerErrorType(lexical_parser_, err_type_);
+  LexSetErrorHandlerErrorType(&lexical_parser, err_type_);
   BErrNo be;
-  scan_err2(lexical_parser_, T_("Cannot open config file \"%s\": %s\n"), cf,
+  scan_err2(&lexical_parser, T_("Cannot open config file \"%s\": %s\n"), cf,
             be.bstrerror());
-  free(lexical_parser_);
 }
 
 bool ConfigurationParser::ParseConfigFile(const char* config_file_name,

@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -161,7 +161,7 @@ void LexSetErrorHandlerErrorType(LEX* lf, int err_type)
   LEX* lex = lf;
   while (lex) {
     lex->err_type = err_type;
-    lex = lex->next;
+    lex = lex->next.get();
   }
 }
 
@@ -171,61 +171,40 @@ void LexSetErrorHandlerErrorType(LEX* lf, int err_type)
  */
 LEX* LexCloseFile(LEX* lf)
 {
-  LEX* of;
-
   if (lf == NULL) { Emsg0(M_ABORT, 0, T_("Close of NULL file\n")); }
   Dmsg1(debuglevel, "Close lex file: %s\n", lf->fname);
 
-  of = lf->next;
-  if (lf->bpipe) {
-    CloseBpipe(lf->bpipe);
-    lf->bpipe = NULL;
+  if (lf->next) {
+    auto next = std::move(lf->next);
+    *lf = std::move(*next.get());
+    return lf;
   } else {
-    fclose(lf->fd);
+    return nullptr;
   }
-  Dmsg1(debuglevel, "Close cfg file %s\n", lf->fname);
-  free(lf->fname);
-  FreeMemory(lf->line);
-  FreeMemory(lf->str);
-  lf->line = NULL;
-  if (of) {
-    of->options = lf->options;              /* preserve options */
-    of->error_counter += lf->error_counter; /* summarize the errors */
-    memcpy(lf, of, sizeof(LEX));
-    Dmsg1(debuglevel, "Restart scan of cfg file %s\n", of->fname);
-  } else {
-    of = lf;
-    lf = NULL;
-  }
-  free(of);
-  return lf;
 }
 
 // Add lex structure for an included config file.
 static inline LEX* lex_add(LEX* lf,
                            const char* filename,
-                           FILE* fd,
-                           Bpipe* bpipe,
+                           std::string content,
                            LEX_ERROR_HANDLER* ScanError,
                            LEX_WARNING_HANDLER* scan_warning)
 {
-  LEX* nf;
-
   Dmsg1(100, "open config file: %s\n", filename);
-  nf = (LEX*)malloc(sizeof(LEX));
+
+  auto nf = std::make_unique<LEX>();
   if (lf) {
-    memcpy(nf, lf, sizeof(LEX));
-    memset(lf, 0, sizeof(LEX));
-    lf->next = nf;             /* if have lf, push it behind new one */
-    lf->options = nf->options; /* preserve user options */
+    nf->next = std::unique_ptr<LEX>(lf);
+    nf->options = lf->options; /* preserve user options */
     /* preserve err_type to prevent bareos exiting on 'reload'
      * if config is invalid. */
-    lf->err_type = nf->err_type;
+    nf->err_type = lf->err_type;
+
   } else {
-    lf = nf; /* start new packet */
-    memset(lf, 0, sizeof(LEX));
-    LexSetErrorHandlerErrorType(lf, M_ERROR_TERM);
+    LexSetErrorHandlerErrorType(nf.get(), M_ERROR_TERM);
   }
+
+  lf = nf.release();
 
   if (ScanError) {
     lf->ScanError = ScanError;
@@ -239,8 +218,7 @@ static inline LEX* lex_add(LEX* lf,
     LexSetDefaultWarningHandler(lf);
   }
 
-  lf->fd = fd;
-  lf->bpipe = bpipe;
+  lf->content = std::move(content);
   lf->fname = strdup(filename ? filename : "");
   lf->line = GetMemory(1024);
   lf->str = GetMemory(256);
@@ -258,6 +236,26 @@ static inline bool IsWildcardString(const char* string)
 }
 #endif
 
+std::string read_completely(FILE* f)
+{
+  std::size_t current_size = 0;
+  std::size_t read_size = 64 * 1024;
+  std::string buffer(read_size, '\0');
+
+  for (;;) {
+    auto read_bytes = fread(buffer.data() + current_size, 1,
+                            buffer.size() - current_size, f);
+
+    if (read_bytes == 0) { break; }
+
+    current_size += read_bytes;
+    buffer.resize(buffer.size() + read_size);
+  }
+
+  buffer.resize(current_size);
+  return buffer;
+}
+
 /*
  * Open a new configuration file. We push the
  * state of the current file (lf) so that we
@@ -273,19 +271,21 @@ LEX* lex_open_file(LEX* lf,
                    LEX_ERROR_HANDLER* ScanError,
                    LEX_WARNING_HANDLER* scan_warning)
 {
-  FILE* fd;
-  Bpipe* bpipe = NULL;
-  char* bpipe_filename = NULL;
-
   if (filename[0] == '|') {
-    bpipe_filename = strdup(filename);
-    if ((bpipe = OpenBpipe(bpipe_filename + 1, 0, "rb")) == NULL) {
-      free(bpipe_filename);
+    auto bpipe = OpenBpipe(filename + 1, 0, "rb");
+    if (bpipe == NULL) { return NULL; }
+
+    std::string content = read_completely(bpipe->rfd);
+
+    auto status = CloseBpipe(bpipe);
+
+    if (status != 0) {
+      Dmsg2(100, "'%s' returned non-zero return code %d\n", filename + 1,
+            status);
       return NULL;
     }
-    free(bpipe_filename);
-    fd = bpipe->rfd;
-    return lex_add(lf, filename, fd, bpipe, ScanError, scan_warning);
+
+    return lex_add(lf, filename, std::move(content), ScanError, scan_warning);
   } else {
 #ifdef HAVE_GLOB
     int globrc;
@@ -315,17 +315,38 @@ LEX* lex_open_file(LEX* lf,
     Dmsg2(100, "glob %s: %i files\n", filename, fileglob.gl_pathc);
     for (size_t i = 0; i < fileglob.gl_pathc; i++) {
       filename_expanded = fileglob.gl_pathv[i];
-      if ((fd = fopen(filename_expanded, "rb")) == NULL) {
+      auto fd = fopen(filename_expanded, "rb");
+      if (fd == NULL) {
         globfree(&fileglob);
         return NULL;
       }
-      lf = lex_add(lf, filename_expanded, fd, bpipe, ScanError, scan_warning);
+
+      std::string content = read_completely(fd);
+
+      if (int err = ferror(fd)) {
+        Dmsg1(100, "error while reading file %s: %s\n", filename_expanded,
+              strerror(err));
+        return NULL;
+      }
+
+      fclose(fd);
+      lf = lex_add(lf, filename_expanded, std::move(content), ScanError,
+                   scan_warning);
     }
     globfree(&fileglob);
 #else
     Dmsg1(500, "Trying open file %s\n", filename);
-    if ((fd = fopen(filename, "rb")) == NULL) { return NULL; }
-    lf = lex_add(lf, filename, fd, bpipe, ScanError, scan_warning);
+    auto fd = fopen(filename, "rb");
+    if (fd == NULL) { return NULL; }
+    std::string content = read_completely(fd);
+
+    if (int err = ferror(fd)) {
+      Dmsg1(100, "error while reading file %s: %s\n", filename_expanded,
+            strerror(err));
+      return NULL;
+    }
+
+    lf = lex_add(lf, filename, std::move(content), ScanError, scan_warning);
 #endif
     return lf;
   }
@@ -346,29 +367,30 @@ int LexGetChar(LEX* lf)
              "quote.\n"));
   }
 
+  if (lf->current >= lf->content.size()) {
+    // this isnt ok
+    LexCloseFile(lf);
+    return L_EOF;
+  }
+  auto c = lf->content[lf->current++];
+
+  Dmsg2(debuglevel, "LexGetChar: read %llu => %d\n", lf->current, c);
+
   if (lf->ch == L_EOL) {
-    // See if we are really reading a file otherwise we have reached EndOfFile.
-    if (!lf->fd || bfgets(lf->line, lf->fd) == NULL) {
-      lf->ch = L_EOF;
-      if (lf->next) {
-        if (lf->fd) { LexCloseFile(lf); }
-      }
-      return lf->ch;
-    }
-    lf->line_no++;
     lf->col_no = 0;
-    Dmsg2(1000, "fget line=%d %s", lf->line_no, lf->line);
+    lf->line_no += 1;
+  } else {
+    lf->col_no += 1;
+  }
+  switch (c) {
+    case '\n': {
+      lf->ch = L_EOL;
+    } break;
+    default: {
+      lf->ch = c;
+    } break;
   }
 
-  lf->ch = (uint8_t)lf->line[lf->col_no];
-  if (lf->ch == 0) {
-    lf->ch = L_EOL;
-  } else if (lf->ch == '\n') {
-    lf->ch = L_EOL;
-    lf->col_no++;
-  } else {
-    lf->col_no++;
-  }
   Dmsg2(debuglevel, "LexGetChar: %c %d\n", lf->ch, lf->ch);
 
   return lf->ch;
@@ -376,8 +398,18 @@ int LexGetChar(LEX* lf)
 
 void LexUngetChar(LEX* lf)
 {
+  if (lf->current == 0) {
+    // cannot do much in this case currently ...
+    lf->ch = 0;
+    return;
+  }
+
+  lf->current -= 1;
+
+  // we need to fix up the line numbers
   if (lf->ch == L_EOL) {
-    lf->ch = 0; /* End of line, force read of next one */
+    lf->line_no -= 1;
+    lf->col_no = 0;  // TODO: this isnt correct
   } else {
     lf->col_no--; /* Backup to re-read char */
   }
@@ -534,30 +566,52 @@ class TemporaryBuffer {
   long pos_;
 };
 
-static bool NextLineContinuesWithQuotes(LEX* lf)
+static bool ContinuesWithQuotes(LEX* lf)
 {
-  TemporaryBuffer t(lf->fd);
+  struct LocationSaver {
+    LocationSaver(LEX* lf) : lexer{lf}
+    {
+      if (lf) {
+        temp_col = lf->col_no;
+        temp_line = lf->line_no;
+        temp_offset = lf->current;
+        temp_ch = lf->ch;
+      }
+    }
 
-  if (bfgets(t.buf, lf->fd) != NULL) {
-    int i = 0;
-    while (t.buf[i] != '\0') {
-      if (t.buf[i] == '"') { return true; }
-      if (t.buf[i] != ' ' && t.buf[i] != '\t') { return false; }
-      ++i;
-    };
-  }
-  return false;
-}
+    ~LocationSaver()
+    {
+      if (lexer) {
+        lexer->col_no = temp_col;
+        lexer->line_no = temp_line;
+        lexer->current = temp_offset;
+        lexer->ch = temp_ch;
+      }
+    }
 
-static bool CurrentLineContinuesWithQuotes(LEX* lf)
-{
-  int i = lf->col_no;
-  while (lf->line[i] != '\0') {
-    if (lf->line[i] == '"') { return true; }
-    if (lf->line[i] != ' ' && lf->line[i] != '\t') { return false; }
-    ++i;
+    LEX* lexer;
+    int temp_col, temp_line;
+    int temp_ch;
+    std::size_t temp_offset;
   };
-  return false;
+
+  LocationSaver _{lf};
+
+  for (;;) {
+    switch (LexGetChar(lf)) {
+      case '"': {
+        return true;
+      }
+      case ' ':
+      case '\t':
+      case L_EOL: {
+        continue;
+      }
+      default: {
+        return false;
+      }
+    }
+  }
 }
 
 /*
@@ -784,8 +838,7 @@ int LexGetToken(LEX* lf, int expect)
           break;
         }
         if (ch == '"') {
-          if (NextLineContinuesWithQuotes(lf)
-              || CurrentLineContinuesWithQuotes(lf)) {
+          if (ContinuesWithQuotes(lf)) {
             continue_string = true;
             lf->state = lex_none;
             continue;
