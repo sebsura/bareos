@@ -179,6 +179,7 @@ LEX* LexCloseFile(LEX* lf)
     *lf = std::move(*next.get());
     return lf;
   } else {
+    delete lf;
     return nullptr;
   }
 }
@@ -369,8 +370,9 @@ int LexGetChar(LEX* lf)
 
   if (lf->current >= lf->content.size()) {
     // this isnt ok
-    LexCloseFile(lf);
-    return L_EOF;
+    lf->ch = L_EOF;
+    if (lf->next) LexCloseFile(lf);
+    return lf->ch;
   }
   auto c = lf->content[lf->current++];
 

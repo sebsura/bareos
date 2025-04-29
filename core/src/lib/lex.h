@@ -102,17 +102,19 @@ typedef struct s_lex_context {
   std::unique_ptr<s_lex_context> next; /* pointer to next lexical context */
   std::string content{};
   std::size_t current{};
-  int options;          /* scan options */
-  char* fname;          /* filename */
-  POOLMEM* str;         /* string being scanned */
-  int str_len;          /* length of string */
-  int str_max_len;      /* maximum length of string */
-  int line_no;          /* file line number */
-  int col_no;           /* char position on line */
-  int begin_line_no;    /* line no of beginning of string */
-  enum lex_state state; /* lex_state variable */
-  int ch;               /* last char/L_VAL returned by get_char */
-  int token;
+  int options{};       /* scan options */
+  char* fname{};       /* filename */
+  POOLMEM* str{};      /* string being scanned */
+  int str_len{};       /* length of string */
+  int str_max_len{};   /* maximum length of string */
+  int line_no{};       /* file line number */
+  int col_no{};        /* char position on line */
+  int begin_line_no{}; /* line no of beginning of string */
+  enum lex_state state
+  {
+  }; /* lex_state variable */
+  int ch{}; /* last char/L_VAL returned by get_char */
+  int token{};
   union {
     uint16_t pint16_val;
     uint32_t pint32_val;
@@ -120,12 +122,12 @@ typedef struct s_lex_context {
     int16_t int16_val;
     int32_t int32_val;
     int64_t int64_val;
-  } u;
+  } u{};
   union {
     uint16_t pint16_val;
     uint32_t pint32_val;
     uint64_t pint64_val;
-  } u2;
+  } u2{};
   void (*ScanError)(const char* file,
                     int line,
                     struct s_lex_context* lc,
