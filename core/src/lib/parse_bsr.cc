@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -166,12 +166,14 @@ static void s_err(const char* file, int line, LEX* lc, const char* msg, ...)
     Jmsg(jcr, M_FATAL, 0,
          T_("Bootstrap file error: %s\n"
             "            : Line %d, col %d of file %s\n%s\n"),
-         buf.c_str(), lc->line_no, lc->col_no, lc->fname, lc->line);
+         buf.c_str(), lc->line_no, lc->col_no, lc->fname,
+         lc->current_line().c_str());
   } else {
     e_msg(file, line, M_FATAL, 0,
           T_("Bootstrap file error: %s\n"
              "            : Line %d, col %d of file %s\n%s\n"),
-          buf.c_str(), lc->line_no, lc->col_no, lc->fname, lc->line);
+          buf.c_str(), lc->line_no, lc->col_no, lc->fname,
+          lc->current_line().c_str());
   }
 }
 
@@ -201,12 +203,14 @@ static void s_warn(const char* file, int line, LEX* lc, const char* msg, ...)
     Jmsg(jcr, M_WARNING, 0,
          T_("Bootstrap file warning: %s\n"
             "            : Line %d, col %d of file %s\n%s\n"),
-         buf.c_str(), lc->line_no, lc->col_no, lc->fname, lc->line);
+         buf.c_str(), lc->line_no, lc->col_no, lc->fname,
+         lc->current_line().c_str());
   } else {
     p_msg(file, line, 0,
           T_("Bootstrap file warning: %s\n"
              "            : Line %d, col %d of file %s\n%s\n"),
-          buf.c_str(), lc->line_no, lc->col_no, lc->fname, lc->line);
+          buf.c_str(), lc->line_no, lc->col_no, lc->fname,
+          lc->current_line().c_str());
   }
 }
 

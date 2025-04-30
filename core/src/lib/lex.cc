@@ -104,8 +104,8 @@ static void s_err(const char* file, int line, LEX* lc, const char* msg, ...)
     e_msg(file, line, lc->err_type, 0,
           T_("Config error: %s\n"
              "            : line %d, col %d of file %s\n%s\n%s"),
-          buf.c_str(), lc->line_no, lc->col_no, lc->fname, lc->line,
-          more.c_str());
+          buf.c_str(), lc->line_no, lc->col_no, lc->fname,
+          lc->current_line().c_str(), more.c_str());
   } else {
     e_msg(file, line, lc->err_type, 0, T_("Config error: %s\n"), buf.c_str());
   }
@@ -144,8 +144,8 @@ static void s_warn(const char* file, int line, LEX* lc, const char* msg, ...)
     p_msg(file, line, 0,
           T_("Config warning: %s\n"
              "            : line %d, col %d of file %s\n%s\n%s"),
-          buf.c_str(), lc->line_no, lc->col_no, lc->fname, lc->line,
-          more.c_str());
+          buf.c_str(), lc->line_no, lc->col_no, lc->fname,
+          lc->current_line().c_str(), more.c_str());
   } else {
     p_msg(file, line, 0, T_("Config warning: %s\n"), buf.c_str());
   }
@@ -221,7 +221,6 @@ static inline LEX* lex_add(LEX* lf,
 
   lf->content = std::move(content);
   lf->fname = strdup(filename ? filename : "");
-  lf->line = GetMemory(1024);
   lf->str = GetMemory(256);
   lf->str_max_len = SizeofPoolMemory(lf->str);
   lf->state = lex_none;

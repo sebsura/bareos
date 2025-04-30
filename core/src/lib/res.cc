@@ -284,13 +284,14 @@ void ConfigurationParser::StoreMsgs(LEX* lc,
                   message_resource->timestamp_format_);
         break;
       case MessageDestinationCode::kSyslog: { /* syslog */
-        char* p;
+        const char* p;
         int cnt = 0;
         bool done = false;
 
         /* See if this is an old style syslog definition.
          * We count the number of = signs in the current config line. */
-        p = lc->line;
+        std::string line = lc->current_line();
+        p = line.c_str();
         while (!done && *p) {
           switch (*p) {
             case '=':
@@ -645,7 +646,7 @@ void ConfigurationParser::StoreRes(LEX* lc,
       scan_err3(
           lc,
           T_("Could not find config resource \"%s\" referenced on line %d: %s"),
-          lc->str, lc->line_no, lc->line);
+          lc->str, lc->line_no, lc->current_line().c_str());
       return;
     }
     BareosResource** p = GetItemVariablePointer<BareosResource**>(*item);
@@ -653,7 +654,7 @@ void ConfigurationParser::StoreRes(LEX* lc,
       scan_err3(
           lc,
           T_("Attempt to redefine resource \"%s\" referenced on line %d: %s"),
-          item->name, lc->line_no, lc->line);
+          item->name, lc->line_no, lc->current_line().c_str());
       return;
     }
     *p = res;
@@ -692,7 +693,7 @@ void ConfigurationParser::StoreAlistRes(LEX* lc,
         scan_err3(lc,
                   T_("Could not find config Resource \"%s\" referenced on line "
                      "%d : %s\n"),
-                  item->name, lc->line_no, lc->line);
+                  item->name, lc->line_no, lc->current_line().c_str());
         return;
       }
       Dmsg5(900, "Append %p (%s) to alist %p size=%d %s\n", res,
@@ -899,7 +900,7 @@ void ConfigurationParser::StoreDefs(LEX* lc, ResourceItem* item, int, int pass)
     if (res == NULL) {
       scan_err3(
           lc, T_("Missing config Resource \"%s\" referenced on line %d : %s\n"),
-          lc->str, lc->line_no, lc->line);
+          lc->str, lc->line_no, lc->current_line().c_str());
       return;
     }
   }

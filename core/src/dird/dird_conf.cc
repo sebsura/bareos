@@ -2899,7 +2899,7 @@ static void StoreRunscriptTarget(LEX* lc, ResourceItem* item, int, int pass)
         scan_err3(lc,
                   T_("Could not find config Resource %s referenced on line %d "
                      ": %s\n"),
-                  lc->str, lc->line_no, lc->line);
+                  lc->str, lc->line_no, lc->current_line().c_str());
       }
 
       r->SetTarget(lc->str);

@@ -142,8 +142,23 @@ typedef struct s_lex_context {
   int error_counter;
   void* caller_ctx; /* caller private data */
 
+  std::string current_line() const
+  {
+    auto start = [&] {
+      if (current == 0) { return current; }
+      auto pos = content.find_last_of("\n", current - 1);
+      if (pos == content.npos) { return std::size_t{0}; }
+      return pos + 1;
+    }();
 
-  char* line{nullptr};  // todo: make this a reality
+    auto end = [&] {
+      auto pos = content.find_last_of("\n", current);
+      if (pos == content.npos) { return content.size(); }
+      return pos;
+    }();
+
+    return content.substr(start, end - start);
+  }
 } LEX;
 
 typedef void(LEX_ERROR_HANDLER)(const char* file,
