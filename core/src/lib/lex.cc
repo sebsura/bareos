@@ -378,7 +378,7 @@ int LexGetChar(LEX* lf)
   Dmsg2(debuglevel, "LexGetChar: read %llu => %d\n", lf->current, c);
 
   if (lf->ch == L_EOL) {
-    lf->col_no = 0;
+    lf->col_no = 1;
     lf->line_no += 1;
   } else {
     lf->col_no += 1;
@@ -408,9 +408,9 @@ void LexUngetChar(LEX* lf)
   lf->current -= 1;
 
   // we need to fix up the line numbers
-  if (lf->ch == L_EOL) {
+  if (lf->content[lf->current] == L_EOL) {
     lf->line_no -= 1;
-    lf->col_no = 0;  // TODO: this isnt correct
+    lf->col_no = 1;
   } else {
     lf->col_no--; /* Backup to re-read char */
   }
