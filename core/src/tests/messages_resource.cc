@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -19,6 +19,8 @@
    02110-1301, USA.
 */
 
+#include <cstdarg>
+#include "lib/output_formatter_resource.h"
 #if defined(HAVE_MINGW)
 #  include "include/bareos.h"
 #  include "gtest/gtest.h"
@@ -98,6 +100,15 @@ static bool DbLogInsertCallback_(JobControlRecord*, utime_t, const char* msg)
   return true;
 }
 
+bool print_to_file(void* file, const char* fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  vfprintf((FILE*)file, fmt, args);
+  va_end(args);
+  return true;
+}
+
 TEST(messages_resource, send_message_to_all_configured_destinations)
 {
   std::string config_dir = getenv_std_string("BAREOS_CONFIG_DIR");
@@ -128,6 +139,13 @@ TEST(messages_resource, send_message_to_all_configured_destinations)
       directordaemon::my_config->GetResWithName(directordaemon::R_MSGS,
                                                 "Standard"));
   ASSERT_NE(messages, nullptr);
+
+  {
+    OutputFormatter output_formatter{print_to_file, stdout, nullptr, nullptr};
+    OutputFormatterResource output_formatter_resource
+        = OutputFormatterResource(&output_formatter);
+    messages->PrintConfig(output_formatter_resource, *my_config, false, true);
+  }
 
   // initialize message handler
   InitMsg(NULL, messages);

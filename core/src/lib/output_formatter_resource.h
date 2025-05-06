@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -29,6 +29,8 @@
 #include "lib/alist.h"
 #define NEED_JANSSON_NAMESPACE 1
 #include "lib/output_formatter.h"
+
+#include <functional>
 
 // Actual output formatter class.
 class OutputFormatterResource {
