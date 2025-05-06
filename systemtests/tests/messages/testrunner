@@ -18,6 +18,8 @@ export TestName
 
 #shellcheck source=../scripts/functions
 . "${rscripts}"/functions
+"${rscripts}"/cleanup
+"${rscripts}"/setup
 
 console_messages_file="${BAREOS_LOG_DIR}"/.conmsg
 syslog_file="${BAREOS_LOG_DIR}"/syslog
