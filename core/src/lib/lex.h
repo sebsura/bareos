@@ -152,7 +152,7 @@ typedef struct s_lex_context {
     }();
 
     auto end = [&] {
-      auto pos = content.find_last_of("\n", current);
+      auto pos = content.find_first_of("\n", current);
       if (pos == content.npos) { return content.size(); }
       return pos;
     }();
