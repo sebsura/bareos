@@ -186,38 +186,22 @@ endif()
 option(ENABLE_GRPC "Build with grpc support" OFF)
 
 if(ENABLE_GRPC)
-  find_package(absl REQUIRED)
-  set(absl_LIBRARIES
-      absl::algorithm
-      absl::base
-      absl::debugging
-      absl::flat_hash_map
-      absl::memory
-      absl::meta
-      absl::numeric
-      absl::str_format
-      absl::strings
-      absl::synchronization
-      absl::time
-      absl::log_internal_check_op
-  )
-  message(STATUS "Using absl version ${absl_VERSION}")
-  message(STATUS "absl lib: ${absl_LIBRARIES}")
-  find_package(Protobuf 3.12.0 REQUIRED)
-  # Workaround of https://github.com/protocolbuffers/protobuf/issues/18307 The
-  # latest (BSD variants) protobuf builds are forcibly bound to libupd, so
-  # find_package(gRPC...) will fail with Targets not yet defined:
-  # protobuf::libupb, protobuf::protoc-gen-upb, protobuf::protoc-gen-upbdefs,
-  # protobuf::protoc-gen-upb_minitable Try to satisfy it temporally.
-  #
-  find_library(UPB_LIBRARIES NAMES upb)
-  if(UPB_LIBRARIES)
-    add_library(protobuf::libupb STATIC IMPORTED)
-    add_executable(protobuf::protoc-gen-upb IMPORTED)
-    add_executable(protobuf::protoc-gen-upbdefs IMPORTED)
-    add_executable(protobuf::protoc-gen-upb_minitable IMPORTED)
+
+  # on suse 15.6 find_package(Protobuf) succeeds, but its broken! so we need to
+  # first try to load the config version, and only choose the FindProtobuf
+  # version when that does not succeed. Sadly the version for the protobuf
+  # package is messed up! The protobuf (cpp) package often also contains the
+  # protoc compiler but those two components have completely different
+  # versioning schemes. There is no portable way to say "i want version >=
+  # 3.12.0 of libprotobuf", so we just dont check it at all.
+  find_package(Protobuf CONFIG)
+  if(NOT Protobuf_FOUND)
+    find_package(Protobuf REQUIRED)
   endif()
+  message(STATUS "protobuf libs: ${Protobuf_LIBRARIES}")
   find_package(gRPC REQUIRED)
+
+  message(STATUS "grpc = ${gRPC_FOUND} ${gRPC_VERSION} ${gRPC_LIBRARIES}")
 endif()
 
 if(NOT MSVC)

@@ -1,6 +1,6 @@
 # BAREOS® - Backup Archiving REcovery Open Sourced
 #
-# Copyright (C) 2024-2024 Bareos GmbH & Co. KG
+# Copyright (C) 2024-2025 Bareos GmbH & Co. KG
 #
 # This program is Free Software; you can redistribute it and/or modify it under
 # the terms of version three of the GNU Affero General Public License as
@@ -46,6 +46,20 @@ This module will set the following variables in your project:
 #]=======================================================================]
 
 include(FindPackageHandleStandardArgs)
+
+# Workaround of https://github.com/protocolbuffers/protobuf/issues/18307 The
+# latest (BSD variants) protobuf builds are forcibly bound to libupd, so
+# find_package(gRPC...) will fail with Targets not yet defined:
+# protobuf::libupb, protobuf::protoc-gen-upb, protobuf::protoc-gen-upbdefs,
+# protobuf::protoc-gen-upb_minitable Try to satisfy it temporally.
+#
+find_library(UPB_LIBRARIES NAMES upb)
+if(UPB_LIBRARIES)
+  add_library(protobuf::libupb STATIC IMPORTED)
+  add_executable(protobuf::protoc-gen-upb IMPORTED)
+  add_executable(protobuf::protoc-gen-upbdefs IMPORTED)
+  add_executable(protobuf::protoc-gen-upb_minitable IMPORTED)
+endif()
 
 # Find gRPC installation Looks for gRPCConfig.cmake file installed by gRPC's
 # cmake installation.
@@ -111,6 +125,8 @@ if(NOT gRPC_FOUND)
   endif()
 
   message(DEBUG "gRPC_VERSION: ${gRPC_VERSION}")
+else()
+  message(DEBUG "gRPC found via config")
 endif()
 
 if(gRPC_FOUND)
