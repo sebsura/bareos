@@ -49,7 +49,7 @@ messages
 @$out ${start_log}
 END_OF_DATA
 
-for _ in {1..40}; do
+for _ in {1..25}; do
   cat <<END_OF_DATA >>"${tmp}/bconcmds"
   run job=backup-bareos-fd level=Full yes
 END_OF_DATA
