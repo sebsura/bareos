@@ -28,6 +28,8 @@ fi
 rm -f "${tmp}/testout1.txt"
 rm -f "${tmp}/testout2.txt"
 
+free
+
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out ${NULL_DEV}
 messages
@@ -42,6 +44,8 @@ messages
 END_OF_DATA
 
 run_bconsole
+
+free
 
 #
 # now do a restore
@@ -58,8 +62,12 @@ END_OF_DATA
 
 run_bconsole
 
+free
+
 check_for_zombie_jobs storage=File
 check_two_logs
+
+free
 
 CATALOG_BACKUP_FILE="${tmp}/bareos-restores/${working}/${db_name}.sql"
 
