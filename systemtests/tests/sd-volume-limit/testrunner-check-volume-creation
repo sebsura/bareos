@@ -43,7 +43,7 @@ start_log="${tmp}/start.log"
 messages="${tmp}/messages.log"
 volume_list="${tmp}/volumes.log"
 
-cat <<END_OF_DATA >"$tmp/bconcmds"
+cat <<END_OF_DATA >"${tmp}/bconcmds"
 @$out ${NULL_DEV}
 messages
 @$out ${start_log}
@@ -55,13 +55,15 @@ for _ in {1..40}; do
 END_OF_DATA
 done
 
-cat <<END_OF_DATA >>"$tmp/bconcmds"
+cat <<END_OF_DATA >>"${tmp}/bconcmds"
 @$out ${messages}
 wait
 messages
 @$out ${volume_list}
 list volumes
 END_OF_DATA
+
+echo "${tmp}/bconcmds"
 
 run_bconsole
 
