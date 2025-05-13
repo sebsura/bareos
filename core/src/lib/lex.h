@@ -31,6 +31,7 @@
 #include "include/bareos.h"
 
 #include <memory>
+#include <sstream>
 
 /* Lex get_char() return values */
 #define L_EOF (-1)
@@ -97,11 +98,30 @@ enum lex_state
 
 class Bpipe; /* forward reference */
 
+struct lex_source {
+  std::string name{};
+  std::string content{};
+};
+
+struct lex_context {
+  std::size_t id{};
+  std::string_view part{};
+};
+
 /* Lexical context */
 typedef struct s_lex_context {
   std::unique_ptr<s_lex_context> next; /* pointer to next lexical context */
-  std::string content{};
-  std::size_t current{};
+
+  std::vector<lex_source> current_files{};
+  std::vector<lex_context> current_stack{};
+
+  struct lex_index {
+    std::size_t part_id;
+    std::size_t offset;
+  };
+
+  lex_index current{};
+
   int options{};       /* scan options */
   std::string fname{}; /* filename */
   POOLMEM* str{};      /* string being scanned */
@@ -142,22 +162,130 @@ typedef struct s_lex_context {
   int error_counter;
   void* caller_ctx; /* caller private data */
 
+  lex_index start_of_line(lex_index index) const
+  {
+    for (;;) {
+      if (index.offset == 0 && index.part_id == 0) { return index; }
+
+      auto pre = revert_index(index);
+
+      auto part = current_stack[pre.part_id].part;
+
+      auto pos = part.find_last_of("\n", pre.offset);
+
+      if (pos == part.npos) {
+        index.offset = 0;
+        continue;
+      }
+
+      return lex_index{index.part_id, pos};
+    }
+  }
+
+  lex_index end_of_line(lex_index index) const
+  {
+    for (;;) {
+      if (index.part_id >= current_stack.size()) { return index; }
+
+      auto part = current_stack[index.part_id].part;
+
+      auto pos = part.find_first_of("\n", index.offset);
+
+      if (pos == part.npos) {
+        index.part_id += 1;
+        index.offset = 0;
+        continue;
+      }
+
+      return lex_index{index.part_id, pos};
+    }
+  }
+
   std::string current_line() const
   {
-    auto start = [&] {
-      if (current == 0) { return current; }
-      auto pos = content.find_last_of("\n", current - 1);
-      if (pos == content.npos) { return std::size_t{0}; }
-      return pos + 1;
-    }();
+    auto start = start_of_line(current);
+    auto end = end_of_line(current);
 
-    auto end = [&] {
-      auto pos = content.find_first_of("\n", current);
-      if (pos == content.npos) { return content.size(); }
-      return pos;
-    }();
 
-    return content.substr(start, end - start);
+    std::stringstream line = {};
+
+    std::size_t offset = start.offset;
+
+    for (auto part_idx = start.part_id; part_idx < end.part_id; ++part_idx) {
+      auto part = current_stack[part_idx].part;
+
+      line << part.substr(offset);
+
+      offset = 0;
+    }
+
+    if (end.part_id < current_stack.size() && end.offset != 0) {
+      line << current_stack[end.part_id].part.substr(offset,
+                                                     end.offset - offset);
+    }
+
+    return line.str();
+  }
+
+  bool done() const
+  {
+    if (current.part_id >= current_stack.size()) { return true; }
+    return false;
+  }
+
+  int get_char()
+  {
+    if (done()) { return L_EOF; }
+
+    auto part = current_stack[current.part_id].part;
+
+    char c = part[current.offset];
+
+    return c;
+  }
+
+  lex_index advance_index(lex_index idx) const
+  {
+    idx.offset += 1;
+    do {
+      if (idx.offset == current_stack[idx.part_id].part.size()) {
+        idx.part_id += 1;
+        idx.offset = 0;
+      } else {
+        break;
+      }
+    } while (idx.part_id < current_stack.size());
+
+    return idx;
+  }
+
+  void advance() { current = advance_index(current); }
+
+  lex_index revert_index(lex_index idx) const
+  {
+    for (;;) {
+      if (idx.offset > 0) {
+        idx.offset -= 1;
+        return idx;
+      }
+
+      if (idx.part_id == 0) {
+        // cannot do much here
+        return idx;
+      }
+
+      idx.part_id -= 1;
+      idx.offset = current_stack[idx.part_id].part.size();
+    }
+  }
+
+  bool revert()
+  {
+    if (current.offset == 0 && current.part_id == 0) { return false; }
+
+    current = revert_index(current);
+
+    return true;
   }
 } LEX;
 

@@ -220,8 +220,8 @@ static inline LEX* lex_add(LEX* lf,
     LexSetDefaultWarningHandler(lf);
   }
 
-  lf->content = std::move(content);
-  lf->fname = std::move(filename);
+  lf->current_files.push_back({std::move(filename), std::move(content)});
+  lf->current_stack.push_back({0, lf->current_files[0].content});
   lf->str = GetMemory(256);
   lf->str_max_len = SizeofPoolMemory(lf->str);
   lf->state = lex_none;
@@ -376,13 +376,16 @@ int LexGetChar(LEX* lf)
              "quote.\n"));
   }
 
-  if (lf->current >= lf->content.size()) {
+  if (lf->done()) {
     // this isnt ok
     lf->ch = L_EOF;
     if (lf->next) LexCloseFile(lf);
     return lf->ch;
   }
-  auto c = lf->content[lf->current++];
+
+
+  auto c = lf->get_char();
+  lf->advance();
 
   Dmsg2(debuglevel, "LexGetChar: read %llu => %d\n", lf->current, c);
 
@@ -408,16 +411,17 @@ int LexGetChar(LEX* lf)
 
 void LexUngetChar(LEX* lf)
 {
-  if (lf->current == 0) {
+  if (!lf->revert()) {
     // cannot do much in this case currently ...
     lf->ch = 0;
     return;
   }
 
-  lf->current -= 1;
+  lf->ch = lf->get_char();
+  if (lf->ch == '\n') { lf->ch = L_EOL; }
 
   // we need to fix up the line numbers
-  if (lf->content[lf->current] == L_EOL) {
+  if (lf->ch == L_EOL) {
     lf->line_no -= 1;
     lf->col_no = 1;
   } else {
@@ -602,7 +606,7 @@ static bool ContinuesWithQuotes(LEX* lf)
     LEX* lexer;
     int temp_col, temp_line;
     int temp_ch;
-    std::size_t temp_offset;
+    s_lex_context::lex_index temp_offset;
   };
 
   LocationSaver _{lf};
