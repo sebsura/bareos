@@ -105,7 +105,7 @@ static void s_err(const char* file, int line, LEX* lc, const char* msg, ...)
     e_msg(file, line, lc->err_type, 0,
           T_("Config error: %s\n"
              "            : line %d, col %d of file %s\n%s\n%s"),
-          buf.c_str(), lc->line_no, lc->col_no, lc->fname,
+          buf.c_str(), lc->line_no, lc->col_no, lc->fname.c_str(),
           lc->current_line().c_str(), more.c_str());
   } else {
     e_msg(file, line, lc->err_type, 0, T_("Config error: %s\n"), buf.c_str());
@@ -145,7 +145,7 @@ static void s_warn(const char* file, int line, LEX* lc, const char* msg, ...)
     p_msg(file, line, 0,
           T_("Config warning: %s\n"
              "            : line %d, col %d of file %s\n%s\n%s"),
-          buf.c_str(), lc->line_no, lc->col_no, lc->fname,
+          buf.c_str(), lc->line_no, lc->col_no, lc->fname.c_str(),
           lc->current_line().c_str(), more.c_str());
   } else {
     p_msg(file, line, 0, T_("Config warning: %s\n"), buf.c_str());
@@ -173,7 +173,7 @@ void LexSetErrorHandlerErrorType(LEX* lf, int err_type)
 LEX* LexCloseFile(LEX* lf)
 {
   if (lf == NULL) { Emsg0(M_ABORT, 0, T_("Close of NULL file\n")); }
-  Dmsg1(debuglevel, "Close lex file: %s\n", lf->fname);
+  Dmsg1(debuglevel, "Close lex file: %s\n", lf->fname.c_str());
 
   if (lf->next) {
     auto next = std::move(lf->next);
@@ -187,7 +187,7 @@ LEX* LexCloseFile(LEX* lf)
 
 // Add lex structure for an included config file.
 static inline LEX* lex_add(LEX* lf,
-                           const char* filename,
+                           std::string filename,
                            std::string content,
                            LEX_ERROR_HANDLER* ScanError,
                            LEX_WARNING_HANDLER* scan_warning)
@@ -221,7 +221,7 @@ static inline LEX* lex_add(LEX* lf,
   }
 
   lf->content = std::move(content);
-  lf->fname = strdup(filename ? filename : "");
+  lf->fname = std::move(filename);
   lf->str = GetMemory(256);
   lf->str_max_len = SizeofPoolMemory(lf->str);
   lf->state = lex_none;
@@ -339,7 +339,7 @@ LEX* lex_open_file(LEX* lf,
       }
 
       fclose(fd);
-      lf = lex_add(lf, file.c_str(), std::move(content), ScanError,
+      lf = lex_add(lf, std::move(file), std::move(content), ScanError,
                    scan_warning);
     }
     globfree(&fileglob);

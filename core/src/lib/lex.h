@@ -103,7 +103,7 @@ typedef struct s_lex_context {
   std::string content{};
   std::size_t current{};
   int options{};       /* scan options */
-  char* fname{};       /* filename */
+  std::string fname{}; /* filename */
   POOLMEM* str{};      /* string being scanned */
   int str_len{};       /* length of string */
   int str_max_len{};   /* maximum length of string */
