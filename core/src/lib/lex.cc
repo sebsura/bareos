@@ -33,6 +33,7 @@
 #include "lib/berrno.h"
 #include "lib/bpipe.h"
 #include <glob.h>
+#include <algorithm>
 
 extern int debug_level;
 
@@ -290,7 +291,6 @@ LEX* lex_open_file(LEX* lf,
 #ifdef HAVE_GLOB
     int globrc;
     glob_t fileglob;
-    char* filename_expanded = NULL;
 
     Dmsg1(500, "Trying glob match with %s\n", filename);
 
@@ -313,9 +313,18 @@ LEX* lex_open_file(LEX* lf,
     }
 
     Dmsg2(100, "glob %s: %i files\n", filename, fileglob.gl_pathc);
-    for (size_t i = 0; i < fileglob.gl_pathc; i++) {
-      filename_expanded = fileglob.gl_pathv[i];
-      auto fd = fopen(filename_expanded, "rb");
+
+    std::vector<std::string> files;
+    files.reserve(fileglob.gl_pathc);
+
+    for (size_t i = 0; i < fileglob.gl_pathc; ++i) {
+      files.push_back(fileglob.gl_pathv[i]);
+    }
+
+    std::sort(std::begin(files), std::end(files));
+
+    for (auto& file : files) {
+      auto fd = fopen(file.c_str(), "rb");
       if (fd == NULL) {
         globfree(&fileglob);
         return NULL;
@@ -324,13 +333,13 @@ LEX* lex_open_file(LEX* lf,
       std::string content = read_completely(fd);
 
       if (int err = ferror(fd)) {
-        Dmsg1(100, "error while reading file %s: %s\n", filename_expanded,
+        Dmsg1(100, "error while reading file %s: %s\n", file.c_str(),
               strerror(err));
         return NULL;
       }
 
       fclose(fd);
-      lf = lex_add(lf, filename_expanded, std::move(content), ScanError,
+      lf = lex_add(lf, file.c_str(), std::move(content), ScanError,
                    scan_warning);
     }
     globfree(&fileglob);
