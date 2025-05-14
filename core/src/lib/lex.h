@@ -287,6 +287,25 @@ typedef struct s_lex_context {
 
     return true;
   }
+
+  void push(std::string filename, std::string content)
+  {
+    auto idx = current_files.size();
+    current_files.push_back({std::move(filename), std::move(content)});
+    std::string_view part = current_files.back().content;
+
+    auto old_current = current;
+
+    auto& current_elem = current_stack.back();
+    auto old_idx = current_elem.id;
+    auto after = current_elem.part.substr(old_current.offset);
+    current_elem.part = current_elem.part.substr(0, old_current.offset);
+    current_stack.push_back({idx, part});
+    current_stack.push_back({old_idx, after});
+
+    current.part_id = idx;
+    current.offset = 0;
+  }
 } LEX;
 
 typedef void(LEX_ERROR_HANDLER)(const char* file,

@@ -361,6 +361,93 @@ LEX* lex_open_file(LEX* lf,
   }
 }
 
+bool lex_push_file(LEX* lf, const char* filename)
+{
+  if (filename[0] == '|') {
+    auto bpipe = OpenBpipe(filename + 1, 0, "rb");
+    if (bpipe == NULL) { return false; }
+
+    std::string content = read_completely(bpipe->rfd);
+
+    auto status = CloseBpipe(bpipe);
+
+    if (status != 0) {
+      Dmsg2(100, "'%s' returned non-zero return code %d\n", filename + 1,
+            status);
+      return false;
+    }
+
+    lf->push(filename, std::move(content));
+    return true;
+  } else {
+#ifdef HAVE_GLOB
+    int globrc;
+    glob_t fileglob;
+
+    Dmsg1(500, "Trying glob match with %s\n", filename);
+
+    /* Flag GLOB_NOMAGIC is a GNU extension, therefore manually check if string
+     * is a wildcard string. */
+
+    // Clear fileglob at least required for mingw version of glob()
+    memset(&fileglob, 0, sizeof(fileglob));
+    globrc = glob(filename, 0, NULL, &fileglob);
+
+    if (globrc != 0) {
+      // glob() error has occurred. Giving up.
+      Dmsg1(500, "glob => error\n");
+      return false;
+    }
+
+    Dmsg2(100, "glob %s: %i files\n", filename, fileglob.gl_pathc);
+
+    std::vector<std::string> files;
+    files.reserve(fileglob.gl_pathc);
+
+    for (size_t i = 0; i < fileglob.gl_pathc; ++i) {
+      files.push_back(fileglob.gl_pathv[i]);
+    }
+
+    std::sort(std::begin(files), std::end(files));
+
+    for (auto& file : files) {
+      auto fd = fopen(file.c_str(), "rb");
+      if (fd == NULL) {
+        globfree(&fileglob);
+        return false;
+      }
+
+      std::string content = read_completely(fd);
+
+      if (int err = ferror(fd)) {
+        Dmsg1(100, "error while reading file %s: %s\n", file.c_str(),
+              strerror(err));
+        return false;
+      }
+
+      fclose(fd);
+      lf->push(std::move(file), std::move(content));
+    }
+    globfree(&fileglob);
+    return true;
+#else
+    Dmsg1(500, "Trying open file %s\n", filename);
+    auto fd = fopen(filename, "rb");
+    if (fd == NULL) { return false; }
+    std::string content = read_completely(fd);
+
+    if (int err = ferror(fd)) {
+      Dmsg1(100, "error while reading file %s: %s\n", filename_expanded,
+            strerror(err));
+      return false;
+    }
+
+    lf->push(filename, std::move(content));
+    return true;
+#endif
+  }
+}
+
 /*
  * Get the next character from the input.
  *  Returns the character or
@@ -892,8 +979,8 @@ int LexGetToken(LEX* lf, int expect)
           LexGetChar(lf);
 
           lf->state = lex_none;
-          lf = lex_open_file(lf, lf->str, lf->ScanError, lf->scan_warning);
-          if (lf == NULL) {
+
+          if (!lex_push_file(lf, lf->str)) {
             BErrNo be;
             scan_err2(lfori, T_("Cannot open included config file %s: %s\n"),
                       lfori->str, be.bstrerror());
