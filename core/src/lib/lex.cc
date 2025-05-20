@@ -456,6 +456,8 @@ bool lex_push_file(LEX* lf, const char* filename)
  */
 int LexGetChar(LEX* lf)
 {
+  lf->advance();
+
   if (lf->ch == L_EOF) {
     Emsg0(M_CONFIG_ERROR, 0,
           T_("get_char: called after EOF."
@@ -472,11 +474,10 @@ int LexGetChar(LEX* lf)
 
 
   auto c = lf->get_char();
-  lf->advance();
 
   Dmsg2(debuglevel, "LexGetChar: read %llu => %d\n", lf->current, c);
 
-  if (lf->ch == L_EOL) {
+  if (lf->ch == L_EOL || lf->ch == L_EOF) {
     lf->col_no = 1;
     lf->line_no += 1;
   } else {

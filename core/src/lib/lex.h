@@ -120,7 +120,11 @@ typedef struct s_lex_context {
     std::size_t offset;
   };
 
-  lex_index current{};
+  static constexpr lex_index START_OF_FILE{
+      .part_id = std::numeric_limits<std::size_t>::max(),
+      .offset = 0};
+
+  lex_index current = START_OF_FILE;
 
   int options{};       /* scan options */
   std::string fname{}; /* filename */
@@ -168,6 +172,8 @@ typedef struct s_lex_context {
       if (index.offset == 0 && index.part_id == 0) { return index; }
 
       auto pre = revert_index(index);
+
+      if (pre.part_id == START_OF_FILE.part_id) { return index; }
 
       auto part = current_stack[pre.part_id].part;
 
@@ -229,12 +235,18 @@ typedef struct s_lex_context {
 
   bool done() const
   {
+    if (current.part_id == std::numeric_limits<std::size_t>::max()) {
+      return current_stack.size() == 0;
+    }
     if (current.part_id >= current_stack.size()) { return true; }
     return false;
   }
 
   int get_char()
   {
+    if (current.part_id == std::numeric_limits<std::size_t>::max()) {
+      return 0;
+    }
     if (done()) { return L_EOF; }
 
     auto part = current_stack[current.part_id].part;
@@ -246,6 +258,12 @@ typedef struct s_lex_context {
 
   lex_index advance_index(lex_index idx) const
   {
+    if (idx.part_id == std::numeric_limits<std::size_t>::max()) {
+      idx.part_id = 0;
+      idx.offset = 0;
+      return idx;
+    }
+
     idx.offset += 1;
     do {
       if (idx.offset == current_stack[idx.part_id].part.size()) {
@@ -271,7 +289,7 @@ typedef struct s_lex_context {
 
       if (idx.part_id == 0) {
         // cannot do much here
-        return idx;
+        return START_OF_FILE;
       }
 
       idx.part_id -= 1;
