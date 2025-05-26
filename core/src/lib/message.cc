@@ -1063,61 +1063,6 @@ void p_msg_fb(const char* file, int line, int level, const char* fmt, ...)
   pt_out(buf);
 }
 
-/*
- * Subroutine writes a debug message to the trace file if the level number is
- * less than or equal the debug_level. File and line numbers are included for
- * more detail if desired, but not currently printed.
- *
- * If the level is negative, the details of file and line number are not
- * printed.
- */
-void t_msg(const char* file, int line, int level, const char* fmt, ...)
-{
-  va_list ap;
-  int len, maxlen;
-  bool details = true;
-  PoolMem buf(PM_EMSG), more(PM_EMSG);
-
-  if (level < 0) {
-    details = false;
-    level = -level;
-  }
-
-  if (level <= debug_level) {
-    if (!trace_fd) {
-      PoolMem fn(PM_FNAME);
-
-      Mmsg(fn, "%s/%s.trace", TRACEFILEDIRECTORY, my_name);
-      trace_fd = fopen(fn.c_str(), "a+b");
-    }
-
-    if (details) {
-      Mmsg(buf, "%s: %s:%d-%u ", my_name, get_basename(file), line,
-           GetJobIdFromThreadSpecificData());
-    }
-
-    while (1) {
-      maxlen = more.MaxSize() - 1;
-      va_start(ap, fmt);
-      len = Bvsnprintf(more.c_str(), maxlen, fmt, ap);
-      va_end(ap);
-
-      if (len < 0 || len >= (maxlen - 5)) {
-        more.ReallocPm(maxlen + maxlen / 2);
-        continue;
-      }
-
-      break;
-    }
-
-    if (trace_fd != NULL) {
-      if (details) { fputs(buf.c_str(), trace_fd); }
-      fputs(more.c_str(), trace_fd);
-      fflush(trace_fd);
-    }
-  }
-}
-
 // print an error message
 void e_msg(const char* file,
            int line,
