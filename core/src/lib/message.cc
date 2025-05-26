@@ -979,6 +979,64 @@ class ring_buffer {
     }
   }
 
+  std::vector<std::string> backtrace()
+  {
+    std::vector<std::string> msgs;
+
+    std::size_t read_start = bareos_atomic_load(&start, __ATOMIC_RELAXED);
+
+    for (std::size_t current = read_start;;) {
+      // read 2 bytes preceeding current
+      std::uint16_t msg_size;
+
+      if (current < sizeof(msg_size)) { break; }
+      current -= sizeof(msg_size);
+      {
+        auto [first, second] = range_to_buffer(current, sizeof(msg_size));
+        ASSERT(second.size() == 0);
+
+        msg_size = bareos_atomic_load(
+            reinterpret_cast<std::uint16_t*>(first.data()), __ATOMIC_ACQUIRE);
+      }
+
+      if (current < msg_size) { break; }
+
+      current -= msg_size;
+
+      if (msg_size) {
+        auto [first, second] = range_to_buffer(current, msg_size);
+
+        std::string_view first_part{first.data(), first.size()};
+
+
+        // check that we did not get overriden
+        if (current + buffer.size()
+            < bareos_atomic_load(&start, __ATOMIC_RELAXED)) {
+          break;
+        }
+
+        auto& next = msgs.emplace_back();
+        next += first_part;
+        if (second.size()) {
+          std::string_view second_part{second.data(), second.size()};
+          next += second_part;
+        }
+
+        // check that we did not get overriden
+        if (current + buffer.size()
+            < bareos_atomic_load(&start, __ATOMIC_RELAXED)) {
+          msgs.pop_back();
+          break;
+        }
+      }
+
+      // make sure we are always even
+      if ((current & 0b1) != 0) { current -= 1; }
+    }
+
+    return msgs;
+  }
+
  private:
   std::size_t allocate(std::size_t count)
   {
@@ -1015,8 +1073,14 @@ class ring_buffer {
   std::size_t start;
 };
 
+
 char debug_message_storage[1024 * 1024];
 ring_buffer debug_message_ring(debug_message_storage);
+
+std::vector<std::string> dmsg_backtrace()
+{
+  return debug_message_ring.backtrace();
+}
 
 int MmsgAppendV(PoolMem& pool_buf,
                 int current_size,

@@ -59,6 +59,8 @@
 
 #include "dird/reload.h"
 
+#include <sstream>
+
 namespace directordaemon {
 
 /* Imported subroutines */
@@ -126,6 +128,7 @@ extern bool DotStatusCmd(UaContext* ua, const char* cmd);
 /* Forward referenced functions */
 static bool add_cmd(UaContext* ua, const char* cmd);
 static bool AutomountCmd(UaContext* ua, const char* cmd);
+static bool BacktraceCmd(UaContext* ua, const char* cmd);
 static bool CancelCmd(UaContext* ua, const char* cmd);
 static bool CreateCmd(UaContext* ua, const char* cmd);
 static bool DeleteCmd(UaContext* ua, const char* cmd);
@@ -312,6 +315,8 @@ static struct ua_cmdstruct commands[] = {
      NT_("on | off"), false, false},
     {NT_("automount"), AutomountCmd, T_("Automount after label"),
      NT_("on | off"), false, true},
+    {NT_("backtrace"), BacktraceCmd, T_("Get a debug message backtrace"),
+     NT_("type=debug | client=<client>"), true, true},
     {NT_("cancel"), CancelCmd, T_("Cancel a job"),
      NT_("storage=<storage-name> | jobid=<jobid> | job=<job-name> | "
          "ujobid=<unique-jobid> | state=<job_state> | all yes"),
@@ -750,6 +755,48 @@ static bool AutomountCmd(UaContext* ua, const char*)
   }
 
   ua->automount = (Bstrcasecmp(onoff, NT_("off"))) ? 0 : 1;
+  return true;
+}
+
+#if 0
+static void BacktraceCmdClient(UaContext* ua, ClientResource* client,
+                               const char*)
+{
+  switch (client->Protocol) {
+    case APT_NDMPV2:
+    case APT_NDMPV3:
+    case APT_NDMPV4:
+      return;
+    default:
+      break;
+  }
+
+  // Connect to File daemon
+  ua->jcr->dir_impl->res.client = client;
+
+  // Try to connect for 15 seconds
+  ua->SendMsg(T_("Connecting to Client %s at %s:%d\n"), client->resource_name_,
+              client->address, client->FDport);
+
+  if (!ConnectToFileDaemon(ua->jcr, 1, 15, false)) {
+    ua->ErrorMsg(T_("Failed to connect to Client.\n"));
+    return;
+  }
+
+  Dmsg0(120, "Connected to file daemon\n");
+}
+#endif
+
+static bool BacktraceCmd(UaContext* ua, const char*)
+{
+  auto msgs = dmsg_backtrace();
+
+  ua->SendMsg("--- START ---\n");
+  for (std::size_t i = 0; i < msgs.size(); ++i) {
+    ua->SendMsg("(%zu/%zu) %s\n", i + 1, msgs.size(), msgs[i].c_str());
+  }
+  ua->SendMsg("--- END ---\n");
+
   return true;
 }
 

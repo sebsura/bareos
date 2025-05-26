@@ -441,6 +441,7 @@ void q_msg(const char* file,
            const char* fmt,
            ...);
 int msg_(const char* file, int line, POOLMEM*& pool_buf, const char* fmt, ...);
+std::vector<std::string> dmsg_backtrace();
 
 #include "lib/bsys.h"
 #include "lib/scan.h"
