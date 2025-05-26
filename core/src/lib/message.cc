@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -874,6 +874,47 @@ const char* get_basename(const char* pathname)
   return basename;
 }
 
+int MmsgAppendV(PoolMem& pool_buf,
+                int current_size,
+                const char* fmt,
+                va_list ap_orig)
+{
+  int len, maxlen;
+
+  va_list ap;
+
+  while (1) {
+    std::size_t cap = pool_buf.MaxSize();
+    maxlen = cap - 1 - current_size;
+    va_copy(ap, ap_orig);
+    len = Bvsnprintf(pool_buf.c_str() + current_size, maxlen, fmt, ap);
+    va_end(ap);
+
+    if (len < 0 || len >= (maxlen - 5)) {
+      if (cap < 16) { cap = 16; }
+
+      pool_buf.ReallocPm(cap + cap / 2);
+      continue;
+    }
+
+    break;
+  }
+
+  return len + current_size;
+}
+
+int MmsgAppend(PoolMem& pool_buf, int current_size, const char* fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+
+  int res = MmsgAppendV(pool_buf, current_size, fmt, args);
+
+  va_end(args);
+
+  return res;
+}
+
 // Print or write output to trace file
 static void pt_out(char* buf)
 {
@@ -913,48 +954,40 @@ void d_msg(const char* file, int line, int level, const char* fmt, ...)
 {
   va_list ap;
   char ed1[50];
-  int len, maxlen;
   btime_t mtime;
   uint32_t usecs;
   bool details = true;
-  PoolMem buf(PM_EMSG), more(PM_EMSG);
+  PoolMem buf(PM_EMSG);
 
   if (level < 0) {
     details = false;
     level = -level;
   }
 
+  int current_len = 0;
+
   if (level <= debug_level) {
     if (dbg_timestamp) {
       mtime = GetCurrentBtime();
       usecs = mtime % 1000000;
-      Mmsg(buf, "%s.%06d ", bstrftimes(ed1, sizeof(ed1), BtimeToUtime(mtime)),
-           usecs);
-      pt_out(buf.c_str());
+      current_len = MmsgAppend(
+          buf, current_len, "%s.%06d ",
+          bstrftimes(ed1, sizeof(ed1), BtimeToUtime(mtime)), usecs);
     }
 
     if (details) {
-      Mmsg(buf, "%s (%d): %s:%d-%u ", my_name, level, get_basename(file), line,
-           GetJobIdFromThreadSpecificData());
+      current_len = MmsgAppend(buf, current_len, "%s (%d): %s:%d-%u ", my_name,
+                               level, get_basename(file), line,
+                               GetJobIdFromThreadSpecificData());
     }
 
-    while (1) {
-      maxlen = more.MaxSize() - 1;
-      va_start(ap, fmt);
-      len = Bvsnprintf(more.c_str(), maxlen, fmt, ap);
-      va_end(ap);
+    va_start(ap, fmt);
 
-      if (len < 0 || len >= (maxlen - 5)) {
-        more.ReallocPm(maxlen + maxlen / 2);
-        continue;
-      }
+    current_len = MmsgAppendV(buf, current_len, fmt, ap);
 
-      break;
-    }
+    va_end(ap);
 
-    if (details) { pt_out(buf.c_str()); }
-
-    pt_out(more.c_str());
+    pt_out(buf.c_str());
   }
 }
 
@@ -1012,55 +1045,21 @@ bool GetTimestamp(void) { return dbg_timestamp; }
 void p_msg(const char* file, int line, int level, const char* fmt, ...)
 {
   va_list ap;
-  int len, maxlen;
-  PoolMem buf(PM_EMSG), more(PM_EMSG);
+  PoolMem buf(PM_EMSG);
 
+  int current_len = 0;
   if (level >= 0) {
-    Mmsg(buf, "%s: %s:%d-%u ", my_name, get_basename(file), line,
-         GetJobIdFromThreadSpecificData());
+    current_len = MmsgAppend(buf, current_len, "%s: %s:%d-%u ",
+                             my_name, get_basename(file), line,
+                             GetJobIdFromThreadSpecificData());
   }
 
-  while (1) {
-    maxlen = more.MaxSize() - 1;
-    va_start(ap, fmt);
-    len = Bvsnprintf(more.c_str(), maxlen, fmt, ap);
-    va_end(ap);
 
-    if (len < 0 || len >= (maxlen - 5)) {
-      more.ReallocPm(maxlen + maxlen / 2);
-      continue;
-    }
+  va_start(ap, fmt);
+  current_len = MmsgAppendV(buf, current_len, fmt, ap);
+  va_end(ap);
 
-    break;
-  }
-
-  if (level >= 0) { pt_out(buf.c_str()); }
-
-  pt_out(more.c_str());
-}
-
-/*
- * This subroutine prints a message regardless of the debug level
- *
- * If the level is negative, the details of file and line number are not
- * printed. Special version of p_msg used with fixed buffers.
- */
-void p_msg_fb(const char* file, int line, int level, const char* fmt, ...)
-{
-  char buf[256];
-  int len = 0;
-  va_list arg_ptr;
-
-  if (level >= 0) {
-    len = Bsnprintf(buf, sizeof(buf), "%s: %s:%d-%u ", my_name,
-                    get_basename(file), line, GetJobIdFromThreadSpecificData());
-  }
-
-  va_start(arg_ptr, fmt);
-  Bvsnprintf(buf + len, sizeof(buf) - len, (char*)fmt, arg_ptr);
-  va_end(arg_ptr);
-
-  pt_out(buf);
+  pt_out(buf.c_str());
 }
 
 // print an error message
@@ -1377,24 +1376,12 @@ int Mmsg(POOLMEM*& pool_buf, const char* fmt, ...)
 
 int Mmsg(PoolMem& pool_buf, const char* fmt, ...)
 {
-  int len, maxlen;
   va_list ap;
+  va_start(ap, fmt);
+  int res = MmsgAppendV(pool_buf, 0, fmt, ap);
+  va_end(ap);
 
-  while (1) {
-    maxlen = pool_buf.MaxSize() - 1;
-    va_start(ap, fmt);
-    len = Bvsnprintf(pool_buf.c_str(), maxlen, fmt, ap);
-    va_end(ap);
-
-    if (len < 0 || len >= (maxlen - 5)) {
-      pool_buf.ReallocPm(maxlen + maxlen / 2);
-      continue;
-    }
-
-    break;
-  }
-
-  return len;
+  return res;
 }
 
 int Mmsg(PoolMem*& pool_buf, const char* fmt, ...)

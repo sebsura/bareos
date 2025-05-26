@@ -412,13 +412,14 @@ class PoolMem;
 /* Edit message into Pool Memory buffer -- no __FILE__ and __LINE__ */
 int Mmsg(POOLMEM*& msgbuf, const char* fmt, ...);
 int Mmsg(PoolMem& msgbuf, const char* fmt, ...);
+int MmsgAppend(PoolMem& msgbuf, int current_len, const char* fmt, ...);
+int MmsgAppendV(PoolMem& msgbuf, int current_len, const char* fmt, va_list ap);
 int Mmsg(PoolMem*& msgbuf, const char* fmt, ...);
 int Mmsg(std::vector<char>& msgbuf, const char* fmt, ...);
 
 class JobControlRecord;
 void d_msg(const char* file, int line, int level, const char* fmt, ...);
 void p_msg(const char* file, int line, int level, const char* fmt, ...);
-void p_msg_fb(const char* file, int line, int level, const char* fmt, ...);
 void e_msg(const char* file,
            int line,
            int type,

@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2021-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2021-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -439,4 +439,22 @@ TEST(poolmem, class)
   EXPECT_EQ(pm_string.bsprintf("%150d", 0), 150);
   EXPECT_EQ(pm_string.strlen(), 150);
   EXPECT_EQ(pm_string.MaxSize(), 193);
+}
+
+
+TEST(poolmem, Mmsg)
+{
+  PoolMem mem;
+
+
+  std::string s = "1";
+  Mmsg(mem, "%d", 1);
+  int current_len = 1;
+
+  for (int i = 0; i < 20; ++i) {
+    current_len = MmsgAppend(mem, current_len, "%s", s.c_str());
+    s = s + s;
+  }
+  EXPECT_EQ(s.size(), mem.strlen());
+  EXPECT_STREQ(mem.c_str(), s.c_str());
 }
