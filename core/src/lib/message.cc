@@ -37,6 +37,9 @@
 #endif
 #include <syslog.h>
 
+#include <gsl/span>
+#include <stdatomic.h>
+
 #include "include/fcntl_def.h"
 #include "include/bareos.h"
 #include "include/jcr.h"
@@ -873,6 +876,137 @@ const char* get_basename(const char* pathname)
   }
   return basename;
 }
+
+char debug_message_storage[1024 * 1024];
+
+static inline std::size_t bareos_atomic_add(std::size_t* ptr,
+                                            std::size_t value,
+                                            int memorder)
+{
+  return __atomic_add_fetch(ptr, value, memorder);
+}
+
+template <typename T>
+static inline void bareos_atomic_store(T* ptr, T value, int memorder)
+{
+  __atomic_store_n(ptr, value, memorder);
+}
+
+template <typename T> static inline T bareos_atomic_load(T* ptr, int memorder)
+{
+  return __atomic_load_n(ptr, memorder);
+}
+
+class ring_buffer {
+ public:
+  ring_buffer(gsl::span<char> buffer_) : buffer{buffer_}, start{0}
+  {
+    if (buffer.size() & 0x1) {
+      // we want even buffer sizes
+      buffer = buffer.subspan(0, buffer.size() - 1);
+    }
+  }
+
+  void write(std::string_view message)
+  {
+    constexpr std::size_t postfix_size = sizeof(std::uint16_t);
+    std::size_t max_len
+        = std::min(std::size_t{1024}, buffer.size() - postfix_size);
+    if (message.size() > max_len) { message = message.substr(0, max_len); }
+
+    auto msg_start = allocate(message.size() + postfix_size);
+
+    auto first_part = buffer.subspan(msg_start % buffer.size());
+    gsl::span<char> second_part{};
+    std::size_t first_msg = std::min(message.size(), first_part.size());
+    std::size_t second_msg = message.size() - first_msg;
+
+    second_part = buffer.subspan(0, second_msg);
+
+    memcpy(first_part.data(), message.data(), first_msg);
+
+    if (second_msg) {
+      memcpy(second_part.data(), message.data() + first_msg, second_msg);
+    }
+
+    bareos_atomic_store(
+        reinterpret_cast<std::uint16_t*>(
+            &buffer[(msg_start + message.size()) % buffer.size()]),
+        static_cast<std::uint16_t>(message.size()), __ATOMIC_RELEASE);
+  }
+
+  void print_trace(std::ostream& stream)
+  {
+#if 0
+    (void)stream;
+#else
+    std::size_t read_start = bareos_atomic_load(&start, __ATOMIC_RELAXED);
+
+    for (std::size_t current = read_start;;) {
+      // read 2 bytes preceeding current
+      std::uint16_t msg_size;
+
+      if (current < sizeof(msg_size)) { break; }
+      current -= sizeof(msg_size);
+      {
+        auto [first, second] = range_to_buffer(current, sizeof(msg_size));
+        ASSERT(second.size() == 0);
+
+        msg_size = bareos_atomic_load(
+            reinterpret_cast<std::uint16_t*>(first.data()), __ATOMIC_ACQUIRE);
+      }
+
+      if (current < msg_size) { break; }
+
+      current -= msg_size;
+
+      {
+        auto [first, second] = range_to_buffer(current, msg_size);
+
+        std::string_view first_part{first.data(), first.size()};
+
+
+        // check that we did not get overriden
+        if (current + buffer.size()
+            < bareos_atomic_load(&start, __ATOMIC_RELAXED)) {
+          break;
+        }
+
+        stream << first_part;
+        if (second.size()) {
+          std::string_view second_part{second.data(), second.size()};
+          stream << second_part;
+        }
+      }
+    }
+#endif
+  }
+
+ private:
+  std::size_t allocate(std::size_t count)
+  {
+    return bareos_atomic_add(&start, count, __ATOMIC_RELAXED);
+  }
+
+  std::pair<gsl::span<char>, gsl::span<char>> range_to_buffer(std::size_t begin,
+                                                              std::size_t size)
+  {
+    std::size_t b_begin = begin % buffer.size();
+    std::size_t b_end = (begin + size) % buffer.size();
+
+    if (b_begin < b_end) {
+      ASSERT(b_end - b_begin == size);
+      return {buffer.subspan(b_begin, size), {}};
+    }
+
+    auto first_part = buffer.subspan(b_begin);
+    ASSERT(first_part.size() < size);
+    return {first_part, buffer.subspan(0, size - first_part.size())};
+  }
+
+  gsl::span<char> buffer;
+  std::size_t start;
+};
 
 int MmsgAppendV(PoolMem& pool_buf,
                 int current_size,

@@ -128,6 +128,7 @@ target_sources(
           res.cc
           qualified_resource_name_type_converter.cc
 )
+target_link_libraries(bareos PRIVATE Microsoft.GSL::GSL)
 
 add_library(version-obj OBJECT version.cc)
 target_compile_definitions(
