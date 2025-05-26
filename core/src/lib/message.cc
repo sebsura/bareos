@@ -877,13 +877,11 @@ const char* get_basename(const char* pathname)
   return basename;
 }
 
-char debug_message_storage[1024 * 1024];
-
-static inline std::size_t bareos_atomic_add(std::size_t* ptr,
-                                            std::size_t value,
-                                            int memorder)
+static inline std::size_t bareos_atomic_fetch_add(std::size_t* ptr,
+                                                  std::size_t value,
+                                                  int memorder)
 {
-  return __atomic_add_fetch(ptr, value, memorder);
+  return __atomic_fetch_add(ptr, value, memorder);
 }
 
 template <typename T>
@@ -937,9 +935,6 @@ class ring_buffer {
 
   void print_trace(std::ostream& stream)
   {
-#if 0
-    (void)stream;
-#else
     std::size_t read_start = bareos_atomic_load(&start, __ATOMIC_RELAXED);
 
     for (std::size_t current = read_start;;) {
@@ -960,7 +955,7 @@ class ring_buffer {
 
       current -= msg_size;
 
-      {
+      if (msg_size) {
         auto [first, second] = range_to_buffer(current, msg_size);
 
         std::string_view first_part{first.data(), first.size()};
@@ -978,14 +973,26 @@ class ring_buffer {
           stream << second_part;
         }
       }
+
+      // make sure we are always even
+      if ((current & 0b1) != 0) { current -= 1; }
     }
-#endif
   }
 
  private:
   std::size_t allocate(std::size_t count)
   {
-    return bareos_atomic_add(&start, count, __ATOMIC_RELAXED);
+    // we always want the message footer to be written at a two byte boundary
+    // we can achieve this by making sure that we only ever allocate
+    // an even amount of bytes.
+    // so if we get an odd amount of bytes, then we just allocate one more
+    // and move the start up a byte, so that the caller still gets just
+    // count bytes, but we allocate an even amount.
+
+    bool bad_size = (count & 0b1) != 0;
+    count += bad_size;
+
+    return bareos_atomic_fetch_add(&start, count, __ATOMIC_RELAXED) + bad_size;
   }
 
   std::pair<gsl::span<char>, gsl::span<char>> range_to_buffer(std::size_t begin,
@@ -1007,6 +1014,9 @@ class ring_buffer {
   gsl::span<char> buffer;
   std::size_t start;
 };
+
+char debug_message_storage[1024 * 1024];
+ring_buffer debug_message_ring(debug_message_storage);
 
 int MmsgAppendV(PoolMem& pool_buf,
                 int current_size,
@@ -1049,8 +1059,19 @@ int MmsgAppend(PoolMem& pool_buf, int current_size, const char* fmt, ...)
   return res;
 }
 
+static void full_write(FILE* file, std::string_view msg)
+{
+  std::size_t bytes_written = 0;
+  while (bytes_written < msg.size()) {
+    std::size_t count = fwrite(msg.data() + bytes_written, 1,
+                               msg.size() - bytes_written, file);
+    if (count == 0) { break; }
+    bytes_written += count;
+  }
+}
+
 // Print or write output to trace file
-static void pt_out(char* buf)
+static void pt_out(std::string_view msg)
 {
   /* Used the "trace on" command in the console to turn on
    * output to the trace file.  "trace off" will close the file. */
@@ -1062,7 +1083,7 @@ static void pt_out(char* buf)
       trace_fd = fopen(fn.c_str(), "a+b");
     }
     if (trace_fd) {
-      fputs(buf, trace_fd);
+      full_write(trace_fd, msg);
       fflush(trace_fd);
       return;
     } else {
@@ -1071,8 +1092,10 @@ static void pt_out(char* buf)
     }
   }
 
+  debug_message_ring.write(msg);
+
   // Not tracing
-  fputs(buf, stdout);
+  full_write(stdout, msg);
   fflush(stdout);
 }
 
@@ -1121,7 +1144,7 @@ void d_msg(const char* file, int line, int level, const char* fmt, ...)
 
     va_end(ap);
 
-    pt_out(buf.c_str());
+    pt_out({buf.c_str(), static_cast<std::size_t>(current_len)});
   }
 }
 
@@ -1183,8 +1206,8 @@ void p_msg(const char* file, int line, int level, const char* fmt, ...)
 
   int current_len = 0;
   if (level >= 0) {
-    current_len = MmsgAppend(buf, current_len, "%s: %s:%d-%u ",
-                             my_name, get_basename(file), line,
+    current_len = MmsgAppend(buf, current_len, "%s: %s:%d-%u ", my_name,
+                             get_basename(file), line,
                              GetJobIdFromThreadSpecificData());
   }
 
