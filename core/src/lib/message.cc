@@ -1283,27 +1283,31 @@ void d_msg(const char* file, int line, int level, const char* fmt, ...)
   PoolMem buf(PM_EMSG);
 
   int current_len = 0;
+  int timestamp_len = 0;
 
   if (level <= debug_level) {
-    if (dbg_timestamp) {
-      mtime = GetCurrentBtime();
-      usecs = mtime % 1000000;
-      current_len = MmsgAppend(
-          buf, current_len, "%s.%06d ",
-          bstrftimes(ed1, sizeof(ed1), BtimeToUtime(mtime)), usecs);
-    }
+    mtime = GetCurrentBtime();
+    usecs = mtime % 1000000;
+    current_len = timestamp_len
+        = MmsgAppend(buf, current_len, "%s.%06d ",
+                     bstrftimes(ed1, sizeof(ed1), BtimeToUtime(mtime)), usecs);
 
     current_len = MmsgAppend(buf, current_len, "%s (%d): %s:%d-%u ", my_name,
                              level, get_basename(file), line,
                              GetJobIdFromThreadSpecificData());
 
     va_start(ap, fmt);
-
     current_len = MmsgAppendV(buf, current_len, fmt, ap);
-
     va_end(ap);
 
-    pt_out({buf.c_str(), static_cast<std::size_t>(current_len)});
+    char* output = buf.c_str();
+
+    if (!dbg_timestamp) {
+      current_len -= timestamp_len;
+      output += timestamp_len;
+    }
+
+    pt_out({output, static_cast<std::size_t>(current_len)});
   }
 }
 
