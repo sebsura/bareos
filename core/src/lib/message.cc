@@ -908,7 +908,6 @@ template <size_t N> class simple_ring_buffer {
   //  2 bit of state (see above)
   // 30 bits of payload
   struct datum {
-    // use 16byte atomics here ?
     alignas(128) std::atomic<std::uint32_t> value;
   };
 
@@ -981,8 +980,7 @@ class ring_buffer {
                                    buffer.size() - postfix_size);
     if (message.size() > max_len) { message = message.substr(0, max_len); }
 
-    auto& datum
-        = active_writers.get(bareos_atomic_load(&start, __ATOMIC_RELAXED));
+    auto& datum = active_writers.get(start.load(std::memory_order_relaxed));
 
     auto msg_start = allocate(message.size() + postfix_size);
 
@@ -1012,7 +1010,7 @@ class ring_buffer {
 
   void print_trace(std::ostream& stream)
   {
-    std::size_t read_start = bareos_atomic_load(&start, __ATOMIC_RELAXED);
+    std::size_t read_start = start.load(std::memory_order_relaxed);
 
     read_start = active_writers.min(read_start);
 
@@ -1041,8 +1039,7 @@ class ring_buffer {
 
 
         // check that we did not get overriden
-        if (current + buffer.size()
-            < bareos_atomic_load(&start, __ATOMIC_RELAXED)) {
+        if (current + buffer.size() < start.load(std::memory_order_relaxed)) {
           break;
         }
 
@@ -1062,7 +1059,7 @@ class ring_buffer {
   {
     std::vector<std::string> msgs;
 
-    std::size_t read_start = bareos_atomic_load(&start, __ATOMIC_RELAXED);
+    std::size_t read_start = start.load(std::memory_order_relaxed);
 
     read_start = active_writers.min(read_start);
 
@@ -1091,8 +1088,7 @@ class ring_buffer {
 
 
         // check that we did not get overriden
-        if (current + buffer.size()
-            < bareos_atomic_load(&start, __ATOMIC_RELAXED)) {
+        if (current + buffer.size() < start.load(std::memory_order_relaxed)) {
           break;
         }
 
@@ -1104,8 +1100,7 @@ class ring_buffer {
         }
 
         // check that we did not get overriden
-        if (current + buffer.size()
-            < bareos_atomic_load(&start, __ATOMIC_RELAXED)) {
+        if (current + buffer.size() < start.load(std::memory_order_relaxed)) {
           msgs.pop_back();
           break;
         }
@@ -1131,7 +1126,26 @@ class ring_buffer {
     bool bad_size = (count & 0b1) != 0;
     count += bad_size;
 
-    return bareos_atomic_fetch_add(&start, count, __ATOMIC_RELAXED) + bad_size;
+
+    // TODO: we need to make sure that its impossibe that we return from this
+    // function pointing to a section of the buffer that another thread
+    // is currently already writing to!
+    // we need to calculate the min() of all writers, and check that
+    // current - min + count < buffer.size(); and spin otherwise
+
+    auto current = start.load(std::memory_order_relaxed);
+    for (;;) {
+      auto min = active_writers.min(current);
+
+      if (current - min + count < buffer.size()) {
+        auto new_start = current + count;
+        if (start.compare_exchange_strong(current, new_start,
+                                          std::memory_order_relaxed,
+                                          std::memory_order_relaxed)) {
+          return current + bad_size;
+        }
+      }
+    }
   }
 
   std::pair<gsl::span<char>, gsl::span<char>> range_to_buffer(std::size_t begin,
@@ -1151,7 +1165,7 @@ class ring_buffer {
   }
 
   gsl::span<char> buffer;
-  std::size_t start;
+  std::atomic<std::size_t> start;
   simple_ring_buffer<64> active_writers;
 };
 
