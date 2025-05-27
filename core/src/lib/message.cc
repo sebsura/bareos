@@ -1280,13 +1280,7 @@ void d_msg(const char* file, int line, int level, const char* fmt, ...)
   char ed1[50];
   btime_t mtime;
   uint32_t usecs;
-  bool details = true;
   PoolMem buf(PM_EMSG);
-
-  if (level < 0) {
-    details = false;
-    level = -level;
-  }
 
   int current_len = 0;
 
@@ -1299,11 +1293,9 @@ void d_msg(const char* file, int line, int level, const char* fmt, ...)
           bstrftimes(ed1, sizeof(ed1), BtimeToUtime(mtime)), usecs);
     }
 
-    if (details) {
-      current_len = MmsgAppend(buf, current_len, "%s (%d): %s:%d-%u ", my_name,
-                               level, get_basename(file), line,
-                               GetJobIdFromThreadSpecificData());
-    }
+    current_len = MmsgAppend(buf, current_len, "%s (%d): %s:%d-%u ", my_name,
+                             level, get_basename(file), line,
+                             GetJobIdFromThreadSpecificData());
 
     va_start(ap, fmt);
 
