@@ -1258,6 +1258,7 @@ static void pt_out(std::string_view msg)
     }
   }
 
+  // TODO: we should always add a timestamp here
   debug_message_ring.write(msg);
 
   // Not tracing

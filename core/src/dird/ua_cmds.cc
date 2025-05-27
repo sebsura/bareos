@@ -315,6 +315,9 @@ static struct ua_cmdstruct commands[] = {
      NT_("on | off"), false, false},
     {NT_("automount"), AutomountCmd, T_("Automount after label"),
      NT_("on | off"), false, true},
+    // TODO: debugbuffer, debugtrace, maybe part of status ???
+    // backtrace is a bad name
+    // maybe better as .command ?
     {NT_("backtrace"), BacktraceCmd, T_("Get a debug message backtrace"),
      NT_("type=debug | client=<client>"), true, true},
     {NT_("cancel"), CancelCmd, T_("Cancel a job"),
