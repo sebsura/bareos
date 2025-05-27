@@ -1164,6 +1164,12 @@ std::vector<std::string> dmsg_backtrace()
   return debug_message_ring.backtrace();
 }
 
+void dmsg_write_trace(std::ostream& stream)
+{
+  debug_message_ring.print_trace(stream);
+}
+
+
 int MmsgAppendV(PoolMem& pool_buf,
                 int current_size,
                 const char* fmt,

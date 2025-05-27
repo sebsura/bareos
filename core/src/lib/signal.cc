@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -107,6 +107,17 @@ static void dbg_print_bareos()
     }
     fclose(fp);
   }
+}
+
+#  include <fstream>
+
+void write_debug_messages(const char* path)
+{
+  std::ofstream dbgout{path};
+
+  dmsg_write_trace(dbgout);
+
+  dbgout.close();
 }
 
 // Handle signals here
@@ -227,6 +238,9 @@ extern "C" void SignalHandler(int sig)
         printf(" ==== End traceback output ====\n\n");
       }
     }
+    snprintf(buf, sizeof(buf), "%s/bareos.%s.dbg", working_directory, pid_buf);
+
+    write_debug_messages(buf);
 
     dbg_print_bareos();
   }
