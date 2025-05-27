@@ -1128,13 +1128,6 @@ class ring_buffer {
     bool bad_size = (count & 0b1) != 0;
     count += bad_size;
 
-
-    // TODO: we need to make sure that its impossibe that we return from this
-    // function pointing to a section of the buffer that another thread
-    // is currently already writing to!
-    // we need to calculate the min() of all writers, and check that
-    // current - min + count < buffer.size(); and spin otherwise
-
     auto current = start.load(std::memory_order_relaxed);
     for (;;) {
       auto min = active_writers.min(current);
