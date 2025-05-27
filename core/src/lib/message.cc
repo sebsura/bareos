@@ -935,14 +935,14 @@ template <size_t N> class simple_ring_buffer {
 
   void release(datum& d)
   {
-    d.value.store(empty.value, std::memory_order_relaxed);
+    d.value.store(empty.value, std::memory_order_release);
   }
 
   std::uint32_t min(std::uint32_t init)
   {
     std::uint32_t current = init;
     for (auto& d : data) {
-      std::uint32_t value = d.value.load(std::memory_order_relaxed);
+      std::uint32_t value = d.value.load(std::memory_order_acquire);
 
       if ((value >> 30) == 0) { continue; }
 
