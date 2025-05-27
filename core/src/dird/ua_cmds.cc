@@ -128,7 +128,7 @@ extern bool DotStatusCmd(UaContext* ua, const char* cmd);
 /* Forward referenced functions */
 static bool add_cmd(UaContext* ua, const char* cmd);
 static bool AutomountCmd(UaContext* ua, const char* cmd);
-static bool BacktraceCmd(UaContext* ua, const char* cmd);
+static bool DotDebugTraceCmd(UaContext* ua, const char* cmd);
 static bool CancelCmd(UaContext* ua, const char* cmd);
 static bool CreateCmd(UaContext* ua, const char* cmd);
 static bool DeleteCmd(UaContext* ua, const char* cmd);
@@ -309,17 +309,17 @@ static struct ua_cmdstruct commands[] = {
      true},
     {NT_(".bvfs_clear_cache"), DotBvfsClearCacheCmd, T_("Clear BVFS cache"),
      NT_("yes"), false, true},
+    {NT_(".debugtrace"), DotDebugTraceCmd,
+     T_("Print a list of the last n (or all if n is not set) debug messages of "
+        "the target"),
+     NT_("type | client=<client> | storage=<storage> | count=<n>"), false,
+     true},
     {NT_("add"), add_cmd, T_("Add media to a pool"),
      NT_("pool=<pool-name> storage=<storage-name> jobid=<jobid>"), false, true},
     {NT_("autodisplay"), AutodisplayCmd, T_("Autodisplay console messages"),
      NT_("on | off"), false, false},
     {NT_("automount"), AutomountCmd, T_("Automount after label"),
      NT_("on | off"), false, true},
-    // TODO: debugbuffer, debugtrace, maybe part of status ???
-    // backtrace is a bad name
-    // maybe better as .command ?
-    {NT_("backtrace"), BacktraceCmd, T_("Get a debug message backtrace"),
-     NT_("type=debug | client=<client>"), true, true},
     {NT_("cancel"), CancelCmd, T_("Cancel a job"),
      NT_("storage=<storage-name> | jobid=<jobid> | job=<job-name> | "
          "ujobid=<unique-jobid> | state=<job_state> | all yes"),
@@ -790,7 +790,7 @@ static void BacktraceCmdClient(UaContext* ua, ClientResource* client,
 }
 #endif
 
-static bool BacktraceCmd(UaContext* ua, const char*)
+static bool DotDebugTraceCmd(UaContext* ua, const char*)
 {
   auto msgs = dmsg_backtrace();
 
