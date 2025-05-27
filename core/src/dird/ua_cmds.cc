@@ -796,7 +796,8 @@ static bool DotDebugTraceCmd(UaContext* ua, const char*)
 
   ua->SendMsg("--- START ---\n");
   for (std::size_t i = 0; i < msgs.size(); ++i) {
-    ua->SendMsg("(%zu/%zu) %s\n", i + 1, msgs.size(), msgs[i].c_str());
+    ua->SendMsg("(%zu/%zu) %s%s", i + 1, msgs.size(), msgs[i].c_str(),
+                (msgs[i].size() > 0 && msgs[i].back() == '\n') ? "" : "\n");
   }
   ua->SendMsg("--- END ---\n");
 
