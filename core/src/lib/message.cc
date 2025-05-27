@@ -1237,7 +1237,7 @@ static void full_write(FILE* file, std::string_view msg)
 }
 
 // Print or write output to trace file
-static void pt_out(std::string_view msg)
+static void pt_out(std::string_view msg, std::size_t offset)
 {
   /* Used the "trace on" command in the console to turn on
    * output to the trace file.  "trace off" will close the file. */
@@ -1258,11 +1258,10 @@ static void pt_out(std::string_view msg)
     }
   }
 
-  // TODO: we should always add a timestamp here
   debug_message_ring.write(msg);
 
   // Not tracing
-  full_write(stdout, msg);
+  full_write(stdout, msg.substr(0, offset));
   fflush(stdout);
 }
 
@@ -1285,9 +1284,14 @@ void d_msg(const char* file, int line, int level, const char* fmt, ...)
   if (level <= debug_level) {
     mtime = GetCurrentBtime();
     usecs = mtime % 1000000;
-    current_len = timestamp_len
+    current_len
         = MmsgAppend(buf, current_len, "%s.%06d ",
                      bstrftimes(ed1, sizeof(ed1), BtimeToUtime(mtime)), usecs);
+
+    if (!dbg_timestamp) {
+      // skip the timestamp
+      timestamp_len = current_len;
+    }
 
     current_len = MmsgAppend(buf, current_len, "%s (%d): %s:%d-%u ", my_name,
                              level, get_basename(file), line,
@@ -1297,14 +1301,7 @@ void d_msg(const char* file, int line, int level, const char* fmt, ...)
     current_len = MmsgAppendV(buf, current_len, fmt, ap);
     va_end(ap);
 
-    char* output = buf.c_str();
-
-    if (!dbg_timestamp) {
-      current_len -= timestamp_len;
-      output += timestamp_len;
-    }
-
-    pt_out({output, static_cast<std::size_t>(current_len)});
+    pt_out({buf.c_str(), static_cast<std::size_t>(current_len)}, timestamp_len);
   }
 }
 
@@ -1376,7 +1373,7 @@ void p_msg(const char* file, int line, int level, const char* fmt, ...)
   current_len = MmsgAppendV(buf, current_len, fmt, ap);
   va_end(ap);
 
-  pt_out(buf.c_str());
+  pt_out(buf.c_str(), 0);
 }
 
 // print an error message
