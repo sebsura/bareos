@@ -884,6 +884,13 @@ static inline std::size_t bareos_atomic_fetch_add(std::size_t* ptr,
   return __atomic_fetch_add(ptr, value, memorder);
 }
 
+static inline void bareos_atomic_sub(std::size_t* ptr,
+                                     std::size_t value,
+                                     int memorder)
+{
+  (void)__atomic_fetch_sub(ptr, value, memorder);
+}
+
 template <typename T>
 static inline void bareos_atomic_store(T* ptr, T value, int memorder)
 {
@@ -895,7 +902,67 @@ template <typename T> static inline T bareos_atomic_load(T* ptr, int memorder)
   return __atomic_load_n(ptr, memorder);
 }
 
+template <size_t N> class simple_ring_buffer {
+ public:
+  // each 32 bit value contains
+  //  2 bit of state (see above)
+  // 30 bits of payload
+  struct datum {
+    // use 16byte atomics here ?
+    alignas(128) std::atomic<std::uint32_t> value;
+  };
+
+  static constexpr datum empty{0};
+  static constexpr datum progress(std::uint32_t value)
+  {
+    return {1 << 30 | value};
+  }
+  static constexpr datum used(std::uint32_t value) { return {2 << 30 | value}; }
+
+  datum& get(std::uint32_t current)
+  {
+    for (;;) {
+      for (auto& d : data) {
+        std::uint32_t expected = empty.value;
+        std::uint32_t desired = progress(current).value;
+        if (d.value.compare_exchange_strong(expected, desired,
+                                            std::memory_order_relaxed,
+                                            std::memory_order_relaxed)) {
+          return d;
+        }
+      }
+    }
+  }
+
+  void release(datum& d)
+  {
+    d.value.store(empty.value, std::memory_order_relaxed);
+  }
+
+  std::uint32_t min(std::uint32_t init)
+  {
+    std::uint32_t current = init;
+    for (auto& d : data) {
+      std::uint32_t value = d.value.load(std::memory_order_relaxed);
+
+      if ((value >> 30) == 0) { continue; }
+
+      std::uint32_t actual_value = value & ~(3 << 30);
+
+      if (actual_value < current) { current = actual_value; }
+    }
+    return current;
+  }
+
+  static constexpr std::size_t size() { return N; }
+
+ private:
+  datum data[N] = {};
+};
+
 class ring_buffer {
+  static constexpr std::uint16_t max_message_length = 1024;
+
  public:
   ring_buffer(gsl::span<char> buffer_) : buffer{buffer_}, start{0}
   {
@@ -903,16 +970,24 @@ class ring_buffer {
       // we want even buffer sizes
       buffer = buffer.subspan(0, buffer.size() - 1);
     }
+
+    ASSERT(buffer.size() > active_writers.size() * max_message_length);
   }
 
   void write(std::string_view message)
   {
     constexpr std::size_t postfix_size = sizeof(std::uint16_t);
-    std::size_t max_len
-        = std::min(std::size_t{1024}, buffer.size() - postfix_size);
+    std::size_t max_len = std::min(max_message_length - postfix_size,
+                                   buffer.size() - postfix_size);
     if (message.size() > max_len) { message = message.substr(0, max_len); }
 
+    auto& datum
+        = active_writers.get(bareos_atomic_load(&start, __ATOMIC_RELAXED));
+
     auto msg_start = allocate(message.size() + postfix_size);
+
+    datum.value.store(active_writers.used(msg_start).value,
+                      std::memory_order_relaxed);
 
     auto first_part = buffer.subspan(msg_start % buffer.size());
     gsl::span<char> second_part{};
@@ -931,11 +1006,15 @@ class ring_buffer {
         reinterpret_cast<std::uint16_t*>(
             &buffer[(msg_start + message.size()) % buffer.size()]),
         static_cast<std::uint16_t>(message.size()), __ATOMIC_RELEASE);
+
+    active_writers.release(datum);
   }
 
   void print_trace(std::ostream& stream)
   {
     std::size_t read_start = bareos_atomic_load(&start, __ATOMIC_RELAXED);
+
+    read_start = active_writers.min(read_start);
 
     for (std::size_t current = read_start;;) {
       // read 2 bytes preceeding current
@@ -984,6 +1063,8 @@ class ring_buffer {
     std::vector<std::string> msgs;
 
     std::size_t read_start = bareos_atomic_load(&start, __ATOMIC_RELAXED);
+
+    read_start = active_writers.min(read_start);
 
     for (std::size_t current = read_start;;) {
       // read 2 bytes preceeding current
@@ -1071,6 +1152,7 @@ class ring_buffer {
 
   gsl::span<char> buffer;
   std::size_t start;
+  simple_ring_buffer<64> active_writers;
 };
 
 
