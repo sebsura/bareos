@@ -1270,9 +1270,6 @@ static void pt_out(std::string_view msg)
  *  This subroutine prints a debug message if the level number is less than or
  *  equal the debug_level. File and line numbers are included for more detail if
  *  desired, but not currently printed.
- *
- *  If the level is negative, the details of file and line number are not
- *  printed.
  */
 void d_msg(const char* file, int line, int level, const char* fmt, ...)
 {
