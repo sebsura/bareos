@@ -975,6 +975,8 @@ class ring_buffer {
 
   void write(std::string_view message)
   {
+    if (message.size() == 0) { return; }
+
     constexpr std::size_t postfix_size = sizeof(std::uint16_t);
     std::size_t max_len = std::min(max_message_length - postfix_size,
                                    buffer.size() - postfix_size);
@@ -1151,6 +1153,8 @@ class ring_buffer {
   std::pair<gsl::span<char>, gsl::span<char>> range_to_buffer(std::size_t begin,
                                                               std::size_t size)
   {
+    ASSERT(size > 0);
+
     std::size_t b_begin = begin % buffer.size();
     std::size_t b_end = (begin + size) % buffer.size();
 
