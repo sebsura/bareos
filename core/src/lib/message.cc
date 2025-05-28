@@ -1261,7 +1261,7 @@ static void pt_out(std::string_view msg, std::size_t offset)
   debug_message_ring.write(msg);
 
   // Not tracing
-  full_write(stdout, msg.substr(0, offset));
+  full_write(stdout, msg.substr(offset));
   fflush(stdout);
 }
 
