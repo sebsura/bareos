@@ -904,27 +904,30 @@ template <typename T> static inline T bareos_atomic_load(T* ptr, int memorder)
 
 template <size_t N> class simple_ring_buffer {
  public:
-  // each 32 bit value contains
+  // each 64 bit value contains
   //  2 bit of state (see above)
-  // 30 bits of payload
+  // 62 bits of payload
   struct datum {
     alignas(std::hardware_destructive_interference_size)
-        std::atomic<std::uint32_t> value;
+        std::atomic<std::uint64_t> value;
   };
 
   static constexpr datum empty{0};
-  static constexpr datum progress(std::uint32_t value)
+  static constexpr datum progress(std::uint64_t value)
   {
-    return {1 << 30 | value};
+    return {std::uint64_t{1} << 62 | value};
   }
-  static constexpr datum used(std::uint32_t value) { return {2 << 30 | value}; }
+  static constexpr datum used(std::uint64_t value)
+  {
+    return {std::uint64_t{2} << 62 | value};
+  }
 
-  datum& get(std::uint32_t current)
+  datum& get(std::uint64_t current)
   {
     for (;;) {
       for (auto& d : data) {
-        std::uint32_t expected = empty.value;
-        std::uint32_t desired = progress(current).value;
+        std::uint64_t expected = empty.value;
+        std::uint64_t desired = progress(current).value;
         if (d.value.compare_exchange_strong(expected, desired,
                                             std::memory_order_relaxed,
                                             std::memory_order_relaxed)) {
@@ -939,15 +942,15 @@ template <size_t N> class simple_ring_buffer {
     d.value.store(empty.value, std::memory_order_release);
   }
 
-  std::uint32_t min(std::uint32_t init)
+  std::uint64_t min(std::uint64_t init)
   {
-    std::uint32_t current = init;
+    std::uint64_t current = init;
     for (auto& d : data) {
-      std::uint32_t value = d.value.load(std::memory_order_acquire);
+      std::uint64_t value = d.value.load(std::memory_order_acquire);
 
-      if ((value >> 30) == 0) { continue; }
+      if ((value >> 62) == 0) { continue; }
 
-      std::uint32_t actual_value = value & ~(3 << 30);
+      std::uint64_t actual_value = value & ~(3 << 30);
 
       if (actual_value < current) { current = actual_value; }
     }
