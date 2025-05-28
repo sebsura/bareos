@@ -908,7 +908,8 @@ template <size_t N> class simple_ring_buffer {
   //  2 bit of state (see above)
   // 30 bits of payload
   struct datum {
-    alignas(128) std::atomic<std::uint32_t> value;
+    alignas(std::hardware_destructive_interference_size)
+        std::atomic<std::uint32_t> value;
   };
 
   static constexpr datum empty{0};
@@ -962,15 +963,30 @@ template <size_t N> class simple_ring_buffer {
 class ring_buffer {
   static constexpr std::uint16_t max_message_length = 1024;
 
+  // we always want the message footer to be written at a two byte boundary
+  // we can achieve this by making sure that we only ever allocate
+  // an even amount of bytes.
+
+  // this is the aligment of the !!end!! of a message.  This makes sure that the
+  // footer is never split between two ranges, and that writing never crosses
+  // cache boundaries => better perf
+  static constexpr size_t message_alignment
+      = std::hardware_destructive_interference_size;
+
+#define debugbreak() __asm__ __volatile__("int3")
+#define myass(expr)                \
+  do {                             \
+    if (!(expr)) { debugbreak(); } \
+  } while (0)
+
  public:
   ring_buffer(gsl::span<char> buffer_) : buffer{buffer_}, start{0}
   {
-    if (buffer.size() & 0x1) {
-      // we want even buffer sizes
-      buffer = buffer.subspan(0, buffer.size() - 1);
-    }
+    auto aligned_size = buffer.size() & ~(message_alignment - 1);
+    // we want aligned buffer sizes
+    buffer = buffer.subspan(0, aligned_size);
 
-    ASSERT(buffer.size() > active_writers.size() * max_message_length);
+    myass(buffer.size() > active_writers.size() * max_message_length);
   }
 
   void write(std::string_view message)
@@ -1024,7 +1040,7 @@ class ring_buffer {
       current -= sizeof(msg_size);
       {
         auto [first, second] = range_to_buffer(current, sizeof(msg_size));
-        ASSERT(second.size() == 0);
+        myass(second.size() == 0);
 
         msg_size = bareos_atomic_load(
             reinterpret_cast<std::uint16_t*>(first.data()), __ATOMIC_ACQUIRE);
@@ -1034,17 +1050,24 @@ class ring_buffer {
 
       current -= msg_size;
 
+      if (start.load(std::memory_order_relaxed) - current >= buffer.size()) {
+        // we got lapped, so just cancel here
+        return;
+      }
+
       if (msg_size) {
         auto [first, second] = range_to_buffer(current, msg_size);
 
         std::string_view first_part{first.data(), first.size()};
 
 
-        // check that we did not get overriden
-        if (current + buffer.size() < start.load(std::memory_order_relaxed)) {
-          break;
+        if (start.load(std::memory_order_relaxed) - current >= buffer.size()) {
+          // we got lapped, so just cancel here
+          return;
         }
 
+        // TODO: write this into a local buffer first,
+        // then check if we got lapped, and then "print" it
         stream << first_part;
         if (second.size()) {
           std::string_view second_part{second.data(), second.size()};
@@ -1052,8 +1075,7 @@ class ring_buffer {
         }
       }
 
-      // make sure we are always even
-      if ((current & 0b1) != 0) { current -= 1; }
+      current = current & ~(message_alignment - 1);
     }
   }
 
@@ -1073,7 +1095,7 @@ class ring_buffer {
       current -= sizeof(msg_size);
       {
         auto [first, second] = range_to_buffer(current, sizeof(msg_size));
-        ASSERT(second.size() == 0);
+        myass(second.size() == 0);
 
         msg_size = bareos_atomic_load(
             reinterpret_cast<std::uint16_t*>(first.data()), __ATOMIC_ACQUIRE);
@@ -1108,8 +1130,8 @@ class ring_buffer {
         }
       }
 
-      // make sure we are always even
-      if ((current & 0b1) != 0) { current -= 1; }
+
+      current = current & ~(message_alignment - 1);
     }
 
     return msgs;
@@ -1118,22 +1140,15 @@ class ring_buffer {
  private:
   std::size_t allocate(std::size_t count)
   {
-    // we always want the message footer to be written at a two byte boundary
-    // we can achieve this by making sure that we only ever allocate
-    // an even amount of bytes.
-    // so if we get an odd amount of bytes, then we just allocate one more
-    // and move the start up a byte, so that the caller still gets just
-    // count bytes, but we allocate an even amount.
-
-    constexpr size_t alignment = 128;
-
-    // find smallest number e, such that count + e is divisible by alignment
-    std::size_t extra = (alignment - count) & (alignment - 1);
+    // find smallest number e, such that count + e is divisible by
+    // message_alignment
+    std::size_t extra = (message_alignment - count) & (message_alignment - 1);
 
     count += extra;
     auto current = start.load(std::memory_order_relaxed);
+    volatile std::size_t loop_count = 0;
     for (;;) {
-      auto min = active_writers.min(current);
+      volatile auto min = active_writers.min(current);
 
       if (current - min + count < buffer.size()) {
         auto new_start = current + count;
@@ -1143,26 +1158,31 @@ class ring_buffer {
           return current + extra;
         }
       }
+
+      loop_count += 1;
     }
   }
 
   std::pair<gsl::span<char>, gsl::span<char>> range_to_buffer(std::size_t begin,
                                                               std::size_t size)
   {
-    ASSERT(size > 0);
+    myass(size > 0);
+    myass(size < buffer.size());
 
     std::size_t b_begin = begin % buffer.size();
-    std::size_t b_end = (begin + size) % buffer.size();
+    std::size_t b_end = (b_begin + size);
 
-    if (b_begin < b_end) {
-      ASSERT(b_end - b_begin == size);
-      return {buffer.subspan(b_begin, size), {}};
+    if (b_end > buffer.size()) {
+      auto first_part = buffer.subspan(b_begin);
+      myass(first_part.size() < size);
+      return {first_part, buffer.subspan(0, size - first_part.size())};
     }
 
-    auto first_part = buffer.subspan(b_begin);
-    ASSERT(first_part.size() < size);
-    return {first_part, buffer.subspan(0, size - first_part.size())};
+    myass(b_end - b_begin == size);
+    return {buffer.subspan(b_begin, size), {}};
   }
+#undef myass
+#undef debugbreak
 
   gsl::span<char> buffer;
   std::atomic<std::size_t> start;
