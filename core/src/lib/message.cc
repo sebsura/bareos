@@ -1125,9 +1125,12 @@ class ring_buffer {
     // and move the start up a byte, so that the caller still gets just
     // count bytes, but we allocate an even amount.
 
-    bool bad_size = (count & 0b1) != 0;
-    count += bad_size;
+    constexpr size_t alignment = 128;
 
+    // find smallest number e, such that count + e is divisible by alignment
+    std::size_t extra = (alignment - count) & (alignment - 1);
+
+    count += extra;
     auto current = start.load(std::memory_order_relaxed);
     for (;;) {
       auto min = active_writers.min(current);
@@ -1137,7 +1140,7 @@ class ring_buffer {
         if (start.compare_exchange_strong(current, new_start,
                                           std::memory_order_relaxed,
                                           std::memory_order_relaxed)) {
-          return current + bad_size;
+          return current + extra;
         }
       }
     }
