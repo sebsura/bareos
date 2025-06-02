@@ -912,14 +912,25 @@ template <size_t N> class simple_ring_buffer {
         std::atomic<std::uint64_t> value;
   };
 
-  static constexpr datum empty{0};
+  static constexpr std::uint64_t state_mask{std::uint64_t{3} << 62};
+  static constexpr std::uint64_t value_mask{~state_mask};
+  // empty => slot empty
+  static constexpr std::uint64_t state_empty{std::uint64_t{0} << 62};
+  // progress => slot in use, but no memory allocated yet
+  //  contains "current" when state switched
+  static constexpr std::uint64_t state_progress{std::uint64_t{1} << 62};
+  // used => slot in use, and memory allocated yet
+  //  contains index of allocated memory
+  static constexpr std::uint64_t state_used{std::uint64_t{2} << 62};
+
+  static constexpr datum empty{state_empty | 0};
   static constexpr datum progress(std::uint64_t value)
   {
-    return {std::uint64_t{1} << 62 | value};
+    return {state_progress | value};
   }
   static constexpr datum used(std::uint64_t value)
   {
-    return {std::uint64_t{2} << 62 | value};
+    return {state_used | value};
   }
 
   datum& get(std::uint64_t current)
@@ -948,9 +959,9 @@ template <size_t N> class simple_ring_buffer {
     for (auto& d : data) {
       std::uint64_t value = d.value.load(std::memory_order_acquire);
 
-      if ((value >> 62) == 0) { continue; }
+      if ((value & state_mask) == state_empty) { continue; }
 
-      std::uint64_t actual_value = value & ~(3 << 30);
+      std::uint64_t actual_value = value & value_mask;
 
       if (actual_value < current) { current = actual_value; }
     }
