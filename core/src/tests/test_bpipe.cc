@@ -45,12 +45,12 @@ static int events[NSIG];
 class SignalCatcher {
   static void SignalHandler(int signal) { events[signal]++; }
   int sig_num;
-  struct sigaction oldact{};
+  struct sigaction oldact {};
 
  public:
   SignalCatcher(int t_sig_num) noexcept : sig_num(t_sig_num)
   {
-    struct sigaction sa{};
+    struct sigaction sa {};
     sa.sa_handler = &SignalHandler;
     sigaction(sig_num, &sa, &oldact);
     events[sig_num] = 0;
