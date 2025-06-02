@@ -334,7 +334,9 @@ bool StorageDaemonDeviceControlRecord::DirUpdateVolumeInfo(
   if (label == is_labeloperation::True) {
     bstrncpy(vol->VolCatStatus, "Append", sizeof(vol->VolCatStatus));
   }
-  // Manually labeled volume was written on
+  // Manually labeled volume was written on.
+  // This should not occur because "update volume" > Volume Status does not list
+  // "Unlabeled" as an option.
   else if (bstrncmp(vol->VolCatStatus, "Unlabeled", sizeof(vol->VolCatStatus))
            && vol->VolCatBytes > 0) {
     bstrncpy(vol->VolCatStatus, "Append", sizeof(vol->VolCatStatus));
