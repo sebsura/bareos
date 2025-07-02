@@ -161,21 +161,20 @@ template <class T> struct Parser<Modulo<T>> {
       auto divisor = Parser<int>::Parse(str.substr(index + 1));
       if (remainder && divisor) {
         if (static_cast<int>(*remainder) < static_cast<int>(*divisor)) {
-          return Modulo<T>{static_cast<int>(*remainder), static_cast<int>(*divisor)};
-        }
-        else if (static_cast<int>(*remainder) == static_cast<int>(*divisor)) {
+          return Modulo<T>{static_cast<int>(*remainder),
+                           static_cast<int>(*divisor)};
+        } else if (static_cast<int>(*remainder) == static_cast<int>(*divisor)) {
           return Modulo<T>{0, static_cast<int>(*divisor)};
         }
       }
-    }
-    else {
+    } else {
       auto remainder = Parser<T>::Parse(str.substr(0, index));
       auto divisor = Parser<T>::Parse(str.substr(index + 1));
       if (remainder && divisor) {
         if (static_cast<int>(*remainder) < static_cast<int>(*divisor)) {
-          return Modulo<T>{static_cast<int>(*remainder), static_cast<int>(*divisor)};
-        }
-        else if (static_cast<int>(*remainder) == static_cast<int>(*divisor)) {
+          return Modulo<T>{static_cast<int>(*remainder),
+                           static_cast<int>(*divisor)};
+        } else if (static_cast<int>(*remainder) == static_cast<int>(*divisor)) {
           return Modulo<T>{0, static_cast<int>(*divisor)};
         }
       }
@@ -210,7 +209,8 @@ Parser<Schedule>::Parse(const std::vector<std::string>& tokens)
     }
     if (lower_str == "on") {
       if (i != 0) {
-        warnings.emplace_back("Token \"on\" should only appear at the start of the schedule.");
+        warnings.emplace_back(
+            "Token \"on\" should only appear at the start of the schedule.");
       }
       continue;
     }
@@ -351,7 +351,7 @@ struct s_kw RunFields[] = {{"pool", 'P'},
 void StoreRun(lexer* lc, const ResourceItem* item, int index, int pass)
 {
   int i, j;
-  int options = lc->options;
+  auto options = lc->options;
   int token;
   bool found;
   utime_t utime;

@@ -151,7 +151,7 @@ struct lexer {
 };
 
 // Lexical scanning errors in parsing conf files
-#define scan_err0(lc, msg) (lc)->scan_error(__FILE__, __LINE__, (lc), msg)
+#define scan_err0(lc, msg) (lc)->scan_error(__FILE__, __LINE__, (lc), "%s", msg)
 #define scan_err1(lc, msg, a1) \
   (lc)->scan_error(__FILE__, __LINE__, (lc), msg, a1)
 #define scan_err2(lc, msg, a1, a2) \
@@ -166,7 +166,8 @@ struct lexer {
   (lc)->scan_error(__FILE__, __LINE__, (lc), msg, a1, a2, a3, a4, a5, a6)
 
 // Lexical scanning warnings in parsing conf files
-#define scan_warn0(lc, msg) (lc)->scan_warning(__FILE__, __LINE__, (lc), msg)
+#define scan_warn0(lc, msg) \
+  (lc)->scan_warning(__FILE__, __LINE__, (lc), "%s", msg)
 #define scan_warn1(lc, msg, a1) \
   (lc)->scan_warning(__FILE__, __LINE__, (lc), msg, a1)
 #define scan_warn2(lc, msg, a1, a2) \

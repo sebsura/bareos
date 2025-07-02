@@ -91,7 +91,7 @@ time_t DateTime::GetTime() const
 
 void DateTime::PrintDebugMessage(int debug_level) const
 {
-  Dmsg8(debug_level, "now = %x: h=%d m=%d md=%d wd=%d woy=%d yday=%d\n ",
+  Dmsg8(debug_level, "now = %lx: h=%d m=%d md=%d wd=%d woy=%d yday=%d\n ",
         GetTime(), hour, month, day_of_month, day_of_week, week_of_year,
         day_of_year);
 }
