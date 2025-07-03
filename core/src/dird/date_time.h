@@ -238,42 +238,51 @@ class DayOfMonth {
  private:
   int _value;
 };
-struct DayOfWeek {
-  static constexpr std::array<std::string_view, 7> kNames = {
-      "Sunday",   "Monday", "Tuesday",  "Wednesday",
-      "Thursday", "Friday", "Saturday",
-  };
 
-  DayOfWeek(int index)
+struct DayOfWeek {
+  template <std::size_t Index> static constexpr DayOfWeek FromIndex()
   {
-    ASSERT(0 <= index && static_cast<size_t>(index) < kNames.size());
-    name = kNames.at(index);
+    static_assert(0 <= Index && Index < kNames.size());
+    return DayOfWeek(Index);
   }
-  static std::optional<DayOfWeek> FromName(std::string_view name)
+
+
+  static constexpr std::optional<DayOfWeek> FromIndex(int value)
   {
-    for (std::string_view other_name : kNames) {
+    if (0 <= value && static_cast<size_t>(value) < kNames.size()) {
+      return DayOfWeek{static_cast<size_t>(value)};
+    }
+    return std::nullopt;
+  }
+  static constexpr std::optional<DayOfWeek> FromName(std::string_view name)
+  {
+    for (std::size_t i = 0; i < std::size(kNames); ++i) {
+      auto other_name = kNames[i];
       if (name.length() == other_name.length() || name.length() == 3) {
         if (bstrncasecmp(name.data(), other_name.data(), name.length())) {
-          return DayOfWeek{other_name};
+          return DayOfWeek{i};
         }
       }
     }
     return std::nullopt;
   }
 
-  size_t Index() const
-  {
-    for (size_t i = 0; i < kNames.size(); ++i) {
-      if (kNames.at(i).data() == name.data()) { return i; }
-    }
-    throw std::logic_error{"Illegal DayOfWeek instance."};
-  }
+  size_t Index() const { return index; }
   operator int() const { return Index(); }
 
-  std::string_view name;
+  std::string_view name2() const { return kNames[index]; }
+
+  DayOfWeek() = default;
 
  private:
-  DayOfWeek(std::string_view _name) : name(_name) {}
+  static constexpr std::array<std::string_view, 7> kNames = {
+      "Sunday",   "Monday", "Tuesday",  "Wednesday",
+      "Thursday", "Friday", "Saturday",
+  };
+
+
+  std::uint32_t index;
+  DayOfWeek(std::size_t index_) : index(index_) {}
 };
 
 struct TimeOfDay {
@@ -297,7 +306,7 @@ struct DateTime {
   WeekOfMonth wom{};
   int day_of_year{0};
   int day_of_month{0};
-  int day_of_week{0};
+  DayOfWeek dow{};
   int hour{0};
   int minute{0};
   int second{0};

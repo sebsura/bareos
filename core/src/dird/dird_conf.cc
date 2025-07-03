@@ -1383,7 +1383,7 @@ std::string ToString(DayOfMonth value)
 // :: DayOfWeek
 std::string ToString(DayOfWeek day_of_week)
 {
-  return std::string(day_of_week.name.substr(0, 3));
+  return std::string(day_of_week.name2().substr(0, 3));
 }
 // :: TimeOfDay
 std::string ToString(TimeOfDay time)

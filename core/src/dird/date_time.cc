@@ -50,7 +50,7 @@ DateTime::DateTime(time_t time)
   wom = WeekOfMonth::FromIndex((original_time_.tm_mday - 1) / 7).value();
   day_of_year = original_time_.tm_yday;
   day_of_month = original_time_.tm_mday - 1;
-  day_of_week = original_time_.tm_wday;
+  dow = DayOfWeek::FromIndex(original_time_.tm_wday).value();
   hour = original_time_.tm_hour;
   minute = original_time_.tm_min;
   second = original_time_.tm_sec;
@@ -70,7 +70,7 @@ time_t DateTime::GetTime() const
   tm.tm_mon = moy.Index();
   tm.tm_yday = day_of_year;
   tm.tm_mday = day_of_month + 1;
-  tm.tm_wday = day_of_week;
+  tm.tm_wday = dow.Index();
   tm.tm_hour = hour;
   tm.tm_min = minute;
   tm.tm_sec = second;
@@ -79,8 +79,8 @@ time_t DateTime::GetTime() const
 
 void DateTime::PrintDebugMessage(int debug_level) const
 {
-  Dmsg8(debug_level, "now = %lx: h=%d m=%zu md=%d wd=%d woy=%zu yday=%d\n ",
-        GetTime(), hour, moy.Index(), day_of_month, day_of_week, woy.Index(),
+  Dmsg8(debug_level, "now = %lx: h=%d m=%zu md=%d wd=%zu woy=%zu yday=%d\n ",
+        GetTime(), hour, moy.Index(), day_of_month, dow.Index(), woy.Index(),
         day_of_year);
 }
 
@@ -93,7 +93,7 @@ std::ostream& operator<<(std::ostream& stream, const DateTime& date_time)
   stream << "mweek=" << date_time.wom.Index() << ", ";
   stream << "yday=" << date_time.day_of_year << ", ";
   stream << "mday=" << date_time.day_of_month << ", ";
-  stream << "wday=" << date_time.day_of_week << ", ";
+  stream << "wday=" << date_time.dow.Index() << ", ";
   stream << "hr=" << date_time.hour << ", ";
   stream << "min=" << date_time.minute << ", ";
   stream << "sec=" << date_time.second;

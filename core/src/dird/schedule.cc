@@ -37,7 +37,7 @@ bool Schedule::TriggersOnDay(DateTime date_time) const
              || (date_time.OnLast7DaysOfMonth()
                  && TriggersOn(*WeekOfMonth::FromName("last"))))
          && TriggersOn(DayOfMonth(date_time.day_of_month))
-         && TriggersOn(DayOfWeek{date_time.day_of_week});
+         && TriggersOn(date_time.dow);
 }
 std::vector<time_t> Schedule::GetMatchingTimes(time_t from, time_t to) const
 {
