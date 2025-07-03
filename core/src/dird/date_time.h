@@ -44,15 +44,74 @@ constexpr auto kSecondsPerDay
     = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::hours(24))
           .count();
 
-struct MonthOfYear {
-  static constexpr std::string_view kNames[] = {
-      "January", "February", "March",     "April",   "Mai",      "June",
-      "Juli",    "August",   "September", "October", "November", "December",
-  };
+struct DaysInMonth {
+  std::size_t normal_year;
+  std::size_t leap_year;
 
+  explicit constexpr DaysInMonth(std::size_t length)
+      : normal_year{length}, leap_year{length}
+  {
+  }
+
+  constexpr DaysInMonth(std::size_t nlength, std::size_t llength)
+      : normal_year{nlength}, leap_year{llength}
+  {
+  }
+};
+
+struct MonthData {
+  std::string_view name;
+  DaysInMonth length;
+
+  constexpr MonthData(std::string_view name_, DaysInMonth length_)
+      : name{name_}, length{length_}
+  {
+  }
+};
+
+template <size_t N>
+static constexpr auto ComputeFirstDays(const MonthData (&month_data)[N],
+                                       bool leap)
+{
+  std::array<int, N> first_days = {};
+
+  auto current_day = 0;
+  for (std::size_t i = 0; i < N; ++i) {
+    first_days[i] = current_day;
+    if (leap) {
+      current_day += month_data[i].length.leap_year;
+    } else {
+      current_day += month_data[i].length.normal_year;
+    }
+  }
+
+  return first_days;
+}
+
+template <size_t N>
+static constexpr auto ComputeLastDays(const MonthData (&month_data)[N],
+                                      bool leap)
+{
+  std::array<int, N> last_days = {};
+
+  auto current_day = 0;
+  for (std::size_t i = 0; i < N; ++i) {
+    if (leap) {
+      current_day += month_data[i].length.leap_year;
+    } else {
+      current_day += month_data[i].length.normal_year;
+    }
+    last_days[i] = current_day;
+  }
+
+  return last_days;
+}
+
+class MonthOfYear {
+ public:
   static std::optional<MonthOfYear> FromIndex(int index)
   {
-    if (0 <= index && static_cast<size_t>(index) < std::size(kNames)) {
+    if (0 <= index && static_cast<size_t>(index) < std::size(month_data)) {
       return MonthOfYear{static_cast<std::size_t>(index)};
     }
 
@@ -60,10 +119,11 @@ struct MonthOfYear {
   }
   static std::optional<MonthOfYear> FromName(std::string_view name)
   {
-    for (std::size_t i = 0; i < std::size(kNames); ++i) {
+    for (std::size_t i = 0; i < std::size(month_data); ++i) {
       // you can either specify the full name, or just the first three letters
-      if (name.length() == kNames[i].length() || name.length() == 3) {
-        if (bstrncasecmp(name.data(), kNames[i].data(), name.length())) {
+      if (name.length() == month_data[i].name.length() || name.length() == 3) {
+        if (bstrncasecmp(name.data(), month_data[i].name.data(),
+                         name.length())) {
           return MonthOfYear{i};
         }
       }
@@ -74,11 +134,29 @@ struct MonthOfYear {
   size_t Index() const { return index; }
   operator int() const { return Index(); }
 
-  std::string_view name() const { return kNames[index]; }
+  std::string_view name() const { return month_data[index].name; }
+
+  auto first_day(bool leap) const { return first_days[leap][index]; }
+
+  auto last_day(bool leap) const { return last_days[leap][index]; }
 
   MonthOfYear() = default;
 
  private:
+  static constexpr MonthData month_data[] = {
+      {"January", DaysInMonth(30)},   {"February", DaysInMonth(28, 29)},
+      {"March", DaysInMonth(31)},     {"April", DaysInMonth(30)},
+      {"Mai", DaysInMonth(31)},       {"June", DaysInMonth(30)},
+      {"Juli", DaysInMonth(31)},      {"August", DaysInMonth(31)},
+      {"September", DaysInMonth(30)}, {"October", DaysInMonth(31)},
+      {"November", DaysInMonth(30)},  {"December", DaysInMonth(31)},
+  };
+
+  static constexpr auto first_days = std::array{
+      ComputeFirstDays(month_data, false), ComputeFirstDays(month_data, true)};
+  static constexpr auto last_days = std::array{
+      ComputeLastDays(month_data, false), ComputeLastDays(month_data, true)};
+
   std::size_t index{};
   MonthOfYear(std::size_t index_) : index(index_) {}
 };

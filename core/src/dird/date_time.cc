@@ -39,18 +39,6 @@ static bool IsLeapYear(int year)
   if (year % 4 == 0) { return true; }
   return false;
 }
-static int LastDayOfMonth(int year, int month)
-{
-  if (IsLeapYear(year)) {
-    static constexpr std::array<int, kMonthsPerYear> kLastDaysInMonth
-        = {30, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365};
-    return kLastDaysInMonth.at(month);
-  } else {
-    static constexpr std::array<int, kMonthsPerYear> kLastDaysInMonth
-        = {30, 58, 89, 119, 150, 180, 211, 242, 272, 303, 333, 364};
-    return kLastDaysInMonth.at(month);
-  }
-}
 
 DateTime::DateTime(time_t time)
 {
@@ -70,7 +58,7 @@ DateTime::DateTime(time_t time)
 
 bool DateTime::OnLast7DaysOfMonth() const
 {
-  auto last_day = LastDayOfMonth(year, moy.Index());
+  auto last_day = moy.last_day(IsLeapYear(year));
   ASSERT(last_day >= day_of_year);
   return last_day - kDaysPerWeek < day_of_year;
 }
