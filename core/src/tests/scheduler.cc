@@ -377,7 +377,7 @@ template <class T> class ValueValidator : public DateTimeValidator {
     } else if constexpr (std::is_same_v<U, WeekOfYear>) {
       return WeekOfYear{date_time.week_of_year};
     } else if constexpr (std::is_same_v<U, WeekOfMonth>) {
-      return WeekOfMonth{date_time.week_of_month};
+      return date_time.wom;
     } else if constexpr (std::is_same_v<U, DayOfMonth>) {
       return DayOfMonth{date_time.day_of_month};
     } else if constexpr (std::is_same_v<U, DayOfWeek>) {
@@ -410,7 +410,7 @@ TEST_F(SchedulerTest, trigger_correctly)
   start_date_time.year = 1970;
   start_date_time.moy = {};
   start_date_time.week_of_year = 1;
-  start_date_time.week_of_month = 0;
+  start_date_time.wom = {};
   start_date_time.day_of_year = 0;
   start_date_time.day_of_month = 0;
   start_date_time.day_of_week = 4;

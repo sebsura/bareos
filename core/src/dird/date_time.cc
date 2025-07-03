@@ -47,7 +47,7 @@ DateTime::DateTime(time_t time)
   year = 1900 + original_time_.tm_year;
   moy = MonthOfYear::FromIndex(original_time_.tm_mon).value();
   week_of_year = TmWoy(time);
-  week_of_month = (original_time_.tm_mday - 1) / 7;
+  wom = WeekOfMonth::FromIndex((original_time_.tm_mday - 1) / 7).value();
   day_of_year = original_time_.tm_yday;
   day_of_month = original_time_.tm_mday - 1;
   day_of_week = original_time_.tm_wday;
@@ -90,7 +90,7 @@ std::ostream& operator<<(std::ostream& stream, const DateTime& date_time)
   stream << "yr=" << date_time.year << ", ";
   stream << "mon=" << date_time.moy.Index() << ", ";
   stream << "yweek=" << date_time.week_of_year << ", ";
-  stream << "mweek=" << date_time.week_of_month << ", ";
+  stream << "mweek=" << date_time.wom.Index() << ", ";
   stream << "yday=" << date_time.day_of_year << ", ";
   stream << "mday=" << date_time.day_of_month << ", ";
   stream << "wday=" << date_time.day_of_week << ", ";

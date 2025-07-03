@@ -34,7 +34,7 @@ bool Schedule::TriggersOnDay(DateTime date_time) const
 {
   return TriggersOn(date_time.moy)
          && TriggersOn(WeekOfYear(date_time.week_of_year))
-         && (TriggersOn(WeekOfMonth{date_time.week_of_month})
+         && (TriggersOn(date_time.wom)
              || (date_time.OnLast7DaysOfMonth()
                  && TriggersOn(*WeekOfMonth::FromName("last"))))
          && TriggersOn(DayOfMonth(date_time.day_of_month))

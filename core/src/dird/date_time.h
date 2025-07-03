@@ -157,64 +157,69 @@ class MonthOfYear {
   static constexpr auto last_days = std::array{
       ComputeLastDays(month_data, false), ComputeLastDays(month_data, true)};
 
-  std::size_t index{};
+  std::uint32_t index{};
   MonthOfYear(std::size_t index_) : index(index_) {}
 };
+
 class WeekOfYear {
  public:
   WeekOfYear() = default;
-  WeekOfYear(int value) : _value(value) { ASSERT(0 <= value && value <= 53); }
+  WeekOfYear(int value) : index(value) { ASSERT(0 <= value && value <= 53); }
 
-  operator int() const { return _value; }
+  operator int() const { return index; }
 
  private:
-  int _value;
+  std::uint32_t index;
 };
-struct WeekOfMonth {
-  static constexpr std::array<std::string_view, 6> kNames = {
-      "first", "second", "third", "fourth", "last", "fifth",
-  };
-  static constexpr std::array<std::string_view, 6> kAlternativeNames = {
-      "1st", "2nd", "3rd", "4th", "last", "5th",
-  };
-  static_assert(kNames.size() == kAlternativeNames.size());
 
-  WeekOfMonth(int index)
+struct WomData {
+  std::string_view primary_name;
+  std::string_view alternative_name;
+};
+
+class WeekOfMonth {
+ public:
+  static std::optional<WeekOfMonth> FromIndex(int index)
   {
-    ASSERT(0 <= index && static_cast<size_t>(index) < kNames.size());
-    name = kNames.at(index);
+    if (0 <= index && static_cast<size_t>(index) < std::size(data)) {
+      return WeekOfMonth(index);
+    }
+
+    return std::nullopt;
   }
   static std::optional<WeekOfMonth> FromName(std::string_view name)
   {
-    for (size_t i = 0; i < kNames.size(); ++i) {
-      if (name.length() == kNames.at(i).length()) {
-        if (bstrncasecmp(name.data(), kNames.at(i).data(), name.length())) {
-          return WeekOfMonth{kNames.at(i)};
+    for (size_t i = 0; i < std::size(data); ++i) {
+      auto [primary, alternative] = data[i];
+      if (name.length() == primary.length()) {
+        if (bstrncasecmp(name.data(), primary.data(), name.length())) {
+          return WeekOfMonth{i};
         }
       }
-      if (name.length() == kAlternativeNames.at(i).length()) {
-        if (bstrncasecmp(name.data(), kAlternativeNames.at(i).data(),
-                         name.length())) {
-          return WeekOfMonth{kNames.at(i)};
+      if (name.length() == alternative.length()) {
+        if (bstrncasecmp(name.data(), alternative.data(), name.length())) {
+          return WeekOfMonth{i};
         }
       }
     }
     return std::nullopt;
   }
 
-  size_t Index() const
-  {
-    for (size_t i = 0; i < kNames.size(); ++i) {
-      if (kNames.at(i).data() == name.data()) { return i; }
-    }
-    throw std::logic_error{"Illegal WeekOfMonth instance."};
-  }
+  size_t Index() const { return index; }
   operator int() const { return Index(); }
 
-  std::string_view name;
+  std::string_view name() const { return data[index].primary_name; }
+
+  WeekOfMonth() = default;
 
  private:
-  WeekOfMonth(std::string_view _name) : name(_name) {}
+  static constexpr WomData data[] = {
+      {"first", "1st"},  {"second", "2nd"}, {"third", "3rd"},
+      {"fourth", "4th"}, {"last", "last"},  {"fifth", "fifth"},
+  };
+
+  std::uint32_t index;
+  WeekOfMonth(std::size_t index_) : index(index_) {}
 };
 
 class DayOfMonth {
@@ -283,7 +288,7 @@ struct DateTime {
   int year{0};
   MonthOfYear moy{};
   int week_of_year{0};
-  int week_of_month{0};
+  WeekOfMonth wom{};
   int day_of_year{0};
   int day_of_month{0};
   int day_of_week{0};
