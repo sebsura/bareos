@@ -1409,8 +1409,9 @@ template <class T> std::string ToString(const Modulo<T>& modulo)
 {
   if constexpr (std::is_same_v<DayOfMonth, T>) {
     return ToString(modulo.remainder) + "/" + ToString(modulo.divisor);
-  } else {
-    return ToString(T{modulo.remainder}) + "/" + ToString(T{modulo.divisor});
+  } else if constexpr (std::is_same_v<WeekOfYear, T>) {
+    return ToString(T::FromIndex(modulo.remainder).value()) + "/"
+           + ToString(T::FromIndex(modulo.divisor).value());
   }
 }
 // :: std::variant

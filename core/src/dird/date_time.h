@@ -164,11 +164,17 @@ class MonthOfYear {
 class WeekOfYear {
  public:
   WeekOfYear() = default;
-  WeekOfYear(int value) : index(value) { ASSERT(0 <= value && value <= 53); }
-
   operator int() const { return index; }
+  std::size_t Index() const { return index; }
+
+  static constexpr std::optional<WeekOfYear> FromIndex(int value)
+  {
+    if (0 <= value && value <= 53) { return WeekOfYear{value}; }
+    return std::nullopt;
+  }
 
  private:
+  WeekOfYear(int value) : index(value) {}
   std::uint32_t index;
 };
 
@@ -287,7 +293,7 @@ struct DateTime {
 
   int year{0};
   MonthOfYear moy{};
-  int week_of_year{0};
+  WeekOfYear woy{};
   WeekOfMonth wom{};
   int day_of_year{0};
   int day_of_month{0};

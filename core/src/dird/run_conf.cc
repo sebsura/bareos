@@ -68,8 +68,8 @@ template <> struct Parser<WeekOfYear> {
   {
     if (str.size() == 0 || str.at(0) != 'w') { return std::nullopt; }
     auto index = Parser<int>::Parse(str.substr(1));
-    if (index && 0 <= *index && *index <= 53) { return WeekOfYear{*index}; }
-    return std::nullopt;
+    if (!index) { return std::nullopt; }
+    return WeekOfYear::FromIndex(*index);
   }
 };
 template <> struct Parser<WeekOfMonth> {

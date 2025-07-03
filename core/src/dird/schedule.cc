@@ -32,8 +32,7 @@ Schedule::Schedule(const std::variant<std::vector<TimeOfDay>, Hourly>& _times)
 
 bool Schedule::TriggersOnDay(DateTime date_time) const
 {
-  return TriggersOn(date_time.moy)
-         && TriggersOn(WeekOfYear(date_time.week_of_year))
+  return TriggersOn(date_time.moy) && TriggersOn(date_time.woy)
          && (TriggersOn(date_time.wom)
              || (date_time.OnLast7DaysOfMonth()
                  && TriggersOn(*WeekOfMonth::FromName("last"))))
