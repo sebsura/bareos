@@ -21,8 +21,8 @@
    02110-1301, USA.
 */
 
-#ifndef BAREOS_DIRD_SCHEDULE_H
-#define BAREOS_DIRD_SCHEDULE_H
+#ifndef BAREOS_DIRD_SCHEDULE_H_
+#define BAREOS_DIRD_SCHEDULE_H_
 
 #include "date_time.h"
 
@@ -43,7 +43,23 @@ template <class T> struct Interval {
 template <class T> struct Modulo {
   int remainder, divisor;
 };
-template <class T> using Mask = std::variant<Interval<T>, Modulo<T>, T>;
+
+namespace {
+template <typename T> struct Helper {
+  using Inner = std::variant<Interval<T>, T>;
+};
+
+template <> struct Helper<WeekOfYear> {
+  using Inner
+      = std::variant<Interval<WeekOfYear>, Modulo<WeekOfYear>, WeekOfYear>;
+};
+
+template <> struct Helper<int> {
+  using Inner = std::variant<Interval<int>, Modulo<int>, int>;
+};
+};  // namespace
+
+template <class T> using Mask = typename Helper<T>::Inner;
 
 template <class T> bool Contains(const Interval<T>& interval, T value)
 {

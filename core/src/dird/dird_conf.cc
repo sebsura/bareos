@@ -1362,7 +1362,7 @@ std::string ToString(int value) { return std::to_string(value); }
 // :: MonthOfYear
 std::string ToString(MonthOfYear month_of_year)
 {
-  return std::string(month_of_year.name.substr(0, 3));
+  return std::string(month_of_year.name().substr(0, 3));
 }
 // :: WeekOfYear
 std::string ToString(WeekOfYear week_of_year)
@@ -1409,8 +1409,7 @@ template <class T> std::string ToString(const Modulo<T>& modulo)
 {
   if constexpr (std::is_same_v<DayOfMonth, T>) {
     return ToString(modulo.remainder) + "/" + ToString(modulo.divisor);
-  }
-  else {
+  } else {
     return ToString(T{modulo.remainder}) + "/" + ToString(T{modulo.divisor});
   }
 }

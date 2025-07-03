@@ -34,46 +34,53 @@
 
 namespace directordaemon {
 
-constexpr auto kSecondsPerMinute = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::minutes(1)).count();
-constexpr auto kSecondsPerHour = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::hours(1)).count();
-constexpr auto kSecondsPerDay = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::hours(24)).count();
+constexpr auto kSecondsPerMinute
+    = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::minutes(1))
+          .count();
+constexpr auto kSecondsPerHour
+    = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::hours(1))
+          .count();
+constexpr auto kSecondsPerDay
+    = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::hours(24))
+          .count();
 
 struct MonthOfYear {
-  static constexpr std::array<std::string_view, 12> kNames = {
+  static constexpr std::string_view kNames[] = {
       "January", "February", "March",     "April",   "Mai",      "June",
       "Juli",    "August",   "September", "October", "November", "December",
   };
 
-  MonthOfYear(int index)
+  static std::optional<MonthOfYear> FromIndex(int index)
   {
-    ASSERT(0 <= index && static_cast<size_t>(index) < kNames.size());
-    name = kNames.at(index);
+    if (0 <= index && static_cast<size_t>(index) < std::size(kNames)) {
+      return MonthOfYear{static_cast<std::size_t>(index)};
+    }
+
+    return std::nullopt;
   }
   static std::optional<MonthOfYear> FromName(std::string_view name)
   {
-    for (std::string_view other_name : kNames) {
-      if (name.length() == other_name.length() || name.length() == 3) {
-        if (bstrncasecmp(name.data(), other_name.data(), name.length())) {
-          return MonthOfYear{other_name};
+    for (std::size_t i = 0; i < std::size(kNames); ++i) {
+      // you can either specify the full name, or just the first three letters
+      if (name.length() == kNames[i].length() || name.length() == 3) {
+        if (bstrncasecmp(name.data(), kNames[i].data(), name.length())) {
+          return MonthOfYear{i};
         }
       }
     }
     return std::nullopt;
   }
 
-  size_t Index() const
-  {
-    for (size_t i = 0; i < kNames.size(); ++i) {
-      if (kNames.at(i).data() == name.data()) { return i; }
-    }
-    throw std::logic_error{"Illegal MonthOfYear instance."};
-  }
+  size_t Index() const { return index; }
   operator int() const { return Index(); }
 
-  std::string_view name;
+  std::string_view name() const { return kNames[index]; }
+
+  MonthOfYear() = default;
 
  private:
-  MonthOfYear(std::string_view _name) : name(_name) {}
+  std::size_t index{};
+  MonthOfYear(std::size_t index_) : index(index_) {}
 };
 class WeekOfYear {
  public:
@@ -196,7 +203,7 @@ struct DateTime {
   time_t GetTime() const;
 
   int year{0};
-  int month{0};
+  MonthOfYear moy{};
   int week_of_year{0};
   int week_of_month{0};
   int day_of_year{0};

@@ -287,8 +287,8 @@ enum
 
 TEST_F(SchedulerTest, parse_schedule_correctly)
 {
-  static std::vector<std::pair<std::string_view, std::string_view>> kValidSchedules
-      = {
+  static std::vector<std::pair<std::string_view, std::string_view>>
+      kValidSchedules = {
           {"", "at 00:00"},
           {"hourly", "hourly at 00:00"},
           {"hourly at :15", "hourly at 00:15"},
@@ -322,8 +322,7 @@ TEST_F(SchedulerTest, parse_schedule_correctly)
     }
   }
 
-  static std::vector<std::string_view> kInvalidSchedules
-  = {
+  static std::vector<std::string_view> kInvalidSchedules = {
       "w20/w05",
   };
   for (std::string_view schedule : kInvalidSchedules) {
@@ -374,7 +373,7 @@ template <class T> class ValueValidator : public DateTimeValidator {
   template <class U> static auto Get(const DateTime& date_time)
   {
     if constexpr (std::is_same_v<U, MonthOfYear>) {
-      return MonthOfYear{date_time.month};
+      return date_time.moy;
     } else if constexpr (std::is_same_v<U, WeekOfYear>) {
       return WeekOfYear{date_time.week_of_year};
     } else if constexpr (std::is_same_v<U, WeekOfMonth>) {
@@ -409,7 +408,7 @@ TEST_F(SchedulerTest, trigger_correctly)
   // different time zones.
   DateTime start_date_time{0};
   start_date_time.year = 1970;
-  start_date_time.month = 0;
+  start_date_time.moy = {};
   start_date_time.week_of_year = 1;
   start_date_time.week_of_month = 0;
   start_date_time.day_of_year = 0;
@@ -516,11 +515,13 @@ TEST_F(SchedulerTest, trigger_correctly)
                MakeValidator(
                    std::vector{DayOfMonth{29}, DayOfMonth{30}, DayOfMonth{0}}),
            }},
-           {"0/2 at 23:10", 186, {}},
-           {"1/2 at 23:10", 179, {}},
-           {"0/7 at 23:10", 59, {
-            MakeValidator(std::vector{DayOfMonth{0}, DayOfMonth{7}, DayOfMonth{14}, DayOfMonth{21}, DayOfMonth{28}})
-           }},
+          {"0/2 at 23:10", 186, {}},
+          {"1/2 at 23:10", 179, {}},
+          {"0/7 at 23:10",
+           59,
+           {MakeValidator(std::vector{DayOfMonth{0}, DayOfMonth{7},
+                                      DayOfMonth{14}, DayOfMonth{21},
+                                      DayOfMonth{28}})}},
       };
   for (auto [schedule, expected_count, validators] : kSchedules) {
     auto [result, warnings] = Parser<Schedule>::Parse(schedule);
