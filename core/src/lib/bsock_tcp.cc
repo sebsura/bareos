@@ -1110,7 +1110,7 @@ int32_t BareosSocketTCP::write_nbytes(char* ptr, int32_t nbytes)
     bnet_dump_->DumpMessageAndStacktraceToFile(ptr, nbytes);
   }
 
-  if (tls_conn) { return (tls_conn->TlsBsockWriten(this, ptr, nbytes)); }
+  if (tls_conn) { return tls_conn->TlsBsockWriten(this, ptr, nbytes); }
 
   nleft = nbytes;
   while (nleft > 0) {

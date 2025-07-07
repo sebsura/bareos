@@ -875,6 +875,8 @@ class WriteBufferedBsock : public BufferedBsock {
       : wrapped{sock}
       , data{std::make_shared<synchronized<WriteBuffer>>(capacity)}
   {
+    auto buf_size = SizeofPoolMemory(sock->msg);
+    SetBufferSize(buf_size, BNET_SETBUF_WRITE);
   }
 
   ~WriteBufferedBsock() {}
