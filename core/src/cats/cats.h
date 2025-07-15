@@ -61,6 +61,20 @@ template <typename T> class dlist;
  *   cats directory.
  */
 
+struct connection_parameter {
+  std::string db_name;
+  std::string db_user;
+  std::string db_password;
+  std::string db_address;
+  std::uint32_t db_port;
+
+  bool mult_db_connections;
+  bool disable_batch_insert;
+  bool try_reconnect;
+  bool exit_on_fatal;
+  bool need_private;
+};
+
 #define faddr_t long
 
 struct VolumeSessionInfo;
@@ -591,13 +605,7 @@ class BareosDb : public BareosDbQueryEnum {
   uint32_t ref_count_ = 0;         /**< Reference count */
   bool connected_ = false;         /**< Connection made to db */
   bool have_batch_insert_ = false; /**< Have batch insert support ? */
-  bool try_reconnect_ = true;      /**< Try reconnecting DB connection ? */
-  bool exit_on_fatal_ = false;     /**< Exit on FATAL DB errors ? */
-  std::string db_name_{};          /**< Database name */
-  std::string db_user_{};          /**< Database user */
-  std::string db_address_{};       /**< Host name address */
-  std::string db_password_{};      /**< Database password */
-  int db_port_ = 0;                /**< Port for host name address */
+  connection_parameter params_;    /**< connection parameters */
   int cached_path_len = 0;         /**< Length of cached path */
   int changes = 0;                 /**< Changes during transaction */
   int fnl = 0;                     /**< File name length */
@@ -657,24 +665,14 @@ class BareosDb : public BareosDbQueryEnum {
       std::string client_name,
       std::vector<char>& stime_out);
 
-  BareosDb(const char* db_name,
-           const char* db_user,
-           const char* db_password,
-           const char* db_address,
-           int db_port,
-           db_conn* backend)
-      : db_name_{db_name}
-      , db_user_{db_user}
-      , db_address_{db_address}
-      , db_password_{db_password}
-      , db_port_{db_port}
-      , BackendCon{backend}
+  BareosDb(connection_parameter params, db_conn* backend)
+      : params_{std::move(params)}, BackendCon{backend}
   {
   }
   virtual ~BareosDb() {}
 
-  const char* get_db_name(void) { return db_name_.c_str(); }
-  const char* get_db_user(void) { return db_user_.c_str(); }
+  const char* get_db_name(void) { return params_.db_name.c_str(); }
+  const char* get_db_user(void) { return params_.db_user.c_str(); }
   bool IsConnected(void) { return connected_; }
   bool BatchInsertAvailable(void) { return have_batch_insert_; }
   bool IsPrivate(void) { return is_private_; }
@@ -1029,7 +1027,9 @@ class BareosDb : public BareosDbQueryEnum {
   void UpgradeCopies(const char* jobids);
 
   /* Low level methods */
-  bool MatchDatabase(const char* db_name, const char* db_address, int db_port);
+  bool MatchDatabase(const char* db_name,
+                     const char* db_address,
+                     std::uint32_t db_port);
   std::unique_ptr<BareosDb> CloneDatabaseConnection(JobControlRecord* jcr,
                                                     bool mult_db_connections,
                                                     bool need_private = false);
@@ -1131,14 +1131,5 @@ int ListResult(JobControlRecord* jcr,
                e_list_type type);
 
 std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
-                                             const char* db_name,
-                                             const char* db_user,
-                                             const char* db_password,
-                                             const char* db_address,
-                                             int db_port,
-                                             bool mult_db_connections,
-                                             bool disable_batch_insert,
-                                             bool try_reconnect,
-                                             bool exit_on_fatal,
-                                             bool need_private = false);
+                                             connection_parameter params);
 #endif  // BAREOS_CATS_CATS_H_

@@ -39,11 +39,11 @@
 
 bool BareosDb::MatchDatabase(const char* db_name,
                              const char* db_address,
-                             int db_port)
+                             std::uint32_t db_port)
 {
-  bool match = bstrcmp(db_name_.c_str(), db_name)
-               && bstrcmp(db_address_.c_str(), db_address)
-               && db_port_ == db_port;
+  bool match = bstrcmp(params_.db_name.c_str(), db_name)
+               && bstrcmp(params_.db_address.c_str(), db_address)
+               && params_.db_port == db_port;
   return match;
 }
 
@@ -58,10 +58,10 @@ std::unique_ptr<BareosDb> BareosDb::CloneDatabaseConnection(
     bool mult_db_connections,
     bool need_private)
 {
-  return DbCreateConnection(jcr, db_name_.c_str(), db_user_.c_str(),
-                            db_password_.c_str(), db_address_.c_str(), db_port_,
-                            mult_db_connections, disabled_batch_insert_,
-                            try_reconnect_, exit_on_fatal_, need_private);
+  auto copy = params_;
+  copy.mult_db_connections = mult_db_connections;
+  copy.need_private = need_private;
+  return DbCreateConnection(jcr, std::move(copy));
 }
 
 const char* BareosDb::GetType(void) { return BackendCon->GetType(); }
@@ -107,16 +107,7 @@ void BareosDb::PrintLockInfo(FILE* fp)
 }
 
 std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
-                                             const char* db_name,
-                                             const char* db_user,
-                                             const char* db_password,
-                                             const char* db_address,
-                                             int db_port,
-                                             bool mult_db_connections,
-                                             bool disable_batch_insert,
-                                             bool try_reconnect,
-                                             bool exit_on_fatal,
-                                             bool need_private)
+                                             connection_parameter params)
 {
   // BareosDb* mdb;
   // Dmsg1(100,
@@ -138,29 +129,13 @@ std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
 
   // return mdb;
 
-  auto* backend_con = postgresql::connect(jcr, db_name, db_user, db_password,
-                                          db_address, db_port);
+  auto* backend_con = postgresql::connect(jcr, params);
   if (!backend_con) {
     Jmsg(jcr, M_FATAL, 0, "%s", "could not establish postgresql connection");
     return nullptr;
   }
 
-  auto ptr = std::make_unique<BareosDb>(db_name, db_user, db_password,
-                                        db_address, db_port, backend_con);
-
-  /*** FIXUP ***/
-  (void)jcr;
-  (void)db_name;
-  (void)db_user;
-  (void)db_password;
-  (void)db_address;
-  (void)db_port;
-  (void)mult_db_connections;
-  (void)disable_batch_insert;
-  (void)try_reconnect;
-  (void)exit_on_fatal;
-  (void)need_private;
-
+  auto ptr = std::make_unique<BareosDb>(std::move(params), backend_con);
 
   return ptr;
 }

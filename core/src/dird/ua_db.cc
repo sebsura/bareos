@@ -133,13 +133,17 @@ bool OpenDb(UaContext* ua, bool use_private)
   ua->jcr->dir_impl->res.catalog = ua->catalog;
   Dmsg0(100, "UA Open database\n");
   /*** FIXME ***/
-  ua->db = DbCreateConnection(
-               ua->jcr, ua->catalog->db_name, ua->catalog->db_user,
-               ua->catalog->db_password.value, ua->catalog->db_address,
-               ua->catalog->db_port, mult_db_conn,
-               ua->catalog->disable_batch_insert, ua->catalog->try_reconnect,
-               ua->catalog->exit_on_fatal, use_private)
-               .release();
+  connection_parameter params = {ua->catalog->db_name,
+                                 ua->catalog->db_user,
+                                 ua->catalog->db_password.value,
+                                 ua->catalog->db_address,
+                                 ua->catalog->db_port,
+                                 mult_db_conn,
+                                 ua->catalog->disable_batch_insert,
+                                 ua->catalog->try_reconnect,
+                                 ua->catalog->exit_on_fatal,
+                                 use_private};
+  ua->db = DbCreateConnection(ua->jcr, std::move(params)).release();
   if (ua->db == NULL) {
     ua->ErrorMsg(T_("Could not open catalog database \"%s\".\n"),
                  ua->catalog->db_name);
