@@ -450,8 +450,7 @@ extern "C" void MsgThreadCleanup(void* arg)
   jcr->dir_impl->term_wait.notify_all(); /* wakeup any waiting threads */
   Dmsg2(100, "=== End msg_thread. JobId=%d usecnt=%d\n", jcr->JobId,
         jcr->UseCount());
-  jcr->db->BackendCon->ThreadCleanup(); /* remove thread specific data */
-  FreeJcr(jcr);                         /* release jcr */
+  FreeJcr(jcr); /* release jcr */
 }
 
 /** Handle the message channel (i.e. requests from the

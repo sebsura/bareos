@@ -544,7 +544,6 @@ enum class SqlFindResult
 struct db_conn {
   /* Virtual low level methods */
   virtual const char* GetType() const = 0;
-  virtual void ThreadCleanup(void) = 0;
   virtual void EscapeString(JobControlRecord* jcr,
                             char* snew,
                             const char* old,
@@ -668,6 +667,15 @@ class BareosDb : public BareosDbQueryEnum {
   BareosDb(connection_parameter params, db_conn* backend)
       : params_{std::move(params)}, BackendCon{backend}
   {
+    errmsg = GetPoolMemory(PM_EMSG);
+    fname = GetPoolMemory(PM_FNAME);
+    path = GetPoolMemory(PM_FNAME);
+    esc_name = GetPoolMemory(PM_FNAME);
+    esc_path = GetPoolMemory(PM_FNAME);
+    esc_obj = GetPoolMemory(PM_FNAME);
+
+    cached_path = GetPoolMemory(PM_FNAME);
+    cached_path_id = 0;
   }
   virtual ~BareosDb() {}
 

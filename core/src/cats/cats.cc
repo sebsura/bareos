@@ -109,26 +109,6 @@ void BareosDb::PrintLockInfo(FILE* fp)
 std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
                                              connection_parameter params)
 {
-  // BareosDb* mdb;
-  // Dmsg1(100,
-  //       "DbSqlGetNonPooledConnection allocating 1 new non pooled database "
-  //       "connection to database %s\n",
-  //       db_name);
-
-  // mdb = db_init_database(jcr, db_drivername, db_name, db_user, db_password,
-  //                        db_address, db_port, db_socket, mult_db_connections,
-  //                        disable_batch_insert, try_reconnect, exit_on_fatal,
-  //                        need_private);
-  // if (mdb == NULL) { return NULL; }
-
-  // if (auto err = mdb->BackendCon->OpenDatabase(jcr)) {
-  //   Jmsg(jcr, M_FATAL, 0, "%s", err);
-  //   mdb->BackendCon->CloseDatabase(jcr);
-  //   return NULL;
-  // }
-
-  // return mdb;
-
   auto* backend_con = postgresql::connect(jcr, params);
   if (!backend_con) {
     Jmsg(jcr, M_FATAL, 0, "%s", "could not establish postgresql connection");
@@ -136,6 +116,13 @@ std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
   }
 
   auto ptr = std::make_unique<BareosDb>(std::move(params), backend_con);
+
+  if (!ptr->CheckTablesVersion(jcr)) {
+    /*** FIXME ***/
+    // add cleanup for backend_con
+    backend_con->CloseDatabase(jcr);
+    return nullptr;
+  }
 
   return ptr;
 }

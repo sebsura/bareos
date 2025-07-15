@@ -32,6 +32,7 @@
  */
 
 #include "include/bareos.h"
+#include "lib/mem_pool.h"
 
 #ifdef HAVE_POSTGRESQL
 
@@ -43,9 +44,6 @@
 #  include "lib/edit.h"
 #  include "lib/berrno.h"
 #  include "lib/dlist.h"
-
-/* pull in the generated queries definitions */
-#  include "postgresql_queries.inc"
 
 /* -----------------------------------------------------------------------
  *
@@ -61,6 +59,16 @@ struct result_deleter {
 };
 
 using result = std::unique_ptr<PGresult, result_deleter>;
+
+struct connection_deleter {
+  void operator()(PGconn* conn) const
+  {
+    // its unclear to me if we can call PQfinish on a nullptr
+    if (conn) { PQfinish(conn); }
+  }
+};
+
+using connection = std::unique_ptr<PGconn, connection_deleter>;
 
 struct retries {
   int amount;
@@ -79,6 +87,28 @@ result do_query(PGconn* db_handle, const char* query, retries r = {10})
   }
   return {};
 }
+
+struct query {
+  query(PGresult* res)
+      : result_{res}
+      , num_fields_{static_cast<size_t>(PQnfields(res))}
+      , num_rows_{static_cast<size_t>(PQntuples(res))}
+  {
+  }
+
+  const char* fetch_value(int row, int field)
+  {
+    return PQgetvalue(result_, row, field);
+  }
+
+  std::size_t field_count() const { return num_fields_; }
+  std::size_t row_count() const { return num_rows_; }
+
+ private:
+  PGresult* result_;
+  std::size_t num_fields_{};
+  std::size_t num_rows_{};
+};
 
 const char* strerror(PGconn* db_handle) { return PQerrorMessage(db_handle); }
 
@@ -111,42 +141,89 @@ result try_query(PGconn* db_handle, bool try_reconnection, const char* query)
 }
 };  // namespace postgres
 
-BareosDbPostgresql::BareosDbPostgresql(JobControlRecord*,
-                                       const char*,
-                                       const char* db_name,
-                                       const char* db_user,
-                                       const char* db_password,
-                                       const char* db_address,
-                                       int db_port,
-                                       const char* db_socket,
-                                       bool mult_db_connections,
-                                       bool disable_batch_insert,
-                                       bool try_reconnect,
-                                       bool exit_on_fatal,
-                                       bool need_private)
+class BareosDbPostgresql : public db_conn {
+ public:
+  dlink<BareosDbPostgresql> link; /**< Queue control */
+  bool connect(JobControlRecord* jcr, connection_parameter params);
+
+  virtual ~BareosDbPostgresql() = default;
+
+ private:
+  void SqlFieldSeek(int field) override { field_number_ = field; }
+  int SqlNumFields(void) override { return num_fields_; }
+  const char* OpenDatabase(JobControlRecord* jcr) override;
+  void CloseDatabase(JobControlRecord* jcr) override;
+  void EscapeString(JobControlRecord* jcr,
+                    char* snew,
+                    const char* old,
+                    int len) override;
+  char* EscapeObject(JobControlRecord* jcr, char* old, int len) override;
+  void UnescapeObject(JobControlRecord* jcr,
+                      char* from,
+                      int32_t expected_len,
+                      POOLMEM*& dest,
+                      int32_t* len) override;
+  void StartTransaction(JobControlRecord* jcr) override;
+  void EndTransaction(JobControlRecord* jcr) override;
+  bool BigSqlQuery(const char* query,
+                   DB_RESULT_HANDLER* ResultHandler,
+                   void* ctx) override;
+
+  bool SqlQueryWithHandler(const char* query,
+                           DB_RESULT_HANDLER* ResultHandler,
+                           void* ctx) override;
+  bool SqlQueryWithoutHandler(const char* query,
+                              query_flags flags = {}) override;
+  void SqlFreeResult(void) override;
+  SQL_ROW SqlFetchRow(void) override;
+  const char* sql_strerror(void) override;
+  void SqlDataSeek(int row) override;
+  int SqlAffectedRows(void) override;
+  uint64_t SqlInsertAutokeyRecord(const char* query,
+                                  const char* table_name) override;
+  SQL_FIELD* SqlFetchField(void) override;
+  bool SqlFieldIsNotNull(int field_type) override;
+  bool SqlFieldIsNumeric(int field_type) override;
+  bool SqlBatchStartFileTable(JobControlRecord* jcr) override;
+  bool SqlBatchEndFileTable(JobControlRecord* jcr, const char* error) override;
+  bool SqlBatchInsertFileTable(JobControlRecord* jcr,
+                               AttributesDbRecord* ar) override;
+
+  bool CheckDatabaseEncoding(JobControlRecord* jcr);
+
+  const char* GetType() const override { return "PostgreSQL"; }
+
+  bool fields_fetched_
+      = false;         /**< Marker, if field descriptions are already fetched */
+  int num_fields_ = 0; /**< Number of fields returned by last query */
+  int num_rows_ = 0;
+  int rows_size_ = 0;               /**< Size of malloced rows */
+  int fields_size_ = 0;             /**< Size of malloced fields */
+  int row_number_ = 0;              /**< Row number from xx_data_seek */
+  int field_number_ = 0;            /**< Field number from SqlFieldSeek */
+  SQL_ROW rows_ = nullptr;          /**< Defined rows */
+  SQL_FIELD* fields_ = nullptr;     /**< Defined fields */
+  bool allow_transactions_ = false; /**< Transactions allowed ? */
+  bool try_reconnect_ = false;
+  bool transaction_ = false; /**< Transaction started ? */
+
+  postgres::connection db_handle_{};
+  // maybe this should be a postgres::query
+  postgres::result result_{};
+
+  PoolMem buf_{PM_FNAME}; /**< Buffer to manipulate queries */
+  static const char*
+      query_definitions[]; /**< table of predefined sql queries */
+};
+
+/* pull in the generated queries definitions */
+#  include "postgresql_queries.inc"
+
+#  if 0
+BareosDbPostgresql::BareosDbPostgresql()
 {
   /*** FIXUP ***/
-  (void)db_name;
-  (void)db_user;
-  (void)db_password;
-  (void)db_address;
-  (void)db_port;
-  (void)db_socket;
-  (void)mult_db_connections;
-  (void)disable_batch_insert;
-  (void)try_reconnect;
-  (void)exit_on_fatal;
-  (void)need_private;
-  //   // Initialize the parent class members.
-  //   db_interface_type_ = SQL_INTERFACE_TYPE_POSTGRESQL;
-  //   db_type_ = SQL_TYPE_POSTGRESQL;
-  //   db_driver_ = strdup("PostgreSQL");
-  //   db_name_ = strdup(db_name);
-  //   db_user_ = strdup(db_user);
-  //   if (db_password) { db_password_ = strdup(db_password); }
-  //   if (db_address) { db_address_ = strdup(db_address); }
-  //   if (db_socket) { db_socket_ = strdup(db_socket); }
-  //   db_port_ = db_port;
+
   //   if (disable_batch_insert) {
   //     disabled_batch_insert_ = true;
   //     have_batch_insert_ = false;
@@ -158,77 +235,54 @@ BareosDbPostgresql::BareosDbPostgresql(JobControlRecord*,
   //     have_batch_insert_ = false;
   // #  endif /* USE_BATCH_FILE_INSERT */
   //   }
-  //   errmsg = GetPoolMemory(PM_EMSG); /* get error message buffer */
-  //   *errmsg = 0;
-  //   cmd = GetPoolMemory(PM_EMSG); /* get command buffer */
-  //   cached_path = GetPoolMemory(PM_FNAME);
-  //   cached_path_id = 0;
-  //   ref_count_ = 1;
-  //   fname = GetPoolMemory(PM_FNAME);
-  //   path = GetPoolMemory(PM_FNAME);
-  //   esc_name = GetPoolMemory(PM_FNAME);
-  //   esc_path = GetPoolMemory(PM_FNAME);
-  //   esc_obj = GetPoolMemory(PM_FNAME);
-  //   buf_ = GetPoolMemory(PM_FNAME);
-  //   allow_transactions_ = mult_db_connections;
-  //   is_private_ = need_private;
-  //   try_reconnect_ = try_reconnect;
-  //   exit_on_fatal_ = exit_on_fatal;
-  //   last_hash_key_ = 0;
-  //   last_query_text_ = NULL;
-
-  //   // Initialize the private members.
-  //   db_handle_ = NULL;
-  //   result_ = NULL;
 
   //   // Put the db in the list.
   //   if (db_list == NULL) { db_list = new dlist<BareosDbPostgresql>(); }
   //   db_list->append(this);
-
-  //   /* make the queries available using the queries variable from the parent
-  //   class
-  //    */
-  //   queries = query_definitions;
 }
-
-BareosDbPostgresql::~BareosDbPostgresql() {}
+#  endif
 
 // Check that the database correspond to the encoding we want
 bool BareosDbPostgresql::CheckDatabaseEncoding(JobControlRecord* jcr)
 {
-  bool retval = false;
+  auto db_encoding = postgres::try_query(db_handle_.get(), true,
+                                         "SELECT getdatabaseencoding()");
 
-  (void)jcr;
-  /*** FIXUP ***/
+  if (!db_encoding) {
+    Jmsg(jcr, M_ERROR, 0, "could not determine database encoding: Err=%s",
+         postgres::strerror(db_handle_.get()));
+    return false;
+  }
 
-  // SQL_ROW row;
-  // if (!SqlQueryWithoutHandler("SELECT getdatabaseencoding()")) {
-  //   Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
-  //   return false;
-  // }
+  postgres::query q{db_encoding.get()};
 
-  // if ((row = SqlFetchRow()) == NULL) {
-  //   Mmsg1(errmsg, T_("error fetching row: %s\n"), errmsg);
-  //   Jmsg(jcr, M_ERROR, 0, "Can't check database encoding %s", errmsg);
-  // } else {
-  //   retval = bstrcmp(row[0], "SQL_ASCII");
 
-  //   if (retval) {
-  //     /* If we are in SQL_ASCII, we can force the client_encoding to
-  //     SQL_ASCII
-  //      * too */
-  //     SqlQueryWithoutHandler("SET client_encoding TO 'SQL_ASCII'");
-  //   } else {
-  //     // Something is wrong with database encoding
-  //     Mmsg(errmsg,
-  //          T_("Encoding error for database \"%s\". Wanted SQL_ASCII, got
-  //          %s\n"), get_db_name(), row[0]);
-  //     Jmsg(jcr, M_WARNING, 0, "%s", errmsg);
-  //     Dmsg1(50, "%s", errmsg);
-  //   }
-  // }
+  if (q.row_count() != 1 || q.field_count() != 1) {
+    Jmsg(jcr, M_ERROR, 0,
+         "database encoding returned unexpected value: rows=%zu fields=%zu",
+         q.row_count(), q.field_count());
+    return false;
+  }
+  auto* encoding = q.fetch_value(0, 0);
+  if (bstrcmp(encoding, "SQL_ASCII") != 0) {
+    // Something is wrong with database encoding
 
-  return retval;
+    PoolMem errmsg;
+    /*** FIXUP ***/
+    errmsg.bsprintf(
+        "Encoding error for database \"%s\". Wanted SQL_ASCII, got %s\n",
+        "get_db_name()", encoding);
+    Jmsg(jcr, M_WARNING, 0, "%s", errmsg.c_str());
+    Dmsg1(50, "%s", errmsg.c_str());
+  }
+
+  /* If we are in SQL_ASCII, we can force the client_encoding to
+  SQL_ASCII
+   * too */
+  auto client_encoding = postgres::try_query(
+      db_handle_.get(), true, "SET client_encoding TO 'SQL_ASCII'");
+
+  return client_encoding != nullptr;
 }
 
 /**
@@ -352,6 +406,7 @@ void BareosDbPostgresql::CloseDatabase(JobControlRecord* jcr)
 {
   (void)jcr;
   /*** FIXUP ***/
+  delete this;
   // if (connected_) { EndTransaction(jcr); }
   // lock_mutex(db_list_mutex);
   // ref_count_--;
@@ -398,7 +453,7 @@ void BareosDbPostgresql::EscapeString(JobControlRecord* jcr,
 {
   int error;
 
-  PQescapeStringConn(db_handle_, snew, old, len, &error);
+  PQescapeStringConn(db_handle_.get(), snew, old, len, &error);
   if (error) {
     Jmsg(jcr, M_FATAL, 0, T_("PQescapeStringConn returned non-zero.\n"));
     /* error on encoding, probably invalid multibyte encoding in the source
@@ -420,6 +475,7 @@ char* BareosDbPostgresql::EscapeObject(JobControlRecord* jcr,
   (void)old;
   (void)len;
   return nullptr;
+
 
   // size_t new_len;
   // unsigned char* obj;
@@ -661,40 +717,30 @@ bool BareosDbPostgresql::SqlQueryWithHandler(const char* query,
 bool BareosDbPostgresql::SqlQueryWithoutHandler(const char* query,
                                                 query_flags flags)
 {
-  /*** FIXUP ***/
-  (void)query;
-  (void)flags;
+  auto result = postgres::try_query(db_handle_.get(),
+                                    try_reconnect_ && !transaction_, query);
 
-  return false;
-
-  // AssertOwnership();
-  // auto result
-  //     = postgres::try_query(db_handle_, try_reconnect_ && !transaction_,
-  //     query);
-  // if (result) {
-  //   if (!flags.test(query_flag::DiscardResult)) {
-  //     PQclear(result_);
-  //     result_ = result.release();
-  //     field_number_ = -1;
-  //     fields_fetched_ = false;
-  //     num_fields_ = (int)PQnfields(result_);
-  //     Dmsg1(500, "We have %d fields\n", num_fields_);
-  //     num_rows_ = PQntuples(result_);
-  //     Dmsg1(500, "We have %d rows\n", num_rows_);
-  //     row_number_ = 0; /* we can start to fetch something */
-  //   }
-  //   return true;
-  // } else {
-  //   return false;
-  // }
+  if (result) {
+    if (!flags.test(query_flag::DiscardResult)) {
+      result_ = std::move(result);
+      postgres::query q{result_.get()};
+      field_number_ = -1;
+      fields_fetched_ = false;
+      num_fields_ = q.field_count();
+      Dmsg1(500, "We have %d fields\n", num_fields_);
+      num_rows_ = q.row_count();
+      Dmsg1(500, "We have %d rows\n", num_rows_);
+      row_number_ = 0; /* we can start to fetch something */
+    }
+    return true;
+  } else {
+    return false;
+  }
 }
 
 void BareosDbPostgresql::SqlFreeResult(void)
 {
-  if (result_) {
-    PQclear(result_);
-    result_ = NULL;
-  }
+  if (result_) { result_.reset(); }
   if (rows_) {
     free(rows_);
     rows_ = NULL;
@@ -738,7 +784,7 @@ SQL_ROW BareosDbPostgresql::SqlFetchRow(void)
     Dmsg2(500, "SqlFetchRow row number '%d' is acceptable (0..%d)\n",
           row_number_, num_rows_);
     for (j = 0; j < num_fields_; j++) {
-      rows_[j] = PQgetvalue(result_, row_number_, j);
+      rows_[j] = PQgetvalue(result_.get(), row_number_, j);
       Dmsg2(500, "SqlFetchRow field '%d' has value '%s'\n", j, rows_[j]);
     }
     // Increment the row number for the next call
@@ -756,7 +802,7 @@ SQL_ROW BareosDbPostgresql::SqlFetchRow(void)
 
 const char* BareosDbPostgresql::sql_strerror(void)
 {
-  return PQerrorMessage(db_handle_);
+  return PQerrorMessage(db_handle_.get());
 }
 
 void BareosDbPostgresql::SqlDataSeek(int row)
@@ -767,7 +813,7 @@ void BareosDbPostgresql::SqlDataSeek(int row)
 
 int BareosDbPostgresql::SqlAffectedRows(void)
 {
-  return (unsigned)str_to_int32(PQcmdTuples(result_));
+  return (unsigned)str_to_int32(PQcmdTuples(result_.get()));
 }
 
 uint64_t BareosDbPostgresql::SqlInsertAutokeyRecord(const char* query,
@@ -905,7 +951,7 @@ SQL_FIELD* BareosDbPostgresql::SqlFetchField(void)
       fields_size_ = num_fields_;
     }
 
-    ComputeFields(num_fields_, num_rows_, fields_, result_);
+    ComputeFields(num_fields_, num_rows_, fields_, result_.get());
 
     fields_fetched_ = true;
   }
@@ -1222,20 +1268,122 @@ bool BareosDbPostgresql::SqlBatchInsertFileTable(JobControlRecord*,
   // return true;
 }
 
-BareosDbPostgresql* connect(JobControlRecord* jcr,
-                            const char* db_name,
-                            const char* db_user,
-                            const char* db_password,
-                            const char* db_address,
-                            int db_port)
+
+bool BareosDbPostgresql::connect(JobControlRecord* jcr,
+                                 connection_parameter params)
 {
-  (void)jcr;
-  (void)db_name;
-  (void)db_user;
-  (void)db_password;
-  (void)db_address;
-  (void)db_port;
-  return nullptr;
+  char buffer[10];
+
+  std::size_t option_count = 0;
+  static constexpr std::size_t max_option_count = 7;
+  const char* keys[max_option_count];
+  const char* values[max_option_count];
+
+  if (!params.db_address.empty()) {
+    keys[option_count] = "host";
+    values[option_count] = params.db_address.c_str();
+    option_count += 1;
+  }
+
+  if (params.db_port) {
+    snprintf(buffer, sizeof(buffer), "%u", params.db_port);
+    keys[option_count] = "port";
+    values[option_count] = buffer;
+    option_count += 1;
+  }
+
+  if (!params.db_name.empty()) {
+    keys[option_count] = "dbname";
+    values[option_count] = params.db_name.c_str();
+    option_count += 1;
+  }
+
+  if (!params.db_user.empty()) {
+    keys[option_count] = "user";
+    values[option_count] = params.db_user.c_str();
+    option_count += 1;
+  }
+
+  if (!params.db_password.empty()) {
+    keys[option_count] = "password";
+    values[option_count] = params.db_password.c_str();
+    option_count += 1;
+  }
+
+  keys[option_count] = "sslmode";
+  values[option_count] = "disable";
+  option_count += 1;
+
+  keys[option_count] = nullptr;
+  values[option_count] = nullptr;
+  option_count += 1;
+
+  ASSERT(option_count <= max_option_count);
+
+  std::string err_msg;
+
+  // If connection fails, try at 5 sec intervals for 30 seconds.
+  for (int retry = 0; retry < 6; retry++) {
+    db_handle_.reset(PQconnectdbParams(keys, values, true));
+
+    // If connecting does not succeed, try again in case it was a timing
+    // problem
+    if (PQstatus(db_handle_.get()) == CONNECTION_OK) { break; }
+
+    const char* err = PQerrorMessage(db_handle_.get());
+    if (!err) { err = "unknown reason"; }
+    Dmsg1(50, "Could not connect to db: Err=%s\n", err);
+
+    err_msg.assign(err);
+
+    // free memory if not successful
+    db_handle_.reset();
+
+    Bmicrosleep(5, 0);
+  }
+
+  Dmsg0(50, "pg_real_connect %s\n", db_handle_ ? "ok" : "failed");
+  Dmsg3(50, "db_user=%s db_name=%s db_password=%s\n", params.db_user.c_str(),
+        params.db_name.c_str(),
+        (params.db_password.empty()) ? "(NULL)" : params.db_password.c_str());
+
+  if (!db_handle_) {
+    Jmsg(jcr, M_ERROR, 0,
+         "Unable to connect to PostgreSQL server. Database=%s User=%s\n"
+         "Possible causes: SQL server not running; password incorrect; "
+         "server requires ssl; max_connections exceeded.\n(%s)\n",
+         params.db_name.c_str(), params.db_user.c_str(), err_msg.c_str());
+    return false;
+  }
+
+  SqlQueryWithoutHandler("SET datestyle TO 'ISO, YMD'");
+  SqlQueryWithoutHandler("SET cursor_tuple_fraction=1");
+  SqlQueryWithoutHandler("SET client_min_messages TO WARNING");
+
+  /* Tell PostgreSQL we are using standard conforming strings
+   * and avoid warnings such as:
+   *  WARNING:  nonstandard use of \\ in a string literal */
+  SqlQueryWithoutHandler("SET standard_conforming_strings=on");
+
+  // Check that encoding is SQL_ASCII
+  CheckDatabaseEncoding(jcr);
+
+  allow_transactions_ = params.mult_db_connections;
+  try_reconnect_ = params.try_reconnect;
+  return true;
+}
+
+db_conn* connect(JobControlRecord* jcr, const connection_parameter& params)
+{
+  auto connection = new BareosDbPostgresql{};
+
+  if (!connection->connect(jcr, params)) {
+    delete connection;
+
+    return nullptr;
+  }
+
+  return connection;
 }
 
 #endif /* HAVE_POSTGRESQL */
