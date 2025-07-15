@@ -856,7 +856,7 @@ static void PrtRuntime(UaContext* ua, sched_pkt* sp)
                 job_type_to_str(sp->job->JobType), sp->priority, dt,
                 sp->job->resource_name_, mr.VolumeName);
   }
-  if (CloseDb) { jcr->db->CloseDatabase(jcr); }
+  if (CloseDb) { jcr->db->BackendCon->CloseDatabase(jcr); }
   jcr->db = ua->db; /* restore ua db to jcr */
   jcr->setJobType(orig_jobtype);
 }

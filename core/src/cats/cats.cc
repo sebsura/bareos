@@ -125,82 +125,6 @@ void BareosDb::PrintLockInfo(FILE* fp)
   }
 }
 
-/**
- * Escape strings so that database engine is happy.
- *
- * NOTE! len is the length of the old string. Your new
- *       string must be long enough (max 2*old+1) to hold
- *       the escaped output.
- */
-void BareosDb::EscapeString(JobControlRecord*,
-                            char* snew,
-                            const char* old,
-                            int len)
-{
-  char* n;
-  const char* o;
-
-  n = snew;
-  o = old;
-  while (len--) {
-    switch (*o) {
-      case '\'':
-        *n++ = '\'';
-        *n++ = '\'';
-        o++;
-        break;
-      case 0:
-        *n++ = '\\';
-        *n++ = 0;
-        o++;
-        break;
-      default:
-        *n++ = *o++;
-        break;
-    }
-  }
-  *n = 0;
-}
-
-/**
- * Escape binary object.
- * We base64 encode the data so its normal ASCII
- * Memory is stored in BareosDb struct, no need to free it.
- */
-char* BareosDb::EscapeObject(JobControlRecord*, char* old, int len)
-{
-  const int MaxLength = Base64LengthUnpadded(len) + 1;
-  esc_obj = CheckPoolMemorySize(esc_obj, MaxLength + 1);
-  const int length = BinToBase64(esc_obj, MaxLength, old, len, true);
-  esc_obj[length] = '\0';
-
-  return esc_obj;
-}
-
-/**
- * Unescape binary object
- * We base64 encode the data so its normal ASCII
- */
-void BareosDb::UnescapeObject(JobControlRecord*,
-                              char* from,
-                              int32_t expected_len,
-                              POOLMEM*& dest,
-                              int32_t* dest_len)
-{
-  if (!from) {
-    dest[0] = '\0';
-    *dest_len = 0;
-    return;
-  }
-
-  dest = CheckPoolMemorySize(dest, expected_len + 1);
-  /* Note: Base64ToBin() does not check the expected length correctly,
-   * so we must add 2 to make sure it works. */
-  Base64ToBin(dest, expected_len + 2, from, strlen(from));
-  *dest_len = expected_len;
-  dest[expected_len] = '\0';
-}
-
 BareosDb* DbCreateConnection(JobControlRecord* jcr,
                              const char* db_drivername,
                              const char* db_name,
@@ -227,9 +151,9 @@ BareosDb* DbCreateConnection(JobControlRecord* jcr,
                          need_private);
   if (mdb == NULL) { return NULL; }
 
-  if (auto err = mdb->OpenDatabase(jcr)) {
+  if (auto err = mdb->BackendCon->OpenDatabase(jcr)) {
     Jmsg(jcr, M_FATAL, 0, "%s", err);
-    mdb->CloseDatabase(jcr);
+    mdb->BackendCon->CloseDatabase(jcr);
     return NULL;
   }
 

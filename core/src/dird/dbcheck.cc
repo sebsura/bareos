@@ -166,7 +166,7 @@ static void PrintCatalogDetails(CatalogResource* catalog)
   if (db) {
     printf("%sdb_type=%s\nworking_dir=%s\n", catalog->display(catalog_details),
            db->GetType(), working_directory);
-    db->CloseDatabase(nullptr);
+    db->BackendCon->CloseDatabase(nullptr);
   }
   FreePoolMemory(catalog_details);
 }
@@ -243,8 +243,8 @@ static void eliminate_duplicate_paths()
     // Loop through list of duplicate names
     for (int i = 0; i < name_list.num_ids; i++) {
       // Get all the Ids of each name
-      db->EscapeString(nullptr, esc_name, name_list.name[i],
-                       strlen(name_list.name[i]));
+      db->BackendCon->EscapeString(nullptr, esc_name, name_list.name[i],
+                                   strlen(name_list.name[i]));
       Bsnprintf(buf, sizeof(buf), "SELECT PathId FROM Path WHERE Path='%s'",
                 esc_name);
       if (!MakeIdList(db, buf, &id_list)) { exit(BEXIT_FAILURE); }
@@ -652,7 +652,7 @@ static void repair_bad_filenames()
         esc_name[1] = 0;
       } else {
         name[len - 1] = 0;
-        db->EscapeString(nullptr, esc_name, name, len);
+        db->BackendCon->EscapeString(nullptr, esc_name, name, len);
       }
       Bsnprintf(buf, sizeof(buf), "UPDATE File SET Name='%s' WHERE FileId=%s",
                 esc_name, edit_int64(id_list.Id[i], ed1));
@@ -705,7 +705,7 @@ static void repair_bad_paths()
       }
       // Add trailing slash
       len = PmStrcat(name, "/");
-      db->EscapeString(nullptr, esc_name, name, len);
+      db->BackendCon->EscapeString(nullptr, esc_name, name, len);
       Bsnprintf(buf, sizeof(buf), "UPDATE Path SET Path='%s' WHERE PathId=%s",
                 esc_name, edit_int64(id_list.Id[i], ed1));
       db->SqlQuery(buf, nullptr, nullptr);
@@ -920,7 +920,7 @@ int main(int argc, char* argv[])
   db = db_init_database(nullptr, db_driver, db_name.c_str(), user.c_str(),
                         password.c_str(), dbhost.c_str(), dbport, nullptr,
                         false, false, false, false);
-  if (auto err = db->OpenDatabase(nullptr)) {
+  if (auto err = db->BackendCon->OpenDatabase(nullptr)) {
     Emsg1(M_FATAL, 0, "%s", err);
     return 1;
   }
@@ -939,7 +939,7 @@ int main(int argc, char* argv[])
 
   FreeIdList(&id_list);
 
-  db->CloseDatabase(nullptr);
+  db->BackendCon->CloseDatabase(nullptr);
   CloseMsg(nullptr);
   TermMsg();
 

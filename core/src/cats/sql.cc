@@ -148,7 +148,8 @@ bool BareosDb::CheckMaxConnections(JobControlRecord* jcr,
 
   // Check max_connections setting
   FillQuery(query, SQL_QUERY::sql_get_max_connections);
-  if (!SqlQueryWithHandler(query.c_str(), DbMaxConnectionsHandler, &context)) {
+  if (!BackendCon->SqlQueryWithHandler(query.c_str(), DbMaxConnectionsHandler,
+                                       &context)) {
     Jmsg(jcr, M_ERROR, 0, "Can't verify max_connections settings %s", errmsg);
     return false;
   }
@@ -174,7 +175,8 @@ bool BareosDb::CheckTablesVersion(JobControlRecord* jcr)
   uint32_t bareos_db_version = 0;
   const char* query = "SELECT VersionId FROM Version";
 
-  if (!SqlQueryWithHandler(query, DbIntHandler, (void*)&bareos_db_version)) {
+  if (!BackendCon->SqlQueryWithHandler(query, DbIntHandler,
+                                       (void*)&bareos_db_version)) {
     Jmsg(jcr, M_FATAL, 0, "%s", errmsg);
     return false;
   }
@@ -204,11 +206,11 @@ bool BareosDb::QueryDb(JobControlRecord* jcr,
 {
   AssertOwnership();
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
   Dmsg1(1000, "query: %s\n", select_cmd);
   if (!SqlQuery(select_cmd)) {
     msg_(loc.file_name(), loc.line(), errmsg, T_("query %s failed:\n%s\n"),
-         select_cmd, sql_strerror());
+         select_cmd, BackendCon->sql_strerror());
     j_msg(loc.file_name(), loc.line(), jcr, M_FATAL, 0, "%s", errmsg);
     if (g_verbose) {
       j_msg(loc.file_name(), loc.line(), jcr, M_INFO, 0, "%s\n", select_cmd);
@@ -233,14 +235,14 @@ int BareosDb::InsertDb(JobControlRecord* jcr,
 
   if (!SqlQuery(select_cmd)) {
     msg_(loc.file_name(), loc.line(), errmsg, T_("insert %s failed:\n%s\n"),
-         select_cmd, sql_strerror());
+         select_cmd, BackendCon->sql_strerror());
     j_msg(loc.file_name(), loc.line(), jcr, M_FATAL, 0, "%s", errmsg);
     if (g_verbose) {
       j_msg(loc.file_name(), loc.line(), jcr, M_INFO, 0, "%s\n", select_cmd);
     }
     return -1;
   }
-  num_rows = SqlAffectedRows();
+  num_rows = BackendCon->SqlAffectedRows();
   if (num_rows != 1) {
     char ed1[30];
     msg_(loc.file_name(), loc.line(), errmsg,
@@ -267,7 +269,7 @@ int BareosDb::UpdateDb(JobControlRecord* jcr,
   AssertOwnership();
   if (!SqlQuery(UpdateCmd)) {
     msg_(loc.file_name(), loc.line(), errmsg, T_("update %s failed:\n%s\n"),
-         UpdateCmd, sql_strerror());
+         UpdateCmd, BackendCon->sql_strerror());
     j_msg(loc.file_name(), loc.line(), jcr, M_ERROR, 0, "%s", errmsg);
     if (g_verbose) {
       j_msg(loc.file_name(), loc.line(), jcr, M_INFO, 0, "%s\n", UpdateCmd);
@@ -276,7 +278,7 @@ int BareosDb::UpdateDb(JobControlRecord* jcr,
   }
 
   changes++;
-  return SqlAffectedRows();
+  return BackendCon->SqlAffectedRows();
 }
 
 /**
@@ -292,7 +294,7 @@ int BareosDb::DeleteDb(JobControlRecord* jcr,
   AssertOwnership();
   if (!SqlQuery(DeleteCmd)) {
     msg_(loc.file_name(), loc.line(), errmsg, T_("delete %s failed:\n%s\n"),
-         DeleteCmd, sql_strerror());
+         DeleteCmd, BackendCon->sql_strerror());
     j_msg(loc.file_name(), loc.line(), jcr, M_ERROR, 0, "%s", errmsg);
     if (g_verbose) {
       j_msg(loc.file_name(), loc.line(), jcr, M_INFO, 0, "%s\n", DeleteCmd);
@@ -300,7 +302,7 @@ int BareosDb::DeleteDb(JobControlRecord* jcr,
     return -1;
   }
   changes++;
-  return SqlAffectedRows();
+  return BackendCon->SqlAffectedRows();
 }
 
 /**
@@ -318,15 +320,15 @@ int BareosDb::GetSqlRecordMax(JobControlRecord* jcr)
   int retval = 0;
 
   if (QueryDb(jcr, cmd)) {
-    if ((row = SqlFetchRow()) == NULL) {
-      Mmsg1(errmsg, T_("error fetching row: %s\n"), sql_strerror());
+    if ((row = BackendCon->SqlFetchRow()) == NULL) {
+      Mmsg1(errmsg, T_("error fetching row: %s\n"), BackendCon->sql_strerror());
       retval = -1;
     } else {
       retval = str_to_int64(row[0]);
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   } else {
-    Mmsg1(errmsg, T_("error fetching row: %s\n"), sql_strerror());
+    Mmsg1(errmsg, T_("error fetching row: %s\n"), BackendCon->sql_strerror());
     retval = -1;
   }
   return retval;
@@ -414,11 +416,11 @@ void BareosDb::ListDashes(OutputFormatter* send)
   int num_fields;
   SQL_FIELD* field;
 
-  SqlFieldSeek(0);
+  BackendCon->SqlFieldSeek(0);
   send->Decoration("+");
-  num_fields = SqlNumFields();
+  num_fields = BackendCon->SqlNumFields();
   for (int i = 0; i < num_fields; i++) {
-    field = SqlFetchField();
+    field = BackendCon->SqlFetchField();
     if (!field) { break; }
     len = MaxLength(field->max_length + 2);
     for (int j = 0; j < len; j++) { send->Decoration("-"); }
@@ -452,7 +454,7 @@ int BareosDb::ListResult(void* vctx, int, char** row)
 
   send->ObjectStart();
 
-  num_fields = SqlNumFields();
+  num_fields = BackendCon->SqlNumFields();
   switch (type) {
     case NF_LIST:
     case RAW_LIST:
@@ -466,10 +468,10 @@ int BareosDb::ListResult(void* vctx, int, char** row)
 
         Dmsg1(800, "ListResult starts looking at %d fields\n", num_fields);
         // Determine column display widths
-        SqlFieldSeek(0);
+        BackendCon->SqlFieldSeek(0);
         for (int i = 0; i < num_fields; i++) {
           Dmsg1(800, "ListResult processing field %d\n", i);
-          field = SqlFetchField();
+          field = BackendCon->SqlFetchField();
           if (!field) { break; }
 
           if (send->IsHiddenColumn(i)) {
@@ -481,14 +483,15 @@ int BareosDb::ListResult(void* vctx, int, char** row)
           if (type == VERT_LIST) {
             if (col_len > max_len) { max_len = col_len; }
           } else {
-            if (SqlFieldIsNumeric(field->type) && (int)field->max_length > 0
+            if (BackendCon->SqlFieldIsNumeric(field->type)
+                && (int)field->max_length > 0
                 && strcmp(field->name, "jobid") != 0) { /* fixup for commas */
               field->max_length += (field->max_length - 1) / 3;
             }
             if (col_len < (int)field->max_length) {
               col_len = field->max_length;
             }
-            if (col_len < 4 && !SqlFieldIsNotNull(field->flags)) {
+            if (col_len < 4 && !BackendCon->SqlFieldIsNotNull(field->flags)) {
               col_len = 4; /* 4 = length of the word "NULL" */
             }
             field->max_length = col_len; /* reset column info */
@@ -506,11 +509,11 @@ int BareosDb::ListResult(void* vctx, int, char** row)
         ListDashes(send);
 
         send->Decoration("|");
-        SqlFieldSeek(0);
+        BackendCon->SqlFieldSeek(0);
         for (int i = 0; i < num_fields; i++) {
           Dmsg1(800, "ListResult looking at field %d\n", i);
 
-          field = SqlFetchField();
+          field = BackendCon->SqlFetchField();
           if (!field) { break; }
 
           if (send->IsHiddenColumn(i)) {
@@ -534,9 +537,9 @@ int BareosDb::ListResult(void* vctx, int, char** row)
     case RAW_LIST:
       Dmsg1(800, "ListResult starts third loop looking at %d fields\n",
             num_fields);
-      SqlFieldSeek(0);
+      BackendCon->SqlFieldSeek(0);
       for (int i = 0; i < num_fields; i++) {
-        field = SqlFetchField();
+        field = BackendCon->SqlFetchField();
         if (!field) { break; }
 
         if (send->IsHiddenColumn(i)) {
@@ -556,10 +559,10 @@ int BareosDb::ListResult(void* vctx, int, char** row)
     case HORZ_LIST:
       Dmsg1(800, "ListResult starts third loop looking at %d fields\n",
             num_fields);
-      SqlFieldSeek(0);
+      BackendCon->SqlFieldSeek(0);
       send->Decoration("|");
       for (int i = 0; i < num_fields; i++) {
-        field = SqlFetchField();
+        field = BackendCon->SqlFetchField();
         if (!field) { break; }
 
         if (send->IsHiddenColumn(i)) {
@@ -570,7 +573,7 @@ int BareosDb::ListResult(void* vctx, int, char** row)
         max_len = MaxLength(field->max_length);
         if (row[i] == NULL) {
           value.bsprintf(" %-*s |", max_len, "NULL");
-        } else if (SqlFieldIsNumeric(field->type) && !jcr->gui
+        } else if (BackendCon->SqlFieldIsNumeric(field->type) && !jcr->gui
                    && IsAnInteger(row[i])
                    && strcmp(field->name, "jobid") != 0) {
           value.bsprintf(" %*s |", max_len, add_commas(row[i], ewc));
@@ -585,9 +588,9 @@ int BareosDb::ListResult(void* vctx, int, char** row)
       break;
     case VERT_LIST:
       Dmsg1(800, "ListResult starts vertical list at %d fields\n", num_fields);
-      SqlFieldSeek(0);
+      BackendCon->SqlFieldSeek(0);
       for (int i = 0; i < num_fields; i++) {
-        field = SqlFetchField();
+        field = BackendCon->SqlFetchField();
         if (!field) { break; }
 
         if (send->IsHiddenColumn(i)) {
@@ -598,7 +601,7 @@ int BareosDb::ListResult(void* vctx, int, char** row)
         if (row[i] == NULL) {
           key.bsprintf(" %*s: ", max_len, field->name);
           value.bsprintf("%s\n", "NULL");
-        } else if (SqlFieldIsNumeric(field->type) && !jcr->gui
+        } else if (BackendCon->SqlFieldIsNumeric(field->type) && !jcr->gui
                    && IsAnInteger(row[i])) {
           key.bsprintf(" %*s: ", max_len, field->name);
           if (strcmp(field->name, "jobid") != 0) {
@@ -659,7 +662,7 @@ int BareosDb::ListResult(JobControlRecord* jcr,
     return 0;
   }
 
-  num_fields = SqlNumFields();
+  num_fields = BackendCon->SqlNumFields();
   switch (type) {
     case E_LIST_INIT:
     case NF_LIST:
@@ -671,11 +674,11 @@ int BareosDb::ListResult(JobControlRecord* jcr,
     case VERT_LIST:
       Dmsg1(800, "ListResult starts looking at %d fields\n", num_fields);
       // Determine column display widths
-      SqlFieldSeek(0);
+      BackendCon->SqlFieldSeek(0);
       for (int i = 0; i < num_fields; i++) {
         Dmsg1(800, "ListResult processing field %d\n", i);
 
-        field = SqlFetchField();
+        field = BackendCon->SqlFetchField();
         if (!field) { break; }
 
         // See if this is a hidden column.
@@ -688,12 +691,13 @@ int BareosDb::ListResult(JobControlRecord* jcr,
         if (type == VERT_LIST) {
           if (col_len > max_len) { max_len = col_len; }
         } else {
-          if (SqlFieldIsNumeric(field->type) && (int)field->max_length > 0
+          if (BackendCon->SqlFieldIsNumeric(field->type)
+              && (int)field->max_length > 0
               && strcmp(field->name, "jobid") != 0) { /* fixup for commas */
             field->max_length += (field->max_length - 1) / 3;
           }
           if (col_len < (int)field->max_length) { col_len = field->max_length; }
-          if (col_len < 4 && !SqlFieldIsNotNull(field->flags)) {
+          if (col_len < 4 && !BackendCon->SqlFieldIsNotNull(field->flags)) {
             col_len = 4; /* 4 = length of the word "NULL" */
           }
           field->max_length = col_len; /* reset column info */
@@ -715,14 +719,14 @@ int BareosDb::ListResult(JobControlRecord* jcr,
     case RAW_LIST:
       Dmsg1(800, "ListResult starts second loop looking at %d fields\n",
             num_fields);
-      while ((row = SqlFetchRow()) != NULL) {
+      while ((row = BackendCon->SqlFetchRow()) != NULL) {
         // See if we should allow this under the current filtering.
         if (filters_enabled && !send->FilterData(row)) { continue; }
 
         send->ObjectStart();
-        SqlFieldSeek(0);
+        BackendCon->SqlFieldSeek(0);
         for (int i = 0; i < num_fields; i++) {
-          field = SqlFetchField();
+          field = BackendCon->SqlFetchField();
           if (!field) { break; }
 
           // See if this is a hidden column.
@@ -747,11 +751,11 @@ int BareosDb::ListResult(JobControlRecord* jcr,
             num_fields);
       ListDashes(send);
       send->Decoration("|");
-      SqlFieldSeek(0);
+      BackendCon->SqlFieldSeek(0);
       for (int i = 0; i < num_fields; i++) {
         Dmsg1(800, "ListResult looking at field %d\n", i);
 
-        field = SqlFetchField();
+        field = BackendCon->SqlFetchField();
         if (!field) { break; }
 
         // See if this is a hidden column.
@@ -768,16 +772,16 @@ int BareosDb::ListResult(JobControlRecord* jcr,
 
       Dmsg1(800, "ListResult starts third loop looking at %d fields\n",
             num_fields);
-      while ((row = SqlFetchRow()) != NULL) {
+      while ((row = BackendCon->SqlFetchRow()) != NULL) {
         // See if we should allow this under the current filtering.
         if (filters_enabled && !send->FilterData(row)) { continue; }
 
         send->ObjectStart();
-        SqlFieldSeek(0);
+        BackendCon->SqlFieldSeek(0);
         send->Decoration("|");
 
         for (int i = 0; i < num_fields; i++) {
-          field = SqlFetchField();
+          field = BackendCon->SqlFetchField();
           if (!field) { break; }
 
           // See if this is a hidden column.
@@ -789,7 +793,7 @@ int BareosDb::ListResult(JobControlRecord* jcr,
           max_len = MaxLength(field->max_length);
           if (row[i] == NULL) {
             value.bsprintf(" %-*s |", max_len, "NULL");
-          } else if (SqlFieldIsNumeric(field->type) && !jcr->gui
+          } else if (BackendCon->SqlFieldIsNumeric(field->type) && !jcr->gui
                      && IsAnInteger(row[i])) {
             if (strcmp(field->name, "jobid") != 0) {
               value.bsprintf(" %*s |", max_len, add_commas(row[i], ewc));
@@ -811,14 +815,14 @@ int BareosDb::ListResult(JobControlRecord* jcr,
       break;
     case VERT_LIST:
       Dmsg1(800, "ListResult starts vertical list at %d fields\n", num_fields);
-      while ((row = SqlFetchRow()) != NULL) {
+      while ((row = BackendCon->SqlFetchRow()) != NULL) {
         // See if we should allow this under the current filtering.
         if (filters_enabled && !send->FilterData(row)) { continue; }
 
         send->ObjectStart();
-        SqlFieldSeek(0);
+        BackendCon->SqlFieldSeek(0);
         for (int i = 0; i < num_fields; i++) {
-          field = SqlFetchField();
+          field = BackendCon->SqlFetchField();
           if (!field) { break; }
 
           // See if this is a hidden column.
@@ -830,7 +834,7 @@ int BareosDb::ListResult(JobControlRecord* jcr,
           if (row[i] == NULL) {
             key.bsprintf(" %*s: ", max_len, field->name);
             value.bsprintf("%s\n", "NULL");
-          } else if (SqlFieldIsNumeric(field->type) && !jcr->gui
+          } else if (BackendCon->SqlFieldIsNumeric(field->type) && !jcr->gui
                      && IsAnInteger(row[i])) {
             key.bsprintf(" %*s: ", max_len, field->name);
             if (strcmp(field->name, "jobid") != 0) {

@@ -2038,7 +2038,8 @@ static bool TruncateCmd(UaContext* ua, const char*)
    * but this causes problems with parsing and ACL handling). */
   if (int i = FindArgWithValue(ua, "volume"); i >= 0) {
     if (IsNameValid(ua->argv[i])) {
-      ua->db->EscapeString(ua->jcr, esc, ua->argv[i], strlen(ua->argv[i]));
+      ua->db->BackendCon->EscapeString(ua->jcr, esc, ua->argv[i],
+                                       strlen(ua->argv[i]));
       if (!*volumes.c_str()) {
         Mmsg(tmp, "'%s'", esc);
       } else {

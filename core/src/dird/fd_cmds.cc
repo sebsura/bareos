@@ -713,9 +713,9 @@ static int RestoreObjectHandler(void* ctx, int, char** row)
 
   Dmsg1(010, "Send obj: %s\n", fd->msg);
 
-  jcr->db->UnescapeObject(jcr, row[8],           /* Object  */
-                          str_to_uint64(row[1]), /* Object length */
-                          fd->msg, &fd->message_length);
+  jcr->db->BackendCon->UnescapeObject(jcr, row[8],           /* Object  */
+                                      str_to_uint64(row[1]), /* Object length */
+                                      fd->msg, &fd->message_length);
   fd->send(); /* send object */
   octx->count++;
 
@@ -856,7 +856,8 @@ int GetAttributesAndPutInCatalog(JobControlRecord* jcr)
   jcr->dir_impl->FileIndex = 0;
 
   // Start transaction allocates jcr->attr and jcr->ar if needed
-  jcr->db->StartTransaction(jcr); /* start transaction if not already open */
+  jcr->db->BackendCon->StartTransaction(
+      jcr); /* start transaction if not already open */
   ar = jcr->ar;
 
   Dmsg0(120, "dird: waiting to receive file attributes\n");
@@ -942,7 +943,8 @@ int GetAttributesAndPutInCatalog(JobControlRecord* jcr)
       ar->DigestType = CryptoDigestStreamType(stream);
       length = strlen(Digest.c_str());
       digest.check_size(length * 2 + 1);
-      jcr->db->EscapeString(jcr, digest.c_str(), Digest.c_str(), length);
+      jcr->db->BackendCon->EscapeString(jcr, digest.c_str(), Digest.c_str(),
+                                        length);
       Dmsg4(debuglevel, "stream=%d DigestLen=%" PRIuz " Digest=%s type=%d\n",
             stream, strlen(digest.c_str()), digest.c_str(), ar->DigestType);
     }

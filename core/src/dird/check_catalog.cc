@@ -68,13 +68,13 @@ bool CheckCatalog(cat_op mode)
     }
 
 
-    if (auto err = db->OpenDatabase(NULL)) {
+    if (auto err = db->BackendCon->OpenDatabase(NULL)) {
       Pmsg2(000, T_("Could not open Catalog \"%s\", database \"%s\": %s\n"),
             catalog->resource_name_, catalog->db_name, err);
       Jmsg(NULL, M_FATAL, 0,
            T_("Could not open Catalog \"%s\", database \"%s\": %s\n"),
            catalog->resource_name_, catalog->db_name, err);
-      db->CloseDatabase(NULL);
+      db->BackendCon->CloseDatabase(NULL);
       OK = false;
       goto bail_out;
     }
@@ -88,7 +88,7 @@ bool CheckCatalog(cat_op mode)
 
     /* we are in testing mode, so don't touch anything in the catalog */
     if (mode == CHECK_CONNECTION) {
-      db->CloseDatabase(NULL);
+      db->BackendCon->CloseDatabase(NULL);
       continue;
     }
 
@@ -199,7 +199,7 @@ bool CheckCatalog(cat_op mode)
     /* Set type in global for debugging */
     SetDbType(db->GetType());
 
-    db->CloseDatabase(NULL);
+    db->BackendCon->CloseDatabase(NULL);
   }
 
 bail_out:

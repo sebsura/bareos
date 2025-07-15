@@ -1281,7 +1281,7 @@ static bool ListNextvol(UaContext* ua, int ndays)
     }
   }
   if (jcr->db) {
-    jcr->db->CloseDatabase(jcr);
+    jcr->db->BackendCon->CloseDatabase(jcr);
     jcr->db = NULL;
   }
   FreeJcr(jcr);
@@ -1302,7 +1302,7 @@ bool CompleteJcrForJob(JobControlRecord* jcr,
   if (pool) { jcr->dir_impl->res.pool = pool; /* override */ }
   if (jcr->db) {
     Dmsg0(100, "complete_jcr close db\n");
-    jcr->db->CloseDatabase(jcr);
+    jcr->db->BackendCon->CloseDatabase(jcr);
     jcr->db = NULL;
   }
 
@@ -1322,7 +1322,7 @@ bool CompleteJcrForJob(JobControlRecord* jcr,
       Jmsg(jcr, M_FATAL, 0, T_("Pool %s not in database. %s\n"), pr.Name,
            jcr->db->strerror());
       if (jcr->db) {
-        jcr->db->CloseDatabase(jcr);
+        jcr->db->BackendCon->CloseDatabase(jcr);
         jcr->db = NULL;
       }
       return false;

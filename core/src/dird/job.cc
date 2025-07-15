@@ -1569,13 +1569,13 @@ void DirdFreeJcr(JobControlRecord* jcr)
   }
 
   if (jcr->db_batch) {
-    jcr->db_batch->CloseDatabase(jcr);
+    jcr->db_batch->BackendCon->CloseDatabase(jcr);
     jcr->db_batch = NULL;
     jcr->batch_started = false;
   }
 
   if (jcr->db) {
-    jcr->db->CloseDatabase(jcr);
+    jcr->db->BackendCon->CloseDatabase(jcr);
     jcr->db = NULL;
   }
 

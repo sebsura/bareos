@@ -695,7 +695,8 @@ static bool ActionOnPurgeCmd(UaContext* ua, const char*)
       allpools = true;
     } else if (Bstrcasecmp(ua->argk[i], NT_("volume"))
                && IsNameValid(ua->argv[i])) {
-      ua->db->EscapeString(ua->jcr, esc, ua->argv[i], strlen(ua->argv[i]));
+      ua->db->BackendCon->EscapeString(ua->jcr, esc, ua->argv[i],
+                                       strlen(ua->argv[i]));
       if (!*volumes.c_str()) {
         Mmsg(buf, "'%s'", esc);
       } else {

@@ -57,7 +57,7 @@ bool BareosDb::AddDigestToFileRecord(JobControlRecord* jcr,
 
   DbLocker _{this};
   esc_name = CheckPoolMemorySize(esc_name, len * 2 + 1);
-  EscapeString(jcr, esc_name, digest, len);
+  BackendCon->EscapeString(jcr, esc_name, digest, len);
   Mmsg(cmd, "UPDATE File SET MD5='%s' WHERE FileId=%s", esc_name,
        edit_int64(FileId, ed1));
 
@@ -134,7 +134,7 @@ int BareosDb::UpdateStats(JobControlRecord* jcr, utime_t age)
   edit_uint64(now - age, ed1);
   FillQuery(SQL_QUERY::fill_jobhisto, ed1);
   if (QueryDb(jcr, cmd)) {
-    rows = SqlAffectedRows();
+    rows = BackendCon->SqlAffectedRows();
   } else {
     rows = -1;
   }
@@ -206,8 +206,8 @@ bool BareosDb::UpdateClientRecord(JobControlRecord* jcr, ClientDbRecord* cr)
   tcr = *cr;
   if (!CreateClientRecord(jcr, &tcr)) { return false; }
 
-  EscapeString(jcr, esc_clientname, cr->Name, strlen(cr->Name));
-  EscapeString(jcr, esc_uname, cr->Uname, strlen(cr->Uname));
+  BackendCon->EscapeString(jcr, esc_clientname, cr->Name, strlen(cr->Name));
+  BackendCon->EscapeString(jcr, esc_uname, cr->Uname, strlen(cr->Uname));
   Mmsg(cmd,
        "UPDATE Client SET AutoPrune=%d,FileRetention=%s,JobRetention=%s,"
        "Uname='%s' WHERE Name='%s'",
@@ -229,7 +229,7 @@ bool BareosDb::UpdateCounterRecord(JobControlRecord* jcr, CounterDbRecord* cr)
 
   DbLocker _{this};
 
-  EscapeString(jcr, esc, cr->Counter, strlen(cr->Counter));
+  BackendCon->EscapeString(jcr, esc, cr->Counter, strlen(cr->Counter));
   FillQuery(SQL_QUERY::update_counter_values, cr->MinValue, cr->MaxValue,
             cr->CurrentValue, cr->WrapCounter, esc);
   retval = UpdateDb(jcr, cmd) > 0;
@@ -243,7 +243,7 @@ bool BareosDb::UpdatePoolRecord(JobControlRecord* jcr, PoolDbRecord* pr)
   char esc[MAX_ESCAPE_NAME_LENGTH];
 
   DbLocker _{this};
-  EscapeString(jcr, esc, pr->LabelFormat, strlen(pr->LabelFormat));
+  BackendCon->EscapeString(jcr, esc, pr->LabelFormat, strlen(pr->LabelFormat));
 
   Mmsg(cmd, "SELECT count(*) from Media WHERE PoolId=%s",
        edit_int64(pr->PoolId, ed4));
@@ -298,8 +298,10 @@ bool BareosDb::UpdateMediaRecord(JobControlRecord* jcr, MediaDbRecord* mr)
   Dmsg1(100, "update_media: FirstWritten=%lld\n",
         static_cast<long long>(mr->FirstWritten));
   DbLocker _{this};
-  EscapeString(jcr, esc_medianame, mr->VolumeName, strlen(mr->VolumeName));
-  EscapeString(jcr, esc_status, mr->VolStatus, strlen(mr->VolStatus));
+  BackendCon->EscapeString(jcr, esc_medianame, mr->VolumeName,
+                           strlen(mr->VolumeName));
+  BackendCon->EscapeString(jcr, esc_status, mr->VolStatus,
+                           strlen(mr->VolStatus));
 
   if (mr->set_first_written) {
     Dmsg1(400, "Set FirstWritten Vol=%s\n", mr->VolumeName);
@@ -381,7 +383,7 @@ bool BareosDb::UpdateMediaDefaults(JobControlRecord* jcr, MediaDbRecord* mr)
 
   DbLocker _{this};
   if (mr->VolumeName[0]) {
-    EscapeString(jcr, esc, mr->VolumeName, strlen(mr->VolumeName));
+    BackendCon->EscapeString(jcr, esc, mr->VolumeName, strlen(mr->VolumeName));
     Mmsg(cmd,
          "UPDATE Media SET "
          "ActionOnPurge=%d,Recycle=%d,VolRetention=%s,VolUseDuration=%s,"
@@ -431,7 +433,8 @@ void BareosDb::MakeInchangerUnique(JobControlRecord* jcr, MediaDbRecord* mr)
            edit_int64(mr->MediaId, ed2));
 
     } else if (*mr->VolumeName) {
-      EscapeString(jcr, esc, mr->VolumeName, strlen(mr->VolumeName));
+      BackendCon->EscapeString(jcr, esc, mr->VolumeName,
+                               strlen(mr->VolumeName));
       Mmsg(cmd,
            "UPDATE Media SET InChanger=0, Slot=0 WHERE "
            "Slot=%d AND StorageId=%s AND VolumeName!='%s'",
@@ -521,7 +524,7 @@ bool BareosDb::UpdateNdmpLevelMapping(JobControlRecord* jcr,
   DbLocker _{this};
 
   esc_name = CheckPoolMemorySize(esc_name, strlen(filesystem) * 2 + 1);
-  EscapeString(jcr, esc_name, filesystem, strlen(filesystem));
+  BackendCon->EscapeString(jcr, esc_name, filesystem, strlen(filesystem));
 
   Mmsg(cmd,
        "UPDATE NDMPLevelMap SET DumpLevel='%s' WHERE "

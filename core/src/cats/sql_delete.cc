@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2006 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -56,7 +56,7 @@ bool BareosDb::DeletePoolRecord(JobControlRecord* jcr, PoolDbRecord* pr)
   char esc[MAX_ESCAPE_NAME_LENGTH];
 
   DbLocker _{this};
-  EscapeString(jcr, esc, pr->Name, strlen(pr->Name));
+  BackendCon->EscapeString(jcr, esc, pr->Name, strlen(pr->Name));
   Mmsg(cmd, "SELECT PoolId FROM Pool WHERE Name='%s'", esc);
   Dmsg1(10, "selectpool: %s\n", cmd);
 
@@ -66,19 +66,19 @@ bool BareosDb::DeletePoolRecord(JobControlRecord* jcr, PoolDbRecord* pr)
     num_rows = SqlNumRows();
     if (num_rows == 0) {
       Mmsg(errmsg, T_("No pool record %s exists\n"), pr->Name);
-      SqlFreeResult();
+      BackendCon->SqlFreeResult();
       return false;
     } else if (num_rows != 1) {
       Mmsg(errmsg, T_("Expecting one pool record, got %d\n"), num_rows);
-      SqlFreeResult();
+      BackendCon->SqlFreeResult();
       return false;
     }
-    if ((row = SqlFetchRow()) == NULL) {
-      Mmsg1(errmsg, T_("Error fetching row %s\n"), sql_strerror());
+    if ((row = BackendCon->SqlFetchRow()) == NULL) {
+      Mmsg1(errmsg, T_("Error fetching row %s\n"), BackendCon->sql_strerror());
       return false;
     }
     pr->PoolId = str_to_int64(row[0]);
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   }
 
   /* Delete Media owned by this pool */

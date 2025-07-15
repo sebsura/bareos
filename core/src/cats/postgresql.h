@@ -38,7 +38,7 @@
 struct AttributesDbRecord;
 class JobControlRecord;
 
-class BareosDbPostgresql : public BareosDb {
+class BareosDbPostgresql : public db_conn {
  public:
   BareosDbPostgresql(JobControlRecord* jcr,
                      const char* db_driver,
@@ -103,7 +103,8 @@ class BareosDbPostgresql : public BareosDb {
   bool fields_fetched_
       = false;         /**< Marker, if field descriptions are already fetched */
   int num_fields_ = 0; /**< Number of fields returned by last query */
-  int rows_size_ = 0;  /**< Size of malloced rows */
+  int num_rows_ = 0;
+  int rows_size_ = 0;               /**< Size of malloced rows */
   int fields_size_ = 0;             /**< Size of malloced fields */
   int row_number_ = 0;              /**< Row number from xx_data_seek */
   int field_number_ = 0;            /**< Field number from SqlFieldSeek */

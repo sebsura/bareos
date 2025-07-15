@@ -97,7 +97,7 @@ void CatalogTest::SetUp()
 
 void CatalogTest::TearDown()
 {
-  db->CloseDatabase(jcr);
+  db->BackendCon->CloseDatabase(jcr);
 
   if (jcr) {
     FreeJcr(jcr);
@@ -116,7 +116,7 @@ TEST_F(CatalogTest, database)
   auto result = db->FindLastJobStartTimeForJobAndClient(jcr, "backup-bareos-fd",
                                                         "bareos-fd", stime);
 
-  EXPECT_EQ(result, BareosDb::SqlFindResult::kEmptyResultSet)
+  EXPECT_EQ(result, SqlFindResult::kEmptyResultSet)
       << "Resultset should be empty.";
 
   std::string client_query{
@@ -147,7 +147,7 @@ TEST_F(CatalogTest, database)
   result = db->FindLastJobStartTimeForJobAndClient(jcr, "backup-bareos-fd",
                                                    "bareos-fd", stime);
 
-  ASSERT_EQ(result, BareosDb::SqlFindResult::kSuccess)
+  ASSERT_EQ(result, SqlFindResult::kSuccess)
       << "Preset database entries not found.";
 
   time_t time_converted = static_cast<time_t>(StrToUtime(stime.data()));

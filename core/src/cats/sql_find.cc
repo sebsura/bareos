@@ -64,7 +64,7 @@ bool BareosDb::FindJobStartTime(JobControlRecord* jcr,
   char esc_jobname[MAX_ESCAPE_NAME_LENGTH];
 
   DbLocker _{this};
-  EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
+  BackendCon->EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
   PmStrcpy(stime, "0000-00-00 00:00:00"); /* default */
   job[0] = 0;
 
@@ -91,15 +91,15 @@ bool BareosDb::FindJobStartTime(JobControlRecord* jcr,
       if (!QueryDb(jcr, cmd)) {
         Mmsg2(errmsg,
               T_("Query error for start time request: ERR=%s\nCMD=%s\n"),
-              sql_strerror(), cmd);
+              BackendCon->sql_strerror(), cmd);
         return false;
       }
-      if ((row = SqlFetchRow()) == NULL) {
-        SqlFreeResult();
+      if ((row = BackendCon->SqlFetchRow()) == NULL) {
+        BackendCon->SqlFreeResult();
         Mmsg(errmsg, T_("No prior Full backup Job record found.\n"));
         return false;
       }
-      SqlFreeResult();
+      BackendCon->SqlFreeResult();
       /* Now edit SQL command for Incremental Job */
       Mmsg(cmd,
            "SELECT StartTime, Job FROM Job WHERE JobStatus IN ('T','W') AND "
@@ -121,21 +121,21 @@ bool BareosDb::FindJobStartTime(JobControlRecord* jcr,
   if (!QueryDb(jcr, cmd)) {
     PmStrcpy(stime, ""); /* set EOS */
     Mmsg2(errmsg, T_("Query error for start time request: ERR=%s\nCMD=%s\n"),
-          sql_strerror(), cmd);
+          BackendCon->sql_strerror(), cmd);
     return false;
   }
 
-  if ((row = SqlFetchRow()) == NULL) {
-    Mmsg2(errmsg, T_("No Job record found: ERR=%s\nCMD=%s\n"), sql_strerror(),
-          cmd);
-    SqlFreeResult();
+  if ((row = BackendCon->SqlFetchRow()) == NULL) {
+    Mmsg2(errmsg, T_("No Job record found: ERR=%s\nCMD=%s\n"),
+          BackendCon->sql_strerror(), cmd);
+    BackendCon->SqlFreeResult();
     return false;
   }
   Dmsg2(100, "Got start time: %s, job: %s\n", row[0], row[1]);
   PmStrcpy(stime, row[0]);
   bstrncpy(job, row[1], MAX_NAME_LENGTH);
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 
   return true;
 }
@@ -153,7 +153,7 @@ bool BareosDb::FindJobStartTime(JobControlRecord* jcr,
  * To avoid this, we use NOW()::timestamp so that a valid timestamp is returned
  * for jobs with NULL timestamp. Casting is required to remove the DST.
  */
-BareosDb::SqlFindResult BareosDb::FindLastJobStartTimeForJobAndClient(
+SqlFindResult BareosDb::FindLastJobStartTimeForJobAndClient(
     JobControlRecord* jcr,
     std::string job_basename,
     std::string client_name,
@@ -163,10 +163,10 @@ BareosDb::SqlFindResult BareosDb::FindLastJobStartTimeForJobAndClient(
   std::vector<char> esc_clientname(MAX_ESCAPE_NAME_LENGTH);
 
   DbLocker _{this};
-  EscapeString(nullptr, esc_jobname.data(), job_basename.c_str(),
-               job_basename.size());
-  EscapeString(nullptr, esc_clientname.data(), client_name.c_str(),
-               client_name.size());
+  BackendCon->EscapeString(nullptr, esc_jobname.data(), job_basename.c_str(),
+                           job_basename.size());
+  BackendCon->EscapeString(nullptr, esc_clientname.data(), client_name.c_str(),
+                           client_name.size());
 
   constexpr const char* default_time{"0000-00-00 00:00:00"};
   stime_out.resize(strlen(default_time) + 1);
@@ -187,15 +187,15 @@ BareosDb::SqlFindResult BareosDb::FindLastJobStartTimeForJobAndClient(
 
   if (!QueryDb(jcr, cmd)) {
     Mmsg2(errmsg, T_("Query error for start time request: ERR=%s\nCMD=%s\n"),
-          sql_strerror(), cmd);
+          BackendCon->sql_strerror(), cmd);
     return SqlFindResult::kError;
   }
 
   SQL_ROW row;
-  if ((row = SqlFetchRow()) == NULL) {
-    Mmsg2(errmsg, T_("No Job record found: ERR=%s\nCMD=%s\n"), sql_strerror(),
-          cmd);
-    SqlFreeResult();
+  if ((row = BackendCon->SqlFetchRow()) == NULL) {
+    Mmsg2(errmsg, T_("No Job record found: ERR=%s\nCMD=%s\n"),
+          BackendCon->sql_strerror(), cmd);
+    BackendCon->SqlFreeResult();
     return SqlFindResult::kEmptyResultSet;
   }
 
@@ -207,7 +207,7 @@ BareosDb::SqlFindResult BareosDb::FindLastJobStartTimeForJobAndClient(
     strcpy(stime_out.data(), row[0]);
   }
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 
   return SqlFindResult::kSuccess;
 }
@@ -232,7 +232,7 @@ bool BareosDb::FindLastJobStartTime(JobControlRecord* jcr,
   char esc_jobname[MAX_ESCAPE_NAME_LENGTH];
 
   DbLocker _{this};
-  EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
+  BackendCon->EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
   PmStrcpy(stime, "0000-00-00 00:00:00"); /* default */
   job[0] = 0;
 
@@ -245,11 +245,11 @@ bool BareosDb::FindLastJobStartTime(JobControlRecord* jcr,
        edit_int64(jr->FileSetId, ed2));
   if (!QueryDb(jcr, cmd)) {
     Mmsg2(errmsg, T_("Query error for start time request: ERR=%s\nCMD=%s\n"),
-          sql_strerror(), cmd);
+          BackendCon->sql_strerror(), cmd);
     return false;
   }
-  if ((row = SqlFetchRow()) == NULL) {
-    SqlFreeResult();
+  if ((row = BackendCon->SqlFetchRow()) == NULL) {
+    BackendCon->SqlFreeResult();
     Mmsg(errmsg, T_("No prior Full backup Job record found.\n"));
     return false;
   }
@@ -257,7 +257,7 @@ bool BareosDb::FindLastJobStartTime(JobControlRecord* jcr,
   PmStrcpy(stime, row[0]);
   bstrncpy(job, row[1], MAX_NAME_LENGTH);
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 
   return true;
 }
@@ -280,7 +280,7 @@ bool BareosDb::FindFailedJobSince(JobControlRecord* jcr,
   char esc_jobname[MAX_ESCAPE_NAME_LENGTH];
 
   DbLocker _{this};
-  EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
+  BackendCon->EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
 
   /* Differential is since last Full backup */
   Mmsg(cmd,
@@ -292,12 +292,12 @@ bool BareosDb::FindFailedJobSince(JobControlRecord* jcr,
        edit_int64(jr->ClientId, ed1), edit_int64(jr->FileSetId, ed2), stime);
   if (!QueryDb(jcr, cmd)) { return false; }
 
-  if ((row = SqlFetchRow()) == NULL) {
-    SqlFreeResult();
+  if ((row = BackendCon->SqlFetchRow()) == NULL) {
+    BackendCon->SqlFreeResult();
     return false;
   }
   JobLevel = (int)*row[0];
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 
   return true;
 }
@@ -322,7 +322,7 @@ bool BareosDb::FindLastJobid(JobControlRecord* jcr,
   /* Find last full */
   Dmsg2(100, "JobLevel=%d JobType=%d\n", jr->JobLevel, jr->JobType);
   if (jr->JobLevel == L_VERIFY_CATALOG) {
-    EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
+    BackendCon->EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
     Mmsg(cmd,
          "SELECT JobId FROM Job WHERE Type='V' AND Level='%c' AND "
          " JobStatus IN ('T','W') AND Name='%s' AND "
@@ -332,8 +332,8 @@ bool BareosDb::FindLastJobid(JobControlRecord* jcr,
              || jr->JobLevel == L_VERIFY_DISK_TO_CATALOG
              || jr->JobType == JT_BACKUP) {
     if (Name) {
-      EscapeString(jcr, esc_jobname, (char*)Name,
-                   MIN(strlen(Name), sizeof(esc_jobname)));
+      BackendCon->EscapeString(jcr, esc_jobname, (char*)Name,
+                               MIN(strlen(Name), sizeof(esc_jobname)));
       Mmsg(
           cmd,
           "SELECT JobId FROM Job WHERE Type='B' AND JobStatus IN ('T','W') AND "
@@ -352,14 +352,14 @@ bool BareosDb::FindLastJobid(JobControlRecord* jcr,
   }
   Dmsg1(100, "Query: %s\n", cmd);
   if (!QueryDb(jcr, cmd)) { return false; }
-  if ((row = SqlFetchRow()) == NULL) {
+  if ((row = BackendCon->SqlFetchRow()) == NULL) {
     Mmsg1(errmsg, T_("No Job found for: %s.\n"), cmd);
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
     return false;
   }
 
   jr->JobId = str_to_int64(row[0]);
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 
   Dmsg1(100, "db_get_last_jobid: got JobId=%d\n", jr->JobId);
   if (jr->JobId <= 0) {
@@ -382,9 +382,9 @@ bool BareosDb::FindJobById(JobControlRecord* jcr, std::string id)
   std::string query = "SELECT JobId FROM Job WHERE JobId=" + id;
   Dmsg1(100, "Query: %s\n", query.c_str());
   if (!QueryDb(jcr, query.c_str())) { return false; }
-  if (SqlFetchRow() == NULL) {
+  if (BackendCon->SqlFetchRow() == NULL) {
     Mmsg1(errmsg, T_("No Job found with id: %s.\n"), id.c_str());
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
     return false;
   } else {
     return true;
@@ -445,8 +445,9 @@ int BareosDb::FindNextVolume(JobControlRecord* jcr,
 
   DbLocker _{this};
 
-  EscapeString(jcr, esc_type, mr->MediaType, strlen(mr->MediaType));
-  EscapeString(jcr, esc_status, mr->VolStatus, strlen(mr->VolStatus));
+  BackendCon->EscapeString(jcr, esc_type, mr->MediaType, strlen(mr->MediaType));
+  BackendCon->EscapeString(jcr, esc_status, mr->VolStatus,
+                           strlen(mr->VolStatus));
 
   if (item == -1) {
     find_oldest = true;
@@ -527,10 +528,10 @@ retry_fetch:
   }
 
   for (int i = 0; i < item; i++) {
-    if ((row = SqlFetchRow()) == NULL) {
+    if ((row = BackendCon->SqlFetchRow()) == NULL) {
       Dmsg1(050, "Fail fetch item=%d\n", i);
       Mmsg1(errmsg, T_("No Volume record found for item %d.\n"), i);
-      SqlFreeResult();
+      BackendCon->SqlFreeResult();
       num_rows = 0;
       Dmsg1(050, "Rtn numrows=%d\n", num_rows);
       return num_rows;
@@ -545,7 +546,7 @@ retry_fetch:
       num_rows--;
       if (num_rows <= 0) {
         Dmsg1(50, "No more volumes in result, bailing out\n");
-        SqlFreeResult();
+        BackendCon->SqlFreeResult();
         Dmsg1(050, "Rtn numrows=%d\n", num_rows);
         return num_rows;
       }
@@ -606,7 +607,7 @@ retry_fetch:
     mr->MinBlocksize = str_to_int32(row[38]);
     mr->MaxBlocksize = str_to_int32(row[39]);
 
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
     found_candidate = true;
     break;
   }

@@ -104,7 +104,7 @@ bool BareosDb::GetFileRecord(JobControlRecord* jcr,
   int num_rows;
 
   esc_name = CheckPoolMemorySize(esc_name, 2 * fnl + 2);
-  EscapeString(jcr, esc_name, fname, fnl);
+  BackendCon->EscapeString(jcr, esc_name, fname, fnl);
 
   if (jcr->getJobLevel() == L_VERIFY_DISK_TO_CATALOG) {
     Mmsg(cmd,
@@ -137,8 +137,9 @@ bool BareosDb::GetFileRecord(JobControlRecord* jcr,
     num_rows = SqlNumRows();
     Dmsg1(050, "GetFileRecord num_rows=%d\n", num_rows);
     if (num_rows >= 1) {
-      if ((row = SqlFetchRow()) == NULL) {
-        Mmsg1(errmsg, T_("Error fetching row: %s\n"), sql_strerror());
+      if ((row = BackendCon->SqlFetchRow()) == NULL) {
+        Mmsg1(errmsg, T_("Error fetching row: %s\n"),
+              BackendCon->sql_strerror());
       } else {
         fdbr->FileId = (FileId_t)str_to_int64(row[0]);
         bstrncpy(fdbr->LStat, row[1], sizeof(fdbr->LStat));
@@ -155,7 +156,7 @@ bool BareosDb::GetFileRecord(JobControlRecord* jcr,
       Mmsg2(errmsg, T_("File record for PathId=%s Filename=%s not found.\n"),
             edit_int64(fdbr->PathId, ed1), esc_name);
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   } else {
     Mmsg(errmsg, T_("File record not found in Catalog.\n"));
   }
@@ -177,7 +178,7 @@ int BareosDb::GetPathRecord(JobControlRecord* jcr)
   int num_rows;
 
   esc_name = CheckPoolMemorySize(esc_name, 2 * pnl + 2);
-  EscapeString(jcr, esc_name, path, pnl);
+  BackendCon->EscapeString(jcr, esc_name, path, pnl);
 
   if (cached_path_id != 0 && cached_path_len == pnl
       && bstrcmp(cached_path, path)) {
@@ -195,8 +196,9 @@ int BareosDb::GetPathRecord(JobControlRecord* jcr)
     }
     /* Even if there are multiple paths, take the first one */
     if (num_rows >= 1) {
-      if ((row = SqlFetchRow()) == NULL) {
-        Mmsg1(errmsg, T_("error fetching row: %s\n"), sql_strerror());
+      if ((row = BackendCon->SqlFetchRow()) == NULL) {
+        Mmsg1(errmsg, T_("error fetching row: %s\n"),
+              BackendCon->sql_strerror());
       } else {
         PathId = str_to_int64(row[0]);
         if (PathId <= 0) {
@@ -214,7 +216,7 @@ int BareosDb::GetPathRecord(JobControlRecord* jcr)
     } else {
       Mmsg1(errmsg, T_("Path record: %s not found.\n"), path);
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   } else {
     Mmsg(errmsg, T_("Path record: %s not found in Catalog.\n"), path);
   }
@@ -242,7 +244,7 @@ bool BareosDb::GetJobRecord(JobControlRecord* jcr, JobDbRecord* jr)
   bool search_by_jobname = (jr->JobId == 0);
   DbLocker _{this};
   if (search_by_jobname) {
-    EscapeString(jcr, esc, jr->Job, strlen(jr->Job));
+    BackendCon->EscapeString(jcr, esc, jr->Job, strlen(jr->Job));
     Mmsg(cmd,
          "SELECT VolSessionId,VolSessionTime,"
          "PoolId,StartTime,EndTime,JobFiles,JobBytes,JobTDate,Job,JobStatus,"
@@ -262,14 +264,14 @@ bool BareosDb::GetJobRecord(JobControlRecord* jcr, JobDbRecord* jr)
 
   if (!QueryDb(jcr, cmd)) { return false; }
 
-  if ((row = SqlFetchRow()) == NULL) {
+  if ((row = BackendCon->SqlFetchRow()) == NULL) {
     if (search_by_jobname) {
       Mmsg1(errmsg, T_("No Job found for JobName '%s'\n"), esc);
     } else {
       Mmsg1(errmsg, T_("No Job found for JobId %s\n"),
             edit_int64(jr->JobId, ed1));
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
     return false;
   }
 
@@ -305,7 +307,7 @@ bool BareosDb::GetJobRecord(JobControlRecord* jcr, JobDbRecord* jr)
   jr->HasBase = str_to_int64(row[21]);
   jr->PurgedFiles = str_to_int64(row[22]);
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 
   return true;
 }
@@ -351,9 +353,9 @@ int BareosDb::GetJobVolumeNames(JobControlRecord* jcr,
     } else {
       retval = num_rows;
       for (i = 0; i < retval; i++) {
-        if ((row = SqlFetchRow()) == NULL) {
+        if ((row = BackendCon->SqlFetchRow()) == NULL) {
           Mmsg2(errmsg, T_("Error fetching row %d: ERR=%s\n"), i,
-                sql_strerror());
+                BackendCon->sql_strerror());
           Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
           retval = 0;
           break;
@@ -363,7 +365,7 @@ int BareosDb::GetJobVolumeNames(JobControlRecord* jcr,
         }
       }
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   } else {
     Mmsg(errmsg, T_("No Volume for JobId %d found in Catalog.\n"), JobId);
   }
@@ -416,9 +418,9 @@ int BareosDb::GetJobVolumeParameters(JobControlRecord* jcr,
         SId = (DBId_t*)malloc(retval * sizeof(DBId_t));
       }
       for (i = 0; i < retval; i++) {
-        if ((row = SqlFetchRow()) == NULL) {
+        if ((row = BackendCon->SqlFetchRow()) == NULL) {
           Mmsg2(errmsg, T_("Error fetching row %d: ERR=%s\n"), i,
-                sql_strerror());
+                BackendCon->sql_strerror());
           Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
           retval = 0;
           break;
@@ -450,7 +452,7 @@ int BareosDb::GetJobVolumeParameters(JobControlRecord* jcr,
           Mmsg(cmd, "SELECT Name from Storage WHERE StorageId=%s",
                edit_int64(SId[i], ed1));
           if (QueryDb(jcr, cmd)) {
-            if ((row = SqlFetchRow()) && row[0]) {
+            if ((row = BackendCon->SqlFetchRow()) && row[0]) {
               bstrncpy(Vols[i].Storage, row[0], MAX_NAME_LENGTH);
             }
           }
@@ -458,7 +460,7 @@ int BareosDb::GetJobVolumeParameters(JobControlRecord* jcr,
       }
       if (SId) { free(SId); }
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   }
   return retval;
 }
@@ -484,13 +486,16 @@ int BareosDb::GetPoolIds(JobControlRecord* jcr, int* num_ids, DBId_t** ids)
     *num_ids = SqlNumRows();
     if (*num_ids > 0) {
       id = (DBId_t*)malloc(*num_ids * sizeof(DBId_t));
-      while ((row = SqlFetchRow()) != NULL) { id[i++] = str_to_uint64(row[0]); }
+      while ((row = BackendCon->SqlFetchRow()) != NULL) {
+        id[i++] = str_to_uint64(row[0]);
+      }
       *ids = id;
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
     retval = 1;
   } else {
-    Mmsg(errmsg, T_("Pool id select failed: ERR=%s\n"), sql_strerror());
+    Mmsg(errmsg, T_("Pool id select failed: ERR=%s\n"),
+         BackendCon->sql_strerror());
     Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
     retval = 0;
   }
@@ -519,13 +524,16 @@ int BareosDb::GetStorageIds(JobControlRecord* jcr, int* num_ids, DBId_t* ids[])
     *num_ids = SqlNumRows();
     if (*num_ids > 0) {
       id = (DBId_t*)malloc(*num_ids * sizeof(DBId_t));
-      while ((row = SqlFetchRow()) != NULL) { id[i++] = str_to_uint64(row[0]); }
+      while ((row = BackendCon->SqlFetchRow()) != NULL) {
+        id[i++] = str_to_uint64(row[0]);
+      }
       *ids = id;
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
     retval = 1;
   } else {
-    Mmsg(errmsg, T_("Storage id select failed: ERR=%s\n"), sql_strerror());
+    Mmsg(errmsg, T_("Storage id select failed: ERR=%s\n"),
+         BackendCon->sql_strerror());
     Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
     retval = 0;
   }
@@ -553,13 +561,16 @@ bool BareosDb::GetClientIds(JobControlRecord* jcr, int* num_ids, DBId_t* ids[])
     *num_ids = SqlNumRows();
     if (*num_ids > 0) {
       id = (DBId_t*)malloc(*num_ids * sizeof(DBId_t));
-      while ((row = SqlFetchRow()) != NULL) { id[i++] = str_to_uint64(row[0]); }
+      while ((row = BackendCon->SqlFetchRow()) != NULL) {
+        id[i++] = str_to_uint64(row[0]);
+      }
       *ids = id;
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
     return true;
   } else {
-    Mmsg(errmsg, T_("Client id select failed: ERR=%s\n"), sql_strerror());
+    Mmsg(errmsg, T_("Client id select failed: ERR=%s\n"),
+         BackendCon->sql_strerror());
     Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
   }
   return false;
@@ -593,7 +604,7 @@ bool BareosDb::GetPoolRecord(JobControlRecord* jcr, PoolDbRecord* pdbr)
         "Pool.PoolId=%s",
         edit_int64(pdbr->PoolId, ed1));
   } else { /* find by name */
-    EscapeString(jcr, esc, pdbr->Name, strlen(pdbr->Name));
+    BackendCon->EscapeString(jcr, esc, pdbr->Name, strlen(pdbr->Name));
     Mmsg(
         cmd,
         "SELECT PoolId,Name,NumVols,MaxVols,UseOnce,UseCatalog,AcceptAnyVolume,"
@@ -611,8 +622,9 @@ bool BareosDb::GetPoolRecord(JobControlRecord* jcr, PoolDbRecord* pdbr)
             edit_uint64(num_rows, ed1));
       Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
     } else if (num_rows == 1) {
-      if ((row = SqlFetchRow()) == NULL) {
-        Mmsg1(errmsg, T_("error fetching row: %s\n"), sql_strerror());
+      if ((row = BackendCon->SqlFetchRow()) == NULL) {
+        Mmsg1(errmsg, T_("error fetching row: %s\n"),
+              BackendCon->sql_strerror());
         Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
       } else {
         pdbr->PoolId = str_to_int64(row[0]);
@@ -643,7 +655,7 @@ bool BareosDb::GetPoolRecord(JobControlRecord* jcr, PoolDbRecord* pdbr)
         ok = true;
       }
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   }
 
   if (ok) {
@@ -687,7 +699,7 @@ bool BareosDb::GetStorageRecord(JobControlRecord* jcr, StorageDbRecord* sdbr)
          "Storage.StorageId=%s",
          edit_int64(sdbr->StorageId, ed1));
   } else { /* find by name */
-    EscapeString(jcr, esc, sdbr->Name, strlen(sdbr->Name));
+    BackendCon->EscapeString(jcr, esc, sdbr->Name, strlen(sdbr->Name));
     Mmsg(cmd,
          "SELECT StorageId,Name,Autochanger FROM Storage WHERE "
          "Storage.Name='%s'",
@@ -700,8 +712,9 @@ bool BareosDb::GetStorageRecord(JobControlRecord* jcr, StorageDbRecord* sdbr)
             edit_uint64(num_rows, ed1));
       Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
     } else if (num_rows == 1) {
-      if ((row = SqlFetchRow()) == NULL) {
-        Mmsg1(errmsg, T_("error fetching row: %s\n"), sql_strerror());
+      if ((row = BackendCon->SqlFetchRow()) == NULL) {
+        Mmsg1(errmsg, T_("error fetching row: %s\n"),
+              BackendCon->sql_strerror());
         Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
       } else {
         sdbr->StorageId = str_to_int64(row[0]);
@@ -711,7 +724,7 @@ bool BareosDb::GetStorageRecord(JobControlRecord* jcr, StorageDbRecord* sdbr)
         ok = true;
       }
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   }
 
   return ok;
@@ -740,7 +753,7 @@ bool BareosDb::GetClientRecord(JobControlRecord* jcr, ClientDbRecord* cdbr)
          "FROM Client WHERE Client.ClientId=%s",
          edit_int64(cdbr->ClientId, ed1));
   } else { /* find by name */
-    EscapeString(jcr, esc, cdbr->Name, strlen(cdbr->Name));
+    BackendCon->EscapeString(jcr, esc, cdbr->Name, strlen(cdbr->Name));
     Mmsg(cmd,
          "SELECT ClientId,Name,Uname,AutoPrune,FileRetention,JobRetention "
          "FROM Client WHERE Client.Name='%s'",
@@ -754,8 +767,9 @@ bool BareosDb::GetClientRecord(JobControlRecord* jcr, ClientDbRecord* cdbr)
             edit_uint64(num_rows, ed1));
       Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
     } else if (num_rows == 1) {
-      if ((row = SqlFetchRow()) == NULL) {
-        Mmsg1(errmsg, T_("error fetching row: %s\n"), sql_strerror());
+      if ((row = BackendCon->SqlFetchRow()) == NULL) {
+        Mmsg1(errmsg, T_("error fetching row: %s\n"),
+              BackendCon->sql_strerror());
         Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
       } else {
         cdbr->ClientId = str_to_int64(row[0]);
@@ -771,7 +785,7 @@ bool BareosDb::GetClientRecord(JobControlRecord* jcr, ClientDbRecord* cdbr)
     } else {
       Mmsg(errmsg, T_("Client record not found in Catalog.\n"));
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   } else {
     Mmsg(errmsg, T_("Client record not found in Catalog.\n"));
   }
@@ -793,7 +807,7 @@ bool BareosDb::GetCounterRecord(JobControlRecord* jcr, CounterDbRecord* cr)
   char esc[MAX_ESCAPE_NAME_LENGTH];
 
   DbLocker _{this};
-  EscapeString(jcr, esc, cr->Counter, strlen(cr->Counter));
+  BackendCon->EscapeString(jcr, esc, cr->Counter, strlen(cr->Counter));
 
   FillQuery(SQL_QUERY::select_counter_values, esc);
   if (QueryDb(jcr, cmd)) {
@@ -804,10 +818,11 @@ bool BareosDb::GetCounterRecord(JobControlRecord* jcr, CounterDbRecord* cr)
       Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
     }
     if (num_rows >= 1) {
-      if ((row = SqlFetchRow()) == NULL) {
-        Mmsg1(errmsg, T_("error fetching Counter row: %s\n"), sql_strerror());
+      if ((row = BackendCon->SqlFetchRow()) == NULL) {
+        Mmsg1(errmsg, T_("error fetching Counter row: %s\n"),
+              BackendCon->sql_strerror());
         Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
-        SqlFreeResult();
+        BackendCon->SqlFreeResult();
         return retval;
       }
       cr->MinValue = str_to_int64(row[0]);
@@ -818,11 +833,11 @@ bool BareosDb::GetCounterRecord(JobControlRecord* jcr, CounterDbRecord* cr)
       } else {
         cr->WrapCounter[0] = 0;
       }
-      SqlFreeResult();
+      BackendCon->SqlFreeResult();
       retval = true;
       return retval;
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   } else {
     Mmsg(errmsg, T_("Counter record: %s not found in Catalog.\n"), cr->Counter);
   }
@@ -853,7 +868,7 @@ int BareosDb::GetFilesetRecord(JobControlRecord* jcr, FileSetDbRecord* fsr)
          "WHERE FileSetId=%s",
          edit_int64(fsr->FileSetId, ed1));
   } else { /* find by name */
-    EscapeString(jcr, esc, fsr->FileSet, strlen(fsr->FileSet));
+    BackendCon->EscapeString(jcr, esc, fsr->FileSet, strlen(fsr->FileSet));
     Mmsg(cmd,
          "SELECT FileSetId,FileSet,MD5,CreateTime FROM FileSet "
          "WHERE FileSet='%s' ORDER BY CreateTime DESC LIMIT 1",
@@ -865,9 +880,9 @@ int BareosDb::GetFilesetRecord(JobControlRecord* jcr, FileSetDbRecord* fsr)
     if (num_rows > 1) {
       Mmsg1(errmsg, T_("Error got %s FileSets but expected only one!\n"),
             edit_uint64(num_rows, ed1));
-      SqlDataSeek(num_rows - 1);
+      BackendCon->SqlDataSeek(num_rows - 1);
     }
-    if ((row = SqlFetchRow()) == NULL) {
+    if ((row = BackendCon->SqlFetchRow()) == NULL) {
       Mmsg1(errmsg, T_("FileSet record \"%s\" not found.\n"), fsr->FileSet);
     } else {
       fsr->FileSetId = str_to_int64(row[0]);
@@ -878,7 +893,7 @@ int BareosDb::GetFilesetRecord(JobControlRecord* jcr, FileSetDbRecord* fsr)
                sizeof(fsr->cCreateTime));
       retval = fsr->FileSetId;
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   } else {
     Mmsg(errmsg, T_("FileSet record not found in Catalog.\n"));
   }
@@ -900,7 +915,7 @@ bool BareosDb::PrepareMediaSqlQuery(JobControlRecord* jcr,
        mr->Recycle, mr->Enabled);
 
   if (*mr->MediaType) {
-    EscapeString(jcr, esc, mr->MediaType, strlen(mr->MediaType));
+    BackendCon->EscapeString(jcr, esc, mr->MediaType, strlen(mr->MediaType));
     Mmsg(buf, "AND MediaType='%s' ", esc);
     PmStrcat(cmd, buf.c_str());
   }
@@ -921,7 +936,7 @@ bool BareosDb::PrepareMediaSqlQuery(JobControlRecord* jcr,
   }
 
   if (*mr->VolStatus) {
-    EscapeString(jcr, esc, mr->VolStatus, strlen(mr->VolStatus));
+    BackendCon->EscapeString(jcr, esc, mr->VolStatus, strlen(mr->VolStatus));
     Mmsg(buf, "AND VolStatus = '%s' ", esc);
     PmStrcat(cmd, buf.c_str());
   }
@@ -932,7 +947,7 @@ bool BareosDb::PrepareMediaSqlQuery(JobControlRecord* jcr,
     PmStrcat(cmd, buf.c_str());
   } else if (*mr->VolumeName) {
     /* single volume given in media record */
-    EscapeString(jcr, esc, mr->VolumeName, strlen(mr->VolumeName));
+    BackendCon->EscapeString(jcr, esc, mr->VolumeName, strlen(mr->VolumeName));
     Mmsg(buf, "AND VolumeName = '%s' ", esc);
     PmStrcat(cmd, buf.c_str());
   }
@@ -969,7 +984,8 @@ bool BareosDb::GetMediaIds(JobControlRecord* jcr,
   }
 
   if (!QueryDb(jcr, cmd)) {
-    Mmsg(errmsg, T_("Media id select failed: ERR=%s\n"), sql_strerror());
+    Mmsg(errmsg, T_("Media id select failed: ERR=%s\n"),
+         BackendCon->sql_strerror());
     Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
     return false;
   }
@@ -977,10 +993,12 @@ bool BareosDb::GetMediaIds(JobControlRecord* jcr,
   *num_ids = SqlNumRows();
   if (*num_ids > 0) {
     id = (DBId_t*)malloc(*num_ids * sizeof(DBId_t));
-    while ((row = SqlFetchRow()) != NULL) { id[i++] = str_to_uint64(row[0]); }
+    while ((row = BackendCon->SqlFetchRow()) != NULL) {
+      id[i++] = str_to_uint64(row[0]);
+    }
     *ids = id;
   }
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 
   return true;
 }
@@ -1010,14 +1028,15 @@ bool BareosDb::GetQueryDbids(JobControlRecord* jcr,
         free(ids.DBId);
         ids.DBId = (DBId_t*)malloc(ids.num_ids * sizeof(DBId_t));
       }
-      while ((row = SqlFetchRow()) != NULL) {
+      while ((row = BackendCon->SqlFetchRow()) != NULL) {
         ids.DBId[i++] = str_to_uint64(row[0]);
       }
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
     ok = true;
   } else {
-    Mmsg(errmsg, T_("query dbids failed: ERR=%s\n"), sql_strerror());
+    Mmsg(errmsg, T_("query dbids failed: ERR=%s\n"),
+         BackendCon->sql_strerror());
     Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
     ok = false;
   }
@@ -1040,9 +1059,10 @@ bool BareosDb::GetAllVolumeNames(db_list_ctx* volumenames)
 
   DbLocker _{this};
 
-  if (!SqlQueryWithHandler(query.c_str(), DbListHandler, volumenames)) {
+  if (!BackendCon->SqlQueryWithHandler(query.c_str(), DbListHandler,
+                                       volumenames)) {
     Emsg1(M_ERROR, 0, "Could not retrieve volume names: ERR=%s\n",
-          sql_strerror());
+          BackendCon->sql_strerror());
     return false;
   }
   return true;
@@ -1081,7 +1101,7 @@ bool BareosDb::GetMediaRecord(JobControlRecord* jcr, MediaDbRecord* mr)
          "FROM Media WHERE MediaId=%s",
          edit_int64(mr->MediaId, ed1));
   } else { /* find by name */
-    EscapeString(jcr, esc, mr->VolumeName, strlen(mr->VolumeName));
+    BackendCon->EscapeString(jcr, esc, mr->VolumeName, strlen(mr->VolumeName));
     Mmsg(cmd,
          "SELECT MediaId,VolumeName,VolJobs,VolFiles,VolBlocks,"
          "VolBytes,VolMounts,VolErrors,VolWrites,MaxVolBytes,VolCapacityBytes,"
@@ -1102,8 +1122,9 @@ bool BareosDb::GetMediaRecord(JobControlRecord* jcr, MediaDbRecord* mr)
             edit_uint64(num_rows, ed1));
       Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
     } else if (num_rows == 1) {
-      if ((row = SqlFetchRow()) == NULL) {
-        Mmsg1(errmsg, T_("error fetching row: %s\n"), sql_strerror());
+      if ((row = BackendCon->SqlFetchRow()) == NULL) {
+        Mmsg1(errmsg, T_("error fetching row: %s\n"),
+              BackendCon->sql_strerror());
         Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
       } else {
         /* return values */
@@ -1170,7 +1191,7 @@ bool BareosDb::GetMediaRecord(JobControlRecord* jcr, MediaDbRecord* mr)
               mr->VolumeName);
       }
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
   } else {
     if (mr->MediaId != 0) {
       Mmsg(errmsg, T_("Media record for MediaId=%u not found in Catalog.\n"),
@@ -1244,7 +1265,7 @@ bool BareosDb::GetFileList(JobControlRecord*,
 
   Dmsg1(100, "q=%s\n", query.c_str());
 
-  return BigSqlQuery(query.c_str(), ResultHandler, ctx);
+  return BackendCon->BigSqlQuery(query.c_str(), ResultHandler, ctx);
 }
 
 bool BareosDb::GetUsedBaseJobids(JobControlRecord*,
@@ -1259,7 +1280,7 @@ bool BareosDb::GetUsedBaseJobids(JobControlRecord*,
        " WHERE Job.HasBase = 1 "
        "   AND Job.JobId IN (%s) ",
        jobids);
-  return SqlQueryWithHandler(query.c_str(), DbListHandler, result);
+  return BackendCon->SqlQueryWithHandler(query.c_str(), DbListHandler, result);
 }
 
 /*
@@ -1274,9 +1295,9 @@ db_list_ctx BareosDb::FilterZeroFileJobs(db_list_ctx& jobids)
   query += jobids.Join(",") + ") ORDER BY JobId";
 
   db_list_ctx zero_file_jobs;
-  if (DbLocker _{this};
-      !SqlQueryWithHandler(query.c_str(), DbListHandler, &zero_file_jobs)) {
-    throw new BareosSqlError(sql_strerror());
+  if (DbLocker _{this}; !BackendCon->SqlQueryWithHandler(
+          query.c_str(), DbListHandler, &zero_file_jobs)) {
+    throw new BareosSqlError(BackendCon->sql_strerror());
   }
   for (auto& remove_jobid : zero_file_jobs) {
     jobids.erase(std::remove(jobids.begin(), jobids.end(), remove_jobid),
@@ -1377,7 +1398,7 @@ bool BareosDb::AccurateGetJobids(JobControlRecord* jcr,
   } else {
     Mmsg(query, "SELECT JobId FROM btemp3%s ORDER by JobTDate ASC", jobid);
   }
-  SqlQueryWithHandler(query.c_str(), DbListHandler, jobids);
+  BackendCon->SqlQueryWithHandler(query.c_str(), DbListHandler, jobids);
   Dmsg1(1, "db_accurate_get_jobids=%s\n", jobids->GetAsString().c_str());
   retval = true;
 
@@ -1401,7 +1422,7 @@ bool BareosDb::GetBaseFileList(JobControlRecord* jcr,
        jcr->JobId);
 
   if (!use_md5) { strip_md5(query.c_str()); }
-  return BigSqlQuery(query.c_str(), ResultHandler, ctx);
+  return BackendCon->BigSqlQuery(query.c_str(), ResultHandler, ctx);
 }
 
 bool BareosDb::GetBaseJobid(JobControlRecord* jcr,
@@ -1422,7 +1443,7 @@ bool BareosDb::GetBaseJobid(JobControlRecord* jcr,
 
   StartTime = (jr->StartTime) ? jr->StartTime : time(NULL);
   bstrutime(date, sizeof(date), StartTime + 1);
-  EscapeString(jcr, esc, jr->Name, strlen(jr->Name));
+  BackendCon->EscapeString(jcr, esc, jr->Name, strlen(jr->Name));
 
   /* we can take also client name, fileset, etc... */
 
@@ -1442,7 +1463,8 @@ bool BareosDb::GetBaseJobid(JobControlRecord* jcr,
        date);
 
   Dmsg1(10, "GetBaseJobid q=%s\n", query.c_str());
-  if (!SqlQueryWithHandler(query.c_str(), db_int64_handler, &lctx)) {
+  if (!BackendCon->SqlQueryWithHandler(query.c_str(), db_int64_handler,
+                                       &lctx)) {
     goto bail_out;
   }
   *jobid = (JobId_t)lctx.value;
@@ -1460,7 +1482,7 @@ bool BareosDb::GetVolumeJobids(MediaDbRecord* mr, db_list_ctx* lst)
   Mmsg(cmd, "SELECT DISTINCT JobId FROM JobMedia WHERE MediaId=%" PRIdbid,
        mr->MediaId);
 
-  return SqlQueryWithHandler(cmd, DbListHandler, lst);
+  return BackendCon->SqlQueryWithHandler(cmd, DbListHandler, lst);
 }
 
 bool BareosDb::GetMediaIdsInPool(PoolDbRecord* pool_record,
@@ -1470,7 +1492,7 @@ bool BareosDb::GetMediaIdsInPool(PoolDbRecord* pool_record,
   Mmsg(cmd, "SELECT DISTINCT MediaId FROM Media WHERE PoolId=%" PRIdbid,
        pool_record->PoolId);
 
-  return SqlQueryWithHandler(cmd, DbIdListHandler, lst);
+  return BackendCon->SqlQueryWithHandler(cmd, DbIdListHandler, lst);
 }
 
 /**
@@ -1507,15 +1529,16 @@ bool BareosDb::get_quota_jobbytes(JobControlRecord* jcr,
   if (QueryDb(jcr, cmd)) {
     num_rows = SqlNumRows();
     if (num_rows == 1) {
-      row = SqlFetchRow();
+      row = BackendCon->SqlFetchRow();
       jr->JobSumTotalBytes = str_to_uint64(row[0]);
     } else if (num_rows < 1) {
       jr->JobSumTotalBytes = 0;
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
     return true;
   } else {
-    Mmsg(errmsg, T_("JobBytes sum select failed: ERR=%s\n"), sql_strerror());
+    Mmsg(errmsg, T_("JobBytes sum select failed: ERR=%s\n"),
+         BackendCon->sql_strerror());
     Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
   }
 
@@ -1556,15 +1579,16 @@ bool BareosDb::get_quota_jobbytes_nofailed(JobControlRecord* jcr,
   if (QueryDb(jcr, cmd)) {
     num_rows = SqlNumRows();
     if (num_rows == 1) {
-      row = SqlFetchRow();
+      row = BackendCon->SqlFetchRow();
       jr->JobSumTotalBytes = str_to_uint64(row[0]);
     } else if (num_rows < 1) {
       jr->JobSumTotalBytes = 0;
     }
-    SqlFreeResult();
+    BackendCon->SqlFreeResult();
     return true;
   } else {
-    Mmsg(errmsg, T_("JobBytes sum select failed: ERR=%s\n"), sql_strerror());
+    Mmsg(errmsg, T_("JobBytes sum select failed: ERR=%s\n"),
+         BackendCon->sql_strerror());
     Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
   }
 
@@ -1592,19 +1616,20 @@ bool BareosDb::GetQuotaRecord(JobControlRecord* jcr, ClientDbRecord* cdbr)
   if (QueryDb(jcr, cmd)) {
     num_rows = SqlNumRows();
     if (num_rows == 1) {
-      if ((row = SqlFetchRow()) == NULL) {
-        Mmsg1(errmsg, T_("error fetching row: %s\n"), sql_strerror());
+      if ((row = BackendCon->SqlFetchRow()) == NULL) {
+        Mmsg1(errmsg, T_("error fetching row: %s\n"),
+              BackendCon->sql_strerror());
         Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
-        SqlFreeResult();
+        BackendCon->SqlFreeResult();
       } else {
         cdbr->GraceTime = str_to_uint64(row[0]);
         cdbr->QuotaLimit = str_to_int64(row[1]);
-        SqlFreeResult();
+        BackendCon->SqlFreeResult();
         retval = true;
       }
     } else {
       Mmsg(errmsg, T_("Quota record not found in Catalog.\n"));
-      SqlFreeResult();
+      BackendCon->SqlFreeResult();
     }
   } else {
     Mmsg(errmsg, T_("Quota record not found in Catalog.\n"));
@@ -1631,7 +1656,7 @@ int BareosDb::GetNdmpLevelMapping(JobControlRecord* jcr,
   DbLocker _{this};
 
   esc_name = CheckPoolMemorySize(esc_name, strlen(filesystem) * 2 + 1);
-  EscapeString(jcr, esc_name, filesystem, strlen(filesystem));
+  BackendCon->EscapeString(jcr, esc_name, filesystem, strlen(filesystem));
 
   Mmsg(cmd,
        "SELECT DumpLevel FROM NDMPLevelMap WHERE "
@@ -1642,20 +1667,21 @@ int BareosDb::GetNdmpLevelMapping(JobControlRecord* jcr,
   if (QueryDb(jcr, cmd)) {
     num_rows = SqlNumRows();
     if (num_rows == 1) {
-      if ((row = SqlFetchRow()) == NULL) {
-        Mmsg1(errmsg, T_("error fetching row: %s\n"), sql_strerror());
+      if ((row = BackendCon->SqlFetchRow()) == NULL) {
+        Mmsg1(errmsg, T_("error fetching row: %s\n"),
+              BackendCon->sql_strerror());
         Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
-        SqlFreeResult();
+        BackendCon->SqlFreeResult();
         return dumplevel;
       } else {
         dumplevel = str_to_uint64(row[0]);
         dumplevel++; /* select next dumplevel */
-        SqlFreeResult();
+        BackendCon->SqlFreeResult();
         return dumplevel;
       }
     } else {
       Mmsg(errmsg, T_("NDMP Dump Level record not found in Catalog.\n"));
-      SqlFreeResult();
+      BackendCon->SqlFreeResult();
       return dumplevel;
     }
   } else {
@@ -1698,8 +1724,8 @@ bool BareosDb::GetNdmpEnvironmentString(const std::string& query,
                                         void* ctx)
 {
   auto myctx = std::make_unique<CountContext>(ResultHandler, ctx);
-  bool status
-      = SqlQueryWithHandler(query.c_str(), CountingHandler, myctx.get());
+  bool status = BackendCon->SqlQueryWithHandler(query.c_str(), CountingHandler,
+                                                myctx.get());
   Dmsg3(150, "Got %d NDMP environment records\n", myctx->count);
   return status && myctx->count > 0;  // no rows means no environment was found
 }
@@ -1757,7 +1783,7 @@ bool BareosDb::GetNdmpEnvironmentString(const VolumeSessionInfo& vsi,
   query += " WHERE VolSessionId = " + std::to_string(vsi.id);
   query += " AND VolSessionTime = " + std::to_string(vsi.time);
 
-  if (SqlQueryWithHandler(query.c_str(), db_int64_handler, &lctx)) {
+  if (BackendCon->SqlQueryWithHandler(query.c_str(), db_int64_handler, &lctx)) {
     if (lctx.count == 1) {
       /* now lctx.value contains the jobid we restore */
       return GetNdmpEnvironmentString(lctx.value, FileIndex, ResultHandler,
@@ -1818,7 +1844,7 @@ bool BareosDb::PrepareMediaSqlQuery(JobControlRecord* jcr,
        columns, mr->Recycle, mr->Enabled);
 
   if (*mr->MediaType) {
-    EscapeString(jcr, esc, mr->MediaType, strlen(mr->MediaType));
+    BackendCon->EscapeString(jcr, esc, mr->MediaType, strlen(mr->MediaType));
     Mmsg(buf, "AND Media.MediaType='%s' ", esc);
     PmStrcat(querystring, buf.c_str());
   }
@@ -1839,7 +1865,7 @@ bool BareosDb::PrepareMediaSqlQuery(JobControlRecord* jcr,
   }
 
   if (*mr->VolStatus) {
-    EscapeString(jcr, esc, mr->VolStatus, strlen(mr->VolStatus));
+    BackendCon->EscapeString(jcr, esc, mr->VolStatus, strlen(mr->VolStatus));
     Mmsg(buf, "AND Media.VolStatus = '%s' ", esc);
     PmStrcat(querystring, buf.c_str());
   }
@@ -1850,7 +1876,7 @@ bool BareosDb::PrepareMediaSqlQuery(JobControlRecord* jcr,
     PmStrcat(querystring, buf.c_str());
   } else if (*mr->VolumeName) {
     /* single volume given in media record */
-    EscapeString(jcr, esc, mr->VolumeName, strlen(mr->VolumeName));
+    BackendCon->EscapeString(jcr, esc, mr->VolumeName, strlen(mr->VolumeName));
     Mmsg(buf, "AND Media.VolumeName = '%s' ", esc);
     PmStrcat(querystring, buf.c_str());
   }

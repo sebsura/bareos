@@ -293,7 +293,7 @@ extern "C" void* statistics_thread(void*)
   }  // while(!quit)
 
 bail_out:
-  jcr->db->CloseDatabase(jcr);
+  jcr->db->BackendCon->CloseDatabase(jcr);
   jcr->db = nullptr;
   FreeJcr(jcr);
 

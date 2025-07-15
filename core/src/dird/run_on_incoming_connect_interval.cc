@@ -66,22 +66,22 @@ time_t RunOnIncomingConnectInterval::FindLastJobStart(JobResource* job)
 
   std::vector<char> stime;
 
-  BareosDb::SqlFindResult result = jcr->db->FindLastJobStartTimeForJobAndClient(
+  auto result = jcr->db->FindLastJobStartTimeForJobAndClient(
       jcr, job->resource_name_, client_name_, stime);
 
   time_t time{-1};
 
   switch (result) {
-    case BareosDb::SqlFindResult::kSuccess: {
+    case SqlFindResult::kSuccess: {
       time_t time_converted = static_cast<time_t>(StrToUtime(stime.data()));
       time = time_converted == 0 ? -1 : time_converted;
       break;
     }
-    case BareosDb::SqlFindResult::kEmptyResultSet:
+    case SqlFindResult::kEmptyResultSet:
       time = 0;
       break;
     default:
-    case BareosDb::SqlFindResult::kError:
+    case SqlFindResult::kError:
       time = -1;
       break;
   }

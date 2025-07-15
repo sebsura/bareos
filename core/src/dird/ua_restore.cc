@@ -695,7 +695,7 @@ static int UserSelectJobidsOrFiles(UaContext* ua, RestoreContext* rx)
         if (!GetCmd(ua, T_("Enter Filename (no path):"))) { return 0; }
         len = strlen(ua->cmd);
         fname = (char*)malloc(len * 2 + 1);
-        ua->db->EscapeString(ua->jcr, fname, ua->cmd, len);
+        ua->db->BackendCon->EscapeString(ua->jcr, fname, ua->cmd, len);
         ua->db->FillQuery(rx->query, BareosDb::SQL_QUERY::uar_file,
                           rx->ClientName, fname);
         free(fname);
@@ -1122,7 +1122,7 @@ static void SplitPathAndFilename(UaContext* ua, RestoreContext* rx, char* name)
   rx->fnl = p - f;
   if (rx->fnl > 0) {
     rx->fname = CheckPoolMemorySize(rx->fname, 2 * (rx->fnl) + 1);
-    ua->db->EscapeString(ua->jcr, rx->fname, f, rx->fnl);
+    ua->db->BackendCon->EscapeString(ua->jcr, rx->fname, f, rx->fnl);
   } else {
     rx->fname[0] = 0;
     rx->fnl = 0;
@@ -1131,7 +1131,7 @@ static void SplitPathAndFilename(UaContext* ua, RestoreContext* rx, char* name)
   rx->pnl = f - name;
   if (rx->pnl > 0) {
     rx->path = CheckPoolMemorySize(rx->path, 2 * (rx->pnl) + 1);
-    ua->db->EscapeString(ua->jcr, rx->path, name, rx->pnl);
+    ua->db->BackendCon->EscapeString(ua->jcr, rx->path, name, rx->pnl);
   } else {
     rx->path[0] = 0;
     rx->pnl = 0;

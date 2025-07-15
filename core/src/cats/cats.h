@@ -487,6 +487,102 @@ class BareosSqlError : public std::runtime_error {
   BareosSqlError(const char* what) : std::runtime_error(what) {}
 };
 
+enum class query_flag : size_t
+{
+  DiscardResult,
+  Count,
+};
+
+struct query_flags {
+  std::bitset<static_cast<size_t>(query_flag::Count)> set_flags;
+
+  query_flags() = default;
+  constexpr query_flags(std::initializer_list<query_flag> initial_flags)
+  {
+    for (auto flag : initial_flags) {
+      auto pos = static_cast<size_t>(flag);
+      set_flags.set(pos);
+    }
+  }
+
+  template <query_flag Flag> void set()
+  {
+    constexpr auto pos = static_cast<size_t>(Flag);
+    static_assert(pos < static_cast<size_t>(query_flag::Count));
+    set_flags.set(pos);
+  }
+
+  bool test(query_flag Flag)
+  {
+    return set_flags.test(static_cast<size_t>(Flag));
+  }
+};
+
+enum class SqlFindResult
+{
+  kError,
+  kSuccess,
+  kEmptyResultSet
+};
+
+
+struct db_conn {
+  /* Virtual low level methods */
+  virtual void ThreadCleanup(void) = 0;
+  virtual void EscapeString(JobControlRecord* jcr,
+                            char* snew,
+                            const char* old,
+                            int len)
+      = 0;
+  virtual void UnescapeObject(JobControlRecord* jcr,
+                              char* from,
+                              int32_t expected_len,
+                              POOLMEM*& dest,
+                              int32_t* len)
+      = 0;
+
+  /* Pure virtual low level methods */
+  // returns an error string on error
+  virtual const char* OpenDatabase(JobControlRecord* jcr) = 0;
+  virtual void CloseDatabase(JobControlRecord* jcr) = 0;
+  virtual void StartTransaction(JobControlRecord* jcr) = 0;
+  virtual void EndTransaction(JobControlRecord* jcr) = 0;
+
+  /* By default, we use db_sql_query */
+  virtual bool BigSqlQuery(const char* query,
+                           DB_RESULT_HANDLER* ResultHandler,
+                           void* ctx)
+      = 0;
+  virtual char* EscapeObject(JobControlRecord* jcr, char* old, int len) = 0;
+  virtual void SqlFieldSeek(int field) = 0;
+  virtual int SqlNumFields(void) = 0;
+  virtual void SqlFreeResult(void) = 0;
+  virtual SQL_ROW SqlFetchRow(void) = 0;
+
+
+  virtual bool SqlQueryWithoutHandler(const char* query, query_flags flags = {})
+      = 0;
+  virtual bool SqlQueryWithHandler(const char* query,
+                                   DB_RESULT_HANDLER* ResultHandler,
+                                   void* ctx)
+      = 0;
+  virtual const char* sql_strerror(void) = 0;
+  virtual void SqlDataSeek(int row) = 0;
+  virtual int SqlAffectedRows(void) = 0;
+  virtual uint64_t SqlInsertAutokeyRecord(const char* query,
+                                          const char* table_name)
+      = 0;
+  virtual SQL_FIELD* SqlFetchField(void) = 0;
+  virtual bool SqlFieldIsNotNull(int field_type) = 0;
+  virtual bool SqlFieldIsNumeric(int field_type) = 0;
+  virtual bool SqlBatchStartFileTable(JobControlRecord* jcr) = 0;
+  virtual bool SqlBatchEndFileTable(JobControlRecord* jcr, const char* error)
+      = 0;
+  virtual bool SqlBatchInsertFileTable(JobControlRecord* jcr,
+                                       AttributesDbRecord* ar)
+      = 0;
+};
+
 class BareosDb : public BareosDbQueryEnum {
  protected:
   brwlock_t lock_; /**< Transaction lock */
@@ -561,6 +657,12 @@ class BareosDb : public BareosDbQueryEnum {
    * db state, i.e. error messages, SqlResults, etc. */
 
  public:
+  SqlFindResult FindLastJobStartTimeForJobAndClient(
+      JobControlRecord* jcr,
+      std::string job_basename,
+      std::string client_name,
+      std::vector<char>& stime_out);
+
   BareosDb() {}
   virtual ~BareosDb() {}
 
@@ -661,19 +763,6 @@ class BareosDb : public BareosDbQueryEnum {
   void PurgeJobs(const char* jobids);
 
   /* sql_find.cc */
-
-  enum class SqlFindResult
-  {
-    kError,
-    kSuccess,
-    kEmptyResultSet
-  };
-
-  virtual SqlFindResult FindLastJobStartTimeForJobAndClient(
-      JobControlRecord* jcr,
-      std::string job_basename,
-      std::string client_name,
-      std::vector<char>& stime_out);
 
   bool FindLastJobStartTime(JobControlRecord* jcr,
                             JobDbRecord* jr,
@@ -946,102 +1035,16 @@ class BareosDb : public BareosDbQueryEnum {
   void UnlockDb(const char* file, int line);
   void PrintLockInfo(FILE* fp);
 
-  /* Virtual low level methods */
-  virtual void ThreadCleanup(void) {}
-  virtual void EscapeString(JobControlRecord* jcr,
-                            char* snew,
-                            const char* old,
-                            int len);
-  virtual void UnescapeObject(JobControlRecord* jcr,
-                              char* from,
-                              int32_t expected_len,
-                              POOLMEM*& dest,
-                              int32_t* len);
-
-  /* Pure virtual low level methods */
-  // returns an error string on error
-  virtual const char* OpenDatabase(JobControlRecord* jcr) = 0;
-  virtual void CloseDatabase(JobControlRecord* jcr) = 0;
-  virtual void StartTransaction(JobControlRecord* jcr) = 0;
-  virtual void EndTransaction(JobControlRecord* jcr) = 0;
-
-  /* By default, we use db_sql_query */
-  virtual bool BigSqlQuery(const char* query,
-                           DB_RESULT_HANDLER* ResultHandler,
-                           void* ctx)
-  {
-    return SqlQuery(query, ResultHandler, ctx);
-  }
-
- private:
-  virtual char* EscapeObject(JobControlRecord* jcr, char* old, int len);
-  virtual void SqlFieldSeek(int field) = 0;
-  virtual int SqlNumFields(void) = 0;
-  virtual void SqlFreeResult(void) = 0;
-  virtual SQL_ROW SqlFetchRow(void) = 0;
-
- protected:
-  enum class query_flag : size_t
-  {
-    DiscardResult,
-    Count,
-  };
-
-  struct query_flags {
-    std::bitset<static_cast<size_t>(query_flag::Count)> set_flags;
-
-    query_flags() = default;
-    constexpr query_flags(std::initializer_list<query_flag> initial_flags)
-    {
-      for (auto flag : initial_flags) {
-        auto pos = static_cast<size_t>(flag);
-        set_flags.set(pos);
-      }
-    }
-
-    template <query_flag Flag> void set()
-    {
-      constexpr auto pos = static_cast<size_t>(Flag);
-      static_assert(pos < static_cast<size_t>(query_flag::Count));
-      set_flags.set(pos);
-    }
-
-    bool test(query_flag Flag)
-    {
-      return set_flags.test(static_cast<size_t>(Flag));
-    }
-  };
-
-
- private:
-  virtual bool SqlQueryWithoutHandler(const char* query, query_flags flags = {})
-      = 0;
-  virtual bool SqlQueryWithHandler(const char* query,
-                                   DB_RESULT_HANDLER* ResultHandler,
-                                   void* ctx)
-      = 0;
-  virtual const char* sql_strerror(void) = 0;
-  virtual void SqlDataSeek(int row) = 0;
-  virtual int SqlAffectedRows(void) = 0;
-  virtual uint64_t SqlInsertAutokeyRecord(const char* query,
-                                          const char* table_name)
-      = 0;
-  virtual SQL_FIELD* SqlFetchField(void) = 0;
-  virtual bool SqlFieldIsNotNull(int field_type) = 0;
-  virtual bool SqlFieldIsNumeric(int field_type) = 0;
-  virtual bool SqlBatchStartFileTable(JobControlRecord* jcr) = 0;
-  virtual bool SqlBatchEndFileTable(JobControlRecord* jcr, const char* error)
-      = 0;
-  virtual bool SqlBatchInsertFileTable(JobControlRecord* jcr,
-                                       AttributesDbRecord* ar)
-      = 0;
-
  protected:
   void AssertOwnership(libbareos::source_location l
                        = libbareos::source_location::current())
   {
     if (!is_private_) { RwlAssertWriterIsMe(&lock_, l); }
   }
+
+ public:
+  // TODO: this should be private
+  db_conn* BackendCon;
 };
 
 BareosDb* db_init_database(JobControlRecord* jcr,

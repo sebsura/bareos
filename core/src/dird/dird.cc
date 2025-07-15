@@ -117,7 +117,7 @@ static bool DirDbLogInsert(JobControlRecord* jcr,
   if (!jcr || !jcr->db || !jcr->db->IsConnected()) { return false; }
   length = strlen(msg);
   esc_msg.check_size(length * 2 + 1);
-  jcr->db->EscapeString(jcr, esc_msg.c_str(), msg, length);
+  jcr->db->BackendCon->EscapeString(jcr, esc_msg.c_str(), msg, length);
 
   bstrutime(dt, sizeof(dt), mtime);
   Mmsg(query, "INSERT INTO Log (JobId, Time, LogText) VALUES (%s,'%s','%s')",

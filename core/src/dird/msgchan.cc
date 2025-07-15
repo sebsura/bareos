@@ -436,7 +436,7 @@ extern "C" void MsgThreadCleanup(void* arg)
 {
   JobControlRecord* jcr = (JobControlRecord*)arg;
 
-  jcr->db->EndTransaction(jcr); /* Terminate any open transaction */
+  jcr->db->BackendCon->EndTransaction(jcr); /* Terminate any open transaction */
 
   {
     std::unique_lock l(jcr->mutex_guard());
@@ -450,8 +450,8 @@ extern "C" void MsgThreadCleanup(void* arg)
   jcr->dir_impl->term_wait.notify_all(); /* wakeup any waiting threads */
   Dmsg2(100, "=== End msg_thread. JobId=%d usecnt=%d\n", jcr->JobId,
         jcr->UseCount());
-  jcr->db->ThreadCleanup(); /* remove thread specific data */
-  FreeJcr(jcr);             /* release jcr */
+  jcr->db->BackendCon->ThreadCleanup(); /* remove thread specific data */
+  FreeJcr(jcr);                         /* release jcr */
 }
 
 /** Handle the message channel (i.e. requests from the

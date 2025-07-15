@@ -158,89 +158,46 @@ class MockDatabase : public BareosDb {
     kFindStartTimeWrongString
   };
   explicit MockDatabase(Mode mode) : mode_(mode) {}
-  SqlFindResult FindLastJobStartTimeForJobAndClient(
-      JobControlRecord* /*jcr*/,
-      std::string /*job_basename*/,
-      std::string /*client_name*/,
-      std::vector<char>& stime_out) override
-  {
-    switch (mode_) {
-      case Mode::kFindNoStartTime:
-        return SqlFindResult::kEmptyResultSet;
+  // SqlFindResult FindLastJobStartTimeForJobAndClient(
+  //     JobControlRecord* /*jcr*/,
+  //     std::string /*job_basename*/,
+  //     std::string /*client_name*/,
+  //     std::vector<char>& stime_out) override
+  // {
+  //   switch (mode_) {
+  //     case Mode::kFindNoStartTime:
+  //       return SqlFindResult::kEmptyResultSet;
 
-      case Mode::kFindStartTime: {
-        auto now = system_clock::now();
-        auto more_than_three_hours = seconds(hours(3) + seconds(1));
+  //     case Mode::kFindStartTime: {
+  //       auto now = system_clock::now();
+  //       auto more_than_three_hours = seconds(hours(3) + seconds(1));
 
-        utime_t fake_start_time_of_previous_job
-            = system_clock::to_time_t(now - more_than_three_hours);
+  //       utime_t fake_start_time_of_previous_job
+  //           = system_clock::to_time_t(now - more_than_three_hours);
 
-        stime_out.resize(MAX_NAME_LENGTH);
-        bstrutime(stime_out.data(), MAX_NAME_LENGTH,
-                  fake_start_time_of_previous_job);
-        return SqlFindResult::kSuccess;
-      }
+  //       stime_out.resize(MAX_NAME_LENGTH);
+  //       bstrutime(stime_out.data(), MAX_NAME_LENGTH,
+  //                 fake_start_time_of_previous_job);
+  //       return SqlFindResult::kSuccess;
+  //     }
 
-      case Mode::kFindStartTimeWrongString: {
-        auto now = system_clock::now();
-        stime_out.resize(MAX_NAME_LENGTH);
-        bstrutime(stime_out.data(), MAX_NAME_LENGTH,
-                  system_clock::to_time_t(now));
-        stime_out[5] = 0;  // truncate string
-        return SqlFindResult::kSuccess;
-      }
+  //     case Mode::kFindStartTimeWrongString: {
+  //       auto now = system_clock::now();
+  //       stime_out.resize(MAX_NAME_LENGTH);
+  //       bstrutime(stime_out.data(), MAX_NAME_LENGTH,
+  //                 system_clock::to_time_t(now));
+  //       stime_out[5] = 0;  // truncate string
+  //       return SqlFindResult::kSuccess;
+  //     }
 
-      default:
-        std::abort();
+  //     default:
+  //       std::abort();
 
-    }  // switch(mode)
-  }
-
-  const char* OpenDatabase(JobControlRecord* /*jcr*/) override { return "bad"; }
-  void CloseDatabase(JobControlRecord* /*jcr*/) override {}
-  void StartTransaction(JobControlRecord* /*jcr*/) override {}
-  void EndTransaction(JobControlRecord* /*jcr*/) override {}
+  //   }  // switch(mode)
+  // }
 
  private:
   Mode mode_{};
-
-  void SqlFieldSeek(int) override {}
-  int SqlNumFields(void) override { return 0; }
-  virtual void SqlFreeResult(void) override {}
-  virtual SQL_ROW SqlFetchRow(void) override { return nullptr; }
-  virtual bool SqlQueryWithHandler(const char*,
-                                   DB_RESULT_HANDLER*,
-                                   void*) override
-  {
-    return true;
-  }
-  virtual bool SqlQueryWithoutHandler(const char*, query_flags) override
-  {
-    return true;
-  }
-  virtual const char* sql_strerror(void) override { return ""; }
-  virtual void SqlDataSeek(int) override {}
-  virtual int SqlAffectedRows(void) override { return 0; }
-  virtual uint64_t SqlInsertAutokeyRecord(const char*, const char*) override
-  {
-    return true;
-  }
-  virtual SQL_FIELD* SqlFetchField(void) override { return nullptr; }
-  virtual bool SqlFieldIsNotNull(int) override { return true; }
-  virtual bool SqlFieldIsNumeric(int) override { return true; }
-  virtual bool SqlBatchStartFileTable(JobControlRecord*) override
-  {
-    return true;
-  }
-  virtual bool SqlBatchEndFileTable(JobControlRecord*, const char*) override
-  {
-    return true;
-  }
-  virtual bool SqlBatchInsertFileTable(JobControlRecord*,
-                                       AttributesDbRecord*) override
-  {
-    return true;
-  }
 };
 
 static void scheduler_loop(Scheduler* scheduler) { scheduler->Run(); }

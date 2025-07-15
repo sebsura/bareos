@@ -139,7 +139,7 @@ bool BareosDb::UpdatePathHierarchyCache(JobControlRecord* jcr,
   edit_uint64(JobId, jobid);
 
   DbLocker _{this};
-  StartTransaction(jcr);
+  BackendCon->StartTransaction(jcr);
 
   Mmsg(cmd, "SELECT 1 FROM Job WHERE JobId = %s AND HasCache=1", jobid);
 
@@ -166,7 +166,7 @@ bool BareosDb::UpdatePathHierarchyCache(JobControlRecord* jcr,
    * see the current HasCache value. A new transaction must only be started
    * after having finished PathHierarchy processing, otherwise prevention
    * from duplicate key violations in BuildPathHierarchy() will not work. */
-  EndTransaction(jcr);
+  BackendCon->EndTransaction(jcr);
 
   /* Inserting path records for JobId */
   Mmsg(cmd,
@@ -214,7 +214,7 @@ bool BareosDb::UpdatePathHierarchyCache(JobControlRecord* jcr,
 
     SQL_ROW row;
     int i = 0;
-    while ((row = SqlFetchRow())) {
+    while ((row = BackendCon->SqlFetchRow())) {
       result[i++] = strdup(row[0]);
       result[i++] = strdup(row[1]);
     }
@@ -240,19 +240,19 @@ bool BareosDb::UpdatePathHierarchyCache(JobControlRecord* jcr,
     if (!QueryDb(jcr, cmd)) { goto bail_out; }
   }
 
-  StartTransaction(jcr);
+  BackendCon->StartTransaction(jcr);
 
   FillQuery(cmd, SQL_QUERY::bvfs_update_path_visibility_3, jobid, jobid, jobid);
 
   do {
     retval = QueryDb(jcr, cmd);
-  } while (retval && SqlAffectedRows() > 0);
+  } while (retval && BackendCon->SqlAffectedRows() > 0);
 
   Mmsg(cmd, "UPDATE Job SET HasCache=1 WHERE JobId=%s", jobid);
   UpdateDb(jcr, cmd);
 
 bail_out:
-  EndTransaction(jcr);
+  BackendCon->EndTransaction(jcr);
 
   return retval;
 }
@@ -273,7 +273,7 @@ void BareosDb::BvfsUpdateCache(JobControlRecord* jcr)
 
   BvfsUpdatePathHierarchyCache(jcr, jobids_list.GetAsString().c_str());
 
-  StartTransaction(jcr);
+  BackendCon->StartTransaction(jcr);
   Dmsg0(dbglevel, "Cleaning pathvisibility\n");
   Mmsg(cmd,
        "DELETE FROM PathVisibility "
@@ -281,7 +281,7 @@ void BareosDb::BvfsUpdateCache(JobControlRecord* jcr)
        "(SELECT 1 FROM Job WHERE JobId=PathVisibility.JobId)");
   nb = DeleteDb(jcr, cmd);
   Dmsg1(dbglevel, "Affected row(s) = %d\n", nb);
-  EndTransaction(jcr);
+  BackendCon->EndTransaction(jcr);
 }
 
 // Update the bvfs cache for given jobids (1,2,3,4)
@@ -482,7 +482,7 @@ void Bvfs::GetAllFileVersions(const char* path,
   DBId_t pathid = 0;
   char path_esc[MAX_ESCAPE_NAME_LENGTH];
 
-  db->EscapeString(jcr, path_esc, path, strlen(path));
+  db->BackendCon->EscapeString(jcr, path_esc, path, strlen(path));
   pathid = db->GetPathRecord(jcr, path_esc);
   GetAllFileVersions(pathid, fname, client);
 }
@@ -510,8 +510,8 @@ void Bvfs::GetAllFileVersions(DBId_t pathid,
     Mmsg(filter, " AND Job.Type IN ('B', 'A', 'a') ");
   }
 
-  db->EscapeString(jcr, fname_esc, fname, strlen(fname));
-  db->EscapeString(jcr, client_esc, client, strlen(client));
+  db->BackendCon->EscapeString(jcr, fname_esc, fname, strlen(fname));
+  db->BackendCon->EscapeString(jcr, client_esc, client, strlen(client));
 
   db->FillQuery(query, BareosDb::SQL_QUERY::bvfs_versions_6, fname_esc,
                 edit_uint64(pathid, ed1), client_esc, filter.c_str(), limit,
@@ -753,7 +753,7 @@ bool Bvfs::compute_restore_list(char* fileid,
 
     size_t len = strlen(tmp.c_str());
     tmp2.check_size((len + 1) * 2);
-    db->EscapeString(jcr, tmp2.c_str(), tmp.c_str(), len);
+    db->BackendCon->EscapeString(jcr, tmp2.c_str(), tmp.c_str(), len);
 
     if (init) { query.strcat(" UNION "); }
 

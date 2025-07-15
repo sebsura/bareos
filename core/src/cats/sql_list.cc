@@ -71,7 +71,7 @@ bool BareosDb::ListSqlQuery(JobControlRecord* jcr,
   DbLocker _{this};
 
   if (!SqlQuery(query)) {
-    Mmsg(errmsg, T_("Query failed: %s\n"), sql_strerror());
+    Mmsg(errmsg, T_("Query failed: %s\n"), BackendCon->sql_strerror());
     if (verbose) { sendit->Decoration("%s", errmsg); }
     return false;
   }
@@ -94,7 +94,7 @@ bool BareosDb::ListSqlQuery(JobControlRecord* jcr,
     ListResult(jcr, sendit, type);
     sendit->ArrayEnd(description);
   }
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 
   return true;
 }
@@ -122,7 +122,8 @@ void BareosDb::ListPoolRecords(JobControlRecord* jcr,
   PoolMem select(PM_MESSAGE);
 
   DbLocker _{this};
-  EscapeString(jcr, escaped_pool_name, pdbr->Name, strlen(pdbr->Name));
+  BackendCon->EscapeString(jcr, escaped_pool_name, pdbr->Name,
+                           strlen(pdbr->Name));
 
   if (type == VERT_LIST) {
     Mmsg(select,
@@ -158,7 +159,7 @@ void BareosDb::ListPoolRecords(JobControlRecord* jcr,
   ListResult(jcr, sendit, type);
   sendit->ArrayEnd("pools");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 void BareosDb::ListClientRecords(JobControlRecord* jcr,
@@ -189,7 +190,7 @@ void BareosDb::ListClientRecords(JobControlRecord* jcr,
   ListResult(jcr, sendit, type);
   sendit->ArrayEnd("clients");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 /**
@@ -208,7 +209,8 @@ void BareosDb::ListMediaRecords(JobControlRecord* jcr,
   PoolMem select(PM_MESSAGE);
   PoolMem query(PM_MESSAGE);
 
-  EscapeString(jcr, esc, mdbr->VolumeName, strlen(mdbr->VolumeName));
+  BackendCon->EscapeString(jcr, esc, mdbr->VolumeName,
+                           strlen(mdbr->VolumeName));
 
   /* There is one case where ListMediaRecords() is called from SelectMediaDbr()
    * with the range argument set to NULL. To avoid problems, we set the range to
@@ -252,7 +254,7 @@ void BareosDb::ListMediaRecords(JobControlRecord* jcr,
 
   ListResult(jcr, sendit, type);
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 
@@ -300,7 +302,7 @@ void BareosDb::ListJobmediaRecords(JobControlRecord* jcr,
   ListResult(jcr, sendit, type);
   sendit->ArrayEnd("jobmedia");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 
@@ -333,7 +335,7 @@ void BareosDb::ListVolumesOfJobid(JobControlRecord* jcr,
   ListResult(jcr, sendit, type);
   sendit->ArrayEnd("volumes");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 
@@ -374,7 +376,7 @@ void BareosDb::ListCopiesRecords(JobControlRecord* jcr,
     send->ArrayEnd("copies");
   }
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 void BareosDb::ListLogRecords(JobControlRecord* jcr,
@@ -433,7 +435,7 @@ void BareosDb::ListLogRecords(JobControlRecord* jcr,
   ListResult(jcr, sendit, type);
   sendit->ArrayEnd("log");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 void BareosDb::ListJoblogRecords(JobControlRecord* jcr,
@@ -468,7 +470,7 @@ void BareosDb::ListJoblogRecords(JobControlRecord* jcr,
   ListResult(jcr, sendit, type);
   sendit->ArrayEnd("joblog");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 /**
@@ -496,7 +498,7 @@ void BareosDb::ListJobstatisticsRecords(JobControlRecord* jcr,
   ListResult(jcr, sendit, type);
   sendit->ArrayEnd("jobstats");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 void BareosDb::ListJobRecords(JobControlRecord* jcr,
@@ -525,7 +527,7 @@ void BareosDb::ListJobRecords(JobControlRecord* jcr,
   }
 
   if (jr->Name[0] != 0) {
-    EscapeString(jcr, esc, jr->Name, strlen(jr->Name));
+    BackendCon->EscapeString(jcr, esc, jr->Name, strlen(jr->Name));
     temp.bsprintf("AND Job.Name = '%s' ", esc);
     PmStrcat(selection, temp.c_str());
   }
@@ -596,7 +598,7 @@ void BareosDb::ListJobRecords(JobControlRecord* jcr,
   ListResult(jcr, sendit, type);
   sendit->ArrayEnd("jobs");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 void BareosDb::ListJobTotals(JobControlRecord* jcr,
@@ -618,7 +620,7 @@ void BareosDb::ListJobTotals(JobControlRecord* jcr,
   ListResult(jcr, sendit, HORZ_LIST);
   sendit->ArrayEnd("jobs");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 
   // Do Grand Total
   // JobTypes BACKUP(B),ARCHIVE(A,a), JOB_COPY(C)
@@ -633,7 +635,7 @@ void BareosDb::ListJobTotals(JobControlRecord* jcr,
   ListResult(jcr, sendit, HORZ_LIST);
   sendit->ObjectEnd("jobtotals");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 void BareosDb::ListFilesForJob(JobControlRecord* jcr,
@@ -658,10 +660,10 @@ void BareosDb::ListFilesForJob(JobControlRecord* jcr,
        edit_int64(jobid, ed1), ed1);
 
   sendit->ArrayStart("filenames");
-  if (!BigSqlQuery(cmd, ::ListResult, &lctx)) { return; }
+  if (!BackendCon->BigSqlQuery(cmd, ::ListResult, &lctx)) { return; }
   sendit->ArrayEnd("filenames");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 void BareosDb::ListBaseFilesForJob(JobControlRecord* jcr,
@@ -682,10 +684,10 @@ void BareosDb::ListBaseFilesForJob(JobControlRecord* jcr,
        edit_int64(jobid, ed1));
 
   sendit->ArrayStart("files");
-  if (!BigSqlQuery(cmd, ::ListResult, &lctx)) { return; }
+  if (!BackendCon->BigSqlQuery(cmd, ::ListResult, &lctx)) { return; }
   sendit->ArrayEnd("files");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 
 void BareosDb::ListFilesets(JobControlRecord* jcr,
@@ -698,7 +700,7 @@ void BareosDb::ListFilesets(JobControlRecord* jcr,
 
   DbLocker _{this};
   if (jr->Name[0] != 0) {
-    EscapeString(jcr, esc, jr->Name, strlen(jr->Name));
+    BackendCon->EscapeString(jcr, esc, jr->Name, strlen(jr->Name));
     Mmsg(cmd,
          "SELECT DISTINCT FileSet.FileSetId AS FileSetId, FileSet, MD5, "
          "CreateTime, FileSetText "
@@ -707,7 +709,7 @@ void BareosDb::ListFilesets(JobControlRecord* jcr,
          "AND Job.Name='%s' %s",
          esc, range);
   } else if (jr->Job[0] != 0) {
-    EscapeString(jcr, esc, jr->Job, strlen(jr->Job));
+    BackendCon->EscapeString(jcr, esc, jr->Job, strlen(jr->Job));
     Mmsg(cmd,
          "SELECT DISTINCT FileSet.FileSetId AS FileSetId, FileSet, MD5, "
          "CreateTime, FileSetText "
@@ -742,6 +744,6 @@ void BareosDb::ListFilesets(JobControlRecord* jcr,
   ListResult(jcr, sendit, type);
   sendit->ArrayEnd("filesets");
 
-  SqlFreeResult();
+  BackendCon->SqlFreeResult();
 }
 #endif /* HAVE_POSTGRESQL */

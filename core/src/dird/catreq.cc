@@ -433,7 +433,8 @@ static void UpdateAttribute(JobControlRecord* jcr,
   uint32_t reclen;
 
   // Start transaction allocates jcr->attr and jcr->ar if needed
-  jcr->db->StartTransaction(jcr); /* start transaction if not already open */
+  jcr->db->BackendCon->StartTransaction(
+      jcr); /* start transaction if not already open */
   ar = jcr->ar;
 
   /* Start by scanning directly in the message buffer to get Stream

@@ -406,7 +406,8 @@ bool DoVerify(JobControlRecord* jcr)
           = true; /* no SD msg thread, so it is done */
       jcr->dir_impl->SDJobStatus = JS_Terminated;
       GetAttributesAndPutInCatalog(jcr);
-      jcr->db->EndTransaction(jcr); /* Terminate any open transaction */
+      jcr->db->BackendCon->EndTransaction(
+          jcr); /* Terminate any open transaction */
       if (jcr->batch_started) { jcr->db_batch->WriteBatchFileRecords(jcr); }
       break;
     default:
@@ -792,8 +793,9 @@ void GetAttributesAndCompareToCatalog(JobControlRecord* jcr,
             goto bail_out;
           }
           if (do_Digest != CRYPTO_DIGEST_NONE) {
-            jcr->db->EscapeString(jcr, buf.c_str(), Opts_Digest.c_str(),
-                                  strlen(Opts_Digest.c_str()));
+            jcr->db->BackendCon->EscapeString(jcr, buf.c_str(),
+                                              Opts_Digest.c_str(),
+                                              strlen(Opts_Digest.c_str()));
             if (!bstrcmp(buf.c_str(), fdbr.Digest)) {
               PrtFname(jcr);
               Jmsg(jcr, M_INFO, 0, T_("      %s differs. File=%s Cat=%s\n"),

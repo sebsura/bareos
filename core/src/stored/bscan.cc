@@ -321,7 +321,7 @@ int main(int argc, char* argv[])
   if (db == nullptr) {
     Emsg0(M_ERROR_TERM, 0, T_("Could not init Bareos database\n"));
   }
-  if (auto err = db->OpenDatabase(nullptr)) {
+  if (auto err = db->BackendCon->OpenDatabase(nullptr)) {
     Emsg0(M_ERROR_TERM, 0, "%s", err);
   }
   Dmsg0(200, "Database opened\n");
@@ -342,7 +342,7 @@ int main(int argc, char* argv[])
         "%7d Media\n%7d Pool\n%7d Job\n%7d File\n%7d RestoreObject\n",
         num_media, num_pools, num_jobs, num_files, num_restoreobjects);
   }
-  db->CloseDatabase(bjcr);
+  db->BackendCon->CloseDatabase(bjcr);
   CleanDevice(bjcr->sd_impl->dcr);
   delete dev;
   FreeDeviceControlRecord(bjcr->sd_impl->dcr);

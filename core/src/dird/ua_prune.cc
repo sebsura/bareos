@@ -331,7 +331,7 @@ static bool PruneDirectory(UaContext* ua, ClientResource* client)
     len++;
   }
   prune_topdir = (char*)malloc(len * 2 + 1);
-  ua->db->EscapeString(ua->jcr, prune_topdir, temp.c_str(), len);
+  ua->db->BackendCon->EscapeString(ua->jcr, prune_topdir, temp.c_str(), len);
 
   // Remove all files in particular directory.
   if (recursive) {
@@ -465,16 +465,16 @@ static bool prune_set_filter(UaContext* ua,
 
   DbLocker _{ua->db};
   if (client) {
-    ua->db->EscapeString(ua->jcr, ed2, client->resource_name_,
-                         strlen(client->resource_name_));
+    ua->db->BackendCon->EscapeString(ua->jcr, ed2, client->resource_name_,
+                                     strlen(client->resource_name_));
     Mmsg(tmp, " AND Client.Name = '%s' ", ed2);
     PmStrcat(*add_where, tmp.c_str());
     PmStrcat(*add_from, " JOIN Client USING (ClientId) ");
   }
 
   if (pool) {
-    ua->db->EscapeString(ua->jcr, ed2, pool->resource_name_,
-                         strlen(pool->resource_name_));
+    ua->db->BackendCon->EscapeString(ua->jcr, ed2, pool->resource_name_,
+                                     strlen(pool->resource_name_));
     Mmsg(tmp, " AND Pool.Name = '%s' ", ed2);
     PmStrcat(*add_where, tmp.c_str());
     PmStrcat(*add_from, " JOIN Pool USING(PoolId) ");

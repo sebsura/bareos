@@ -166,12 +166,12 @@ void CloseDb(UaContext* ua)
   if (ua->jcr) { ua->jcr->db = NULL; }
 
   if (ua->shared_db) {
-    ua->shared_db->CloseDatabase(ua->jcr);
+    ua->shared_db->BackendCon->CloseDatabase(ua->jcr);
     ua->shared_db = NULL;
   }
 
   if (ua->private_db) {
-    ua->private_db->CloseDatabase(ua->jcr);
+    ua->private_db->BackendCon->CloseDatabase(ua->jcr);
     ua->private_db = NULL;
   }
 }
