@@ -99,7 +99,6 @@ void CatalogTest::SetUp()
 void CatalogTest::TearDown()
 {
   db->CloseDatabase(jcr);
-  DbSqlPoolDestroy();
 
   if (jcr) {
     FreeJcr(jcr);

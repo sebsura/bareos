@@ -3,7 +3,7 @@
 
    Copyright (C) 2011-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -61,7 +61,6 @@ bool BareosDb::MatchDatabase(const char* db_driver,
  */
 BareosDb* BareosDb::CloneDatabaseConnection(JobControlRecord* jcr,
                                             bool mult_db_connections,
-                                            bool get_pooled_connection,
                                             bool need_private)
 {
   /* See if its a simple clone e.g. with mult_db_connections set to false
@@ -71,19 +70,10 @@ BareosDb* BareosDb::CloneDatabaseConnection(JobControlRecord* jcr,
     return this;
   }
 
-  /* A bit more to do here just open a new session to the database.
-   * See if we need to get a pooled or non pooled connection. */
-  if (get_pooled_connection) {
-    return DbSqlGetPooledConnection(
-        jcr, db_driver_, db_name_, db_user_, db_password_, db_address_,
-        db_port_, db_socket_, mult_db_connections, disabled_batch_insert_,
-        try_reconnect_, exit_on_fatal_, need_private);
-  } else {
-    return DbSqlGetNonPooledConnection(
-        jcr, db_driver_, db_name_, db_user_, db_password_, db_address_,
-        db_port_, db_socket_, mult_db_connections, disabled_batch_insert_,
-        try_reconnect_, exit_on_fatal_, need_private);
-  }
+  return DbSqlGetNonPooledConnection(
+      jcr, db_driver_, db_name_, db_user_, db_password_, db_address_, db_port_,
+      db_socket_, mult_db_connections, disabled_batch_insert_, try_reconnect_,
+      exit_on_fatal_, need_private);
 }
 
 const char* BareosDb::GetType(void)

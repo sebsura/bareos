@@ -939,7 +939,6 @@ class BareosDb : public BareosDbQueryEnum {
                      int db_port);
   BareosDb* CloneDatabaseConnection(JobControlRecord* jcr,
                                     bool mult_db_connections,
-                                    bool get_pooled_connection = true,
                                     bool need_private = false);
   int GetTypeIndex(void) { return db_type_; }
   const char* GetType(void);
@@ -1081,38 +1080,6 @@ class DbLocker {
   DbLocker(const DbLocker& other) = delete;
   DbLocker& operator=(const DbLocker&) = delete;
   DbLocker(DbLocker&& other) = delete;
-};
-
-// Pooled backend connection.
-struct SqlPoolEntry {
-  int id = 0; /**< Unique ID, connection numbering can have holes and the pool
-             is not sorted on it */
-  int reference_count = 0; /**< Reference count for this entry */
-  time_t last_update = 0;  /**< When was this connection last updated either
-                          used  or put back on the pool */
-  BareosDb* db_handle = nullptr; /**< Connection handle to the database */
-  dlink<SqlPoolEntry> link;      /**< list management */
-};
-
-// Pooled backend list descriptor (one defined per backend defined in config)
-struct SqlPoolDescriptor {
-  bool active = false;    /**< Is this an active pool, after a config reload an
-                      pool is    made inactive */
-  time_t last_update = 0; /**< When was this pool last updated */
-  int min_connections
-      = 0; /**< Minimum number of connections in the connection pool
-            */
-  int max_connections
-      = 0; /**< Maximum number of connections in the connection pool
-            */
-  int increment_connections = 0; /**< Increase/Decrease the number of
-                                connection in the pool with this value */
-  int idle_timeout = 0;     /**< Number of seconds to wait before tearing down a
-                           connection */
-  int validate_timeout = 0; /**< Number of seconds after which an idle
-                           connection should be validated */
-  int nr_connections = 0;   /**< Number of active connections in the pool */
-  dlink<SqlPoolDescriptor> link; /**< list management */
 };
 
 #include "include/jcr.h"

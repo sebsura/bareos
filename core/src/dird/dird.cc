@@ -329,15 +329,6 @@ int main(int argc, char* argv[])
 
   if (test_config) { TerminateDird(0); }
 
-  if (!InitializeSqlPooling()) {
-    Jmsg((JobControlRecord*)nullptr, M_ERROR_TERM, 0,
-         T_("Please correct the configuration in %s\n"),
-         my_config->get_base_config_path().c_str());
-
-    TerminateDird(BEXIT_SUCCESS);
-    return BEXIT_SUCCESS;
-  }
-
   MyNameIs(0, nullptr, me->resource_name_); /* set user defined name */
 
   CleanUpOldFiles();
@@ -401,7 +392,6 @@ static
   StopSocketServer();
   StopStatisticsThread();
   StopWatchdog();
-  DbSqlPoolDestroy();
   UnloadDirPlugins();
   if (!test_config && me) { /* we don't need to do this block in test mode */
     WriteStateFile(me->working_directory, "bareos-dir",

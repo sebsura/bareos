@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2019 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -23,23 +23,6 @@
 
 class BareosDb;
 
-bool db_sql_pool_initialize(const char* db_drivername,
-                            const char* db_name,
-                            const char* db_user,
-                            const char* db_password,
-                            const char* db_address,
-                            int db_port,
-                            const char* db_socket,
-                            bool disable_batch_insert,
-                            bool try_reconnect,
-                            bool exit_on_fatal,
-                            int min_connections,
-                            int max_connections,
-                            int increment_connections,
-                            int idle_timeout,
-                            int validate_timeout);
-void DbSqlPoolDestroy(void);
-void DbSqlPoolFlush(void);
 BareosDb* DbSqlGetNonPooledConnection(JobControlRecord* jcr,
                                       const char* db_drivername,
                                       const char* db_name,
@@ -53,21 +36,5 @@ BareosDb* DbSqlGetNonPooledConnection(JobControlRecord* jcr,
                                       bool try_reconnect,
                                       bool exit_on_fatal,
                                       bool need_private = false);
-BareosDb* DbSqlGetPooledConnection(JobControlRecord* jcr,
-                                   const char* db_drivername,
-                                   const char* db_name,
-                                   const char* db_user,
-                                   const char* db_password,
-                                   const char* db_address,
-                                   int db_port,
-                                   const char* db_socket,
-                                   bool mult_db_connections,
-                                   bool disable_batch_insert,
-                                   bool try_reconnect,
-                                   bool exit_on_fatal,
-                                   bool need_private = false);
-void DbSqlClosePooledConnection(JobControlRecord* jcr,
-                                BareosDb* mdb,
-                                bool abort = false);
 
 #endif  // BAREOS_CATS_SQL_POOLING_H_

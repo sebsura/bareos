@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -133,7 +133,7 @@ bool OpenDb(UaContext* ua, bool use_private)
 
   ua->jcr->dir_impl->res.catalog = ua->catalog;
   Dmsg0(100, "UA Open database\n");
-  ua->db = DbSqlGetPooledConnection(
+  ua->db = DbSqlGetNonPooledConnection(
       ua->jcr, ua->catalog->db_driver, ua->catalog->db_name,
       ua->catalog->db_user, ua->catalog->db_password.value,
       ua->catalog->db_address, ua->catalog->db_port, ua->catalog->db_socket,
@@ -167,12 +167,12 @@ void CloseDb(UaContext* ua)
   if (ua->jcr) { ua->jcr->db = NULL; }
 
   if (ua->shared_db) {
-    DbSqlClosePooledConnection(ua->jcr, ua->shared_db);
+    ua->shared_db->CloseDatabase(ua->jcr);
     ua->shared_db = NULL;
   }
 
   if (ua->private_db) {
-    DbSqlClosePooledConnection(ua->jcr, ua->private_db);
+    ua->private_db->CloseDatabase(ua->jcr);
     ua->private_db = NULL;
   }
 }
