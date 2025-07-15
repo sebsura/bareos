@@ -1117,4 +1117,18 @@ int ListResult(JobControlRecord* jcr,
                BareosDb* mdb,
                OutputFormatter* send,
                e_list_type type);
+
+BareosDb* DbCreateConnection(JobControlRecord* jcr,
+                             const char* db_drivername,
+                             const char* db_name,
+                             const char* db_user,
+                             const char* db_password,
+                             const char* db_address,
+                             int db_port,
+                             const char* db_socket,
+                             bool mult_db_connections,
+                             bool disable_batch_insert,
+                             bool try_reconnect,
+                             bool exit_on_fatal,
+                             bool need_private = false);
 #endif  // BAREOS_CATS_CATS_H_

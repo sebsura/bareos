@@ -29,7 +29,6 @@
 #include "include/bareos.h"
 #include "include/exit_codes.h"
 #include "cats/sql.h"
-#include "cats/sql_pooling.h"
 #include "dird.h"
 #include "dird_globals.h"
 #include "dird/check_catalog.h"

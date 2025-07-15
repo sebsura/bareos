@@ -39,7 +39,6 @@
 #include "dird/scheduler.h"
 #include "dird/storage.h"
 
-#include "cats/sql_pooling.h"
 #include "dird/ua_db.h"
 #include "dird/ua_output.h"
 #include "dird/ua_select.h"

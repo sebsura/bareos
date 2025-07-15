@@ -31,7 +31,6 @@
 #if HAVE_POSTGRESQL
 
 #  include "cats.h"
-#  include "sql_pooling.h"
 
 #  include "bdb_query_names.inc"
 #  include "lib/berrno.h"
@@ -70,10 +69,10 @@ BareosDb* BareosDb::CloneDatabaseConnection(JobControlRecord* jcr,
     return this;
   }
 
-  return DbSqlGetNonPooledConnection(
-      jcr, db_driver_, db_name_, db_user_, db_password_, db_address_, db_port_,
-      db_socket_, mult_db_connections, disabled_batch_insert_, try_reconnect_,
-      exit_on_fatal_, need_private);
+  return DbCreateConnection(jcr, db_driver_, db_name_, db_user_, db_password_,
+                            db_address_, db_port_, db_socket_,
+                            mult_db_connections, disabled_batch_insert_,
+                            try_reconnect_, exit_on_fatal_, need_private);
 }
 
 const char* BareosDb::GetType(void)
@@ -200,6 +199,41 @@ void BareosDb::UnescapeObject(JobControlRecord*,
   Base64ToBin(dest, expected_len + 2, from, strlen(from));
   *dest_len = expected_len;
   dest[expected_len] = '\0';
+}
+
+BareosDb* DbCreateConnection(JobControlRecord* jcr,
+                             const char* db_drivername,
+                             const char* db_name,
+                             const char* db_user,
+                             const char* db_password,
+                             const char* db_address,
+                             int db_port,
+                             const char* db_socket,
+                             bool mult_db_connections,
+                             bool disable_batch_insert,
+                             bool try_reconnect,
+                             bool exit_on_fatal,
+                             bool need_private)
+{
+  BareosDb* mdb;
+  Dmsg1(100,
+        "DbSqlGetNonPooledConnection allocating 1 new non pooled database "
+        "connection to database %s\n",
+        db_name);
+
+  mdb = db_init_database(jcr, db_drivername, db_name, db_user, db_password,
+                         db_address, db_port, db_socket, mult_db_connections,
+                         disable_batch_insert, try_reconnect, exit_on_fatal,
+                         need_private);
+  if (mdb == NULL) { return NULL; }
+
+  if (auto err = mdb->OpenDatabase(jcr)) {
+    Jmsg(jcr, M_FATAL, 0, "%s", err);
+    mdb->CloseDatabase(jcr);
+    return NULL;
+  }
+
+  return mdb;
 }
 
 #endif /* HAVE_POSTGRESQL */
