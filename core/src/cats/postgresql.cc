@@ -988,7 +988,7 @@ BareosDb* db_init_database(JobControlRecord* jcr,
   //     foreach_dlist (mdb, db_list) {
   //       if (mdb->IsPrivate()) { continue; }
 
-  //       if (mdb->MatchDatabase(db_driver, db_name, db_address, db_port)) {
+  //       if (mdb->MatchDatabase(db_name, db_address, db_port)) {
   //         Dmsg1(100, "DB REopen %s\n", db_name);
   //         mdb->IncrementRefcount();
   //         goto bail_out;
@@ -1220,6 +1220,22 @@ bool BareosDbPostgresql::SqlBatchInsertFileTable(JobControlRecord*,
   // Dmsg0(500, "SqlBatchInsertFileTable finishing\n");
 
   // return true;
+}
+
+BareosDbPostgresql* connect(JobControlRecord* jcr,
+                            const char* db_name,
+                            const char* db_user,
+                            const char* db_password,
+                            const char* db_address,
+                            int db_port)
+{
+  (void)jcr;
+  (void)db_name;
+  (void)db_user;
+  (void)db_password;
+  (void)db_address;
+  (void)db_port;
+  return nullptr;
 }
 
 #endif /* HAVE_POSTGRESQL */

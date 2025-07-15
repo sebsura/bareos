@@ -593,22 +593,18 @@ class BareosDb : public BareosDbQueryEnum {
   uint32_t ref_count_ = 0;                /**< Reference count */
   bool connected_ = false;                /**< Connection made to db */
   bool have_batch_insert_ = false;        /**< Have batch insert support ? */
-  bool try_reconnect_ = true;    /**< Try reconnecting DB connection ? */
-  bool exit_on_fatal_ = false;   /**< Exit on FATAL DB errors ? */
-  char* db_driver_ = nullptr;    /**< Database driver */
-  char* db_driverdir_ = nullptr; /**< Database driver dir */
-  char* db_name_ = nullptr;      /**< Database name */
-  char* db_user_ = nullptr;      /**< Database user */
-  char* db_address_ = nullptr;   /**< Host name address */
-  char* db_socket_ = nullptr;    /**< Socket for local access */
-  char* db_password_ = nullptr;  /**< Database password */
-  char* last_query_text_
-      = nullptr;           /**< Last query text obtained from query table */
-  int db_port_ = 0;        /**< Port for host name address */
-  int cached_path_len = 0; /**< Length of cached path */
-  int changes = 0;         /**< Changes during transaction */
-  int fnl = 0;             /**< File name length */
-  int pnl = 0;             /**< Path name length */
+  bool try_reconnect_ = true;  /**< Try reconnecting DB connection ? */
+  bool exit_on_fatal_ = false; /**< Exit on FATAL DB errors ? */
+  std::string db_name_{};      /**< Database name */
+  std::string db_user_{};      /**< Database user */
+  std::string db_address_{};   /**< Host name address */
+  std::string db_socket_{};    /**< Socket for local access */
+  std::string db_password_{};  /**< Database password */
+  int db_port_ = 0;            /**< Port for host name address */
+  int cached_path_len = 0;     /**< Length of cached path */
+  int changes = 0;             /**< Changes during transaction */
+  int fnl = 0;                 /**< File name length */
+  int pnl = 0;                 /**< Path name length */
   bool disabled_batch_insert_
       = false;                 /**< Explicitly disabled batch insert mode ? */
   bool is_private_ = false;    /**< Private connection ? */
@@ -664,11 +660,24 @@ class BareosDb : public BareosDbQueryEnum {
       std::string client_name,
       std::vector<char>& stime_out);
 
-  BareosDb() {}
+  BareosDb(const char* db_name,
+           const char* db_user,
+           const char* db_password,
+           const char* db_address,
+           int db_port,
+           db_conn* backend)
+      : db_name_{db_name}
+      , db_user_{db_user}
+      , db_address_{db_address}
+      , db_password_{db_password}
+      , db_port_{db_port}
+      , BackendCon{backend}
+  {
+  }
   virtual ~BareosDb() {}
 
-  const char* get_db_name(void) { return db_name_; }
-  const char* get_db_user(void) { return db_user_; }
+  const char* get_db_name(void) { return db_name_.c_str(); }
+  const char* get_db_user(void) { return db_user_.c_str(); }
   bool IsConnected(void) { return connected_; }
   bool BatchInsertAvailable(void) { return have_batch_insert_; }
   bool IsPrivate(void) { return is_private_; }
@@ -1023,10 +1032,7 @@ class BareosDb : public BareosDbQueryEnum {
   void UpgradeCopies(const char* jobids);
 
   /* Low level methods */
-  bool MatchDatabase(const char* db_driver,
-                     const char* db_name,
-                     const char* db_address,
-                     int db_port);
+  bool MatchDatabase(const char* db_name, const char* db_address, int db_port);
   std::unique_ptr<BareosDb> CloneDatabaseConnection(JobControlRecord* jcr,
                                                     bool mult_db_connections,
                                                     bool need_private = false);

@@ -35,20 +35,15 @@
 #  include "bdb_query_names.inc"
 #  include "lib/berrno.h"
 
-bool BareosDb::MatchDatabase(const char* db_driver,
-                             const char* db_name,
+#  include "postgresql.h"
+
+bool BareosDb::MatchDatabase(const char* db_name,
                              const char* db_address,
                              int db_port)
 {
-  bool match;
-
-  if (db_driver) {
-    match = Bstrcasecmp(db_driver_, db_driver) && bstrcmp(db_name_, db_name)
-            && bstrcmp(db_address_, db_address) && db_port_ == db_port;
-  } else {
-    match = bstrcmp(db_name_, db_name) && bstrcmp(db_address_, db_address)
-            && db_port_ == db_port;
-  }
+  bool match = bstrcmp(db_name_.c_str(), db_name)
+               && bstrcmp(db_address_.c_str(), db_address)
+               && db_port_ == db_port;
   return match;
 }
 
@@ -63,10 +58,10 @@ std::unique_ptr<BareosDb> BareosDb::CloneDatabaseConnection(
     bool mult_db_connections,
     bool need_private)
 {
-  return DbCreateConnection(jcr, db_driver_, db_name_, db_user_, db_password_,
-                            db_address_, db_port_, db_socket_,
-                            mult_db_connections, disabled_batch_insert_,
-                            try_reconnect_, exit_on_fatal_, need_private);
+  return DbCreateConnection(
+      jcr, nullptr, db_name_.c_str(), db_user_.c_str(), db_password_.c_str(),
+      db_address_.c_str(), db_port_, db_socket_.c_str(), mult_db_connections,
+      disabled_batch_insert_, try_reconnect_, exit_on_fatal_, need_private);
 }
 
 const char* BareosDb::GetType(void)
@@ -153,6 +148,16 @@ std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
 
   // return mdb;
 
+  auto* backend_con = postgresql::connect(jcr, db_name, db_user, db_password,
+                                          db_address, db_port);
+  if (!backend_con) {
+    Jmsg(jcr, M_FATAL, 0, "%s", "could not establish postgresql connection");
+    return nullptr;
+  }
+
+  auto ptr = std::make_unique<BareosDb>(db_name, db_user, db_password,
+                                        db_address, db_port, backend_con);
+
   /*** FIXUP ***/
   (void)jcr;
   (void)db_drivername;
@@ -167,7 +172,9 @@ std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
   (void)try_reconnect;
   (void)exit_on_fatal;
   (void)need_private;
-  return {};
+
+
+  return ptr;
 }
 
 #endif /* HAVE_POSTGRESQL */

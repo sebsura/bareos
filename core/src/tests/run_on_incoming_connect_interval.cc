@@ -157,7 +157,10 @@ class MockDatabase : public BareosDb {
     kFindStartTime,
     kFindStartTimeWrongString
   };
-  explicit MockDatabase(Mode mode) : mode_(mode) {}
+  explicit MockDatabase(Mode mode)
+      : BareosDb(nullptr, nullptr, nullptr, nullptr, 0, nullptr), mode_(mode)
+  {
+  }
   // SqlFindResult FindLastJobStartTimeForJobAndClient(
   //     JobControlRecord* /*jcr*/,
   //     std::string /*job_basename*/,

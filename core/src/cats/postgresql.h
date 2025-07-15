@@ -120,5 +120,13 @@ class BareosDbPostgresql : public db_conn {
       query_definitions[]; /**< table of predefined sql queries */
 };
 
+namespace postgresql {
+BareosDbPostgresql* connect(JobControlRecord* jcr,
+                            const char* db_name,
+                            const char* db_user,
+                            const char* db_password,
+                            const char* db_address,
+                            int db_port);
+};
 #endif  /* HAVE_POSTGRESQL */
 #endif  // BAREOS_CATS_POSTGRESQL_H_
