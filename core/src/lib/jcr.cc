@@ -1029,8 +1029,8 @@ void DbgPrintJcr(FILE* fp)
     bstrftime(buf4, sizeof(buf4), jcr->wait_time);
     fprintf(fp, "\tsched_time=%s start_time=%s\n\tend_time=%s wait_time=%s\n",
             buf1, buf2, buf3, buf4);
-    fprintf(fp, "\tdb=%p db_batch=%p batch_started=%i\n", jcr->db,
-            jcr->db_batch, jcr->batch_started);
+    fprintf(fp, "\tdb=%p db_batch=%p batch_started=%i\n", jcr->db.get(),
+            jcr->db_batch.get(), jcr->batch_started);
 
     // Call all the jcr debug hooks
     for (int i = 0; i < dbg_jcr_handler_count; i++) {

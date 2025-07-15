@@ -46,7 +46,7 @@ class CatalogTest : public ::testing::Test {
   std::string working_dir;
 
   JobControlRecord* jcr{};
-  BareosDb* db{};
+  std::unique_ptr<BareosDb> db{};
 
   void SetUp() override;
   void TearDown() override;

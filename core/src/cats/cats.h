@@ -44,6 +44,7 @@
 #include "lib/source_location.h"
 
 #include <bitset>
+#include <memory>
 #include <string>
 #include <stdexcept>
 #include <system_error>
@@ -1026,9 +1027,9 @@ class BareosDb : public BareosDbQueryEnum {
                      const char* db_name,
                      const char* db_address,
                      int db_port);
-  BareosDb* CloneDatabaseConnection(JobControlRecord* jcr,
-                                    bool mult_db_connections,
-                                    bool need_private = false);
+  std::unique_ptr<BareosDb> CloneDatabaseConnection(JobControlRecord* jcr,
+                                                    bool mult_db_connections,
+                                                    bool need_private = false);
   int GetTypeIndex(void) { return db_type_; }
   const char* GetType(void);
   void LockDb(const char* file, int line);
@@ -1078,6 +1079,12 @@ class DbLocker {
   {
     db_handle_->LockDb(file, line);
   }
+
+  DbLocker(std::unique_ptr<BareosDb>& db_handle,
+           libbareos::source_location l = libbareos::source_location::current())
+      : DbLocker{db_handle.get(), l}
+  {
+  }
   ~DbLocker() { db_handle_->UnlockDb(file, line); }
 
   DbLocker(const DbLocker& other) = delete;
@@ -1121,17 +1128,17 @@ int ListResult(JobControlRecord* jcr,
                OutputFormatter* send,
                e_list_type type);
 
-BareosDb* DbCreateConnection(JobControlRecord* jcr,
-                             const char* db_drivername,
-                             const char* db_name,
-                             const char* db_user,
-                             const char* db_password,
-                             const char* db_address,
-                             int db_port,
-                             const char* db_socket,
-                             bool mult_db_connections,
-                             bool disable_batch_insert,
-                             bool try_reconnect,
-                             bool exit_on_fatal,
-                             bool need_private = false);
+std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
+                                             const char* db_drivername,
+                                             const char* db_name,
+                                             const char* db_user,
+                                             const char* db_password,
+                                             const char* db_address,
+                                             int db_port,
+                                             const char* db_socket,
+                                             bool mult_db_connections,
+                                             bool disable_batch_insert,
+                                             bool try_reconnect,
+                                             bool exit_on_fatal,
+                                             bool need_private = false);
 #endif  // BAREOS_CATS_CATS_H_

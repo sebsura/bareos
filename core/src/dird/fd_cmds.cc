@@ -404,7 +404,7 @@ int SendJobInfoToFileDaemon(JobControlRecord* jcr)
       cr.FileRetention = jcr->dir_impl->res.client->FileRetention;
       cr.JobRetention = jcr->dir_impl->res.client->JobRetention;
       bstrncpy(cr.Uname, fd->msg + strlen(OKjob) + 1, sizeof(cr.Uname));
-      if (DbLocker _{jcr->db}; !jcr->db->UpdateClientRecord(jcr, &cr)) {
+      if (DbLocker _{jcr->db.get()}; !jcr->db->UpdateClientRecord(jcr, &cr)) {
         Jmsg(jcr, M_WARNING, 0, T_("Error updating Client record. ERR=%s\n"),
              jcr->db->strerror());
       }
@@ -894,7 +894,7 @@ int GetAttributesAndPutInCatalog(JobControlRecord* jcr)
       if (jcr->cached_attribute) {
         Dmsg3(debuglevel, "Cached attr. Stream=%d fname=%s\n", ar->Stream,
               ar->fname);
-        if (DbLocker _{jcr->db};
+        if (DbLocker _{jcr->db.get()};
             !jcr->db->CreateFileAttributesRecord(jcr, ar)) {
           Jmsg1(jcr, M_FATAL, 0, T_("Attribute create error. %s"),
                 jcr->db->strerror());
@@ -962,7 +962,8 @@ int GetAttributesAndPutInCatalog(JobControlRecord* jcr)
   if (jcr->cached_attribute) {
     Dmsg3(debuglevel, "Cached attr with digest. Stream=%d fname=%s attr=%s\n",
           ar->Stream, ar->fname, ar->attr);
-    if (DbLocker _{jcr->db}; !jcr->db->CreateFileAttributesRecord(jcr, ar)) {
+    if (DbLocker _{jcr->db.get()};
+        !jcr->db->CreateFileAttributesRecord(jcr, ar)) {
       Jmsg1(jcr, M_FATAL, 0, T_("Attribute create error. %s"),
             jcr->db->strerror());
     }

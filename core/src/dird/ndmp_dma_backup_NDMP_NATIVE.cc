@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2011-2015 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -106,7 +106,7 @@ int NdmpLoadNext(struct ndm_session* sess)
     // set FirstWritten Timestamp
     mr.FirstWritten = (utime_t)time(NULL);
 
-    if (DbLocker _{jcr->db}; !jcr->db->UpdateMediaRecord(jcr, &mr)) {
+    if (DbLocker _{jcr->db.get()}; !jcr->db->UpdateMediaRecord(jcr, &mr)) {
       Jmsg(jcr, M_FATAL, 0, T_("Catalog error updating Media record. %s"),
            jcr->db->strerror());
       goto bail_out;
@@ -191,7 +191,7 @@ bool DoNdmpBackupNdmpNative(JobControlRecord* jcr)
   jcr->setJobStatusWithPriorityCheck(JS_Running);
   Dmsg2(100, "JobId=%d JobLevel=%c\n", jcr->dir_impl->jr.JobId,
         jcr->dir_impl->jr.JobLevel);
-  if (DbLocker _{jcr->db};
+  if (DbLocker _{jcr->db.get()};
       !jcr->db->UpdateJobStartRecord(jcr, &jcr->dir_impl->jr)) {
     Jmsg(jcr, M_FATAL, 0, "%s", jcr->db->strerror());
     return false;
@@ -419,7 +419,7 @@ bool DoNdmpBackupInitNdmpNative(JobControlRecord* jcr)
 
   jcr->start_time = time(NULL);
   jcr->dir_impl->jr.StartTime = jcr->start_time;
-  if (DbLocker _{jcr->db};
+  if (DbLocker _{jcr->db.get()};
       !jcr->db->UpdateJobStartRecord(jcr, &jcr->dir_impl->jr)) {
     Jmsg(jcr, M_FATAL, 0, "%s", jcr->db->strerror());
     return false;

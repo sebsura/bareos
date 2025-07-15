@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2020-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2020-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -142,11 +142,12 @@ TEST(messages_resource, send_message_to_all_configured_destinations)
   // init catalog mock-up
   JobControlRecord jcr;
   IGNORE_INT_PTR_CAST_ON;
-  jcr.db = reinterpret_cast<BareosDb*>(0xdeadbeef);
+  jcr.db = std::unique_ptr<BareosDb>{reinterpret_cast<BareosDb*>(0xdeadbeef)};
   IGNORE_INT_PTR_CAST_OFF;
   ASSERT_NE(LogFiles::Open(log_dir, "dblog"), nullptr);
   SetDbLogInsertCallback(DbLogInsertCallback_);
 
   DispatchMessage(&jcr, M_ERROR, 0, "\n!!!This is a test error message!!!\n");
   TermMsg();
+  std::ignore = jcr.db.release();
 }

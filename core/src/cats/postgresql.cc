@@ -125,6 +125,7 @@ BareosDbPostgresql::BareosDbPostgresql(JobControlRecord*,
                                        bool exit_on_fatal,
                                        bool need_private)
 {
+  /*** FIXUP ***/
   (void)db_name;
   (void)db_user;
   (void)db_password;

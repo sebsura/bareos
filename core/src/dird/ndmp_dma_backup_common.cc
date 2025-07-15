@@ -266,7 +266,8 @@ void NdmpBackupCleanup(JobControlRecord* jcr, int TermCode)
 
   UpdateJobEnd(jcr, TermCode);
 
-  if (DbLocker _{jcr->db}; !jcr->db->GetJobRecord(jcr, &jcr->dir_impl->jr)) {
+  if (DbLocker _{jcr->db.get()};
+      !jcr->db->GetJobRecord(jcr, &jcr->dir_impl->jr)) {
     Jmsg(jcr, M_WARNING, 0,
          T_("Error getting Job record for Job report: ERR=%s"),
          jcr->db->strerror());
@@ -274,7 +275,7 @@ void NdmpBackupCleanup(JobControlRecord* jcr, int TermCode)
   }
 
   bstrncpy(cr.Name, jcr->dir_impl->res.client->resource_name_, sizeof(cr.Name));
-  if (DbLocker _{jcr->db}; !jcr->db->GetClientRecord(jcr, &cr)) {
+  if (DbLocker _{jcr->db.get()}; !jcr->db->GetClientRecord(jcr, &cr)) {
     Jmsg(jcr, M_WARNING, 0,
          T_("Error getting Client record for Job report: ERR=%s"),
          jcr->db->strerror());

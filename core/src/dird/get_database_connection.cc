@@ -30,7 +30,7 @@
 
 namespace directordaemon {
 
-BareosDb* GetDatabaseConnection(JobControlRecord* jcr)
+std::unique_ptr<BareosDb> GetDatabaseConnection(JobControlRecord* jcr)
 {
   return DbCreateConnection(jcr, jcr->dir_impl->res.catalog->db_driver,
                             jcr->dir_impl->res.catalog->db_name,

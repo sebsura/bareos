@@ -789,7 +789,7 @@ bool BareosDb::WriteBatchFileRecords(JobControlRecord* jcr)
     return true;
   }
 
-  DbLocker _{jcr->db_batch};
+  DbLocker _{jcr->db_batch.get()};
 
   Dmsg1(50, "db_create_file_record changes=%u\n", changes);
 
@@ -875,7 +875,7 @@ bool BareosDb::CreateBatchFileAttributesRecord(JobControlRecord* jcr,
 
   if (!jcr->batch_started) {
     if (!OpenBatchConnection(jcr)) { return false; /* error already printed */ }
-    DbLocker batch_lock{jcr->db_batch};
+    DbLocker batch_lock{jcr->db_batch.get()};
     if (!jcr->db_batch->BackendCon->SqlBatchStartFileTable(jcr)) {
       Mmsg1(errmsg, "Can't start batch mode: ERR=%s",
             jcr->db_batch->strerror());
@@ -885,7 +885,7 @@ bool BareosDb::CreateBatchFileAttributesRecord(JobControlRecord* jcr,
     jcr->batch_started = true;
   }
 
-  DbLocker batch_lock{jcr->db_batch};
+  DbLocker batch_lock{jcr->db_batch.get()};
   jcr->db_batch->SplitPathAndFile(jcr, ar->fname);
 
   return jcr->db_batch->BackendCon->SqlBatchInsertFileTable(jcr, ar);

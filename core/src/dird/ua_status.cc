@@ -819,9 +819,10 @@ static void PrtRuntime(UaContext* ua, sched_pkt* sp)
   MediaDbRecord mr;
   int orig_jobtype;
 
+  std::unique_ptr<BareosDb> orig_db;
   orig_jobtype = jcr->getJobType();
   if (sp->job->JobType == JT_BACKUP) {
-    jcr->db = NULL;
+    orig_db = std::move(jcr->db);
     ok = CompleteJcrForJob(jcr, sp->job, sp->pool);
     Dmsg1(250, "Using pool=%s\n", jcr->dir_impl->res.pool->resource_name_);
     if (jcr->db) { CloseDb = true; /* new db opened, remember to close it */ }
@@ -857,7 +858,7 @@ static void PrtRuntime(UaContext* ua, sched_pkt* sp)
                 sp->job->resource_name_, mr.VolumeName);
   }
   if (CloseDb) { jcr->db->BackendCon->CloseDatabase(jcr); }
-  jcr->db = ua->db; /* restore ua db to jcr */
+  jcr->db = std::move(orig_db); /* restore ua db to jcr */
   jcr->setJobType(orig_jobtype);
 }
 

@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -47,11 +47,11 @@
 #include "lib/path_list.h"
 #include "lib/guid_to_name.h"
 #include "lib/jcr.h"
+#include "cats/cats.h"
 
 #include <atomic>
 
 struct job_callback_item;
-class BareosDb;
 class BareosSocket;
 template <typename T> class dlist;
 class JobControlRecord;
@@ -231,8 +231,8 @@ class JobControlRecord {
   CopyThreadContext* cp_thread{}; /**< Copy Thread ctx */
 #endif
   POOLMEM* attr{};      /**< Attribute string from SD */
-  BareosDb* db{};       /**< database pointer */
-  BareosDb* db_batch{}; /**< database pointer for batch and accurate */
+  std::unique_ptr<BareosDb> db{};       /**< database pointer */
+  std::unique_ptr<BareosDb> db_batch{}; /**< database pointer for batch and accurate */
   uint64_t nb_base_files{};       /**< Number of base files */
   uint64_t nb_base_files_used{};  /**< Number of useful files in base */
 

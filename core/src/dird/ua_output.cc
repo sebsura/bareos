@@ -1318,7 +1318,8 @@ bool CompleteJcrForJob(JobControlRecord* jcr,
   DbLocker _{jcr->db};
   while (!jcr->db->GetPoolRecord(jcr, &pr)) { /* get by Name */
     /* Try to create the pool */
-    if (CreatePool(jcr, jcr->db, jcr->dir_impl->res.pool, POOL_OP_CREATE) < 0) {
+    if (CreatePool(jcr, jcr->db.get(), jcr->dir_impl->res.pool, POOL_OP_CREATE)
+        < 0) {
       Jmsg(jcr, M_FATAL, 0, T_("Pool %s not in database. %s\n"), pr.Name,
            jcr->db->strerror());
       if (jcr->db) {

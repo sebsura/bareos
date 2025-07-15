@@ -43,6 +43,9 @@
 #include "lib/parse_conf.h"
 #include "lib/tls_resource_items.h"
 #define NEED_JANSSON_NAMESPACE 1
+#ifdef HAVE_JANSSON
+#  include <jansson.h>
+#endif
 #include "lib/output_formatter.h"
 #include "lib/output_formatter_resource.h"
 #include "lib/implementation_factory.h"
@@ -627,6 +630,7 @@ bool ParseSdConfig(const char* t_configfile, int exit_code)
 
 // Print configuration file schema in json format
 #ifdef HAVE_JANSSON
+
 bool PrintConfigSchemaJson(PoolMem& buffer)
 {
   json_t* json = json_object();

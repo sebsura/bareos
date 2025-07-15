@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2025 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -77,7 +77,7 @@ UaContext* new_ua_context(JobControlRecord* jcr)
   ua = (UaContext*)malloc(sizeof(UaContext));
   ua = new (ua) UaContext(); /* placement new instead of memset */
   ua->jcr = jcr;
-  ua->db = jcr->db;
+  ua->db = jcr->db.get();
   ua->cmd = GetPoolMemory(PM_FNAME);
   ua->args = GetPoolMemory(PM_FNAME);
   ua->verbose = true;

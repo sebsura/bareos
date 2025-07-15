@@ -913,7 +913,7 @@ void BareosDb::DbDebugPrint(FILE* fp)
  */
 void DbDebugPrint(JobControlRecord* jcr, FILE* fp)
 {
-  BareosDb* mdb = jcr->db;
+  BareosDb* mdb = jcr->db.get();
 
   if (!mdb) { return; }
 

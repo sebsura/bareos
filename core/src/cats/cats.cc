@@ -58,17 +58,11 @@ bool BareosDb::MatchDatabase(const char* db_driver,
  * connection otherwise. We use a method so we can reference
  * the protected members of the class.
  */
-BareosDb* BareosDb::CloneDatabaseConnection(JobControlRecord* jcr,
-                                            bool mult_db_connections,
-                                            bool need_private)
+std::unique_ptr<BareosDb> BareosDb::CloneDatabaseConnection(
+    JobControlRecord* jcr,
+    bool mult_db_connections,
+    bool need_private)
 {
-  /* See if its a simple clone e.g. with mult_db_connections set to false
-   * then we just return the calling class pointer. */
-  if (!mult_db_connections && !need_private) {
-    ref_count_++;
-    return this;
-  }
-
   return DbCreateConnection(jcr, db_driver_, db_name_, db_user_, db_password_,
                             db_address_, db_port_, db_socket_,
                             mult_db_connections, disabled_batch_insert_,
@@ -125,39 +119,55 @@ void BareosDb::PrintLockInfo(FILE* fp)
   }
 }
 
-BareosDb* DbCreateConnection(JobControlRecord* jcr,
-                             const char* db_drivername,
-                             const char* db_name,
-                             const char* db_user,
-                             const char* db_password,
-                             const char* db_address,
-                             int db_port,
-                             const char* db_socket,
-                             bool mult_db_connections,
-                             bool disable_batch_insert,
-                             bool try_reconnect,
-                             bool exit_on_fatal,
-                             bool need_private)
+std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
+                                             const char* db_drivername,
+                                             const char* db_name,
+                                             const char* db_user,
+                                             const char* db_password,
+                                             const char* db_address,
+                                             int db_port,
+                                             const char* db_socket,
+                                             bool mult_db_connections,
+                                             bool disable_batch_insert,
+                                             bool try_reconnect,
+                                             bool exit_on_fatal,
+                                             bool need_private)
 {
-  BareosDb* mdb;
-  Dmsg1(100,
-        "DbSqlGetNonPooledConnection allocating 1 new non pooled database "
-        "connection to database %s\n",
-        db_name);
+  // BareosDb* mdb;
+  // Dmsg1(100,
+  //       "DbSqlGetNonPooledConnection allocating 1 new non pooled database "
+  //       "connection to database %s\n",
+  //       db_name);
 
-  mdb = db_init_database(jcr, db_drivername, db_name, db_user, db_password,
-                         db_address, db_port, db_socket, mult_db_connections,
-                         disable_batch_insert, try_reconnect, exit_on_fatal,
-                         need_private);
-  if (mdb == NULL) { return NULL; }
+  // mdb = db_init_database(jcr, db_drivername, db_name, db_user, db_password,
+  //                        db_address, db_port, db_socket, mult_db_connections,
+  //                        disable_batch_insert, try_reconnect, exit_on_fatal,
+  //                        need_private);
+  // if (mdb == NULL) { return NULL; }
 
-  if (auto err = mdb->BackendCon->OpenDatabase(jcr)) {
-    Jmsg(jcr, M_FATAL, 0, "%s", err);
-    mdb->BackendCon->CloseDatabase(jcr);
-    return NULL;
-  }
+  // if (auto err = mdb->BackendCon->OpenDatabase(jcr)) {
+  //   Jmsg(jcr, M_FATAL, 0, "%s", err);
+  //   mdb->BackendCon->CloseDatabase(jcr);
+  //   return NULL;
+  // }
 
-  return mdb;
+  // return mdb;
+
+  /*** FIXUP ***/
+  (void)jcr;
+  (void)db_drivername;
+  (void)db_name;
+  (void)db_user;
+  (void)db_password;
+  (void)db_address;
+  (void)db_port;
+  (void)db_socket;
+  (void)mult_db_connections;
+  (void)disable_batch_insert;
+  (void)try_reconnect;
+  (void)exit_on_fatal;
+  (void)need_private;
+  return {};
 }
 
 #endif /* HAVE_POSTGRESQL */
