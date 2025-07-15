@@ -32,13 +32,11 @@ namespace directordaemon {
 
 std::unique_ptr<BareosDb> GetDatabaseConnection(JobControlRecord* jcr)
 {
-  return DbCreateConnection(jcr, jcr->dir_impl->res.catalog->db_driver,
-                            jcr->dir_impl->res.catalog->db_name,
+  return DbCreateConnection(jcr, jcr->dir_impl->res.catalog->db_name,
                             jcr->dir_impl->res.catalog->db_user,
                             jcr->dir_impl->res.catalog->db_password.value,
                             jcr->dir_impl->res.catalog->db_address,
                             jcr->dir_impl->res.catalog->db_port,
-                            jcr->dir_impl->res.catalog->db_socket,
                             jcr->dir_impl->res.catalog->mult_db_connections,
                             jcr->dir_impl->res.catalog->disable_batch_insert,
                             jcr->dir_impl->res.catalog->try_reconnect,

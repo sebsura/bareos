@@ -529,6 +529,7 @@ enum class SqlFindResult
 
 struct db_conn {
   /* Virtual low level methods */
+  virtual const char* GetType() const = 0;
   virtual void ThreadCleanup(void) = 0;
   virtual void EscapeString(JobControlRecord* jcr,
                             char* snew,
@@ -586,25 +587,21 @@ struct db_conn {
 
 class BareosDb : public BareosDbQueryEnum {
  protected:
-  brwlock_t lock_; /**< Transaction lock */
-  SQL_INTERFACETYPE db_interface_type_
-      = SQL_INTERFACE_TYPE_UNKNOWN;       /**< Type of backend used */
-  SQL_DBTYPE db_type_ = SQL_TYPE_UNKNOWN; /**< Database type */
-  uint32_t ref_count_ = 0;                /**< Reference count */
-  bool connected_ = false;                /**< Connection made to db */
-  bool have_batch_insert_ = false;        /**< Have batch insert support ? */
-  bool try_reconnect_ = true;  /**< Try reconnecting DB connection ? */
-  bool exit_on_fatal_ = false; /**< Exit on FATAL DB errors ? */
-  std::string db_name_{};      /**< Database name */
-  std::string db_user_{};      /**< Database user */
-  std::string db_address_{};   /**< Host name address */
-  std::string db_socket_{};    /**< Socket for local access */
-  std::string db_password_{};  /**< Database password */
-  int db_port_ = 0;            /**< Port for host name address */
-  int cached_path_len = 0;     /**< Length of cached path */
-  int changes = 0;             /**< Changes during transaction */
-  int fnl = 0;                 /**< File name length */
-  int pnl = 0;                 /**< Path name length */
+  brwlock_t lock_;                 /**< Transaction lock */
+  uint32_t ref_count_ = 0;         /**< Reference count */
+  bool connected_ = false;         /**< Connection made to db */
+  bool have_batch_insert_ = false; /**< Have batch insert support ? */
+  bool try_reconnect_ = true;      /**< Try reconnecting DB connection ? */
+  bool exit_on_fatal_ = false;     /**< Exit on FATAL DB errors ? */
+  std::string db_name_{};          /**< Database name */
+  std::string db_user_{};          /**< Database user */
+  std::string db_address_{};       /**< Host name address */
+  std::string db_password_{};      /**< Database password */
+  int db_port_ = 0;                /**< Port for host name address */
+  int cached_path_len = 0;         /**< Length of cached path */
+  int changes = 0;                 /**< Changes during transaction */
+  int fnl = 0;                     /**< File name length */
+  int pnl = 0;                     /**< Path name length */
   bool disabled_batch_insert_
       = false;                 /**< Explicitly disabled batch insert mode ? */
   bool is_private_ = false;    /**< Private connection ? */
@@ -1036,7 +1033,6 @@ class BareosDb : public BareosDbQueryEnum {
   std::unique_ptr<BareosDb> CloneDatabaseConnection(JobControlRecord* jcr,
                                                     bool mult_db_connections,
                                                     bool need_private = false);
-  int GetTypeIndex(void) { return db_type_; }
   const char* GetType(void);
   void LockDb(const char* file, int line);
   void UnlockDb(const char* file, int line);
@@ -1135,13 +1131,11 @@ int ListResult(JobControlRecord* jcr,
                e_list_type type);
 
 std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
-                                             const char* db_drivername,
                                              const char* db_name,
                                              const char* db_user,
                                              const char* db_password,
                                              const char* db_address,
                                              int db_port,
-                                             const char* db_socket,
                                              bool mult_db_connections,
                                              bool disable_batch_insert,
                                              bool try_reconnect,

@@ -100,6 +100,8 @@ class BareosDbPostgresql : public db_conn {
 
   bool CheckDatabaseEncoding(JobControlRecord* jcr);
 
+  const char* GetType() const override { return "PostgreSQL"; }
+
   bool fields_fetched_
       = false;         /**< Marker, if field descriptions are already fetched */
   int num_fields_ = 0; /**< Number of fields returned by last query */

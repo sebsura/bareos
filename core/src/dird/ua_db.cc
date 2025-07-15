@@ -134,10 +134,9 @@ bool OpenDb(UaContext* ua, bool use_private)
   Dmsg0(100, "UA Open database\n");
   /*** FIXME ***/
   ua->db = DbCreateConnection(
-               ua->jcr, ua->catalog->db_driver, ua->catalog->db_name,
-               ua->catalog->db_user, ua->catalog->db_password.value,
-               ua->catalog->db_address, ua->catalog->db_port,
-               ua->catalog->db_socket, mult_db_conn,
+               ua->jcr, ua->catalog->db_name, ua->catalog->db_user,
+               ua->catalog->db_password.value, ua->catalog->db_address,
+               ua->catalog->db_port, mult_db_conn,
                ua->catalog->disable_batch_insert, ua->catalog->try_reconnect,
                ua->catalog->exit_on_fatal, use_private)
                .release();

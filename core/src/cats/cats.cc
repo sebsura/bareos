@@ -58,21 +58,13 @@ std::unique_ptr<BareosDb> BareosDb::CloneDatabaseConnection(
     bool mult_db_connections,
     bool need_private)
 {
-  return DbCreateConnection(
-      jcr, nullptr, db_name_.c_str(), db_user_.c_str(), db_password_.c_str(),
-      db_address_.c_str(), db_port_, db_socket_.c_str(), mult_db_connections,
-      disabled_batch_insert_, try_reconnect_, exit_on_fatal_, need_private);
+  return DbCreateConnection(jcr, db_name_.c_str(), db_user_.c_str(),
+                            db_password_.c_str(), db_address_.c_str(), db_port_,
+                            mult_db_connections, disabled_batch_insert_,
+                            try_reconnect_, exit_on_fatal_, need_private);
 }
 
-const char* BareosDb::GetType(void)
-{
-  switch (db_interface_type_) {
-    case SQL_INTERFACE_TYPE_POSTGRESQL:
-      return "PostgreSQL";
-    default:
-      return "Unknown";
-  }
-}
+const char* BareosDb::GetType(void) { return BackendCon->GetType(); }
 
 /**
  * Lock database, this can be called multiple times by the same
@@ -115,13 +107,11 @@ void BareosDb::PrintLockInfo(FILE* fp)
 }
 
 std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
-                                             const char* db_drivername,
                                              const char* db_name,
                                              const char* db_user,
                                              const char* db_password,
                                              const char* db_address,
                                              int db_port,
-                                             const char* db_socket,
                                              bool mult_db_connections,
                                              bool disable_batch_insert,
                                              bool try_reconnect,
@@ -160,13 +150,11 @@ std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
 
   /*** FIXUP ***/
   (void)jcr;
-  (void)db_drivername;
   (void)db_name;
   (void)db_user;
   (void)db_password;
   (void)db_address;
   (void)db_port;
-  (void)db_socket;
   (void)mult_db_connections;
   (void)disable_batch_insert;
   (void)try_reconnect;
