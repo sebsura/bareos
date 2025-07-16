@@ -43,6 +43,7 @@
 #include "lib/edit.h"
 #include "lib/parse_conf.h"
 #include "dird/jcr_util.h"
+#include "cats/db_conn.h"
 
 namespace directordaemon {
 

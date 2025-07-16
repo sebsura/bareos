@@ -370,7 +370,7 @@ Bvfs::Bvfs(JobControlRecord* j, BareosDb* mdb)
   jobids = GetPoolMemory(PM_NAME);
   prev_dir = GetPoolMemory(PM_NAME);
   pattern = GetPoolMemory(PM_NAME);
-  *jobids = *prev_dir = *pattern = 0;
+  *jobids = *prev_dir = 0;
   pwd_id = 0;
   see_copies = false;
   see_all_versions = false;
@@ -384,7 +384,6 @@ Bvfs::Bvfs(JobControlRecord* j, BareosDb* mdb)
 Bvfs::~Bvfs()
 {
   FreePoolMemory(jobids);
-  FreePoolMemory(pattern);
   FreePoolMemory(prev_dir);
   FreeAttr(attr);
   jcr->DecUseCount();
@@ -480,10 +479,10 @@ void Bvfs::GetAllFileVersions(const char* path,
                               const char* client)
 {
   DBId_t pathid = 0;
-  char path_esc[MAX_ESCAPE_NAME_LENGTH];
+  std::string path_esc;
 
-  db->BackendCon->EscapeString(jcr, path_esc, path, strlen(path));
-  pathid = db->GetPathRecord(jcr, path_esc);
+  db->BackendCon->EscapeString(jcr, path_esc, path);
+  pathid = db->GetPathRecord(jcr, path_esc.c_str());
   GetAllFileVersions(pathid, fname, client);
 }
 
@@ -496,8 +495,8 @@ void Bvfs::GetAllFileVersions(DBId_t pathid,
                               const char* client)
 {
   char ed1[50];
-  char fname_esc[MAX_ESCAPE_NAME_LENGTH];
-  char client_esc[MAX_ESCAPE_NAME_LENGTH];
+  std::string fname_esc;
+  std::string client_esc;
   PoolMem query(PM_MESSAGE);
   PoolMem filter(PM_MESSAGE);
 
@@ -510,12 +509,12 @@ void Bvfs::GetAllFileVersions(DBId_t pathid,
     Mmsg(filter, " AND Job.Type IN ('B', 'A', 'a') ");
   }
 
-  db->BackendCon->EscapeString(jcr, fname_esc, fname, strlen(fname));
-  db->BackendCon->EscapeString(jcr, client_esc, client, strlen(client));
+  db->BackendCon->EscapeString(jcr, fname_esc, fname);
+  db->BackendCon->EscapeString(jcr, client_esc, client);
 
-  db->FillQuery(query, BareosDb::SQL_QUERY::bvfs_versions_6, fname_esc,
-                edit_uint64(pathid, ed1), client_esc, filter.c_str(), limit,
-                offset);
+  db->FillQuery(query, BareosDb::SQL_QUERY::bvfs_versions_6, fname_esc.c_str(),
+                edit_uint64(pathid, ed1), client_esc.c_str(), filter.c_str(),
+                limit, offset);
   db->SqlQuery(query.c_str(), list_entries, user_data);
 }
 
@@ -563,8 +562,8 @@ bool Bvfs::ls_dirs()
   db->FillQuery(special_dirs_query, BareosDb::SQL_QUERY::bvfs_ls_special_dirs_3,
                 pathid, pathid, jobids);
 
-  if (*pattern) {
-    db->FillQuery(filter, BareosDb::SQL_QUERY::match_query, pattern);
+  if (!pattern.empty()) {
+    db->FillQuery(filter, BareosDb::SQL_QUERY::match_query, pattern.c_str());
   }
   db->FillQuery(sub_dirs_query, BareosDb::SQL_QUERY::bvfs_ls_sub_dirs_5, pathid,
                 jobids, jobids, filter.c_str(), jobids);
@@ -605,8 +604,8 @@ bool Bvfs::ls_files()
   if (!pwd_id) { ChDir(get_root()); }
 
   edit_uint64(pwd_id, pathid);
-  if (*pattern) {
-    db->FillQuery(filter, BareosDb::SQL_QUERY::match_query2, pattern);
+  if (!pattern.empty()) {
+    db->FillQuery(filter, BareosDb::SQL_QUERY::match_query2, pattern.c_str());
   }
 
   build_ls_files_query(jcr, db, query, jobids, pathid, filter.c_str(), limit,
@@ -684,6 +683,7 @@ bool Bvfs::compute_restore_list(char* fileid,
 {
   PoolMem query(PM_MESSAGE);
   PoolMem tmp(PM_MESSAGE), tmp2(PM_MESSAGE);
+  std::string tmp3;
   int64_t id, jobid, prev_jobid;
   bool init = false;
   bool retval = false;
@@ -746,9 +746,7 @@ bool Bvfs::compute_restore_list(char* fileid,
     *p = '\0';
     tmp.strcat("%");
 
-    size_t len = strlen(tmp.c_str());
-    tmp2.check_size((len + 1) * 2);
-    db->BackendCon->EscapeString(jcr, tmp2.c_str(), tmp.c_str(), len);
+    db->BackendCon->EscapeString(jcr, tmp3, tmp.c_str());
 
     if (init) { query.strcat(" UNION "); }
 
@@ -757,7 +755,7 @@ bool Bvfs::compute_restore_list(char* fileid,
          "File.PathId, FileId "
          "FROM Path JOIN File USING (PathId) JOIN Job USING (JobId) "
          "WHERE Path.Path LIKE '%s' AND File.JobId IN (%s) ",
-         tmp2.c_str(), jobids);
+         tmp3.c_str(), jobids);
     query.strcat(tmp.c_str());
     init = true;
 
@@ -772,7 +770,7 @@ bool Bvfs::compute_restore_list(char* fileid,
          "JOIN Job ON (BaseFiles.JobId = Job.JobId) "
          "JOIN Path USING (PathId) "
          "WHERE Path.Path LIKE '%s' AND BaseFiles.JobId IN (%s) ",
-         tmp2.c_str(), jobids);
+         tmp3.c_str(), jobids);
     query.strcat(tmp.c_str());
   }
 

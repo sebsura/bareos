@@ -31,6 +31,7 @@
 #if HAVE_POSTGRESQL
 
 #  include "cats.h"
+#  include "db_conn.h"
 #  include "lib/edit.h"
 #  include "lib/util.h"
 
@@ -116,14 +117,13 @@ void BareosDb::ListPoolRecords(JobControlRecord* jcr,
                                OutputFormatter* sendit,
                                e_list_type type)
 {
-  char escaped_pool_name[MAX_ESCAPE_NAME_LENGTH];
+  std::string escaped_pool_name;
 
   PoolMem query(PM_MESSAGE);
   PoolMem select(PM_MESSAGE);
 
   DbLocker _{this};
-  BackendCon->EscapeString(jcr, escaped_pool_name, pdbr->Name,
-                           strlen(pdbr->Name));
+  BackendCon->EscapeString(jcr, escaped_pool_name, pdbr->Name);
 
   if (type == VERT_LIST) {
     Mmsg(select,
@@ -133,7 +133,7 @@ void BareosDb::ListPoolRecords(JobControlRecord* jcr,
          "RecyclePoolId,LabelType ");
     if (pdbr->Name[0] != 0) {
       query.bsprintf("%s FROM Pool WHERE Name='%s'", select.c_str(),
-                     escaped_pool_name);
+                     escaped_pool_name.c_str());
     } else if (pdbr->PoolId > 0) {
       query.bsprintf("%s FROM Pool WHERE poolid=%d", select.c_str(),
                      pdbr->PoolId);
@@ -144,7 +144,7 @@ void BareosDb::ListPoolRecords(JobControlRecord* jcr,
     Mmsg(select, "SELECT PoolId,Name,NumVols,MaxVols,PoolType,LabelFormat ");
     if (pdbr->Name[0] != 0) {
       query.bsprintf("%s FROM Pool WHERE Name='%s'", select.c_str(),
-                     escaped_pool_name);
+                     escaped_pool_name.c_str());
     } else if (pdbr->PoolId > 0) {
       query.bsprintf("%s FROM Pool WHERE poolid=%d", select.c_str(),
                      pdbr->PoolId);
@@ -205,12 +205,11 @@ void BareosDb::ListMediaRecords(JobControlRecord* jcr,
                                 e_list_type type)
 {
   char ed1[50];
-  char esc[MAX_ESCAPE_NAME_LENGTH];
+  std::string esc;
   PoolMem select(PM_MESSAGE);
   PoolMem query(PM_MESSAGE);
 
-  BackendCon->EscapeString(jcr, esc, mdbr->VolumeName,
-                           strlen(mdbr->VolumeName));
+  BackendCon->EscapeString(jcr, esc, mdbr->VolumeName);
 
   /* There is one case where ListMediaRecords() is called from SelectMediaDbr()
    * with the range argument set to NULL. To avoid problems, we set the range to
@@ -221,7 +220,7 @@ void BareosDb::ListMediaRecords(JobControlRecord* jcr,
   if (count) {
     /* NOTE: ACLs are ignored. */
     if (mdbr->VolumeName[0] != 0) {
-      FillQuery(query, SQL_QUERY::list_volumes_by_name_count_1, esc);
+      FillQuery(query, SQL_QUERY::list_volumes_by_name_count_1, esc.c_str());
     } else if (mdbr->PoolId > 0) {
       FillQuery(query, SQL_QUERY::list_volumes_by_poolid_count_1,
                 edit_int64(mdbr->PoolId, ed1));
@@ -236,7 +235,7 @@ void BareosDb::ListMediaRecords(JobControlRecord* jcr,
     }
 
     if (mdbr->VolumeName[0] != 0) {
-      query.bsprintf("%s WHERE VolumeName='%s'", select.c_str(), esc);
+      query.bsprintf("%s WHERE VolumeName='%s'", select.c_str(), esc.c_str());
     } else if (mdbr->PoolId > 0) {
       query.bsprintf("%s WHERE PoolId=%s ORDER BY MediaId %s", select.c_str(),
                      edit_int64(mdbr->PoolId, ed1), range);
@@ -518,7 +517,6 @@ void BareosDb::ListJobRecords(JobControlRecord* jcr,
 {
   char ed1[50];
   char dt[MAX_TIME_LENGTH];
-  char esc[MAX_ESCAPE_NAME_LENGTH];
   PoolMem temp(PM_MESSAGE), selection(PM_MESSAGE), criteria(PM_MESSAGE);
 
   if (jr->JobId > 0) {
@@ -527,8 +525,9 @@ void BareosDb::ListJobRecords(JobControlRecord* jcr,
   }
 
   if (jr->Name[0] != 0) {
-    BackendCon->EscapeString(jcr, esc, jr->Name, strlen(jr->Name));
-    temp.bsprintf("AND Job.Name = '%s' ", esc);
+    std::string esc;
+    BackendCon->EscapeString(jcr, esc, jr->Name);
+    temp.bsprintf("AND Job.Name = '%s' ", esc.c_str());
     PmStrcat(selection, temp.c_str());
   }
 
@@ -696,27 +695,29 @@ void BareosDb::ListFilesets(JobControlRecord* jcr,
                             OutputFormatter* sendit,
                             e_list_type type)
 {
-  char esc[MAX_ESCAPE_NAME_LENGTH];
+  char buf[edit::min_buffer_size];
 
   DbLocker _{this};
   if (jr->Name[0] != 0) {
-    BackendCon->EscapeString(jcr, esc, jr->Name, strlen(jr->Name));
+    std::string esc;
+    BackendCon->EscapeString(jcr, esc, jr->Name);
     Mmsg(cmd,
          "SELECT DISTINCT FileSet.FileSetId AS FileSetId, FileSet, MD5, "
          "CreateTime, FileSetText "
          "FROM Job, FileSet "
          "WHERE Job.FileSetId = FileSet.FileSetId "
          "AND Job.Name='%s' %s",
-         esc, range);
+         esc.c_str(), range);
   } else if (jr->Job[0] != 0) {
-    BackendCon->EscapeString(jcr, esc, jr->Job, strlen(jr->Job));
+    std::string esc;
+    BackendCon->EscapeString(jcr, esc, jr->Job);
     Mmsg(cmd,
          "SELECT DISTINCT FileSet.FileSetId AS FileSetId, FileSet, MD5, "
          "CreateTime, FileSetText "
          "FROM Job, FileSet "
          "WHERE Job.FileSetId = FileSet.FileSetId "
          "AND Job.Name='%s' %s",
-         esc, range);
+         esc.c_str(), range);
   } else if (jr->JobId != 0) {
     Mmsg(cmd,
          "SELECT DISTINCT FileSet.FileSetId AS FileSetId, FileSet, MD5, "
@@ -724,13 +725,13 @@ void BareosDb::ListFilesets(JobControlRecord* jcr,
          "FROM Job, FileSet "
          "WHERE Job.FileSetId = FileSet.FileSetId "
          "AND Job.JobId='%s' %s",
-         edit_int64(jr->JobId, esc), range);
+         edit_int64(jr->JobId, buf), range);
   } else if (jr->FileSetId != 0) {
     Mmsg(cmd,
          "SELECT FileSetId, FileSet, MD5, CreateTime, FileSetText "
          "FROM FileSet "
          "WHERE FileSetId=%s ",
-         edit_int64(jr->FileSetId, esc));
+         edit_int64(jr->FileSetId, buf));
   } else { /* all records */
     Mmsg(cmd,
          "SELECT DISTINCT FileSet.FileSetId AS FileSetId, FileSet, MD5, "

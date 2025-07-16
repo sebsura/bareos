@@ -72,6 +72,8 @@
 #include "include/protocol_types.h"
 #include "include/compiler_macro.h"
 
+#include "cats/db_conn.h"
+
 namespace directordaemon {
 
 /* Forward referenced subroutines */

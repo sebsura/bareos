@@ -47,6 +47,7 @@
 #include "lib/util.h"
 #include "lib/watchdog.h"
 #include "lib/cli.h"
+#include "cats/db_conn.h"
 
 #include "dird/reload.h"
 
@@ -109,15 +110,13 @@ static bool DirDbLogInsert(JobControlRecord* jcr,
                            utime_t mtime,
                            const char* msg)
 {
-  int length;
   char ed1[50];
   char dt[MAX_TIME_LENGTH];
-  PoolMem query(PM_MESSAGE), esc_msg(PM_MESSAGE);
+  PoolMem query(PM_MESSAGE);
+  std::string esc_msg;
 
   if (!jcr || !jcr->db || !jcr->db->IsConnected()) { return false; }
-  length = strlen(msg);
-  esc_msg.check_size(length * 2 + 1);
-  jcr->db->BackendCon->EscapeString(jcr, esc_msg.c_str(), msg, length);
+  jcr->db->BackendCon->EscapeString(jcr, esc_msg, msg);
 
   bstrutime(dt, sizeof(dt), mtime);
   Mmsg(query, "INSERT INTO Log (JobId, Time, LogText) VALUES (%s,'%s','%s')",

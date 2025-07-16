@@ -31,6 +31,7 @@
 #include "dird/director_jcr_impl.h"
 #include "dird/ua_db.h"
 #include "dird/ua_select.h"
+#include "cats/db_conn.h"
 
 namespace directordaemon {
 

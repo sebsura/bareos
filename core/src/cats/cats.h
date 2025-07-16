@@ -540,63 +540,7 @@ enum class SqlFindResult
   kEmptyResultSet
 };
 
-
-struct db_conn {
-  /* Virtual low level methods */
-  virtual const char* GetType() const = 0;
-  virtual void EscapeString(JobControlRecord* jcr,
-                            char* snew,
-                            const char* old,
-                            int len)
-      = 0;
-  virtual void UnescapeObject(JobControlRecord* jcr,
-                              char* from,
-                              int32_t expected_len,
-                              POOLMEM*& dest,
-                              int32_t* len)
-      = 0;
-
-  /* Pure virtual low level methods */
-  // returns an error string on error
-  virtual const char* OpenDatabase(JobControlRecord* jcr) = 0;
-  virtual void CloseDatabase(JobControlRecord* jcr) = 0;
-  virtual void StartTransaction(JobControlRecord* jcr) = 0;
-  virtual void EndTransaction(JobControlRecord* jcr) = 0;
-
-  /* By default, we use db_sql_query */
-  virtual bool BigSqlQuery(const char* query,
-                           DB_RESULT_HANDLER* ResultHandler,
-                           void* ctx)
-      = 0;
-  virtual char* EscapeObject(JobControlRecord* jcr, char* old, int len) = 0;
-  virtual void SqlFieldSeek(int field) = 0;
-  virtual int SqlNumFields(void) = 0;
-  virtual void SqlFreeResult(void) = 0;
-  virtual SQL_ROW SqlFetchRow(void) = 0;
-
-
-  virtual bool SqlQueryWithoutHandler(const char* query, query_flags flags = {})
-      = 0;
-  virtual bool SqlQueryWithHandler(const char* query,
-                                   DB_RESULT_HANDLER* ResultHandler,
-                                   void* ctx)
-      = 0;
-  virtual const char* sql_strerror(void) = 0;
-  virtual void SqlDataSeek(int row) = 0;
-  virtual int SqlAffectedRows(void) = 0;
-  virtual uint64_t SqlInsertAutokeyRecord(const char* query,
-                                          const char* table_name)
-      = 0;
-  virtual SQL_FIELD* SqlFetchField(void) = 0;
-  virtual bool SqlFieldIsNotNull(int field_type) = 0;
-  virtual bool SqlFieldIsNumeric(int field_type) = 0;
-  virtual bool SqlBatchStartFileTable(JobControlRecord* jcr) = 0;
-  virtual bool SqlBatchEndFileTable(JobControlRecord* jcr, const char* error)
-      = 0;
-  virtual bool SqlBatchInsertFileTable(JobControlRecord* jcr,
-                                       AttributesDbRecord* ar)
-      = 0;
-};
+struct db_conn;
 
 class BareosDb : public BareosDbQueryEnum {
  protected:
@@ -617,9 +561,9 @@ class BareosDb : public BareosDbQueryEnum {
   POOLMEM* fname = nullptr;    /**< Filename only */
   POOLMEM* path = nullptr;     /**< Path only */
   POOLMEM* cached_path = nullptr;   /**< Cached path name */
-  POOLMEM* esc_name = nullptr;      /**< Escaped file name */
-  POOLMEM* esc_path = nullptr;      /**< Escaped path name */
-  POOLMEM* esc_obj = nullptr;       /**< Escaped restore object */
+  std::string esc_name;             /**< Escaped file name */
+  std::string esc_path;             /**< Escaped path name */
+  std::string esc_obj;              /**< Escaped restore object */
   POOLMEM* cmd = nullptr;           /**< SQL command string */
   POOLMEM* errmsg = nullptr;        /**< Nicely edited error message */
   const char** queries = nullptr;   /**< table of query texts */

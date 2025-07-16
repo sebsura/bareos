@@ -37,6 +37,7 @@
 #include "lib/parse_conf.h"
 #include "lib/util.h"
 #include "lib/berrno.h"
+#include "cats/db_conn.h"
 
 namespace directordaemon {
 

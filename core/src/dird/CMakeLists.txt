@@ -125,7 +125,11 @@ if(HAVE_PAM)
   target_sources(dird_objects PRIVATE auth_pam.cc)
 endif()
 
-target_link_libraries(dird_objects PRIVATE Bareos::Lib OpenSSL::SSL)
+target_link_libraries(
+  dird_objects
+  PRIVATE Bareos::Lib OpenSSL::SSL
+  PUBLIC Bareos::SQL
+)
 
 add_executable(bareos-dir)
 target_sources(bareos-dir PRIVATE dird.cc)
@@ -139,7 +143,7 @@ if(HAVE_WIN32)
 endif()
 
 target_link_libraries(
-  bareos-dir PRIVATE dird_objects Bareos::SQL Bareos::Findlib CLI11::CLI11
+  bareos-dir PRIVATE dird_objects Bareos::Findlib CLI11::CLI11
 )
 
 if(HAVE_NDMP)

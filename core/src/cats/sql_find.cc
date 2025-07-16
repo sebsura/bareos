@@ -35,6 +35,7 @@
 #if HAVE_POSTGRESQL
 
 #  include "cats.h"
+#  include "db_conn.h"
 #  include "lib/edit.h"
 
 /* -----------------------------------------------------------------------
@@ -61,10 +62,10 @@ bool BareosDb::FindJobStartTime(JobControlRecord* jcr,
 {
   SQL_ROW row;
   char ed1[50], ed2[50];
-  char esc_jobname[MAX_ESCAPE_NAME_LENGTH];
+  std::string esc_jobname;
 
   DbLocker _{this};
-  BackendCon->EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
+  BackendCon->EscapeString(jcr, esc_jobname, jr->Name);
   PmStrcpy(stime, "0000-00-00 00:00:00"); /* default */
   job[0] = 0;
 
@@ -76,8 +77,8 @@ bool BareosDb::FindJobStartTime(JobControlRecord* jcr,
          "Type='%c' AND "
          "Level='%c' AND Name='%s' AND ClientId=%s AND FileSetId=%s "
          "ORDER BY StartTime DESC LIMIT 1",
-         jr->JobType, L_FULL, esc_jobname, edit_int64(jr->ClientId, ed1),
-         edit_int64(jr->FileSetId, ed2));
+         jr->JobType, L_FULL, esc_jobname.c_str(),
+         edit_int64(jr->ClientId, ed1), edit_int64(jr->FileSetId, ed2));
 
     if (jr->JobLevel == L_DIFFERENTIAL) {
       /* SQL cmd for Differential backup already edited above */
@@ -106,8 +107,9 @@ bool BareosDb::FindJobStartTime(JobControlRecord* jcr,
            "Type='%c' AND "
            "Level IN ('%c','%c','%c') AND Name='%s' AND ClientId=%s "
            "AND FileSetId=%s ORDER BY StartTime DESC LIMIT 1",
-           jr->JobType, L_INCREMENTAL, L_DIFFERENTIAL, L_FULL, esc_jobname,
-           edit_int64(jr->ClientId, ed1), edit_int64(jr->FileSetId, ed2));
+           jr->JobType, L_INCREMENTAL, L_DIFFERENTIAL, L_FULL,
+           esc_jobname.c_str(), edit_int64(jr->ClientId, ed1),
+           edit_int64(jr->FileSetId, ed2));
     } else {
       Mmsg1(errmsg, T_("Unknown level=%d\n"), jr->JobLevel);
       return false;
@@ -159,14 +161,12 @@ SqlFindResult BareosDb::FindLastJobStartTimeForJobAndClient(
     std::string client_name,
     std::vector<char>& stime_out)
 {
-  std::vector<char> esc_jobname(MAX_ESCAPE_NAME_LENGTH);
-  std::vector<char> esc_clientname(MAX_ESCAPE_NAME_LENGTH);
+  std::string esc_jobname;
+  std::string esc_clientname;
 
   DbLocker _{this};
-  BackendCon->EscapeString(nullptr, esc_jobname.data(), job_basename.c_str(),
-                           job_basename.size());
-  BackendCon->EscapeString(nullptr, esc_clientname.data(), client_name.c_str(),
-                           client_name.size());
+  BackendCon->EscapeString(nullptr, esc_jobname, job_basename);
+  BackendCon->EscapeString(nullptr, esc_clientname, client_name);
 
   constexpr const char* default_time{"0000-00-00 00:00:00"};
   stime_out.resize(strlen(default_time) + 1);
@@ -183,7 +183,7 @@ SqlFindResult BareosDb::FindLastJobStartTimeForJobAndClient(
        " AND Job.ClientId=(SELECT ClientId"
        "                   FROM Client WHERE Client.Name='%s')"
        " ORDER BY StartTime DESC LIMIT 1",
-       esc_jobname.data(), esc_clientname.data());
+       esc_jobname.c_str(), esc_clientname.c_str());
 
   if (!QueryDb(jcr, cmd)) {
     Mmsg2(errmsg, T_("Query error for start time request: ERR=%s\nCMD=%s\n"),
@@ -229,10 +229,10 @@ bool BareosDb::FindLastJobStartTime(JobControlRecord* jcr,
 {
   SQL_ROW row;
   char ed1[50], ed2[50];
-  char esc_jobname[MAX_ESCAPE_NAME_LENGTH];
+  std::string esc_jobname;
 
   DbLocker _{this};
-  BackendCon->EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
+  BackendCon->EscapeString(jcr, esc_jobname, jr->Name);
   PmStrcpy(stime, "0000-00-00 00:00:00"); /* default */
   job[0] = 0;
 
@@ -241,8 +241,8 @@ bool BareosDb::FindLastJobStartTime(JobControlRecord* jcr,
        "Type='%c' AND "
        "Level='%c' AND Name='%s' AND ClientId=%s AND FileSetId=%s "
        "ORDER BY StartTime DESC LIMIT 1",
-       jr->JobType, JobLevel, esc_jobname, edit_int64(jr->ClientId, ed1),
-       edit_int64(jr->FileSetId, ed2));
+       jr->JobType, JobLevel, esc_jobname.c_str(),
+       edit_int64(jr->ClientId, ed1), edit_int64(jr->FileSetId, ed2));
   if (!QueryDb(jcr, cmd)) {
     Mmsg2(errmsg, T_("Query error for start time request: ERR=%s\nCMD=%s\n"),
           BackendCon->sql_strerror(), cmd);
@@ -277,10 +277,10 @@ bool BareosDb::FindFailedJobSince(JobControlRecord* jcr,
 {
   SQL_ROW row;
   char ed1[50], ed2[50];
-  char esc_jobname[MAX_ESCAPE_NAME_LENGTH];
+  std::string esc_jobname;
 
   DbLocker _{this};
-  BackendCon->EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
+  BackendCon->EscapeString(jcr, esc_jobname, jr->Name);
 
   /* Differential is since last Full backup */
   Mmsg(cmd,
@@ -288,7 +288,7 @@ bool BareosDb::FindFailedJobSince(JobControlRecord* jcr,
        "Type='%c' AND Level IN ('%c','%c') AND Name='%s' AND ClientId=%s "
        "AND FileSetId=%s AND StartTime>'%s' "
        "ORDER BY StartTime DESC LIMIT 1",
-       jr->JobType, L_FULL, L_DIFFERENTIAL, esc_jobname,
+       jr->JobType, L_FULL, L_DIFFERENTIAL, esc_jobname.c_str(),
        edit_int64(jr->ClientId, ed1), edit_int64(jr->FileSetId, ed2), stime);
   if (!QueryDb(jcr, cmd)) { return false; }
 
@@ -316,29 +316,28 @@ bool BareosDb::FindLastJobid(JobControlRecord* jcr,
 {
   SQL_ROW row;
   char ed1[50];
-  char esc_jobname[MAX_ESCAPE_NAME_LENGTH];
+  std::string esc_jobname;
 
   DbLocker _{this};
   /* Find last full */
   Dmsg2(100, "JobLevel=%d JobType=%d\n", jr->JobLevel, jr->JobType);
   if (jr->JobLevel == L_VERIFY_CATALOG) {
-    BackendCon->EscapeString(jcr, esc_jobname, jr->Name, strlen(jr->Name));
+    BackendCon->EscapeString(jcr, esc_jobname, jr->Name);
     Mmsg(cmd,
          "SELECT JobId FROM Job WHERE Type='V' AND Level='%c' AND "
          " JobStatus IN ('T','W') AND Name='%s' AND "
          "ClientId=%s ORDER BY StartTime DESC LIMIT 1",
-         L_VERIFY_INIT, esc_jobname, edit_int64(jr->ClientId, ed1));
+         L_VERIFY_INIT, esc_jobname.c_str(), edit_int64(jr->ClientId, ed1));
   } else if (jr->JobLevel == L_VERIFY_VOLUME_TO_CATALOG
              || jr->JobLevel == L_VERIFY_DISK_TO_CATALOG
              || jr->JobType == JT_BACKUP) {
     if (Name) {
-      BackendCon->EscapeString(jcr, esc_jobname, (char*)Name,
-                               MIN(strlen(Name), sizeof(esc_jobname)));
+      BackendCon->EscapeString(jcr, esc_jobname, Name);
       Mmsg(
           cmd,
           "SELECT JobId FROM Job WHERE Type='B' AND JobStatus IN ('T','W') AND "
           "Name='%s' ORDER BY StartTime DESC LIMIT 1",
-          esc_jobname);
+          esc_jobname.c_str());
     } else {
       Mmsg(
           cmd,
@@ -440,14 +439,13 @@ int BareosDb::FindNextVolume(JobControlRecord* jcr,
   SQL_ROW row = NULL;
   bool find_oldest = false;
   bool found_candidate = false;
-  char esc_type[MAX_ESCAPE_NAME_LENGTH];
-  char esc_status[MAX_ESCAPE_NAME_LENGTH];
+  std::string esc_type;
+  std::string esc_status;
 
   DbLocker _{this};
 
-  BackendCon->EscapeString(jcr, esc_type, mr->MediaType, strlen(mr->MediaType));
-  BackendCon->EscapeString(jcr, esc_status, mr->VolStatus,
-                           strlen(mr->VolStatus));
+  BackendCon->EscapeString(jcr, esc_type, mr->MediaType);
+  BackendCon->EscapeString(jcr, esc_status, mr->VolStatus);
 
   if (item == -1) {
     find_oldest = true;
@@ -469,7 +467,7 @@ retry_fetch:
          "('Full',"
          "'Recycle','Purged','Used','Append') AND Enabled=1 "
          "ORDER BY LastWritten LIMIT %d",
-         edit_int64(mr->PoolId, ed1), esc_type, item);
+         edit_int64(mr->PoolId, ed1), esc_type.c_str(), item);
   } else {
     PoolMem changer(PM_MESSAGE);
     PoolMem order(PM_MESSAGE);
@@ -506,8 +504,8 @@ retry_fetch:
          "AND VolStatus='%s' "
          "%s "
          "%s LIMIT %d",
-         edit_int64(mr->PoolId, ed1), esc_type, esc_status, changer.c_str(),
-         order.c_str(), item);
+         edit_int64(mr->PoolId, ed1), esc_type.c_str(), esc_status.c_str(),
+         changer.c_str(), order.c_str(), item);
   }
 
   Dmsg1(100, "fnextvol=%s\n", cmd);

@@ -31,6 +31,7 @@
 #if HAVE_POSTGRESQL
 
 #  include "cats.h"
+#  include "db_conn.h"
 
 #  include "bdb_query_names.inc"
 #  include "lib/berrno.h"

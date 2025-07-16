@@ -25,6 +25,7 @@
 #define BAREOS_CATS_BVFS_H_
 
 #include "lib/attr.h"
+#include "db_conn.h"
 /*
  * This object can be use to browse the catalog
  *
@@ -71,12 +72,7 @@ class Bvfs {
 
   void SetOffset(uint32_t nb) { offset = nb; }
 
-  void SetPattern(char* p)
-  {
-    uint32_t len = strlen(p);
-    pattern = CheckPoolMemorySize(pattern, len * 2 + 1);
-    db->BackendCon->EscapeString(jcr, pattern, p, len);
-  }
+  void SetPattern(char* p) { db->BackendCon->EscapeString(jcr, pattern, p); }
 
   /* Get the root point */
   DBId_t get_root();
@@ -136,7 +132,7 @@ class Bvfs {
   uint32_t limit;
   uint32_t offset;
   uint32_t nb_record; /* number of records of the last query */
-  POOLMEM* pattern;
+  std::string pattern;
   DBId_t pwd_id;     /* Current pathid */
   POOLMEM* prev_dir; /* ls_dirs query returns all versions, take the 1st one */
   Attributes* attr;  /* Can be use by handler to call DecodeStat() */

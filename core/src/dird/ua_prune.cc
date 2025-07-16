@@ -39,6 +39,7 @@
 #include "dird/ua_purge.h"
 #include "lib/edit.h"
 #include "lib/parse_conf.h"
+#include "cats/db_conn.h"
 
 #include <algorithm>
 
@@ -286,11 +287,11 @@ bool PruneCmd(UaContext* ua, const char*)
 // Prune Directory meta data records from the database.
 static bool PruneDirectory(UaContext* ua, ClientResource* client)
 {
-  int i, len;
+  int i;
   ClientDbRecord cr;
-  char* prune_topdir = NULL;
-  PoolMem query(PM_MESSAGE), temp(PM_MESSAGE);
+  PoolMem query(PM_MESSAGE);
   bool recursive = false;
+  std::string temp;
 
   // See if a client was selected.
   if (!client) {
@@ -308,7 +309,7 @@ static bool PruneDirectory(UaContext* ua, ClientResource* client)
   // Get the directory to prune.
   i = FindArgWithValue(ua, NT_("directory"));
   if (i >= 0) {
-    PmStrcpy(temp, ua->argv[i]);
+    temp.assign(ua->argv[i]);
   } else {
     if (recursive) {
       if (!GetCmd(ua, T_("Please enter the full path prefix to remove: "),
@@ -320,18 +321,14 @@ static bool PruneDirectory(UaContext* ua, ClientResource* client)
         return false;
       }
     }
-    PmStrcpy(temp, ua->cmd);
+    temp.assign(ua->cmd);
   }
 
   /* See if the directory ends in a / and escape it for usage in a database
    * query. */
-  len = strlen(temp.c_str());
-  if (*(temp.c_str() + len - 1) != '/') {
-    PmStrcat(temp, "/");
-    len++;
-  }
-  prune_topdir = (char*)malloc(len * 2 + 1);
-  ua->db->BackendCon->EscapeString(ua->jcr, prune_topdir, temp.c_str(), len);
+  if (temp.size() == 0 || temp.back() != '/') { temp += "/"; }
+  std::string prune_topdir;
+  ua->db->BackendCon->EscapeString(ua->jcr, prune_topdir, temp);
 
   // Remove all files in particular directory.
   if (recursive) {
@@ -340,33 +337,31 @@ static bool PruneDirectory(UaContext* ua, ClientResource* client)
          "SELECT pathid FROM path "
          "WHERE path LIKE '%s%%'"
          ")",
-         prune_topdir);
+         prune_topdir.c_str());
   } else {
     Mmsg(query,
          "DELETE FROM file WHERE pathid IN ("
          "SELECT pathid FROM path "
          "WHERE path LIKE '%s'"
          ")",
-         prune_topdir);
+         prune_topdir.c_str());
   }
 
   if (client) {
     char ed1[50];
     cr = ClientDbRecord{};
     bstrncpy(cr.Name, client->resource_name_, sizeof(cr.Name));
-    if (!ua->db->CreateClientRecord(ua->jcr, &cr)) {
-      if (prune_topdir) { free(prune_topdir); }
-      return false;
-    }
+    if (!ua->db->CreateClientRecord(ua->jcr, &cr)) { return false; }
 
-    Mmsg(temp,
+    PoolMem temp2;
+    Mmsg(temp2,
          " AND JobId IN ("
          "SELECT JobId FROM Job "
          "WHERE ClientId=%s"
          ")",
          edit_int64(cr.ClientId, ed1));
 
-    PmStrcat(query, temp.c_str());
+    PmStrcat(query, temp2.c_str());
   }
   {
     DbLocker _{ua->db};
@@ -379,7 +374,6 @@ static bool PruneDirectory(UaContext* ua, ClientResource* client)
   if (!client) {
     if (!GetYesno(ua, T_("Cleanup orphaned path records (yes/no):"))
         || !ua->pint32_val) {
-      if (prune_topdir) { free(prune_topdir); }
       return true;
     }
 
@@ -387,12 +381,12 @@ static bool PruneDirectory(UaContext* ua, ClientResource* client)
       Mmsg(query,
            "DELETE FROM path "
            "WHERE path LIKE '%s%%'",
-           prune_topdir);
+           prune_topdir.c_str());
     } else {
       Mmsg(query,
            "DELETE FROM path "
            "WHERE path LIKE '%s'",
-           prune_topdir);
+           prune_topdir.c_str());
     }
     {
       DbLocker _{ua->db};
@@ -400,7 +394,6 @@ static bool PruneDirectory(UaContext* ua, ClientResource* client)
     }
   }
 
-  if (prune_topdir) { free(prune_topdir); }
   return true;
 }
 
@@ -453,8 +446,10 @@ static bool prune_set_filter(UaContext* ua,
                              PoolMem* add_where)
 {
   utime_t now;
-  char ed1[50], ed2[MAX_ESCAPE_NAME_LENGTH];
+  char ed1[50];
   PoolMem tmp(PM_MESSAGE);
+
+  std::string esc;
 
   now = (utime_t)time(NULL);
   edit_int64(now - period, ed1);
@@ -465,17 +460,15 @@ static bool prune_set_filter(UaContext* ua,
 
   DbLocker _{ua->db};
   if (client) {
-    ua->db->BackendCon->EscapeString(ua->jcr, ed2, client->resource_name_,
-                                     strlen(client->resource_name_));
-    Mmsg(tmp, " AND Client.Name = '%s' ", ed2);
+    ua->db->BackendCon->EscapeString(ua->jcr, esc, client->resource_name_);
+    Mmsg(tmp, " AND Client.Name = '%s' ", esc.c_str());
     PmStrcat(*add_where, tmp.c_str());
     PmStrcat(*add_from, " JOIN Client USING (ClientId) ");
   }
 
   if (pool) {
-    ua->db->BackendCon->EscapeString(ua->jcr, ed2, pool->resource_name_,
-                                     strlen(pool->resource_name_));
-    Mmsg(tmp, " AND Pool.Name = '%s' ", ed2);
+    ua->db->BackendCon->EscapeString(ua->jcr, esc, pool->resource_name_);
+    Mmsg(tmp, " AND Pool.Name = '%s' ", esc.c_str());
     PmStrcat(*add_where, tmp.c_str());
     PmStrcat(*add_from, " JOIN Pool USING(PoolId) ");
   }

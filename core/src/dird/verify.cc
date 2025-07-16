@@ -52,6 +52,7 @@
 #include "lib/edit.h"
 #include "lib/util.h"
 #include "lib/version.h"
+#include "cats/db_conn.h"
 
 namespace {
 /* Commands sent to File daemon */
@@ -577,6 +578,7 @@ void GetAttributesAndCompareToCatalog(JobControlRecord* jcr,
   struct stat statf; /* file stat */
   struct stat statc; /* catalog stat */
   PoolMem buf(PM_MESSAGE);
+  std::string esc_digest;
   POOLMEM* fname = GetPoolMemory(PM_FNAME);
   int do_Digest = CRYPTO_DIGEST_NONE;
   int32_t file_index = 0;
@@ -793,13 +795,12 @@ void GetAttributesAndCompareToCatalog(JobControlRecord* jcr,
             goto bail_out;
           }
           if (do_Digest != CRYPTO_DIGEST_NONE) {
-            jcr->db->BackendCon->EscapeString(jcr, buf.c_str(),
-                                              Opts_Digest.c_str(),
-                                              strlen(Opts_Digest.c_str()));
-            if (!bstrcmp(buf.c_str(), fdbr.Digest)) {
+            jcr->db->BackendCon->EscapeString(jcr, esc_digest,
+                                              Opts_Digest.c_str());
+            if (!bstrcmp(esc_digest.c_str(), fdbr.Digest)) {
               PrtFname(jcr);
               Jmsg(jcr, M_INFO, 0, T_("      %s differs. File=%s Cat=%s\n"),
-                   stream_to_ascii(stream), buf.c_str(), fdbr.Digest);
+                   stream_to_ascii(stream), esc_digest.c_str(), fdbr.Digest);
               jcr->setJobStatusWithPriorityCheck(JS_Differences);
             }
             do_Digest = CRYPTO_DIGEST_NONE;

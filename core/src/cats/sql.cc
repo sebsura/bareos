@@ -35,6 +35,7 @@
 #if HAVE_POSTGRESQL
 
 #  include "cats.h"
+#  include "db_conn.h"
 #  include "lib/edit.h"
 
 /* Forward referenced subroutines */

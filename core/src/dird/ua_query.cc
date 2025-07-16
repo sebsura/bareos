@@ -33,6 +33,7 @@
 #include "dird/ua_input.h"
 #include "dird/ua_select.h"
 #include "lib/berrno.h"
+#include "cats/db_conn.h"
 
 namespace directordaemon {
 
@@ -152,7 +153,7 @@ static POOLMEM* substitute_prompts(UaContext* ua,
 {
   char *p, *q, *o;
   POOLMEM* new_query;
-  int i, n, len, olen;
+  int i, n, olen;
   char* subst[9];
 
   if (nprompt == 0) { return query; }
@@ -188,9 +189,10 @@ static POOLMEM* substitute_prompts(UaContext* ua,
                 break;
               }
             }
-            len = strlen(ua->cmd);
-            p = (char*)malloc(len * 2 + 1);
-            ua->db->BackendCon->EscapeString(ua->jcr, p, ua->cmd, len);
+            std::string escaped;
+            ua->db->BackendCon->EscapeString(ua->jcr, escaped, ua->cmd);
+            p = (char*)malloc(escaped.size() + 1);
+            memcpy(p, escaped.c_str(), escaped.size() + 1);
             subst[n] = p;
             olen = o - new_query;
             new_query = CheckPoolMemorySize(new_query, olen + strlen(p) + 10);

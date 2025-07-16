@@ -55,6 +55,7 @@
 #include "lib/runscript.h"
 #include "lib/util.h"
 #include "lib/watchdog.h"
+#include "cats/db_conn.h"
 
 #include <algorithm>
 
@@ -713,10 +714,12 @@ static int RestoreObjectHandler(void* ctx, int, char** row)
 
   Dmsg1(010, "Send obj: %s\n", fd->msg);
 
-  jcr->db->BackendCon->UnescapeObject(jcr, row[8],           /* Object  */
-                                      str_to_uint64(row[1]), /* Object length */
-                                      fd->msg, &fd->message_length);
-  fd->send(); /* send object */
+  /*** FIXUP: was this ok ? ***/
+  gsl::span<char> esc_obj{row[8], str_to_uint64(row[1])};
+  std::string obj;
+  jcr->db->BackendCon->UnescapeObject(jcr, obj, esc_obj);
+
+  fd->fsend("%s", obj.c_str());
   octx->count++;
 
   // Don't try to print compressed objects.
@@ -849,7 +852,7 @@ int GetAttributesAndPutInCatalog(JobControlRecord* jcr)
   BareosSocket* fd;
   int n = 0;
   AttributesDbRecord* ar = NULL;
-  PoolMem digest(PM_MESSAGE);
+  std::string esc_digest;
 
   fd = jcr->file_bsock;
   jcr->dir_impl->jr.FirstIndex = 1;
@@ -927,8 +930,6 @@ int GetAttributesAndPutInCatalog(JobControlRecord* jcr)
       Dmsg1(debuglevel, "dird<filed: attr=%s\n", ar->attr);
       jcr->FileId = ar->FileId;
     } else if (CryptoDigestStreamType(stream) != CRYPTO_DIGEST_NONE) {
-      size_t length;
-
       /* First, get STREAM_UNIX_ATTRIBUTES and fill AttributesDbRecord structure
        * Next, we CAN have a CRYPTO_DIGEST, so we fill AttributesDbRecord with
        * it (or not) When we get a new STREAM_UNIX_ATTRIBUTES, we known that we
@@ -939,14 +940,12 @@ int GetAttributesAndPutInCatalog(JobControlRecord* jcr)
         continue;
       }
 
-      ar->Digest = digest.c_str();
+      jcr->db->BackendCon->EscapeString(jcr, esc_digest, Digest.c_str());
+
+      ar->Digest = const_cast<char*>(esc_digest.c_str());
       ar->DigestType = CryptoDigestStreamType(stream);
-      length = strlen(Digest.c_str());
-      digest.check_size(length * 2 + 1);
-      jcr->db->BackendCon->EscapeString(jcr, digest.c_str(), Digest.c_str(),
-                                        length);
       Dmsg4(debuglevel, "stream=%d DigestLen=%" PRIuz " Digest=%s type=%d\n",
-            stream, strlen(digest.c_str()), digest.c_str(), ar->DigestType);
+            stream, esc_digest.size(), esc_digest.c_str(), ar->DigestType);
     }
     jcr->dir_impl->jr.JobFiles = jcr->JobFiles = file_index;
     jcr->dir_impl->jr.LastIndex = file_index;

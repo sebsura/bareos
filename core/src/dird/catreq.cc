@@ -45,6 +45,7 @@
 #include "lib/edit.h"
 #include "lib/util.h"
 #include "lib/serial.h"
+#include "cats/db_conn.h"
 
 namespace directordaemon {
 

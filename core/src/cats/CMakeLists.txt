@@ -34,7 +34,9 @@ target_sources(
           sql_update.cc
           postgresql.cc
 )
-target_link_libraries(bareossql PUBLIC Bareos::Lib PostgreSQL::PostgreSQL)
+target_link_libraries(
+  bareossql PUBLIC Bareos::Lib PostgreSQL::PostgreSQL Microsoft.GSL::GSL
+)
 
 set_target_properties(
   bareossql PROPERTIES VERSION "${BAREOS_NUMERIC_VERSION}"

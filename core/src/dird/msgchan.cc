@@ -47,6 +47,7 @@
 #include "lib/util.h"
 #include "lib/thread_specific_data.h"
 #include "lib/watchdog.h"
+#include "cats/db_conn.h"
 
 namespace {
 

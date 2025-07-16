@@ -49,6 +49,7 @@
 #include "lib/parse_conf.h"
 #include "lib/util.h"
 #include "lib/version.h"
+#include "cats/db_conn.h"
 
 #include <memory>
 #include <vector>

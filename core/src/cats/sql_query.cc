@@ -27,6 +27,7 @@
 
 #include "include/bareos.h"
 #include "lib/util.h"
+#include "db_conn.h"
 
 #if HAVE_POSTGRESQL
 

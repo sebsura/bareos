@@ -32,6 +32,7 @@
 #include "lib/parse_conf.h"
 #include "lib/util.h"
 #include "dird/jcr_util.h"
+#include "cats/db_conn.h"
 
 #include <string>
 #include <vector>

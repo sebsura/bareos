@@ -29,6 +29,7 @@
 #include "dird/dird_globals.h"
 #include "dird/ua_db.h"
 #include "lib/parse_conf.h"
+#include "cats/db_conn.h"
 
 namespace directordaemon {
 

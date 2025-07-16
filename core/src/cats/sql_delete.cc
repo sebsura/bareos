@@ -31,6 +31,7 @@
 #if HAVE_POSTGRESQL
 
 #  include "cats.h"
+#  include "db_conn.h"
 #  include "lib/edit.h"
 
 /* -----------------------------------------------------------------------
@@ -53,11 +54,11 @@ bool BareosDb::DeletePoolRecord(JobControlRecord* jcr, PoolDbRecord* pr)
 {
   SQL_ROW row;
   int num_rows;
-  char esc[MAX_ESCAPE_NAME_LENGTH];
+  std::string esc;
 
   DbLocker _{this};
-  BackendCon->EscapeString(jcr, esc, pr->Name, strlen(pr->Name));
-  Mmsg(cmd, "SELECT PoolId FROM Pool WHERE Name='%s'", esc);
+  BackendCon->EscapeString(jcr, esc, pr->Name);
+  Mmsg(cmd, "SELECT PoolId FROM Pool WHERE Name='%s'", esc.c_str());
   Dmsg1(10, "selectpool: %s\n", cmd);
 
   pr->PoolId = pr->NumVols = 0;

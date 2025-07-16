@@ -39,6 +39,7 @@
 #include "findlib/find.h"
 #include "cats/cats.h"
 #include "cats/sql.h"
+#include "cats/db_conn.h"
 #include "stored/acquire.h"
 #include "stored/butil.h"
 #include "stored/device_control_record.h"
