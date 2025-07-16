@@ -1373,6 +1373,7 @@ bool BareosDbPostgresql::connect(JobControlRecord* jcr,
   return true;
 }
 
+namespace postgresql {
 db_conn* connect(JobControlRecord* jcr, const connection_parameter& params)
 {
   auto connection = new BareosDbPostgresql{};
@@ -1385,5 +1386,6 @@ db_conn* connect(JobControlRecord* jcr, const connection_parameter& params)
 
   return connection;
 }
+}  // namespace postgresql
 
 #endif /* HAVE_POSTGRESQL */
