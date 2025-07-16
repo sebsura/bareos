@@ -161,8 +161,10 @@ class BareosDbPostgresql : public db_conn {
                     std::string& buffer,
                     gsl::span<char> input) override;
   void UnescapeObject(JobControlRecord* jcr,
-                      std::string& buffer,
-                      gsl::span<char> input) override;
+                      const char* object,
+                      std::size_t object_length,
+                      POOLMEM*& out,
+                      int32_t* new_length) override;
   void StartTransaction(JobControlRecord* jcr) override;
   void EndTransaction(JobControlRecord* jcr) override;
   bool BigSqlQuery(const char* query,
@@ -450,19 +452,20 @@ void BareosDbPostgresql::EscapeString(JobControlRecord* jcr,
                                       std::string& buffer,
                                       std::string_view input)
 {
-  /*** FIXUP ***/
-  (void)jcr;
-  (void)buffer;
-  (void)input;
-  // int error;
+  int error = 0;
+  buffer.resize(2 * input.size() + 1);
 
-  // PQescapeStringConn(db_handle_.get(), snew, old, len, &error);
-  // if (error) {
-  //   Jmsg(jcr, M_FATAL, 0, T_("PQescapeStringConn returned non-zero.\n"));
-  //   /* error on encoding, probably invalid multibyte encoding in the source
-  //     string see PQescapeStringConn documentation for details. */
-  //   Dmsg0(500, "PQescapeStringConn failed\n");
-  // }
+  auto bytes_written = PQescapeStringConn(db_handle_.get(), buffer.data(),
+                                          input.data(), input.size(), &error);
+  if (error) {
+    Jmsg(jcr, M_FATAL, 0, T_("PQescapeStringConn returned non-zero.\n"));
+    /* error on encoding, probably invalid multibyte encoding in the source
+      string see PQescapeStringConn documentation for details. */
+    Dmsg0(500, "PQescapeStringConn failed\n");
+    buffer.clear();
+  } else {
+    buffer.resize(bytes_written);
+  }
 }
 
 /**
@@ -473,38 +476,19 @@ void BareosDbPostgresql::EscapeObject(JobControlRecord* jcr,
                                       std::string& buffer,
                                       gsl::span<char> input)
 {
-  /*** FIXUP ***/
-  (void)jcr;
-  (void)buffer;
-  (void)input;
+  size_t new_len;
+  unsigned char* obj = PQescapeByteaConn(
+      db_handle_.get(), reinterpret_cast<const unsigned char*>(input.data()),
+      input.size(), &new_len);
+  if (!obj) {
+    Jmsg(jcr, M_FATAL, 0, T_("PQescapeByteaConn returned NULL.\n"));
+    buffer.clear();
+    return;
+  }
 
-  // size_t new_len;
-  // unsigned char* obj;
+  buffer.assign(reinterpret_cast<char*>(obj));
 
-  // obj = PQescapeByteaConn(db_handle_, (unsigned const char*)old, len,
-  // &new_len); if (!obj) {
-  //   Jmsg(jcr, M_FATAL, 0, T_("PQescapeByteaConn returned NULL.\n"));
-  //   return nullptr;
-  // }
-
-  // if (esc_obj) {
-  //   /* from the PQescapeByteaConn documentation:
-  //    * [..] This result string length includes the terminating zero byte of
-  //    the
-  //    * result. [...] A terminating zero byte is also added. [...]
-  //    * So this is unnecessary: */
-  //   esc_obj = CheckPoolMemorySize(esc_obj, new_len + 1);
-  //   if (esc_obj) {
-  //     memcpy(esc_obj, obj, new_len);
-  //     esc_obj[new_len] = 0;
-  //   }
-  // }
-
-  // if (!esc_obj) { Jmsg(jcr, M_FATAL, 0, T_("esc_obj is NULL.\n")); }
-
-  // PQfreemem(obj);
-
-  // return (char*)esc_obj;
+  PQfreemem(obj);
 }
 
 /**
@@ -512,41 +496,39 @@ void BareosDbPostgresql::EscapeObject(JobControlRecord* jcr,
  *
  */
 void BareosDbPostgresql::UnescapeObject(JobControlRecord* jcr,
-                                        std::string& buffer,
-                                        gsl::span<char> input)
+                                        const char* from,
+                                        std::size_t,
+                                        POOLMEM*& dest,
+                                        int32_t* dest_len)
 {
-  /*** FIXUP ***/
-  (void)jcr;
-  (void)buffer;
-  (void)input;
-  // size_t new_len;
-  // unsigned char* obj;
+  size_t new_len;
+  unsigned char* obj;
 
-  // if (!dest || !dest_len) { return; }
+  if (!dest || !dest_len) { return; }
 
-  // if (!from) {
-  //   dest[0] = '\0';
-  //   *dest_len = 0;
-  //   return;
-  // }
+  if (!from) {
+    dest[0] = '\0';
+    *dest_len = 0;
+    return;
+  }
 
-  // obj = PQunescapeBytea((unsigned const char*)from, &new_len);
+  obj = PQunescapeBytea((unsigned const char*)from, &new_len);
 
-  // if (!obj) {
-  //   Jmsg(jcr, M_FATAL, 0, T_("PQunescapeByteaConn returned NULL.\n"));
-  //   return;
-  // }
+  if (!obj) {
+    Jmsg(jcr, M_FATAL, 0, T_("PQunescapeByteaConn returned NULL.\n"));
+    return;
+  }
 
-  // *dest_len = new_len;
-  // dest = CheckPoolMemorySize(dest, new_len + 1);
-  // if (dest) {
-  //   memcpy(dest, obj, new_len);
-  //   dest[new_len] = '\0';
-  // }
+  *dest_len = new_len;
+  dest = CheckPoolMemorySize(dest, new_len + 1);
+  if (dest) {
+    memcpy(dest, obj, new_len);
+    dest[new_len] = '\0';
+  }
 
-  // PQfreemem(obj);
+  PQfreemem(obj);
 
-  // Dmsg1(010, "obj size: %d\n", *dest_len);
+  Dmsg1(010, "obj size: %d\n", *dest_len);
 }
 
 /**

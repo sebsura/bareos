@@ -714,12 +714,10 @@ static int RestoreObjectHandler(void* ctx, int, char** row)
 
   Dmsg1(010, "Send obj: %s\n", fd->msg);
 
-  /*** FIXUP: was this ok ? ***/
-  gsl::span<char> esc_obj{row[8], str_to_uint64(row[1])};
-  std::string obj;
-  jcr->db->BackendCon->UnescapeObject(jcr, obj, esc_obj);
-
-  fd->fsend("%s", obj.c_str());
+  jcr->db->BackendCon->UnescapeObject(jcr, row[8],           /* Object  */
+                                      str_to_uint64(row[1]), /* Object length */
+                                      fd->msg, &fd->message_length);
+  fd->send(); /* send object */
   octx->count++;
 
   // Don't try to print compressed objects.

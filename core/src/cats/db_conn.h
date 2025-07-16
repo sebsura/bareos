@@ -40,8 +40,10 @@ struct db_conn {
                             gsl::span<char> input)
       = 0;
   virtual void UnescapeObject(JobControlRecord* jcr,
-                              std::string& buffer,
-                              gsl::span<char> input)
+                              const char* object,
+                              std::size_t object_length,
+                              POOLMEM*& out,
+                              int32_t* new_length)
       = 0;
 
   /* Pure virtual low level methods */
