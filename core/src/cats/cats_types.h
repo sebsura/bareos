@@ -72,11 +72,11 @@ struct query_flags {
   }
 };
 
-struct db_command_result {
-  static db_command_result Ok() { return {}; }
-  static db_command_result Error(std::string msg)
+template <typename T> struct db_result {
+  static db_result Ok(T value) { return db_result{std::move(value)}; }
+  static db_result Error(std::string msg)
   {
-    return db_command_result{std::move(msg)};
+    return db_result{error_marker_t{}, std::move(msg)};
   }
 
   const char* error() const
@@ -86,8 +86,38 @@ struct db_command_result {
   }
 
  private:
+  struct error_marker_t {};
+
+  explicit db_result(T value) : _value{std::move(value)} {}
+  explicit db_result(error_marker_t, std::string msg) noexcept
+      : _error{std::move(msg)}
+  {
+  }
+
+  std::optional<T> _value;
+  std::optional<std::string> _error{};
+};
+
+struct db_command_result {
+  static db_command_result Ok() { return {}; }
+  static db_command_result Error(std::string msg)
+  {
+    return db_command_result{error_marker_t{}, std::move(msg)};
+  }
+
+  const char* error() const
+  {
+    if (_error) { return _error->c_str(); }
+    return nullptr;
+  }
+
+ private:
+  struct error_marker_t {};
+
+
   db_command_result() = default;
-  explicit db_command_result(std::string msg) noexcept : _error{std::move(msg)}
+  explicit db_command_result(error_marker_t, std::string msg) noexcept
+      : _error{std::move(msg)}
   {
   }
 

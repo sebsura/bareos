@@ -261,7 +261,6 @@ db_command_result BareosDbPostgresql::CheckDatabaseEncoding(
 
   postgres::query q{db_encoding.get()};
 
-
   if (q.row_count() != 1 || q.field_count() != 1) {
     return db_command_result::Error(fmt::format(
         "database encoding returned unexpected value: rows={} fields={}",
@@ -271,13 +270,13 @@ db_command_result BareosDbPostgresql::CheckDatabaseEncoding(
   if (bstrcmp(encoding, "SQL_ASCII") != 0) {
     // Something is wrong with database encoding
 
-    PoolMem errmsg;
+    PoolMem warning;
     /*** FIXUP ***/
-    errmsg.bsprintf(
+    warning.bsprintf(
         "Encoding error for database \"%s\". Wanted SQL_ASCII, got %s\n",
         "get_db_name()", encoding);
-    Jmsg(jcr, M_WARNING, 0, "%s", errmsg.c_str());
-    Dmsg1(50, "%s", errmsg.c_str());
+    Jmsg(jcr, M_WARNING, 0, "%s", warning.c_str());
+    Dmsg1(50, "%s", warning.c_str());
   }
 
   /* If we are in SQL_ASCII, we can force the client_encoding to
@@ -686,84 +685,84 @@ int BareosDbPostgresql::SqlAffectedRows(void)
   return (unsigned)str_to_int32(PQcmdTuples(result_.get()));
 }
 
-uint64_t BareosDbPostgresql::SqlInsertAutokeyRecord(const char* query,
-                                                    const char* table_name)
+db_result<uint64_t> BareosDbPostgresql::SqlInsertAutokeyRecord(
+    const char* query,
+    const char* table_name)
 {
+  int i;
+  uint64_t id = 0;
+  char sequence[NAMEDATALEN - 1];
+  char getkeyval_query[NAMEDATALEN + 50];
+  PGresult* pg_result;
+
+  // First execute the insert query and then retrieve the currval.
+  if (auto result = SqlQueryWithoutHandler(query); result.error()) {
+    /*** FIXUP ***/
+    return db_result<uint64_t>::Error(result.error());
+  }
+
+  num_rows_ = SqlAffectedRows();
+  if (num_rows_ != 1) { return db_result<uint64_t>::Error("bad row count"); }
+
   /*** FIXUP ***/
-  (void)query;
-  (void)table_name;
-  return {};
-  //   int i;
-  //   uint64_t id = 0;
-  //   char sequence[NAMEDATALEN - 1];
-  //   char getkeyval_query[NAMEDATALEN + 50];
-  //   PGresult* pg_result;
+  // changes++;
 
-  //   // First execute the insert query and then retrieve the currval.
-  //   if (!SqlQueryWithoutHandler(query)) { return 0; }
+  /* Obtain the current value of the sequence that
+   * provides the serial value for primary key of the table.
+   *
+   * currval is local to our session.  It is not affected by
+   * other transactions.
+   *
+   * Determine the name of the sequence.
+   * PostgreSQL automatically creates a sequence using
+   * <table>_<column>_seq.
+   * At the time of writing, all tables used this format for
+   * for their primary key: <table>id
+   * Except for basefiles which has a primary key on baseid.
+   * Therefore, we need to special case that one table.
+   *
+   * everything else can use the PostgreSQL formula. */
+  if (Bstrcasecmp(table_name, "basefiles")) {
+    bstrncpy(sequence, "basefiles_baseid", sizeof(sequence));
+  } else {
+    bstrncpy(sequence, table_name, sizeof(sequence));
+    bstrncat(sequence, "_", sizeof(sequence));
+    bstrncat(sequence, table_name, sizeof(sequence));
+    bstrncat(sequence, "id", sizeof(sequence));
+  }
 
-  //   num_rows_ = SqlAffectedRows();
-  //   if (num_rows_ != 1) { return 0; }
+  bstrncat(sequence, "_seq", sizeof(sequence));
+  Bsnprintf(getkeyval_query, sizeof(getkeyval_query), "SELECT currval('%s')",
+            sequence);
 
-  //   changes++;
+  Dmsg1(500, "SqlInsertAutokeyRecord executing query '%s'\n", getkeyval_query);
+  for (i = 0; i < 10; i++) {
+    pg_result = PQexec(db_handle_, getkeyval_query);
+    if (pg_result) { break; }
+    Bmicrosleep(5, 0);
+  }
+  if (!pg_result) {
+    Dmsg1(50, "Query failed: %s\n", getkeyval_query);
+    goto bail_out;
+  }
 
-  //   /* Obtain the current value of the sequence that
-  //    * provides the serial value for primary key of the table.
-  //    *
-  //    * currval is local to our session.  It is not affected by
-  //    * other transactions.
-  //    *
-  //    * Determine the name of the sequence.
-  //    * PostgreSQL automatically creates a sequence using
-  //    * <table>_<column>_seq.
-  //    * At the time of writing, all tables used this format for
-  //    * for their primary key: <table>id
-  //    * Except for basefiles which has a primary key on baseid.
-  //    * Therefore, we need to special case that one table.
-  //    *
-  //    * everything else can use the PostgreSQL formula. */
-  //   if (Bstrcasecmp(table_name, "basefiles")) {
-  //     bstrncpy(sequence, "basefiles_baseid", sizeof(sequence));
-  //   } else {
-  //     bstrncpy(sequence, table_name, sizeof(sequence));
-  //     bstrncat(sequence, "_", sizeof(sequence));
-  //     bstrncat(sequence, table_name, sizeof(sequence));
-  //     bstrncat(sequence, "id", sizeof(sequence));
-  //   }
+  Dmsg0(500, "exec done\n");
 
-  //   bstrncat(sequence, "_seq", sizeof(sequence));
-  //   Bsnprintf(getkeyval_query, sizeof(getkeyval_query), "SELECT
-  //   currval('%s')",
-  //             sequence);
+  if (PQresultStatus(pg_result) == PGRES_TUPLES_OK) {
+    Dmsg0(500, "getting value\n");
+    id = str_to_uint64(PQgetvalue(pg_result, 0, 0));
+    Dmsg2(500, "got value '%s' which became %" PRIu64 "\n",
+          PQgetvalue(pg_result, 0, 0), id);
+  } else {
+    Dmsg1(50, "Result status failed: %s\n", getkeyval_query);
+    Mmsg1(errmsg, T_("error fetching currval: %s\n"),
+          PQerrorMessage(db_handle_));
+  }
 
-  //   Dmsg1(500, "SqlInsertAutokeyRecord executing query '%s'\n",
-  //   getkeyval_query); for (i = 0; i < 10; i++) {
-  //     pg_result = PQexec(db_handle_, getkeyval_query);
-  //     if (pg_result) { break; }
-  //     Bmicrosleep(5, 0);
-  //   }
-  //   if (!pg_result) {
-  //     Dmsg1(50, "Query failed: %s\n", getkeyval_query);
-  //     goto bail_out;
-  //   }
+bail_out:
+  PQclear(pg_result);
 
-  //   Dmsg0(500, "exec done\n");
-
-  //   if (PQresultStatus(pg_result) == PGRES_TUPLES_OK) {
-  //     Dmsg0(500, "getting value\n");
-  //     id = str_to_uint64(PQgetvalue(pg_result, 0, 0));
-  //     Dmsg2(500, "got value '%s' which became %" PRIu64 "\n",
-  //           PQgetvalue(pg_result, 0, 0), id);
-  //   } else {
-  //     Dmsg1(50, "Result status failed: %s\n", getkeyval_query);
-  //     Mmsg1(errmsg, T_("error fetching currval: %s\n"),
-  //           PQerrorMessage(db_handle_));
-  //   }
-
-  // bail_out:
-  //   PQclear(pg_result);
-
-  //   return id;
+  return id;
 }
 
 static void ComputeFields(int num_fields,
