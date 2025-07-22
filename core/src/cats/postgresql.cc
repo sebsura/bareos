@@ -482,65 +482,64 @@ db_command_result BareosDbPostgresql::BigSqlQuery(
     DB_RESULT_HANDLER* ResultHandler,
     void* ctx)
 {
-  /*** FIXUP ***/
-  (void)query;
-  (void)ResultHandler;
-  (void)ctx;
+  SQL_ROW row;
+  Dmsg1(500, "BigSqlQuery starts with '%s'\n", query);
 
-  return db_command_result::Error("not implemented");
-  //   SQL_ROW row;
-  //   bool retval = false;
+  /* This code handles only SELECT queries */
+  if (!bstrncasecmp(query, "SELECT", 6)) {
+    return SqlQueryWithHandler(query, ResultHandler, ctx);
+  }
 
-  //   Dmsg1(500, "BigSqlQuery starts with '%s'\n", query);
-
-  //   /* This code handles only SELECT queries */
-  //   if (!bstrncasecmp(query, "SELECT", 6)) {
-  //     return SqlQueryWithHandler(query, ResultHandler, ctx);
-  //   }
-
-  //   if (!ResultHandler) { /* no need of big_query without handler */
-  //     return false;
-  //   }
+  if (!ResultHandler) { /* no need of big_query without handler */
+    return db_command_result::Error("no result handler specified");
+  }
 
 
-  //   bool in_transaction = transaction_;
-  //   if (!in_transaction) { /* CURSOR needs transaction */
-  //     SqlQueryWithoutHandler("BEGIN");
-  //   }
+  bool in_transaction = transaction_;
+  if (!in_transaction) { /* CURSOR needs transaction */
+    SqlQueryWithoutHandler("BEGIN");
+  }
 
-  //   Mmsg(buf_, "DECLARE _bar_cursor CURSOR FOR %s", query);
+  std::string errmsg;
+  PoolMem buf;
+  Mmsg(buf, "DECLARE _bar_cursor CURSOR FOR %s", query);
 
-  //   if (!SqlQueryWithoutHandler(buf_)) {
-  //     Mmsg(errmsg, T_("Query failed: %s: ERR=%s\n"), buf_, sql_strerror());
-  //     Dmsg0(50, "SqlQueryWithoutHandler failed\n");
-  //     goto bail_out;
-  //   }
+  if (auto result = SqlQueryWithoutHandler(buf.c_str()); result.error()) {
+    // Mmsg(errmsg, T_("Query failed: %s: ERR=%s\n"), buf, sql_strerror());
+    errmsg = fmt::format("Query failed: {}: ERR={}\n", buf.c_str(),
+                         result.error());
+    Dmsg0(50, "SqlQueryWithoutHandler(%s) failed: %s\n", buf.c_str(),
+          result.error());
 
-  //   do {
-  //     if (!SqlQueryWithoutHandler("FETCH 100 FROM _bar_cursor")) {
-  //       goto bail_out;
-  //     }
-  //     while ((row = SqlFetchRow()) != NULL) {
-  //       Dmsg1(500, "Fetching %d rows\n", num_rows_);
-  //       if (ResultHandler(ctx, num_fields_, row)) break;
-  //     }
-  //     PQclear(result_);
-  //     result_ = NULL;
+    goto bail_out;
+  }
 
-  //   } while (num_rows_ > 0);
+  do {
+    if (auto result = SqlQueryWithoutHandler("FETCH 100 FROM _bar_cursor");
+        result.error()) {
+      errmsg = fmt::format("Fetch failed: ERR={}\n", result.error());
+      Dmsg0(50, "SqlQueryWithoutHandler(Fetch) failed: %s\n", result.error());
+      goto bail_out;
+    }
+    while ((row = SqlFetchRow()) != NULL) {
+      Dmsg1(500, "Fetching %d rows\n", num_rows_);
+      if (ResultHandler(ctx, num_fields_, row)) break;
+    }
+    result_.reset();
+  } while (num_rows_ > 0);
 
-  //   SqlQueryWithoutHandler("CLOSE _bar_cursor");
+  SqlQueryWithoutHandler("CLOSE _bar_cursor");
 
-  //   Dmsg0(500, "BigSqlQuery finished\n");
-  //   SqlFreeResult();
-  //   retval = true;
+  Dmsg0(500, "BigSqlQuery finished\n");
+  SqlFreeResult();
 
-  // bail_out:
-  //   if (!in_transaction) {
-  //     SqlQueryWithoutHandler("COMMIT"); /* end transaction */
-  //   }
+bail_out:
+  if (!in_transaction) {
+    SqlQueryWithoutHandler("COMMIT"); /* end transaction */
+  }
 
-  //   return retval;
+  if (!errmsg.empty()) { return db_command_result::Error(std::move(errmsg)); }
+  return db_command_result::Ok();
 }
 
 /**
@@ -552,37 +551,29 @@ db_command_result BareosDbPostgresql::SqlQueryWithHandler(
     DB_RESULT_HANDLER* ResultHandler,
     void* ctx)
 {
-  /*** FIXUP ***/
-  (void)query;
-  (void)ResultHandler;
-  (void)ctx;
+  SQL_ROW row;
 
-  return db_command_result::Error("not implemented");
+  Dmsg1(500, "SqlQueryWithHandler starts with '%s'\n", query);
 
-  // SQL_ROW row;
+  if (auto result = SqlQueryWithoutHandler(query); result.error()) {
+    Dmsg0(500, "SqlQueryWithHandler failed: %s\n", result.error());
+    return result;
+  }
 
-  // Dmsg1(500, "SqlQueryWithHandler starts with '%s'\n", query);
+  Dmsg0(500, "SqlQueryWithHandler succeeded. checking handler\n");
 
-  // if (!SqlQueryWithoutHandler(query)) {
-  //   Mmsg(errmsg, T_("Query failed: %s: ERR=%s\n"), query, sql_strerror());
-  //   Dmsg0(500, "SqlQueryWithHandler failed\n");
-  //   return false;
-  // }
+  if (ResultHandler != NULL) {
+    Dmsg0(500, "SqlQueryWithHandler invoking handler\n");
+    while ((row = SqlFetchRow()) != NULL) {
+      Dmsg0(500, "SqlQueryWithHandler SqlFetchRow worked\n");
+      if (ResultHandler(ctx, num_fields_, row)) break;
+    }
+    SqlFreeResult();
+  }
 
-  // Dmsg0(500, "SqlQueryWithHandler succeeded. checking handler\n");
+  Dmsg0(500, "SqlQueryWithHandler finished\n");
 
-  // if (ResultHandler != NULL) {
-  //   Dmsg0(500, "SqlQueryWithHandler invoking handler\n");
-  //   while ((row = SqlFetchRow()) != NULL) {
-  //     Dmsg0(500, "SqlQueryWithHandler SqlFetchRow worked\n");
-  //     if (ResultHandler(ctx, num_fields_, row)) break;
-  //   }
-  //   SqlFreeResult();
-  // }
-
-  // Dmsg0(500, "SqlQueryWithHandler finished\n");
-
-  // return true;
+  return db_command_result::Ok();
 }
 
 /**
