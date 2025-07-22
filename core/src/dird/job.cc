@@ -169,9 +169,10 @@ bool SetupJob(JobControlRecord* jcr, bool suppress_output)
   // Open database
   Dmsg0(100, "Open database\n");
   jcr->db = GetDatabaseConnection(jcr);
-  if (jcr->db == NULL) {
-    Jmsg(jcr, M_FATAL, 0, T_("Could not open database \"%s\".\n"),
-         jcr->dir_impl->res.catalog->db_name);
+  if (!jcr->db->connected()) {
+    Jmsg(jcr, M_FATAL, 0, T_("Could not open database \"%s\": %s.\n"),
+         jcr->dir_impl->res.catalog->db_name, jcr->db->error());
+    jcr->db.reset();
     goto bail_out;
   }
   Dmsg0(150, "DB opened\n");

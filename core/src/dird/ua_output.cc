@@ -1309,9 +1309,10 @@ bool CompleteJcrForJob(JobControlRecord* jcr,
 
   Dmsg0(100, "complete_jcr open db\n");
   jcr->db = GetDatabaseConnection(jcr);
-  if (jcr->db == NULL) {
-    Jmsg(jcr, M_FATAL, 0, T_("Could not open database \"%s\".\n"),
-         jcr->dir_impl->res.catalog->db_name);
+  if (!jcr->db->connected()) {
+    Jmsg(jcr, M_FATAL, 0, T_("Could not open database \"%s\": %s\n"),
+         jcr->dir_impl->res.catalog->db_name, jcr->db->error());
+    jcr->db.reset();
     return false;
   }
   PoolDbRecord pr;

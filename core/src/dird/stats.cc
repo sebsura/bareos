@@ -132,9 +132,10 @@ extern "C" void* statistics_thread(void*)
   jcr->dir_impl->res.catalog
       = (CatalogResource*)my_config->GetNextRes(R_CATALOG, NULL);
   jcr->db = GetDatabaseConnection(jcr);
-  if (jcr->db == NULL) {
-    Jmsg(jcr, M_FATAL, 0, T_("Could not open database \"%s\".\n"),
-         jcr->dir_impl->res.catalog->db_name);
+  if (!jcr->db->connected()) {
+    Jmsg(jcr, M_FATAL, 0, T_("Could not open database \"%s\": %s\n"),
+         jcr->dir_impl->res.catalog->db_name, jcr->db->error());
+    jcr->db.reset();
     goto bail_out;
   }
 

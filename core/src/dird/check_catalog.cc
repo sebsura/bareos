@@ -47,44 +47,50 @@ bool CheckCatalog(cat_op mode)
   /* Loop over databases */
   CatalogResource* catalog;
   foreach_res (catalog, R_CATALOG) {
-    BareosDb* db;
+    auto empty_if_null = [](const char* str) { return str ? str : ""; };
 
-    /* Make sure we can open catalog, otherwise print a warning
-     * message because the server is probably not running. */
-    db = db_init_database(NULL, catalog->db_driver, catalog->db_name,
-                          catalog->db_user, catalog->db_password.value,
-                          catalog->db_address, catalog->db_port,
-                          catalog->db_socket, catalog->mult_db_connections,
-                          catalog->disable_batch_insert, catalog->try_reconnect,
-                          catalog->exit_on_fatal, true);
+    auto db = DbCreateConnection(
+        NULL,
+        (connection_parameter){
+            empty_if_null(catalog->db_name), empty_if_null(catalog->db_user),
+            empty_if_null(catalog->db_password.value),
+            empty_if_null(catalog->db_address), catalog->db_port,
+            catalog->mult_db_connections != 0, catalog->disable_batch_insert,
+            catalog->try_reconnect, catalog->exit_on_fatal, true});
 
-    if (!db) {
-      Pmsg2(000, T_("Could not open Catalog \"%s\", database \"%s\".\n"),
-            catalog->resource_name_, catalog->db_name);
-      Jmsg(NULL, M_FATAL, 0,
-           T_("Could not open Catalog \"%s\", database \"%s\".\n"),
-           catalog->resource_name_, catalog->db_name);
-      OK = false;
-      goto bail_out;
-    }
-
-
-    if (auto err = db->BackendCon->OpenDatabase(NULL)) {
+    if (!db->connected()) {
       Pmsg2(000, T_("Could not open Catalog \"%s\", database \"%s\": %s\n"),
-            catalog->resource_name_, catalog->db_name, err);
+            catalog->resource_name_, catalog->db_name, db->error());
       Jmsg(NULL, M_FATAL, 0,
            T_("Could not open Catalog \"%s\", database \"%s\": %s\n"),
-           catalog->resource_name_, catalog->db_name, err);
-      db->BackendCon->CloseDatabase(NULL);
+           catalog->resource_name_, catalog->db_name, db->error());
       OK = false;
       goto bail_out;
     }
 
-    /* Display a message if the db max_connections is too low */
-    if (!db->CheckMaxConnections(NULL, me->MaxConcurrentJobs)) {
-      Pmsg1(000, "Warning, settings problem for Catalog=%s\n",
-            catalog->resource_name_);
-      Pmsg1(000, "%s", db->strerror());
+    if (db->BatchInsertAvailable() && me->MaxConcurrentJobs) {
+      // if we use batch inserts, then every backup job may open a new
+      // db connection, so we should check that there are enough
+      // connections available
+      std::optional count = db->GetMaxConnections();
+      if (!count) {
+        auto err = db->error();
+        Jmsg(NULL, M_ERROR, 0,
+             "cannot determine db max connections for catalog %s: %s\n",
+             catalog->resource_name_, err);
+        Pmsg1(000, "cannot determine db max connections for catalog %s: %s\n",
+              catalog->resource_name_, err);
+      }
+
+      if (*count < me->MaxConcurrentJobs) {
+        // we may have too few connections available
+        Jmsg(NULL, M_WARNING, 0,
+             "Potential performance problem (catalog %s):\n"
+             "max_connections=%zu set for %s database \"%s\" should be larger "
+             "than Director's MaxConcurrentJobs=%d\n",
+             catalog->resource_name_, *count, db->GetType(), db->get_db_name(),
+             me->MaxConcurrentJobs);
+      }
     }
 
     /* we are in testing mode, so don't touch anything in the catalog */
@@ -99,7 +105,7 @@ bool CheckCatalog(cat_op mode)
       /* If the Pool has a catalog resource create the pool only
        *   in that catalog. */
       if (!pool->catalog || pool->catalog == catalog) {
-        CreatePool(NULL, db, pool, POOL_OP_UPDATE); /* update request */
+        CreatePool(NULL, db.get(), pool, POOL_OP_UPDATE); /* update request */
       }
     }
 
@@ -110,7 +116,7 @@ bool CheckCatalog(cat_op mode)
       /* If the Pool has a catalog resource update the pool only
        *   in that catalog. */
       if (!pool->catalog || pool->catalog == catalog) {
-        UpdatePoolReferences(NULL, db, pool);
+        UpdatePoolReferences(NULL, db.get(), pool);
       }
     }
 

@@ -144,11 +144,15 @@ bool OpenDb(UaContext* ua, bool use_private)
                                  ua->catalog->try_reconnect,
                                  ua->catalog->exit_on_fatal,
                                  use_private};
-  ua->db = DbCreateConnection(ua->jcr, std::move(params)).release();
-  if (ua->db == NULL) {
-    ua->ErrorMsg(T_("Could not open catalog database \"%s\".\n"),
-                 ua->catalog->db_name);
-    return false;
+  {
+    auto db = DbCreateConnection(ua->jcr, std::move(params));
+    if (!db->connected()) {
+      ua->ErrorMsg(T_("Could not open catalog database \"%s\": %s.\n"),
+                   ua->catalog->db_name, db->error());
+      return false;
+    }
+
+    ua->db = db.release();
   }
   ua->jcr->db = ua->db->CloneDatabaseConnection(ua->jcr, false);
 

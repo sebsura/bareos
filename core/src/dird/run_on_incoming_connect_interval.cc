@@ -57,11 +57,19 @@ time_t RunOnIncomingConnectInterval::FindLastJobStart(JobResource* job)
 {
   JobControlRecord* jcr = NewDirectorJcr(DirdFreeJcr);
   SetJcrDefaults(jcr, job);
-  auto db = db_ != nullptr ? db_ : GetDatabaseConnection(jcr).release();
+  auto db = db_;
   if (db == nullptr) {
-    Dmsg0(200, "Could not retrieve a database connection.\n");
-    return 0;
+    auto con = GetDatabaseConnection(jcr);
+    if (con->connected()) {
+      db = con.release();
+    } else {
+      Dmsg0(200, "Could not retrieve a database connection: %s\n",
+            con->error());
+      return 0;
+    }
   }
+  /*** FIXUP: what is this mess ?? ***/
+  db_ = nullptr;
   jcr->db = std::unique_ptr<BareosDb>{db};
 
   std::vector<char> stime;

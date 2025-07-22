@@ -107,23 +107,33 @@ void BareosDb::PrintLockInfo(FILE* fp)
   }
 }
 
+bool BareosDb::connect(JobControlRecord* jcr)
+{
+  if (BackendCon) { BackendCon->CloseDatabase(jcr); }
+
+  BackendCon = postgresql::connect(jcr, params_);
+  if (!BackendCon) {
+    Mmsg(errmsg, "could not establish postgresql connection");
+    return false;
+  }
+
+  if (!CheckTablesVersion()) {
+    /*** FIXME ***/
+    // add cleanup for backend_con
+    BackendCon->CloseDatabase(jcr);
+    BackendCon = nullptr;
+    return false;
+  }
+
+  return true;
+}
+
 std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
                                              connection_parameter params)
 {
-  auto* backend_con = postgresql::connect(jcr, params);
-  if (!backend_con) {
-    Jmsg(jcr, M_FATAL, 0, "%s", "could not establish postgresql connection");
-    return nullptr;
-  }
+  auto ptr = std::make_unique<BareosDb>(std::move(params));
 
-  auto ptr = std::make_unique<BareosDb>(std::move(params), backend_con);
-
-  if (!ptr->CheckTablesVersion(jcr)) {
-    /*** FIXME ***/
-    // add cleanup for backend_con
-    backend_con->CloseDatabase(jcr);
-    return nullptr;
-  }
+  ptr->connect(jcr);
 
   return ptr;
 }

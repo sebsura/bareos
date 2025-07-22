@@ -137,8 +137,7 @@ static inline int DbMaxConnectionsHandler(void* ctx, int count, char** row)
   return 0;
 }
 
-bool BareosDb::CheckMaxConnections(JobControlRecord* jcr,
-                                   uint32_t max_concurrent_jobs)
+std::optional<std::size_t> BareosDb::GetMaxConnections()
 {
   // Without Batch insert, no need to verify max_connections, as all
   // jobs share a connection otherwise
@@ -151,34 +150,23 @@ bool BareosDb::CheckMaxConnections(JobControlRecord* jcr,
   FillQuery(query, SQL_QUERY::sql_get_max_connections);
   if (!BackendCon->SqlQueryWithHandler(query.c_str(), DbMaxConnectionsHandler,
                                        &context)) {
-    Jmsg(jcr, M_ERROR, 0, "Can't verify max_connections settings %s", errmsg);
-    return false;
+    /*** FIXUP ***/
+    Mmsg(errmsg, "Can't verify max_connections settings %s", "error reason");
+    return std::nullopt;
   }
 
-  if (context.nr_connections && max_concurrent_jobs
-      && max_concurrent_jobs > context.nr_connections) {
-    DbLocker _{this};
-    Mmsg(errmsg,
-         T_("Potential performance problem:\n"
-            "max_connections=%d set for %s database \"%s\" should be larger "
-            "than Director's "
-            "MaxConcurrentJobs=%d\n"),
-         context.nr_connections, GetType(), get_db_name(), max_concurrent_jobs);
-    Jmsg(jcr, M_WARNING, 0, "%s", errmsg);
-    return false;
-  }
-
-  return true;
+  return context.nr_connections;
 }
 
-bool BareosDb::CheckTablesVersion(JobControlRecord* jcr)
+bool BareosDb::CheckTablesVersion()
 {
   uint32_t bareos_db_version = 0;
   const char* query = "SELECT VersionId FROM Version";
 
   if (!BackendCon->SqlQueryWithHandler(query, DbIntHandler,
                                        (void*)&bareos_db_version)) {
-    Jmsg(jcr, M_FATAL, 0, "%s", errmsg);
+    /*** FIXUP ***/
+    Mmsg(errmsg, "query failed...");
     return false;
   }
 
@@ -186,7 +174,6 @@ bool BareosDb::CheckTablesVersion(JobControlRecord* jcr)
     DbLocker _{this};
     Mmsg(errmsg, "Version error for database \"%s\". Wanted %d, got %d\n",
          get_db_name(), BDB_VERSION, bareos_db_version);
-    Jmsg(jcr, M_FATAL, 0, "%s", errmsg);
     return false;
   }
 
@@ -888,9 +875,11 @@ bool BareosDb::OpenBatchConnection(JobControlRecord* jcr)
   multi_db = BatchInsertAvailable();
   if (!jcr->db_batch) {
     jcr->db_batch = CloneDatabaseConnection(jcr, multi_db, multi_db);
-    if (!jcr->db_batch) {
-      Mmsg0(errmsg, T_("Could not init database batch connection\n"));
+    if (!jcr->db_batch->connected()) {
+      Mmsg0(errmsg, T_("Could not init database batch connection: %s\n"),
+            jcr->db_batch->error());
       Jmsg(jcr, M_FATAL, 0, "%s", errmsg);
+      jcr->db_batch.reset();
       return false;
     }
   }

@@ -92,7 +92,7 @@ void CatalogTest::SetUp()
 
     db = directordaemon::GetDatabaseConnection(jcr);
 
-    ASSERT_NE(db, nullptr);
+    ASSERT_TRUE(db->connected());
   }
 }
 

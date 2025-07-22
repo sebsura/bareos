@@ -608,8 +608,7 @@ class BareosDb : public BareosDbQueryEnum {
       std::string client_name,
       std::vector<char>& stime_out);
 
-  BareosDb(connection_parameter params, db_conn* backend)
-      : params_{std::move(params)}, BackendCon{backend}
+  BareosDb(connection_parameter params) : params_{std::move(params)}
   {
     errmsg = GetPoolMemory(PM_EMSG);
     fname = GetPoolMemory(PM_FNAME);
@@ -644,8 +643,6 @@ class BareosDb : public BareosDbQueryEnum {
 
  public:
   char* strerror();
-  bool CheckMaxConnections(JobControlRecord* jcr, uint32_t max_concurrent_jobs);
-  bool CheckTablesVersion(JobControlRecord* jcr);
   bool QueryDb(JobControlRecord* jcr,
                const char* select_cmd,
                libbareos::source_location loc
@@ -998,23 +995,17 @@ class BareosDb : public BareosDbQueryEnum {
   }
 
  public:
-  // TODO: this should be private
-  db_conn* BackendCon;
-};
+  const char* error() const { return errmsg; }
+  bool connected() const { return BackendCon != nullptr; }
+  bool connect(JobControlRecord* jcr);
+  // FIXUP: this should be private
+  db_conn* BackendCon{nullptr};
 
-BareosDb* db_init_database(JobControlRecord* jcr,
-                           const char* db_driver,
-                           const char* db_name,
-                           const char* db_user,
-                           const char* db_password,
-                           const char* db_address,
-                           int db_port,
-                           const char* db_socket,
-                           bool mult_db_connections,
-                           bool disable_batch_insert,
-                           bool try_reconnect,
-                           bool exit_on_fatal,
-                           bool need_private = false);
+  std::optional<std::size_t> GetMaxConnections();
+
+ private:
+  bool CheckTablesVersion();
+};
 
 /* flush the batch insert connection every x changes */
 #define BATCH_FLUSH 800000

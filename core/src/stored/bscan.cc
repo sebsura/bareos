@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
       .add_option("-P,--dbpassword", db_password, "Specify database password.")
       ->type_name("<password>");
 
-  int db_port = 0;
+  std::uint32_t db_port = 0;
   bscan_app.add_option("-t,--dbport", db_port, "Specify database port.")
       ->type_name("<port>");
 
@@ -315,15 +315,16 @@ int main(int argc, char* argv[])
           edit_uint64(currentVolumeSize, ed1));
   }
 
-  std::string db_driver = "postgresql";
-  db = db_init_database(nullptr, db_driver.c_str(), db_name.c_str(),
-                        db_user.c_str(), db_password.c_str(), db_host.c_str(),
-                        db_port, nullptr, false, false, false, false);
-  if (db == nullptr) {
-    Emsg0(M_ERROR_TERM, 0, T_("Could not init Bareos database\n"));
-  }
-  if (auto err = db->BackendCon->OpenDatabase(nullptr)) {
-    Emsg0(M_ERROR_TERM, 0, "%s", err);
+  {
+    auto con = DbCreateConnection(
+        nullptr, {db_name, db_user, db_password, db_host, db_port, false, false,
+                  false, false, false});
+    if (!con->connected()) {
+      Emsg0(M_ERROR_TERM, 0, "Connection to db %s failed: %s\n",
+            db_name.c_str(), con->error());
+    }
+
+    db = con.release();
   }
   Dmsg0(200, "Database opened\n");
   if (g_verbose) {

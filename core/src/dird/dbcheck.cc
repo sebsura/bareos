@@ -157,17 +157,17 @@ static void PrintCatalogDetails(CatalogResource* catalog)
 {
   POOLMEM* catalog_details = GetPoolMemory(PM_MESSAGE);
 
-  // Instantiate a BareosDb class and see what db_type gets assigned to it.
-  db = db_init_database(nullptr, catalog->db_driver, catalog->db_name,
-                        catalog->db_user, catalog->db_password.value,
-                        catalog->db_address, catalog->db_port,
-                        catalog->db_socket, catalog->mult_db_connections,
-                        catalog->disable_batch_insert, catalog->try_reconnect,
-                        catalog->exit_on_fatal);
-  if (db) {
+  auto con = DbCreateConnection(
+      nullptr,
+      {catalog->db_name, catalog->db_user, catalog->db_password.value,
+       catalog->db_address, catalog->db_port, catalog->mult_db_connections != 0,
+       catalog->disable_batch_insert, catalog->try_reconnect,
+       catalog->exit_on_fatal, false});
+  if (con->connected()) {
     printf("%sdb_type=%s\nworking_dir=%s\n", catalog->display(catalog_details),
-           db->GetType(), working_directory);
-    db->BackendCon->CloseDatabase(nullptr);
+           con->GetType(), working_directory);
+
+    con->BackendCon->CloseDatabase(nullptr);
   }
   FreePoolMemory(catalog_details);
 }
@@ -848,13 +848,11 @@ int main(int argc, char* argv[])
   std::string dbhost = "";
   manual_args->add_option("host", dbhost, "Database host.");
 
-  int dbport = 0;
+  std::uint32_t dbport = 0;
   manual_args->add_option("port", dbport, "Database port")
       ->check(CLI::PositiveNumber);
 
   ParseBareosApp(dbcheck_app, argc, argv);
-
-  const char* db_driver = "postgresql";
 
   if (!configfile_path.empty() || manual_args->count_all() == 0) {
     CatalogResource* catalog = nullptr;
@@ -910,7 +908,6 @@ int main(int argc, char* argv[])
       db_name = catalog->db_name ? catalog->db_name : "";
       user = catalog->db_user ? catalog->db_user : "";
       password = catalog->db_password.value ? catalog->db_password.value : "";
-      db_driver = catalog->db_driver ? catalog->db_driver : "";
       if (catalog->db_address) { dbhost = catalog->db_address; }
       if (!dbhost.empty() && dbhost[0] == 0) { dbhost = ""; }
       dbport = catalog->db_port;
@@ -920,12 +917,16 @@ int main(int argc, char* argv[])
   }
 
   // Open database
-  db = db_init_database(nullptr, db_driver, db_name.c_str(), user.c_str(),
-                        password.c_str(), dbhost.c_str(), dbport, nullptr,
-                        false, false, false, false);
-  if (auto err = db->BackendCon->OpenDatabase(nullptr)) {
-    Emsg1(M_FATAL, 0, "%s", err);
-    return 1;
+  {
+    auto con
+        = DbCreateConnection(nullptr, {db_name, user, password, dbhost, dbport,
+                                       false, false, false, false, false});
+    if (!con->connected()) {
+      Emsg1(M_FATAL, 0, "could not connect to db %s: %s", db_name.c_str(),
+            con->error());
+      return 1;
+    }
+    db = con.release();
   }
 
   // Drop temporary index idx_tmp_name if it already exists
