@@ -476,7 +476,6 @@ typedef enum
   SQL_TYPE_UNKNOWN = 99
 } SQL_DBTYPE;
 
-typedef void(DB_LIST_HANDLER)(void*, const char*);
 typedef int(DB_RESULT_HANDLER)(void*, int, char**);
 
 class pathid_cache;
@@ -998,7 +997,7 @@ class BareosDb : public BareosDbQueryEnum {
   const char* error() const { return errmsg; }
   bool connected() const { return BackendCon != nullptr; }
   bool connect(JobControlRecord* jcr);
-  // FIXUP: this should be private
+  /*** FIXUP: this should be private ***/
   db_conn* BackendCon{nullptr};
 
   std::optional<std::size_t> GetMaxConnections();

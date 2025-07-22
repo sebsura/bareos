@@ -48,16 +48,10 @@ struct db_conn {
 
   /* Pure virtual low level methods */
   // returns an error string on error
-  virtual const char* OpenDatabase(JobControlRecord* jcr) = 0;
   virtual void CloseDatabase(JobControlRecord* jcr) = 0;
   virtual void StartTransaction(JobControlRecord* jcr) = 0;
   virtual void EndTransaction(JobControlRecord* jcr) = 0;
 
-  /* By default, we use db_sql_query */
-  virtual bool BigSqlQuery(const char* query,
-                           DB_RESULT_HANDLER* ResultHandler,
-                           void* ctx)
-      = 0;
   virtual void SqlFieldSeek(int field) = 0;
   virtual int SqlNumFields(void) = 0;
   virtual void SqlFreeResult(void) = 0;
@@ -69,6 +63,10 @@ struct db_conn {
   virtual bool SqlQueryWithHandler(const char* query,
                                    DB_RESULT_HANDLER* ResultHandler,
                                    void* ctx)
+      = 0;
+  virtual bool BigSqlQuery(const char* query,
+                           DB_RESULT_HANDLER* ResultHandler,
+                           void* ctx)
       = 0;
   virtual const char* sql_strerror(void) = 0;
   virtual void SqlDataSeek(int row) = 0;

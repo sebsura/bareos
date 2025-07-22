@@ -152,7 +152,6 @@ class BareosDbPostgresql : public db_conn {
  private:
   void SqlFieldSeek(int field) override { field_number_ = field; }
   int SqlNumFields(void) override { return num_fields_; }
-  const char* OpenDatabase(JobControlRecord* jcr) override;
   void CloseDatabase(JobControlRecord* jcr) override;
   void EscapeString(JobControlRecord* jcr,
                     std::string& buffer,
@@ -285,123 +284,6 @@ bool BareosDbPostgresql::CheckDatabaseEncoding(JobControlRecord* jcr)
       db_handle_.get(), true, "SET client_encoding TO 'SQL_ASCII'");
 
   return client_encoding != nullptr;
-}
-
-/**
- * Now actually open the database.  This can generate errors, which are returned
- * in the errmsg
- *
- * DO NOT close the database or delete mdb here !!!!
- */
-const char* BareosDbPostgresql::OpenDatabase(JobControlRecord* jcr)
-{
-  (void)jcr;
-  /*** FIXUP ***/
-  // int errstat;
-  // char buf[10], *port;
-
-
-  // struct pthread_lock {
-  //   pthread_mutex_t* mut;
-
-  //   pthread_lock(pthread_mutex_t& mut_) : mut{&mut_} { lock_mutex(*mut); }
-
-  //   ~pthread_lock() { unlock_mutex(*mut); }
-  // };
-
-  // pthread_lock _{db_list_mutex};
-  // if (connected_) { return nullptr; }
-
-  // if ((errstat = RwlInit(&lock_)) != 0) {
-  //   BErrNo be;
-  //   Mmsg1(errmsg, T_("Unable to initialize DB lock. ERR=%s\n"),
-  //         be.bstrerror(errstat));
-  //   return errmsg;
-  // }
-
-  // DbLocker db_lock{this};
-
-  // if (db_port_) {
-  //   Bsnprintf(buf, sizeof(buf), "%d", db_port_);
-  //   port = buf;
-  // } else {
-  //   port = NULL;
-  // }
-
-  // std::vector<const char*> keys;
-  // std::vector<const char*> values;
-  // if (db_address_) {
-  //   keys.emplace_back("host");
-  //   values.emplace_back(db_address_);
-  // }
-  // if (port) {
-  //   keys.emplace_back("port");
-  //   values.emplace_back(port);
-  // }
-  // if (db_name_) {
-  //   keys.emplace_back("dbname");
-  //   values.emplace_back(db_name_);
-  // }
-  // if (db_user_) {
-  //   keys.emplace_back("user");
-  //   values.emplace_back(db_user_);
-  // }
-  // if (db_password_) {
-  //   keys.emplace_back("password");
-  //   values.emplace_back(db_password_);
-  // }
-  // keys.emplace_back("sslmode");
-  // values.emplace_back("disable");
-
-  // keys.emplace_back(nullptr);
-  // values.emplace_back(nullptr);
-  // ASSERT(keys.size() == values.size());
-  // // If connection fails, try at 5 sec intervals for 30 seconds.
-  // for (int retry = 0; retry < 6; retry++) {
-  //   db_handle_ = PQconnectdbParams(keys.data(), values.data(), true);
-
-  //   // If connecting does not succeed, try again in case it was a timing
-  //   // problem
-  //   if (PQstatus(db_handle_) == CONNECTION_OK) { break; }
-
-  //   const char* err = PQerrorMessage(db_handle_);
-  //   if (!err) { err = "unknown reason"; }
-  //   Dmsg1(50, "Could not connect to db: Err=%s\n", err);
-  //   Mmsg2(errmsg,
-  //         T_("Unable to connect to PostgreSQL server. Database=%s User=%s\n"
-  //            "Possible causes: SQL server not running; password incorrect; "
-  //            "server requires ssl; max_connections exceeded.\n(%s)\n"),
-  //         db_name_, db_user_, err);
-
-  //   // free memory if not successful
-  //   PQfinish(db_handle_);
-  //   db_handle_ = nullptr;
-
-  //   Bmicrosleep(5, 0);
-  // }
-
-  // Dmsg0(50, "pg_real_connect %s\n", db_handle_ ? "ok" : "failed");
-  // Dmsg3(50, "db_user=%s db_name=%s db_password=%s\n", db_user_, db_name_,
-  //       (db_password_ == NULL) ? "(NULL)" : db_password_);
-
-  // if (!db_handle_) { return errmsg; }
-
-  // connected_ = true;
-  // if (!CheckTablesVersion(jcr)) { return errmsg; }
-
-  // SqlQueryWithoutHandler("SET datestyle TO 'ISO, YMD'");
-  // SqlQueryWithoutHandler("SET cursor_tuple_fraction=1");
-  // SqlQueryWithoutHandler("SET client_min_messages TO WARNING");
-
-  // /* Tell PostgreSQL we are using standard conforming strings
-  //  * and avoid warnings such as:
-  //  *  WARNING:  nonstandard use of \\ in a string literal */
-  // SqlQueryWithoutHandler("SET standard_conforming_strings=on");
-
-  // // Check that encoding is SQL_ASCII
-  // CheckDatabaseEncoding(jcr);
-
-  return nullptr;
 }
 
 void BareosDbPostgresql::CloseDatabase(JobControlRecord* jcr)
