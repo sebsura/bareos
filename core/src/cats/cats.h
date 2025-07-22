@@ -37,6 +37,7 @@
 
 #include "include/bareos.h"
 #include "cats/column_data.h"
+#include "cats/cats_types.h"
 #include "lib/bstringlist.h"
 #include "lib/output_formatter.h"
 #include "lib/crypto.h"
@@ -476,8 +477,6 @@ typedef enum
   SQL_TYPE_UNKNOWN = 99
 } SQL_DBTYPE;
 
-typedef int(DB_RESULT_HANDLER)(void*, int, char**);
-
 class pathid_cache;
 
 // Initial size of query hash table and hint for number of pages.
@@ -487,49 +486,9 @@ class pathid_cache;
 // Current database version number schema = 2000 + 10 * Major + Minor
 #define BDB_VERSION 2240
 
-typedef char** SQL_ROW;
-
-typedef struct sql_field {
-  const char* name = nullptr; /* name of column */
-  int max_length = 0;         /* max length */
-  uint32_t type = 0;          /* type */
-  uint32_t flags = 0;         /* flags */
-} SQL_FIELD;
-
 class BareosSqlError : public std::runtime_error {
  public:
   BareosSqlError(const char* what) : std::runtime_error(what) {}
-};
-
-enum class query_flag : size_t
-{
-  DiscardResult,
-  Count,
-};
-
-struct query_flags {
-  std::bitset<static_cast<size_t>(query_flag::Count)> set_flags;
-
-  query_flags() = default;
-  constexpr query_flags(std::initializer_list<query_flag> initial_flags)
-  {
-    for (auto flag : initial_flags) {
-      auto pos = static_cast<size_t>(flag);
-      set_flags.set(pos);
-    }
-  }
-
-  template <query_flag Flag> void set()
-  {
-    constexpr auto pos = static_cast<size_t>(Flag);
-    static_assert(pos < static_cast<size_t>(query_flag::Count));
-    set_flags.set(pos);
-  }
-
-  bool test(query_flag Flag)
-  {
-    return set_flags.test(static_cast<size_t>(Flag));
-  }
 };
 
 enum class SqlFindResult

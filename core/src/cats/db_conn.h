@@ -24,9 +24,13 @@
 #ifndef BAREOS_CATS_DB_CONN_H_
 #define BAREOS_CATS_DB_CONN_H_
 
-#include "cats.h"
+#include "cats_types.h"
+#include "lib/jcr.h"
+#include "lib/mem_pool.h"
 #include <gsl/span>
 #include <string_view>
+
+struct AttributesDbRecord;
 
 struct db_conn {
   /* Virtual low level methods */
