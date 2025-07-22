@@ -46,6 +46,8 @@
 #  include "lib/berrno.h"
 #  include "lib/dlist.h"
 
+#  include <fmt/format.h>
+
 /* -----------------------------------------------------------------------
  *
  *   PostgreSQL dependent defines and subroutines
@@ -145,7 +147,7 @@ result try_query(PGconn* db_handle, bool try_reconnection, const char* query)
 class BareosDbPostgresql : public db_conn {
  public:
   dlink<BareosDbPostgresql> link; /**< Queue control */
-  bool connect(JobControlRecord* jcr, connection_parameter params);
+  db_command_result connect(JobControlRecord* jcr, connection_parameter params);
 
   virtual ~BareosDbPostgresql() = default;
 
@@ -166,15 +168,15 @@ class BareosDbPostgresql : public db_conn {
                       int32_t* new_length) override;
   void StartTransaction(JobControlRecord* jcr) override;
   void EndTransaction(JobControlRecord* jcr) override;
-  bool BigSqlQuery(const char* query,
-                   DB_RESULT_HANDLER* ResultHandler,
-                   void* ctx) override;
+  db_command_result BigSqlQuery(const char* query,
+                                DB_RESULT_HANDLER* ResultHandler,
+                                void* ctx) override;
 
-  bool SqlQueryWithHandler(const char* query,
-                           DB_RESULT_HANDLER* ResultHandler,
-                           void* ctx) override;
-  bool SqlQueryWithoutHandler(const char* query,
-                              query_flags flags = {}) override;
+  db_command_result SqlQueryWithHandler(const char* query,
+                                        DB_RESULT_HANDLER* ResultHandler,
+                                        void* ctx) override;
+  db_command_result SqlQueryWithoutHandler(const char* query,
+                                           query_flags flags = {}) override;
   void SqlFreeResult(void) override;
   SQL_ROW SqlFetchRow(void) override;
   const char* sql_strerror(void) override;
@@ -185,12 +187,13 @@ class BareosDbPostgresql : public db_conn {
   SQL_FIELD* SqlFetchField(void) override;
   bool SqlFieldIsNotNull(int field_type) override;
   bool SqlFieldIsNumeric(int field_type) override;
-  bool SqlBatchStartFileTable(JobControlRecord* jcr) override;
-  bool SqlBatchEndFileTable(JobControlRecord* jcr, const char* error) override;
-  bool SqlBatchInsertFileTable(JobControlRecord* jcr,
-                               AttributesDbRecord* ar) override;
+  db_command_result SqlBatchStartFileTable(JobControlRecord* jcr) override;
+  db_command_result SqlBatchEndFileTable(JobControlRecord* jcr,
+                                         const char* error) override;
+  db_command_result SqlBatchInsertFileTable(JobControlRecord* jcr,
+                                            AttributesDbRecord* ar) override;
 
-  bool CheckDatabaseEncoding(JobControlRecord* jcr);
+  db_command_result CheckDatabaseEncoding(JobControlRecord* jcr);
 
   const char* GetType() const override { return "PostgreSQL"; }
 
@@ -244,25 +247,25 @@ BareosDbPostgresql::BareosDbPostgresql()
 #  endif
 
 // Check that the database correspond to the encoding we want
-bool BareosDbPostgresql::CheckDatabaseEncoding(JobControlRecord* jcr)
+db_command_result BareosDbPostgresql::CheckDatabaseEncoding(
+    JobControlRecord* jcr)
 {
   auto db_encoding = postgres::try_query(db_handle_.get(), true,
                                          "SELECT getdatabaseencoding()");
 
   if (!db_encoding) {
-    Jmsg(jcr, M_ERROR, 0, "could not determine database encoding: Err=%s",
-         postgres::strerror(db_handle_.get()));
-    return false;
+    return db_command_result::Error(
+        fmt::format("could not determine database encoding: Err={}",
+                    postgres::strerror(db_handle_.get())));
   }
 
   postgres::query q{db_encoding.get()};
 
 
   if (q.row_count() != 1 || q.field_count() != 1) {
-    Jmsg(jcr, M_ERROR, 0,
-         "database encoding returned unexpected value: rows=%zu fields=%zu",
-         q.row_count(), q.field_count());
-    return false;
+    return db_command_result::Error(fmt::format(
+        "database encoding returned unexpected value: rows={} fields={}",
+        q.row_count(), q.field_count()));
   }
   auto* encoding = q.fetch_value(0, 0);
   if (bstrcmp(encoding, "SQL_ASCII") != 0) {
@@ -283,7 +286,13 @@ bool BareosDbPostgresql::CheckDatabaseEncoding(JobControlRecord* jcr)
   auto client_encoding = postgres::try_query(
       db_handle_.get(), true, "SET client_encoding TO 'SQL_ASCII'");
 
-  return client_encoding != nullptr;
+  if (!client_encoding) {
+    return db_command_result::Error(
+        fmt::format("could not determine database encoding: Err={}",
+                    postgres::strerror(db_handle_.get())));
+  }
+
+  return db_command_result::Ok();
 }
 
 void BareosDbPostgresql::CloseDatabase(JobControlRecord* jcr)
@@ -468,15 +477,17 @@ void BareosDbPostgresql::EndTransaction(JobControlRecord* jcr)
  * Submit a general SQL command (cmd), and for each row returned,
  * the ResultHandler is called with the ctx.
  */
-bool BareosDbPostgresql::BigSqlQuery(const char* query,
-                                     DB_RESULT_HANDLER* ResultHandler,
-                                     void* ctx)
+db_command_result BareosDbPostgresql::BigSqlQuery(
+    const char* query,
+    DB_RESULT_HANDLER* ResultHandler,
+    void* ctx)
 {
   /*** FIXUP ***/
   (void)query;
   (void)ResultHandler;
   (void)ctx;
-  return {};
+
+  return db_command_result::Error("not implemented");
   //   SQL_ROW row;
   //   bool retval = false;
 
@@ -536,16 +547,17 @@ bool BareosDbPostgresql::BigSqlQuery(const char* query,
  * Submit a general SQL command (cmd), and for each row returned,
  * the ResultHandler is called with the ctx.
  */
-bool BareosDbPostgresql::SqlQueryWithHandler(const char* query,
-                                             DB_RESULT_HANDLER* ResultHandler,
-                                             void* ctx)
+db_command_result BareosDbPostgresql::SqlQueryWithHandler(
+    const char* query,
+    DB_RESULT_HANDLER* ResultHandler,
+    void* ctx)
 {
   /*** FIXUP ***/
   (void)query;
   (void)ResultHandler;
   (void)ctx;
 
-  return false;
+  return db_command_result::Error("not implemented");
 
   // SQL_ROW row;
 
@@ -581,8 +593,8 @@ bool BareosDbPostgresql::SqlQueryWithHandler(const char* query,
  * Returns:  true  on success
  *           false on failure
  */
-bool BareosDbPostgresql::SqlQueryWithoutHandler(const char* query,
-                                                query_flags flags)
+db_command_result BareosDbPostgresql::SqlQueryWithoutHandler(const char* query,
+                                                             query_flags flags)
 {
   auto result = postgres::try_query(db_handle_.get(),
                                     try_reconnect_ && !transaction_, query);
@@ -599,9 +611,9 @@ bool BareosDbPostgresql::SqlQueryWithoutHandler(const char* query,
       Dmsg1(500, "We have %d rows\n", num_rows_);
       row_number_ = 0; /* we can start to fetch something */
     }
-    return true;
+    return db_command_result::Ok();
   } else {
-    return false;
+    return db_command_result::Error(sql_strerror());
   }
 }
 
@@ -920,10 +932,10 @@ BareosDb* db_init_database(JobControlRecord* jcr,
   //   return mdb;
 }
 
-bool BareosDbPostgresql::SqlBatchStartFileTable(JobControlRecord*)
+db_command_result BareosDbPostgresql::SqlBatchStartFileTable(JobControlRecord*)
 {
   /*** FIXUP ***/
-  return false;
+  return db_command_result::Error("not implemented");
   //   AssertOwnership();
   //   const char* query = "COPY batch FROM STDIN";
 
@@ -985,12 +997,13 @@ bool BareosDbPostgresql::SqlBatchStartFileTable(JobControlRecord*)
 }
 
 // Set error to something to abort operation
-bool BareosDbPostgresql::SqlBatchEndFileTable(JobControlRecord*,
-                                              const char* error)
+db_command_result BareosDbPostgresql::SqlBatchEndFileTable(JobControlRecord*,
+                                                           const char* error)
 {
   /*** FIXUP ***/
   (void)error;
-  return false;
+
+  return db_command_result::Error("not implemented");
   // AssertOwnership();
   // int res;
   // int count = 30;
@@ -1083,12 +1096,14 @@ bool BareosDbPostgresql::SqlBatchEndFileTable(JobControlRecord*,
 //   return dest;
 // }
 
-bool BareosDbPostgresql::SqlBatchInsertFileTable(JobControlRecord*,
-                                                 AttributesDbRecord* ar)
+db_command_result BareosDbPostgresql::SqlBatchInsertFileTable(
+    JobControlRecord*,
+    AttributesDbRecord* ar)
 {
   /*** FIXUP ***/
   (void)ar;
-  return false;
+
+  return db_command_result::Error("not implemented");
 
   // int res;
   // int count = 30;
@@ -1136,8 +1151,8 @@ bool BareosDbPostgresql::SqlBatchInsertFileTable(JobControlRecord*,
 }
 
 
-bool BareosDbPostgresql::connect(JobControlRecord* jcr,
-                                 connection_parameter params)
+db_command_result BareosDbPostgresql::connect(JobControlRecord* jcr,
+                                              connection_parameter params)
 {
   char buffer[10];
 
@@ -1215,12 +1230,11 @@ bool BareosDbPostgresql::connect(JobControlRecord* jcr,
         (params.db_password.empty()) ? "(NULL)" : params.db_password.c_str());
 
   if (!db_handle_) {
-    Jmsg(jcr, M_ERROR, 0,
-         "Unable to connect to PostgreSQL server. Database=%s User=%s\n"
-         "Possible causes: SQL server not running; password incorrect; "
-         "server requires ssl; max_connections exceeded.\n(%s)\n",
-         params.db_name.c_str(), params.db_user.c_str(), err_msg.c_str());
-    return false;
+    return db_command_result::Error(fmt::format(
+        "Unable to connect to PostgreSQL server. Database={} User={}\n"
+        "Possible causes: SQL server not running; password incorrect; "
+        "server requires ssl; max_connections exceeded.\n({})\n",
+        params.db_name.c_str(), params.db_user.c_str(), err_msg.c_str()));
   }
 
   SqlQueryWithoutHandler("SET datestyle TO 'ISO, YMD'");
@@ -1233,11 +1247,13 @@ bool BareosDbPostgresql::connect(JobControlRecord* jcr,
   SqlQueryWithoutHandler("SET standard_conforming_strings=on");
 
   // Check that encoding is SQL_ASCII
-  CheckDatabaseEncoding(jcr);
+  auto result = CheckDatabaseEncoding(jcr);
+  if (result.error()) { return result; }
 
   allow_transactions_ = params.mult_db_connections;
   try_reconnect_ = params.try_reconnect;
-  return true;
+
+  return db_command_result::Ok();
 }
 
 namespace postgresql {
@@ -1245,7 +1261,7 @@ db_conn* connect(JobControlRecord* jcr, const connection_parameter& params)
 {
   auto connection = new BareosDbPostgresql{};
 
-  if (!connection->connect(jcr, params)) {
+  if (auto result = connection->connect(jcr, params); result.error()) {
     delete connection;
 
     return nullptr;

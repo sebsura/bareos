@@ -62,17 +62,19 @@ struct db_conn {
   virtual SQL_ROW SqlFetchRow(void) = 0;
 
 
-  virtual bool SqlQueryWithoutHandler(const char* query, query_flags flags = {})
+  virtual db_command_result SqlQueryWithoutHandler(const char* query,
+                                                   query_flags flags = {})
       = 0;
-  virtual bool SqlQueryWithHandler(const char* query,
-                                   DB_RESULT_HANDLER* ResultHandler,
-                                   void* ctx)
+  virtual db_command_result SqlQueryWithHandler(
+      const char* query,
+      DB_RESULT_HANDLER* ResultHandler,
+      void* ctx)
       = 0;
-  virtual bool BigSqlQuery(const char* query,
-                           DB_RESULT_HANDLER* ResultHandler,
-                           void* ctx)
+  virtual db_command_result BigSqlQuery(const char* query,
+                                        DB_RESULT_HANDLER* ResultHandler,
+                                        void* ctx)
       = 0;
-  virtual const char* sql_strerror(void) = 0;
+  virtual const char* sql_strerror() = 0;
   virtual void SqlDataSeek(int row) = 0;
   virtual int SqlAffectedRows(void) = 0;
   virtual uint64_t SqlInsertAutokeyRecord(const char* query,
@@ -81,11 +83,12 @@ struct db_conn {
   virtual SQL_FIELD* SqlFetchField(void) = 0;
   virtual bool SqlFieldIsNotNull(int field_type) = 0;
   virtual bool SqlFieldIsNumeric(int field_type) = 0;
-  virtual bool SqlBatchStartFileTable(JobControlRecord* jcr) = 0;
-  virtual bool SqlBatchEndFileTable(JobControlRecord* jcr, const char* error)
+  virtual db_command_result SqlBatchStartFileTable(JobControlRecord* jcr) = 0;
+  virtual db_command_result SqlBatchEndFileTable(JobControlRecord* jcr,
+                                                 const char* error)
       = 0;
-  virtual bool SqlBatchInsertFileTable(JobControlRecord* jcr,
-                                       AttributesDbRecord* ar)
+  virtual db_command_result SqlBatchInsertFileTable(JobControlRecord* jcr,
+                                                    AttributesDbRecord* ar)
       = 0;
 };
 

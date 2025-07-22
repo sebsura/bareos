@@ -659,7 +659,9 @@ void BareosDb::ListFilesForJob(JobControlRecord* jcr,
        edit_int64(jobid, ed1), ed1);
 
   sendit->ArrayStart("filenames");
-  if (!BackendCon->BigSqlQuery(cmd, ::ListResult, &lctx)) { return; }
+  if (!BigSqlQuery("could not list files for job", cmd, ::ListResult, &lctx)) {
+    return;
+  }
   sendit->ArrayEnd("filenames");
 
   BackendCon->SqlFreeResult();
@@ -683,7 +685,10 @@ void BareosDb::ListBaseFilesForJob(JobControlRecord* jcr,
        edit_int64(jobid, ed1));
 
   sendit->ArrayStart("files");
-  if (!BackendCon->BigSqlQuery(cmd, ::ListResult, &lctx)) { return; }
+  if (!BigSqlQuery("could not list base files for job", cmd, ::ListResult,
+                   &lctx)) {
+    return;
+  }
   sendit->ArrayEnd("files");
 
   BackendCon->SqlFreeResult();

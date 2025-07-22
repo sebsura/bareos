@@ -795,8 +795,9 @@ bool BareosDb::WriteBatchFileRecords(JobControlRecord* jcr)
        "Insert of attributes batch table with %u entries start\n",
        jcr->db_batch->changes);
 
-  if (!jcr->db_batch->BackendCon->SqlBatchEndFileTable(jcr, NULL)) {
-    Jmsg1(jcr, M_FATAL, 0, "Batch end %s\n", errmsg);
+  if (auto result = jcr->db_batch->BackendCon->SqlBatchEndFileTable(jcr, NULL);
+      result.error()) {
+    Jmsg1(jcr, M_FATAL, 0, "Batch end %s\n", result.error());
     goto bail_out;
   }
 
@@ -872,9 +873,9 @@ bool BareosDb::CreateBatchFileAttributesRecord(JobControlRecord* jcr,
   if (!jcr->batch_started) {
     if (!OpenBatchConnection(jcr)) { return false; /* error already printed */ }
     DbLocker batch_lock{jcr->db_batch.get()};
-    if (!jcr->db_batch->BackendCon->SqlBatchStartFileTable(jcr)) {
-      Mmsg1(errmsg, "Can't start batch mode: ERR=%s",
-            jcr->db_batch->strerror());
+    if (auto result = jcr->db_batch->BackendCon->SqlBatchStartFileTable(jcr);
+        result.error()) {
+      Mmsg1(errmsg, "Can't start batch mode: ERR=%s", result.error());
       Jmsg(jcr, M_FATAL, 0, "%s", errmsg);
       return false;
     }
@@ -884,7 +885,14 @@ bool BareosDb::CreateBatchFileAttributesRecord(JobControlRecord* jcr,
   DbLocker batch_lock{jcr->db_batch.get()};
   jcr->db_batch->SplitPathAndFile(jcr, ar->fname);
 
-  return jcr->db_batch->BackendCon->SqlBatchInsertFileTable(jcr, ar);
+  if (auto result = jcr->db_batch->BackendCon->SqlBatchInsertFileTable(jcr, ar);
+      result.error()) {
+    Mmsg1(errmsg, "Can't insert into batch: ERR=%s", result.error());
+    Jmsg(jcr, M_FATAL, 0, "%s", errmsg);
+    return false;
+  }
+
+  return true;
 }
 
 /**

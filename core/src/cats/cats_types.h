@@ -28,6 +28,7 @@
 #include <cstdlib>
 #include <initializer_list>
 #include <bitset>
+#include <optional>
 
 typedef char** SQL_ROW;
 
@@ -39,7 +40,6 @@ typedef struct sql_field {
   uint32_t type = 0;          /* type */
   uint32_t flags = 0;         /* flags */
 } SQL_FIELD;
-
 
 enum class query_flag : size_t
 {
@@ -71,5 +71,29 @@ struct query_flags {
     return set_flags.test(static_cast<size_t>(Flag));
   }
 };
+
+struct db_command_result {
+  static db_command_result Ok() { return {}; }
+  static db_command_result Error(std::string msg)
+  {
+    return db_command_result{std::move(msg)};
+  }
+
+  const char* error() const
+  {
+    if (_error) { return _error->c_str(); }
+    return nullptr;
+  }
+
+ private:
+  db_command_result() = default;
+  explicit db_command_result(std::string msg) noexcept : _error{std::move(msg)}
+  {
+  }
+
+  std::optional<std::string> _error{};
+};
+
+struct db_conn;
 
 #endif  // BAREOS_CATS_CATS_TYPES_H_

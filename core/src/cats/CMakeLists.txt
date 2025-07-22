@@ -35,7 +35,9 @@ target_sources(
           postgresql.cc
 )
 target_link_libraries(
-  bareossql PUBLIC Bareos::Lib PostgreSQL::PostgreSQL Microsoft.GSL::GSL
+  bareossql
+  PUBLIC Bareos::Lib PostgreSQL::PostgreSQL Microsoft.GSL::GSL
+  PRIVATE fmt::fmt
 )
 
 set_target_properties(

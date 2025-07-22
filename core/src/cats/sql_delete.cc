@@ -75,7 +75,9 @@ bool BareosDb::DeletePoolRecord(JobControlRecord* jcr, PoolDbRecord* pr)
       return false;
     }
     if ((row = BackendCon->SqlFetchRow()) == NULL) {
-      Mmsg1(errmsg, T_("Error fetching row %s\n"), BackendCon->sql_strerror());
+      /*** FIXUP ***/
+      // Mmsg1(errmsg, T_("Error fetching row %s\n"),
+      // BackendCon->sql_strerror());
       return false;
     }
     pr->PoolId = str_to_int64(row[0]);

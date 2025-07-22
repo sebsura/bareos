@@ -498,8 +498,6 @@ enum class SqlFindResult
   kEmptyResultSet
 };
 
-struct db_conn;
-
 class BareosDb : public BareosDbQueryEnum {
  protected:
   brwlock_t lock_;                 /**< Transaction lock */
@@ -962,6 +960,11 @@ class BareosDb : public BareosDbQueryEnum {
   std::optional<std::size_t> GetMaxConnections();
 
  private:
+  bool BigSqlQuery(const char* ctx,
+                   const char* query,
+                   DB_RESULT_HANDLER* handler,
+                   void* handler_ctx);
+
   bool CheckTablesVersion();
 };
 

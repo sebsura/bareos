@@ -148,10 +148,12 @@ std::optional<std::size_t> BareosDb::GetMaxConnections()
 
   // Check max_connections setting
   FillQuery(query, SQL_QUERY::sql_get_max_connections);
-  if (!BackendCon->SqlQueryWithHandler(query.c_str(), DbMaxConnectionsHandler,
-                                       &context)) {
+
+  if (auto result = BackendCon->SqlQueryWithHandler(
+          query.c_str(), DbMaxConnectionsHandler, &context);
+      result.error()) {
     /*** FIXUP ***/
-    Mmsg(errmsg, "Can't verify max_connections settings %s", "error reason");
+    Mmsg(errmsg, "Can't verify max_connections settings %s", result.error());
     return std::nullopt;
   }
 
@@ -163,10 +165,11 @@ bool BareosDb::CheckTablesVersion()
   uint32_t bareos_db_version = 0;
   const char* query = "SELECT VersionId FROM Version";
 
-  if (!BackendCon->SqlQueryWithHandler(query, DbIntHandler,
-                                       (void*)&bareos_db_version)) {
+  if (auto result = BackendCon->SqlQueryWithHandler(query, DbIntHandler,
+                                                    (void*)&bareos_db_version);
+      result.error()) {
     /*** FIXUP ***/
-    Mmsg(errmsg, "query failed...");
+    Mmsg(errmsg, "could not get table version: %s", result.error());
     return false;
   }
 

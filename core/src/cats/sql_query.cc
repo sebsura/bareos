@@ -129,52 +129,46 @@ bool BareosDb::SqlQuery(BareosDb::SQL_QUERY predefined_query, ...)
 
 bool BareosDb::SqlQuery(const char* query)
 {
-  bool retval;
-
   Dmsg2(debuglevel, "called: %s with query %s\n", __PRETTY_FUNCTION__, query);
 
   DbLocker _{this};
-  retval = BackendCon->SqlQueryWithoutHandler(query, {});
-  if (!retval) {
-    Mmsg(errmsg, T_("Query failed: %s: ERR=%s\n"), query,
-         BackendCon->sql_strerror());
+  auto result = BackendCon->SqlQueryWithoutHandler(query, {});
+  if (result.error()) {
+    Mmsg(errmsg, T_("Query failed: %s: ERR=%s\n"), query, result.error());
+    return false;
   }
 
-  return retval;
+  return true;
 }
 
 bool BareosDb::SqlExec(const char* query)
 {
-  bool retval;
-
   Dmsg2(debuglevel, "called: %s with query %s\n", __PRETTY_FUNCTION__, query);
 
   DbLocker _{this};
-  retval
+  auto result
       = BackendCon->SqlQueryWithoutHandler(query, {query_flag::DiscardResult});
-  if (!retval) {
-    Mmsg(errmsg, T_("Query failed: %s: ERR=%s\n"), query,
-         BackendCon->sql_strerror());
+  if (result.error()) {
+    Mmsg(errmsg, T_("Query failed: %s: ERR=%s\n"), query, result.error());
+    return false;
   }
 
-  return retval;
+  return true;
 }
 
 bool BareosDb::SqlQuery(const char* query,
                         DB_RESULT_HANDLER* ResultHandler,
                         void* ctx)
 {
-  bool retval;
-
   Dmsg2(debuglevel, "called: %s with query %s\n", __PRETTY_FUNCTION__, query);
 
   DbLocker _{this};
-  retval = BackendCon->SqlQueryWithHandler(query, ResultHandler, ctx);
-  if (!retval) {
-    Mmsg(errmsg, T_("Query failed: %s: ERR=%s\n"), query,
-         BackendCon->sql_strerror());
+  auto result = BackendCon->SqlQueryWithHandler(query, ResultHandler, ctx);
+  if (result.error()) {
+    Mmsg(errmsg, T_("Query failed: %s: ERR=%s\n"), query, result.error());
+    return false;
   }
 
-  return retval;
+  return true;
 }
 #endif /* HAVE_POSTGRESQL */

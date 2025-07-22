@@ -1061,10 +1061,11 @@ bool BareosDb::GetAllVolumeNames(db_list_ctx* volumenames)
 
   DbLocker _{this};
 
-  if (!BackendCon->SqlQueryWithHandler(query.c_str(), DbListHandler,
-                                       volumenames)) {
+  if (auto result = BackendCon->SqlQueryWithHandler(query.c_str(),
+                                                    DbListHandler, volumenames);
+      result.error()) {
     Emsg1(M_ERROR, 0, "Could not retrieve volume names: ERR=%s\n",
-          BackendCon->sql_strerror());
+          result.error());
     return false;
   }
   return true;
@@ -1267,12 +1268,17 @@ bool BareosDb::GetFileList(JobControlRecord*,
 
   Dmsg1(100, "q=%s\n", query.c_str());
 
-  return BackendCon->BigSqlQuery(query.c_str(), ResultHandler, ctx);
+  if (auto result = BackendCon->BigSqlQuery(query.c_str(), ResultHandler, ctx);
+      result.error()) {
+    Mmsg(errmsg, "Could not get file list: %s", result.error());
+    return false;
+  }
+  return true;
 }
 
 bool BareosDb::GetUsedBaseJobids(JobControlRecord*,
                                  const char* jobids,
-                                 db_list_ctx* result)
+                                 db_list_ctx* list)
 {
   PoolMem query(PM_MESSAGE);
 
@@ -1282,7 +1288,13 @@ bool BareosDb::GetUsedBaseJobids(JobControlRecord*,
        " WHERE Job.HasBase = 1 "
        "   AND Job.JobId IN (%s) ",
        jobids);
-  return BackendCon->SqlQueryWithHandler(query.c_str(), DbListHandler, result);
+  if (auto result
+      = BackendCon->SqlQueryWithHandler(query.c_str(), DbListHandler, list);
+      result.error()) {
+    Mmsg(errmsg, "coud not get used base jobids: %s", result.error());
+    return false;
+  }
+  return true;
 }
 
 /*
@@ -1297,9 +1309,10 @@ db_list_ctx BareosDb::FilterZeroFileJobs(db_list_ctx& jobids)
   query += jobids.Join(",") + ") ORDER BY JobId";
 
   db_list_ctx zero_file_jobs;
-  if (DbLocker _{this}; !BackendCon->SqlQueryWithHandler(
-          query.c_str(), DbListHandler, &zero_file_jobs)) {
-    throw new BareosSqlError(BackendCon->sql_strerror());
+  if (auto result = BackendCon->SqlQueryWithHandler(
+          query.c_str(), DbListHandler, &zero_file_jobs);
+      result.error()) {
+    throw new BareosSqlError(result.error());
   }
   for (auto& remove_jobid : zero_file_jobs) {
     jobids.erase(std::remove(jobids.begin(), jobids.end(), remove_jobid),
@@ -1410,6 +1423,20 @@ bail_out:
   return retval;
 }
 
+bool BareosDb::BigSqlQuery(const char* ctx,
+                           const char* query,
+                           DB_RESULT_HANDLER* handler,
+                           void* handler_ctx)
+{
+  auto result = BackendCon->BigSqlQuery(query, handler, handler_ctx);
+  if (result.error()) {
+    Mmsg(errmsg, "%s: %s", ctx, result.error());
+    return false;
+  }
+
+  return true;
+}
+
 bool BareosDb::GetBaseFileList(JobControlRecord* jcr,
                                bool use_md5,
                                DB_RESULT_HANDLER* ResultHandler,
@@ -1424,7 +1451,10 @@ bool BareosDb::GetBaseFileList(JobControlRecord* jcr,
        jcr->JobId);
 
   if (!use_md5) { strip_md5(query.c_str()); }
-  return BackendCon->BigSqlQuery(query.c_str(), ResultHandler, ctx);
+
+
+  return BigSqlQuery("could not get base file list", query.c_str(),
+                     ResultHandler, ctx);
 }
 
 bool BareosDb::GetBaseJobid(JobControlRecord* jcr,
@@ -1465,10 +1495,7 @@ bool BareosDb::GetBaseJobid(JobControlRecord* jcr,
        date);
 
   Dmsg1(10, "GetBaseJobid q=%s\n", query.c_str());
-  if (!BackendCon->SqlQueryWithHandler(query.c_str(), db_int64_handler,
-                                       &lctx)) {
-    goto bail_out;
-  }
+  if (!SqlQuery(query.c_str(), db_int64_handler, &lctx)) { goto bail_out; }
   *jobid = (JobId_t)lctx.value;
 
   Dmsg1(10, "GetBaseJobid=%" PRIu32 "\n", *jobid);
@@ -1484,7 +1511,7 @@ bool BareosDb::GetVolumeJobids(MediaDbRecord* mr, db_list_ctx* lst)
   Mmsg(cmd, "SELECT DISTINCT JobId FROM JobMedia WHERE MediaId=%" PRIdbid,
        mr->MediaId);
 
-  return BackendCon->SqlQueryWithHandler(cmd, DbListHandler, lst);
+  return SqlQuery(cmd, DbListHandler, lst);
 }
 
 bool BareosDb::GetMediaIdsInPool(PoolDbRecord* pool_record,
@@ -1494,7 +1521,7 @@ bool BareosDb::GetMediaIdsInPool(PoolDbRecord* pool_record,
   Mmsg(cmd, "SELECT DISTINCT MediaId FROM Media WHERE PoolId=%" PRIdbid,
        pool_record->PoolId);
 
-  return BackendCon->SqlQueryWithHandler(cmd, DbIdListHandler, lst);
+  return SqlQuery(cmd, DbIdListHandler, lst);
 }
 
 /**
@@ -1725,8 +1752,7 @@ bool BareosDb::GetNdmpEnvironmentString(const std::string& query,
                                         void* ctx)
 {
   auto myctx = std::make_unique<CountContext>(ResultHandler, ctx);
-  bool status = BackendCon->SqlQueryWithHandler(query.c_str(), CountingHandler,
-                                                myctx.get());
+  bool status = SqlQuery(query.c_str(), CountingHandler, myctx.get());
   Dmsg3(150, "Got %d NDMP environment records\n", myctx->count);
   return status && myctx->count > 0;  // no rows means no environment was found
 }
@@ -1784,7 +1810,7 @@ bool BareosDb::GetNdmpEnvironmentString(const VolumeSessionInfo& vsi,
   query += " WHERE VolSessionId = " + std::to_string(vsi.id);
   query += " AND VolSessionTime = " + std::to_string(vsi.time);
 
-  if (BackendCon->SqlQueryWithHandler(query.c_str(), db_int64_handler, &lctx)) {
+  if (SqlQuery(query.c_str(), db_int64_handler, &lctx)) {
     if (lctx.count == 1) {
       /* now lctx.value contains the jobid we restore */
       return GetNdmpEnvironmentString(lctx.value, FileIndex, ResultHandler,
