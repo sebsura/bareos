@@ -182,8 +182,6 @@ class BareosDbPostgresql : public db_conn {
   const char* sql_strerror(void) override;
   void SqlDataSeek(int row) override;
   int SqlAffectedRows(void) override;
-  uint64_t SqlInsertAutokeyRecord(const char* query,
-                                  const char* table_name) override;
   SQL_FIELD* SqlFetchField(void) override;
   bool SqlFieldIsNotNull(int field_type) override;
   bool SqlFieldIsNumeric(int field_type) override;
@@ -685,86 +683,6 @@ int BareosDbPostgresql::SqlAffectedRows(void)
   return (unsigned)str_to_int32(PQcmdTuples(result_.get()));
 }
 
-db_result<uint64_t> BareosDbPostgresql::SqlInsertAutokeyRecord(
-    const char* query,
-    const char* table_name)
-{
-  int i;
-  uint64_t id = 0;
-  char sequence[NAMEDATALEN - 1];
-  char getkeyval_query[NAMEDATALEN + 50];
-  PGresult* pg_result;
-
-  // First execute the insert query and then retrieve the currval.
-  if (auto result = SqlQueryWithoutHandler(query); result.error()) {
-    /*** FIXUP ***/
-    return db_result<uint64_t>::Error(result.error());
-  }
-
-  num_rows_ = SqlAffectedRows();
-  if (num_rows_ != 1) { return db_result<uint64_t>::Error("bad row count"); }
-
-  /*** FIXUP ***/
-  // changes++;
-
-  /* Obtain the current value of the sequence that
-   * provides the serial value for primary key of the table.
-   *
-   * currval is local to our session.  It is not affected by
-   * other transactions.
-   *
-   * Determine the name of the sequence.
-   * PostgreSQL automatically creates a sequence using
-   * <table>_<column>_seq.
-   * At the time of writing, all tables used this format for
-   * for their primary key: <table>id
-   * Except for basefiles which has a primary key on baseid.
-   * Therefore, we need to special case that one table.
-   *
-   * everything else can use the PostgreSQL formula. */
-  if (Bstrcasecmp(table_name, "basefiles")) {
-    bstrncpy(sequence, "basefiles_baseid", sizeof(sequence));
-  } else {
-    bstrncpy(sequence, table_name, sizeof(sequence));
-    bstrncat(sequence, "_", sizeof(sequence));
-    bstrncat(sequence, table_name, sizeof(sequence));
-    bstrncat(sequence, "id", sizeof(sequence));
-  }
-
-  bstrncat(sequence, "_seq", sizeof(sequence));
-  Bsnprintf(getkeyval_query, sizeof(getkeyval_query), "SELECT currval('%s')",
-            sequence);
-
-  Dmsg1(500, "SqlInsertAutokeyRecord executing query '%s'\n", getkeyval_query);
-  for (i = 0; i < 10; i++) {
-    pg_result = PQexec(db_handle_, getkeyval_query);
-    if (pg_result) { break; }
-    Bmicrosleep(5, 0);
-  }
-  if (!pg_result) {
-    Dmsg1(50, "Query failed: %s\n", getkeyval_query);
-    goto bail_out;
-  }
-
-  Dmsg0(500, "exec done\n");
-
-  if (PQresultStatus(pg_result) == PGRES_TUPLES_OK) {
-    Dmsg0(500, "getting value\n");
-    id = str_to_uint64(PQgetvalue(pg_result, 0, 0));
-    Dmsg2(500, "got value '%s' which became %" PRIu64 "\n",
-          PQgetvalue(pg_result, 0, 0), id);
-  } else {
-    Dmsg1(50, "Result status failed: %s\n", getkeyval_query);
-    Mmsg1(errmsg, T_("error fetching currval: %s\n"),
-          PQerrorMessage(db_handle_));
-  }
-
-bail_out:
-  PQclear(pg_result);
-
-  return id;
-}
-
 static void ComputeFields(int num_fields,
                           int num_rows,
                           SQL_FIELD fields[/* num_fields */],
@@ -1077,7 +995,7 @@ db_command_result BareosDbPostgresql::SqlBatchInsertFileTable(
 db_command_result BareosDbPostgresql::connect(JobControlRecord* jcr,
                                               connection_parameter params)
 {
-  char buffer[10];
+  char buffer[12];
 
   std::size_t option_count = 0;
   static constexpr std::size_t max_option_count = 7;

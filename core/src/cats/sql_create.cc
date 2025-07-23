@@ -45,6 +45,42 @@ static const int dbglevel = 100;
  * -----------------------------------------------------------------------
  */
 
+namespace {
+int set_id_handler(void* ctx, int col_count, char* cols[])
+{
+  if (col_count != 1) { return 1; }
+
+  auto* storage = reinterpret_cast<std::uint64_t*>(ctx);
+
+  if (*storage != 0) {
+    // we were called more than once ...
+    *storage = 0;
+    return 1;
+  }
+
+  auto id = str_to_uint64(cols[0]);
+
+  *storage = id;
+
+  return 0;
+}
+
+
+template <typename T>
+db_command_result InsertWithAutokey(db_conn* con, const char* cmd, T* value)
+{
+  std::uint64_t id = 0;
+  auto result = con->SqlQueryWithHandler(cmd, set_id_handler, &id);
+
+  if (result.error()) {
+    *value = 0;
+  } else {
+    *value = id;
+  }
+  return result;
+}
+
+}  // namespace
 
 /**
  * Create a new record for the Job
@@ -81,18 +117,17 @@ bool BareosDb::CreateJobRecord(JobControlRecord* jcr, JobDbRecord* jr)
   Mmsg(cmd,
        "INSERT INTO Job (Job,Name,Type,Level,JobStatus,SchedTime,JobTDate,"
        "ClientId,Comment) "
-       "VALUES ('%s','%s','%c','%c','%c','%s',%s,%s,'%s')",
+       "VALUES ('%s','%s','%c','%c','%c','%s',%s,%s,'%s') RETURNING JobId",
        esc_ujobname.c_str(), esc_jobname.c_str(), (char)(jr->JobType), (char)(jr->JobLevel),
        (char)(jr->JobStatus), dt, edit_uint64(JobTDate, ed1),
        edit_int64(jr->ClientId, ed2), esc_comment.c_str());
   /* clang-format on */
 
-  jr->JobId = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("Job"));
-  if (jr->JobId == 0) {
+
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &jr->JobId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create DB Job record %s failed. ERR=%s\n"), cmd,
-          BackendCon->sql_strerror());
-  } else {
-    return true;
+          result.error());
   }
 
   return false;
@@ -185,7 +220,7 @@ bool BareosDb::CreatePoolRecord(JobControlRecord* jcr, PoolDbRecord* pr)
        "AcceptAnyVolume,AutoPrune,Recycle,VolRetention,VolUseDuration,"
        "MaxVolJobs,MaxVolFiles,MaxVolBytes,PoolType,LabelType,LabelFormat,"
        "RecyclePoolId,ScratchPoolId,ActionOnPurge,MinBlocksize,MaxBlocksize) "
-       "VALUES ('%s',%u,%u,%d,%d,%d,%d,%d,%s,%s,%u,%u,%s,'%s',%d,'%s',%s,%s,%d,%d,%d)",
+       "VALUES ('%s',%u,%u,%d,%d,%d,%d,%d,%s,%s,%u,%u,%s,'%s',%d,'%s',%s,%s,%d,%d,%d) RETURNING PoolId",
        esc_poolname.c_str(),
        pr->NumVols, pr->MaxVols,
        pr->UseOnce, pr->UseCatalog,
@@ -204,10 +239,10 @@ bool BareosDb::CreatePoolRecord(JobControlRecord* jcr, PoolDbRecord* pr)
   /* clang-format on */
 
   Dmsg1(200, "Create Pool: %s\n", cmd);
-  pr->PoolId = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("Pool"));
-  if (pr->PoolId == 0) {
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &pr->PoolId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create db Pool record %s failed: ERR=%s\n"), cmd,
-          BackendCon->sql_strerror());
+          result.error());
   } else {
     retval = true;
   }
@@ -264,14 +299,15 @@ bool BareosDb::CreateDeviceRecord(JobControlRecord* jcr, DeviceDbRecord* dr)
   }
 
   Mmsg(cmd,
-       "INSERT INTO Device (Name,MediaTypeId,StorageId) VALUES ('%s',%s,%s)",
+       "INSERT INTO Device (Name,MediaTypeId,StorageId) VALUES ('%s',%s,%s) "
+       "RETURNING DeviceId",
        esc.c_str(), edit_uint64(dr->MediaTypeId, ed1),
        edit_int64(dr->StorageId, ed2));
   Dmsg1(200, "Create Device: %s\n", cmd);
-  dr->DeviceId = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("Device"));
-  if (dr->DeviceId == 0) {
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &dr->DeviceId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create db Device record %s failed: ERR=%s\n"), cmd,
-          BackendCon->sql_strerror());
+          result.error());
   } else {
     return true;
   }
@@ -322,13 +358,13 @@ bool BareosDb::CreateStorageRecord(JobControlRecord* jcr, StorageDbRecord* sr)
 
   Mmsg(cmd,
        "INSERT INTO Storage (Name,AutoChanger)"
-       " VALUES ('%s',%d)",
+       " VALUES ('%s',%d) Returning StorageId",
        esc.c_str(), sr->AutoChanger);
 
-  sr->StorageId = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("Storage"));
-  if (sr->StorageId == 0) {
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &sr->StorageId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create DB Storage record %s failed. ERR=%s\n"), cmd,
-          BackendCon->sql_strerror());
+          result.error());
     Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
   } else {
     sr->created = true;
@@ -369,16 +405,16 @@ bool BareosDb::CreateMediatypeRecord(JobControlRecord* jcr,
   /* clang-format off */
   Mmsg(cmd,
        "INSERT INTO MediaType (MediaType,ReadOnly) "
-       "VALUES ('%s',%d)",
+       "VALUES ('%s',%d) RETURNING MediaTypeId",
        mr->MediaType,
        mr->ReadOnly);
   /* clang-format on */
 
   Dmsg1(200, "Create mediatype: %s\n", cmd);
-  mr->MediaTypeId = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("MediaType"));
-  if (mr->MediaTypeId == 0) {
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &mr->MediaTypeId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create db mediatype record %s failed: ERR=%s\n"), cmd,
-          BackendCon->sql_strerror());
+          result.error());
     return false;
   } else {
     return true;
@@ -428,7 +464,7 @@ bool BareosDb::CreateMediaRecord(JobControlRecord* jcr, MediaDbRecord* mr)
        "ScratchPoolId,RecyclePoolId,Enabled,ActionOnPurge,EncryptionKey,"
        "MinBlocksize,MaxBlocksize,VolFiles) "
        "VALUES ('%s','%s',0,%u,%s,%s,%d,%s,%s,%u,%u,'%s',%d,%s,%d,%s,%s,0,0,%d,%s,"
-       "%s,%s,%s,%s,%d,%d,'%s',%d,%d,%d)",
+       "%s,%s,%s,%s,%d,%d,'%s',%d,%d,%d) RETURNING MediaId",
        esc_medianame.c_str(),
        esc_mtype.c_str(), mr->PoolId,
        edit_uint64(mr->MaxVolBytes,ed1),
@@ -456,10 +492,10 @@ bool BareosDb::CreateMediaRecord(JobControlRecord* jcr, MediaDbRecord* mr)
   /* clang-format on */
 
   Dmsg1(500, "Create Volume: %s\n", cmd);
-  mr->MediaId = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("Media"));
-  if (mr->MediaId == 0) {
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &mr->MediaId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create DB Media record %s failed. ERR=%s\n"), cmd,
-          BackendCon->sql_strerror());
+          result.error());
   } else {
     retval = true;
     if (mr->set_label_date) {
@@ -531,16 +567,16 @@ bool BareosDb::CreateClientRecord(JobControlRecord* jcr, ClientDbRecord* cr)
   Mmsg(cmd,
        "INSERT INTO Client (Name,Uname,AutoPrune,"
        "FileRetention,JobRetention) VALUES "
-       "('%s','%s',%d,%s,%s)",
+       "('%s','%s',%d,%s,%s) RETURNING ClientId",
        esc_clientname.c_str(), esc_uname.c_str(), cr->AutoPrune,
        edit_uint64(cr->FileRetention, ed1),
        edit_uint64(cr->JobRetention, ed2));
   /* clang-format on */
 
-  cr->ClientId = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("Client"));
-  if (cr->ClientId == 0) {
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &cr->ClientId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create DB Client record %s failed. ERR=%s\n"), cmd,
-          BackendCon->sql_strerror());
+          result.error());
     Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
   } else {
     return true;
@@ -605,12 +641,13 @@ bool BareosDb::CreatePathRecord(JobControlRecord* jcr, AttributesDbRecord* ar)
     BackendCon->SqlFreeResult();
   }
 
-  Mmsg(cmd, "INSERT INTO Path (Path) VALUES ('%s')", esc_name.c_str());
+  Mmsg(cmd, "INSERT INTO Path (Path) VALUES ('%s') RETURNING PathId",
+       esc_name.c_str());
 
-  ar->PathId = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("Path"));
-  if (ar->PathId == 0) {
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &ar->PathId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create db Path record %s failed. ERR=%s\n"), cmd,
-          BackendCon->sql_strerror());
+          result.error());
     Jmsg(jcr, M_FATAL, 0, "%s", errmsg);
     ar->PathId = 0;
     goto bail_out;
@@ -740,20 +777,20 @@ bool BareosDb::CreateFilesetRecord(JobControlRecord* jcr, FileSetDbRecord* fsr)
     BackendCon->EscapeString(jcr, esc_filesettext, fsr->FileSetText);
     Mmsg(cmd,
          "INSERT INTO FileSet (FileSet,MD5,CreateTime,FileSetText) "
-         "VALUES ('%s','%s','%s','%s')",
+         "VALUES ('%s','%s','%s','%s') RETURNING FileSetId",
          esc_fs.c_str(), esc_md5.c_str(), fsr->cCreateTime,
          esc_filesettext.c_str());
   } else {
     Mmsg(cmd,
          "INSERT INTO FileSet (FileSet,MD5,CreateTime,FileSetText) "
-         "VALUES ('%s','%s','%s','')",
+         "VALUES ('%s','%s','%s','') RETURNING FileSetId",
          esc_fs.c_str(), esc_md5.c_str(), fsr->cCreateTime);
   }
 
-  fsr->FileSetId = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("FileSet"));
-  if (fsr->FileSetId == 0) {
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &fsr->FileSetId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create DB FileSet record %s failed. ERR=%s\n"), cmd,
-          BackendCon->sql_strerror());
+          result.error());
     Jmsg(jcr, M_ERROR, 0, "%s", errmsg);
     return false;
   } else {
@@ -954,15 +991,16 @@ bool BareosDb::CreateFileRecord(JobControlRecord* jcr, AttributesDbRecord* ar)
   /* clang-format off */
   Mmsg(cmd,
        "INSERT INTO File (FileIndex,JobId,PathId,Name,"
-       "LStat,MD5,DeltaSeq,Fhinfo,Fhnode) VALUES (%u,%u,%u,'%s','%s','%s',%u,%" PRIu64 ",%" PRIu64 ")",
+       "LStat,MD5,DeltaSeq,Fhinfo,Fhnode) VALUES (%u,%u,%u,'%s','%s','%s',%u,%" PRIu64 ",%" PRIu64 ") "
+       "RETURNING FileId",
        ar->FileIndex, ar->JobId, ar->PathId, esc_name.c_str(),
        ar->attr, digest, ar->DeltaSeq, ar->Fhinfo, ar->Fhnode);
   /* clang-format on */
 
-  ar->FileId = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("File"));
-  if (ar->FileId == 0) {
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &ar->FileId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create db File record %s failed. ERR=%s"), cmd,
-          BackendCon->sql_strerror());
+          result.error());
     Jmsg(jcr, M_FATAL, 0, "%s", errmsg);
   } else {
     retval = true;
@@ -1142,17 +1180,16 @@ bool BareosDb::CreateRestoreObjectRecord(JobControlRecord* jcr,
        "INSERT INTO RestoreObject (ObjectName,PluginName,RestoreObject,"
        "ObjectLength,ObjectFullLength,ObjectIndex,ObjectType,"
        "ObjectCompression,FileIndex,JobId) "
-       "VALUES ('%s','%s','%s',%d,%d,%d,%d,%d,%d,%u)",
+       "VALUES ('%s','%s','%s',%d,%d,%d,%d,%d,%d,%u) RETURNING RestoreObjectId",
        esc_name.c_str(), esc_plug_name.c_str(), esc_obj.c_str(),
        ro->object_len, ro->object_full_len, ro->object_index,
        ro->FileType, ro->object_compression, ro->FileIndex, ro->JobId);
   /* clang-format on */
 
-  ro->RestoreObjectId
-      = BackendCon->SqlInsertAutokeyRecord(cmd, NT_("RestoreObject"));
-  if (ro->RestoreObjectId == 0) {
+  if (auto result = InsertWithAutokey(BackendCon, cmd, &ro->RestoreObjectId);
+      result.error()) {
     Mmsg2(errmsg, T_("Create db Object record %s failed. ERR=%s"), cmd,
-          BackendCon->sql_strerror());
+          result.error());
     Jmsg(jcr, M_FATAL, 0, "%s", errmsg);
   } else {
     retval = true;

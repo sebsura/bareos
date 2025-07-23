@@ -77,9 +77,6 @@ struct db_conn {
   virtual const char* sql_strerror() = 0;
   virtual void SqlDataSeek(int row) = 0;
   virtual int SqlAffectedRows(void) = 0;
-  virtual db_result<uint64_t> SqlInsertAutokeyRecord(const char* query,
-                                                     const char* table_name)
-      = 0;
   virtual SQL_FIELD* SqlFetchField(void) = 0;
   virtual bool SqlFieldIsNotNull(int field_type) = 0;
   virtual bool SqlFieldIsNumeric(int field_type) = 0;
