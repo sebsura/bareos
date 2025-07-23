@@ -824,13 +824,15 @@ bool BareosDb::WriteBatchFileRecords(JobControlRecord* jcr)
 
   DbLocker _{jcr->db_batch.get()};
 
-  Dmsg1(50, "db_create_file_record changes=%u\n", changes);
+  /*** FIXUP ***/
+  Dmsg1(50, "db_create_file_record changes=%u\n", /* changes */ 0);
 
   jcr->setJobStatus(JS_AttrInserting);
 
+  /*** FIXUP ***/
   Jmsg(jcr, M_INFO, 0,
        "Insert of attributes batch table with %u entries start\n",
-       jcr->db_batch->changes);
+       /*jcr->db_batch->changes*/ 0);
 
   if (auto result = jcr->db_batch->BackendCon->SqlBatchEndFileTable(jcr, NULL);
       result.error()) {
@@ -874,7 +876,8 @@ bool BareosDb::WriteBatchFileRecords(JobControlRecord* jcr)
 bail_out:
   SqlQuery("DROP TABLE IF EXISTS batch");
   jcr->batch_started = false;
-  changes = 0;
+  /*** FIXUP: huh ?? ***/
+  // changes = 0;
 
   return retval;
 }
@@ -903,7 +906,8 @@ bool BareosDb::CreateBatchFileAttributesRecord(JobControlRecord* jcr,
   Dmsg1(dbglevel, "Fname=%s\n", ar->fname);
   Dmsg0(dbglevel, "put_file_into_catalog\n");
 
-  if (jcr->batch_started && jcr->db_batch->changes > BATCH_FLUSH) {
+  /*** FIXUP ***/
+  if (jcr->batch_started /*&& jcr->db_batch->changes > BATCH_FLUSH*/) {
     jcr->db_batch->WriteBatchFileRecords(jcr);
   }
 

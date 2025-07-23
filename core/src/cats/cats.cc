@@ -138,4 +138,24 @@ std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
   return ptr;
 }
 
+void StartTransaction(JobControlRecord* jcr)
+{
+  if (!jcr->attr) { jcr->attr = GetPoolMemory(PM_FNAME); }
+  if (!jcr->ar) {
+    jcr->ar = (AttributesDbRecord*)malloc(sizeof(AttributesDbRecord));
+  }
+}
+
+void EndTransaction(JobControlRecord* jcr)
+{
+  if (jcr && jcr->cached_attribute) {
+    Dmsg0(400, "Flush last cached attribute.\n");
+    if (!jcr->db->CreateAttributesRecord(jcr, jcr->ar)) {
+      Jmsg1(jcr, M_FATAL, 0, T_("Attribute create error. %s"),
+            jcr->db->strerror());
+    }
+    jcr->cached_attribute = false;
+  }
+}
+
 #endif /* HAVE_POSTGRESQL */

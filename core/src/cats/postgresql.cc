@@ -199,10 +199,11 @@ class BareosDbPostgresql : public db_conn {
       = false;         /**< Marker, if field descriptions are already fetched */
   int num_fields_ = 0; /**< Number of fields returned by last query */
   int num_rows_ = 0;
-  int rows_size_ = 0;               /**< Size of malloced rows */
-  int fields_size_ = 0;             /**< Size of malloced fields */
-  int row_number_ = 0;              /**< Row number from xx_data_seek */
-  int field_number_ = 0;            /**< Field number from SqlFieldSeek */
+  int rows_size_ = 0;    /**< Size of malloced rows */
+  int fields_size_ = 0;  /**< Size of malloced fields */
+  int row_number_ = 0;   /**< Row number from xx_data_seek */
+  int field_number_ = 0; /**< Field number from SqlFieldSeek */
+  std::size_t changes_ = 0;
   SQL_ROW rows_ = nullptr;          /**< Defined rows */
   SQL_FIELD* fields_ = nullptr;     /**< Defined fields */
   bool allow_transactions_ = false; /**< Transactions allowed ? */
@@ -599,6 +600,8 @@ db_command_result BareosDbPostgresql::SqlQueryWithoutHandler(const char* query,
       Dmsg1(500, "We have %d rows\n", num_rows_);
       row_number_ = 0; /* we can start to fetch something */
     }
+
+    if (flags.test(query_flag::CountAsChange)) { changes_ += 1; }
     return db_command_result::Ok();
   } else {
     return db_command_result::Error(sql_strerror());

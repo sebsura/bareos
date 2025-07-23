@@ -506,7 +506,6 @@ class BareosDb : public BareosDbQueryEnum {
   bool have_batch_insert_ = false; /**< Have batch insert support ? */
   connection_parameter params_;    /**< connection parameters */
   int cached_path_len = 0;         /**< Length of cached path */
-  int changes = 0;                 /**< Changes during transaction */
   int fnl = 0;                     /**< File name length */
   int pnl = 0;                     /**< Path name length */
   bool disabled_batch_insert_
@@ -901,7 +900,7 @@ class BareosDb : public BareosDbQueryEnum {
   void FillQuery(PoolMem& query, SQL_QUERY predefined_query, ...);
 
   bool SqlQuery(SQL_QUERY query, ...);
-  bool SqlQuery(const char* query);
+  bool SqlQuery(const char* query, bool change = false);
   bool SqlExec(const char* query);  // like SqlQuery, but does not store result
   bool SqlQuery(const char* query, DB_RESULT_HANDLER* ResultHandler, void* ctx);
 
@@ -1036,4 +1035,10 @@ int ListResult(JobControlRecord* jcr,
 
 std::unique_ptr<BareosDb> DbCreateConnection(JobControlRecord* jcr,
                                              connection_parameter params);
+
+
+void StartTransaction(JobControlRecord* jcr);
+void EndTransaction(JobControlRecord* jcr);
+
+
 #endif  // BAREOS_CATS_CATS_H_

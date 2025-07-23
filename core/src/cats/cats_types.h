@@ -44,6 +44,7 @@ typedef struct sql_field {
 enum class query_flag : size_t
 {
   DiscardResult,
+  CountAsChange,
   Count,
 };
 

@@ -224,7 +224,7 @@ int BareosDb::InsertDb(JobControlRecord* jcr,
   AssertOwnership();
   int num_rows;
 
-  if (!SqlQuery(select_cmd)) {
+  if (!SqlQuery(select_cmd, true)) {
     msg_(loc.file_name(), loc.line(), errmsg, T_("insert %s failed:\n%s\n"),
          select_cmd, BackendCon->sql_strerror());
     j_msg(loc.file_name(), loc.line(), jcr, M_FATAL, 0, "%s", errmsg);
@@ -244,7 +244,6 @@ int BareosDb::InsertDb(JobControlRecord* jcr,
     }
     return num_rows;
   }
-  changes++;
   return num_rows;
 }
 
@@ -258,7 +257,7 @@ int BareosDb::UpdateDb(JobControlRecord* jcr,
                        libbareos::source_location loc)
 {
   AssertOwnership();
-  if (!SqlQuery(UpdateCmd)) {
+  if (!SqlQuery(UpdateCmd, true)) {
     msg_(loc.file_name(), loc.line(), errmsg, T_("update %s failed:\n%s\n"),
          UpdateCmd, BackendCon->sql_strerror());
     j_msg(loc.file_name(), loc.line(), jcr, M_ERROR, 0, "%s", errmsg);
@@ -268,7 +267,6 @@ int BareosDb::UpdateDb(JobControlRecord* jcr,
     return -1;
   }
 
-  changes++;
   return BackendCon->SqlAffectedRows();
 }
 
@@ -283,7 +281,7 @@ int BareosDb::DeleteDb(JobControlRecord* jcr,
                        libbareos::source_location loc)
 {
   AssertOwnership();
-  if (!SqlQuery(DeleteCmd)) {
+  if (!SqlQuery(DeleteCmd, true)) {
     msg_(loc.file_name(), loc.line(), errmsg, T_("delete %s failed:\n%s\n"),
          DeleteCmd, BackendCon->sql_strerror());
     j_msg(loc.file_name(), loc.line(), jcr, M_ERROR, 0, "%s", errmsg);
@@ -292,7 +290,6 @@ int BareosDb::DeleteDb(JobControlRecord* jcr,
     }
     return -1;
   }
-  changes++;
   return BackendCon->SqlAffectedRows();
 }
 
@@ -894,7 +891,8 @@ void BareosDb::DbDebugPrint(FILE* fp)
   fprintf(fp, "BareosDb=%p db_name=%s db_user=%s connected=%s\n", this,
           NPRTB(get_db_name()), NPRTB(get_db_user()),
           IsConnected() ? "true" : "false");
-  fprintf(fp, "\tcmd=\"%s\" changes=%i\n", NPRTB(cmd), changes);
+  /*** FIXUP ***/
+  fprintf(fp, "\tcmd=\"%s\" changes=%i\n", NPRTB(cmd), /* changes */ 0);
 
   PrintLockInfo(fp);
 }

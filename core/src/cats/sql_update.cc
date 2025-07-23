@@ -106,7 +106,8 @@ bool BareosDb::UpdateJobStartRecord(JobControlRecord* jcr, JobDbRecord* jr)
        edit_int64(jr->PoolId, ed3), edit_int64(jr->FileSetId, ed4),
        jcr->VolSessionId, jcr->VolSessionTime, edit_int64(jr->JobId, ed5));
 
-  changes = 0;
+  /*** FIXUP: huh ??? ***/
+  // changes = 0;
   return UpdateDb(jcr, cmd) > 0;
 }
 

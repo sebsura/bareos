@@ -127,12 +127,14 @@ bool BareosDb::SqlQuery(BareosDb::SQL_QUERY predefined_query, ...)
 }
 
 
-bool BareosDb::SqlQuery(const char* query)
+bool BareosDb::SqlQuery(const char* query, bool change)
 {
   Dmsg2(debuglevel, "called: %s with query %s\n", __PRETTY_FUNCTION__, query);
 
   DbLocker _{this};
-  auto result = BackendCon->SqlQueryWithoutHandler(query, {});
+  query_flags flags = {};
+  if (change) { flags.set<query_flag::CountAsChange>(); }
+  auto result = BackendCon->SqlQueryWithoutHandler(query, flags);
   if (result.error()) {
     Mmsg(errmsg, T_("Query failed: %s: ERR=%s\n"), query, result.error());
     return false;
