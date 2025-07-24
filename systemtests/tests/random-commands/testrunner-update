@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# TRUTHY = YES | TRUE
+# FALSY = NO | FALSE
+# NUMBER =  ...
+#
+# YESNO = [TRUTHY] | [FALSY]
+# ENABLED = [TRUTHY] | [FALSY] | (NUMBER) | ARCHIVED
+#
+# DURATION = (NUMBER) [N | SECONDS | MONTHS | MINUTES | MINS | HOURS | DAYS | WEEKS | QUARTERS | YEARS] REPEAT
+# SIZE = (NUMBER) [* | K | KB | M | MB | G | GB | T | TB | P | PB | E | EB] REPEAT
+# UTIME= (NUMBER)-(NUMBER)-(NUMBER) (NUMBER):(NUMBER):(NUMBER):(NUMBER)*{0-15}
+#
+# jobid= (JOB/Id)
+#   jobname=(C-JOB/NAME)
+#   jobtype=(STRING)
+#   starttime=[UTIME]
+#   client=(CLIENT/NAME)
+#   filesetid=(FILESET/ID)
+# #slots
+# stats
+#   days=(NUMBER)
+# pool=(POOL/NAME)
+# volume=(VOLUME/NAME) | (EMPTY)
+#   maxvoljobs= (NUMBER)
+#   maxvolfiles= (NUMBER)
+#   maxvolbytes= [SIZE]
+#   recycle= [YESNO]
+#   inchanger= [YESNO]
+#   pool= (POOL/NAME)
+#   frompool= (POOL/NAME)
+#   allfrompool= (POOL/NAME)
+#   recyclepool= (POOL/NAME) | (EMPTY)
+#   storage= (STORAGE/NAME)
+#   slot= (NUMBER)
+#   actiononpurge= TRUNCATE | *
+#   enabled= [ENABLED]
+#   volretention= [DURATION]
+#   *voluse= [DURATION]
+#   volstatus= APPEND | ARCHIVE | DISABLED | FULL | USED | CLEANING | RECYCLE | READ-ONLY | ERROR
+#   fromallpools
+
+# ${BAREOS_RANDOM_COMMANDS_BINARY} 3>&1 1>&2 2>&3 3>&-
+
+#!/bin/bash
+
+#   BAREOS® - Backup Archiving REcovery Open Sourced
+#
+#   Copyright (C) 2025-2025 Bareos GmbH & Co. KG
+#
+#   This program is Free Software; you can redistribute it and/or
+#   modify it under the terms of version three of the GNU Affero General Public
+#   License as published by the Free Software Foundation and included
+#   in the file LICENSE.
+#
+#   This program is distributed in the hope that it will be useful, but
+#   WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+#   Affero General Public License for more details.
+#
+#   You should have received a copy of the GNU Affero General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+#   02110-1301, USA.
+
+# set -e
+# set -o pipefail
+# set -u
+
+TestName="$(basename "$(pwd)")"
+export TestName
+
+#shellcheck source=../environment.in
+. ./environment
+
+#shellcheck source=../scripts/functions
+. "${rscripts}"/functions
+#shellcheck source=functions
+. functions
+
+start_test
+
+command_count=0
+
+echo "executing ${BAREOS_RANDOM_COMMANDS_BINARY}"
+${BAREOS_RANDOM_COMMANDS_BINARY} | while read -r command; do
+  echo "executing command ${command_count}"
+  cat <<END_OF_DATA >"$tmp/bconcmds"
+@$out $log_home/command-${command_count}.out
+${command}
+.
+.
+.
+.
+messages
+quit
+END_OF_DATA
+  run_bconsole || :
+  ((command_count++))
+done
+
+end_test
