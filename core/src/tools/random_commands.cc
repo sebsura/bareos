@@ -19,6 +19,7 @@
    02110-1301, USA.
 */
 
+#include "lib/cli.h"
 #include <cstdint>
 #include <random>
 #include <string_view>
@@ -389,20 +390,36 @@ std::string generate_random_update(prand& rand)
   return s.str();
 }
 
-int main()
+int main(int argc, char* argv[])
 {
-  std::random_device rd;
-  std::default_random_engine generator{rd()};
+  std::size_t command_offset = 0;
+  std::size_t command_count = 1000;
 
-  auto seed = std::uniform_int_distribution<std::uint64_t>{
-      1, std::numeric_limits<std::uint64_t>::max()}(generator);
+  std::uint64_t seed = 0;
 
-  fmt::println(stderr, "Chosen seed: {:x}", seed);
+  CLI::App app{"generate random commands"};
+
+  app.add_option("-s,--seed", seed)->check(CLI::PositiveNumber);
+  app.add_option("-o,--offset", command_offset);
+  app.add_option("-c,--count", command_count);
+
+  CLI11_PARSE(app, argc, argv);
+
+  if (!seed) {
+    std::random_device rd;
+    std::default_random_engine generator{rd()};
+
+    seed = std::uniform_int_distribution<std::uint64_t>{
+        1, std::numeric_limits<std::uint64_t>::max()}(generator);
+  }
+
+  fmt::println(stderr, "Chosen seed: 0x{:x}", seed);
 
   prand rand{seed};
 
-  for (std::size_t i = 0; i < 1000; ++i) {
+  for (std::size_t i = 0; i < command_offset + command_count; ++i) {
     auto command = generate_random_update(rand);
+    if (i < command_offset) { continue; }
     fmt::println(stdout, "update {}", command);
   }
 }
