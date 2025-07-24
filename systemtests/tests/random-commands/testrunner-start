@@ -57,12 +57,24 @@ label volume=Differential-0001 pool=Differential
 label volume=Differential-0002 pool=Differential
 label volume=Differential-0003 pool=Differential
 
+@$out $log_home/full.out
 run job=backup-bareos-fd level=Full yes
+wait
+messages
+@$out $log_home/diff.out
 run job=backup-bareos-fd level=Differential yes
+wait
+messages
+@$out $log_home/incr.out
 run job=backup-bareos-fd level=Incremental yes
 wait
+messages
 END_OF_DATA
 
 run_bconsole
+
+expect_grep "Backup OK" "$log_home/full.out" "full was not successful"
+expect_grep "Backup OK" "$log_home/diff.out" "diff was not successful"
+expect_grep "Backup OK" "$log_home/incr.out" "incr was not successful"
 
 end_test
