@@ -324,10 +324,11 @@ void UpdateVolPool(UaContext* ua,
   char ed1[50], ed2[50];
 
   bstrncpy(pr.Name, val, sizeof(pr.Name));
+
+  DbLocker _{ua->db};
   if (!GetPoolDbr(ua, &pr)) { return; }
   mr->PoolId = pr.PoolId; /* set new PoolId */
 
-  DbLocker _{ua->db};
   Mmsg(query, "UPDATE Media SET PoolId=%s WHERE MediaId=%s",
        edit_int64(mr->PoolId, ed1), edit_int64(mr->MediaId, ed2));
   if (DbLocker _{ua->db}; !ua->db->SqlQuery(query.c_str())) {
@@ -353,6 +354,7 @@ void UpdateVolRecyclepool(UaContext* ua, char* val, MediaDbRecord* mr)
   char ed1[50], ed2[50];
   const char* poolname;
 
+  DbLocker _{ua->db};
   if (val && *val) { /* update volume recyclepool="Scratch" */
     // If a pool name is given, look up the PoolId
     bstrncpy(pr.Name, val, sizeof(pr.Name));
@@ -365,7 +367,6 @@ void UpdateVolRecyclepool(UaContext* ua, char* val, MediaDbRecord* mr)
     poolname = T_("*None*");
   }
 
-  DbLocker _{ua->db};
   Mmsg(query, "UPDATE Media SET RecyclePoolId=%s WHERE MediaId=%s",
        edit_int64(mr->RecyclePoolId, ed1), edit_int64(mr->MediaId, ed2));
   if (DbLocker _{ua->db}; !ua->db->SqlQuery(query.c_str())) {
@@ -420,11 +421,13 @@ static void UpdateAllVolsFromPool(UaContext* ua, const char* pool_name)
   PoolDbRecord pr;
   MediaDbRecord mr;
 
+  DbLocker _{ua->db};
+
   bstrncpy(pr.Name, pool_name, sizeof(pr.Name));
   if (!GetPoolDbr(ua, &pr)) { return; }
   SetPoolDbrDefaultsInMediaDbr(&mr, &pr);
   mr.PoolId = pr.PoolId;
-  if (DbLocker _{ua->db}; !ua->db->UpdateMediaDefaults(ua->jcr, &mr)) {
+  if (!ua->db->UpdateMediaDefaults(ua->jcr, &mr)) {
     ua->ErrorMsg(T_("Error updating Volume records: ERR=%s"),
                  ua->db->strerror());
   } else {
@@ -861,17 +864,17 @@ static bool UpdatePool(UaContext* ua)
   PoolResource* pool;
   PoolMem query(PM_MESSAGE);
 
-  pool = get_pool_resource(ua);
-  if (!pool) { return false; }
-
-  bstrncpy(pr.Name, pool->resource_name_, sizeof(pr.Name));
-  if (!GetPoolDbr(ua, &pr)) { return false; }
-
-  SetPooldbrFromPoolres(&pr, pool, POOL_OP_UPDATE); /* update */
-  SetPooldbrReferences(ua->jcr, ua->db, &pr, pool);
-
   {
     DbLocker _{ua->db};
+    pool = get_pool_resource(ua);
+    if (!pool) { return false; }
+
+    bstrncpy(pr.Name, pool->resource_name_, sizeof(pr.Name));
+    if (!GetPoolDbr(ua, &pr)) { return false; }
+
+    SetPooldbrFromPoolres(&pr, pool, POOL_OP_UPDATE); /* update */
+    SetPooldbrReferences(ua->jcr, ua->db, &pr, pool);
+
     id = ua->db->UpdatePoolRecord(ua->jcr, &pr);
     if (id <= 0) {
       ua->ErrorMsg(T_("UpdatePoolRecord returned %d. ERR=%s\n"), id,
