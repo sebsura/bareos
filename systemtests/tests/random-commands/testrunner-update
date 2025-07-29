@@ -84,8 +84,8 @@ command_count=0
 
 echo "executing ${BAREOS_RANDOM_COMMANDS_BINARY}"
 ${BAREOS_RANDOM_COMMANDS_BINARY} --count 300 2>"${log_home}/seed.out" | while read -r command; do
-  echo "executing command ${command_count}"
-  cat <<END_OF_DATA >"$tmp/bconcmds"
+  echo "executing command ${command_count}" 1>&2
+  cat <<END_OF_DATA
 @$out $log_home/command-${command_count}.out
 ${command}
 .
@@ -93,9 +93,7 @@ ${command}
 .
 .
 END_OF_DATA
-  run_bconsole || echo "result = $?"
-
-  if ! bin/bareos status; then
+  if ! bin/bareos status >${NULL_DEV}; then
     cat <<EOF >"${log_home}/crash.out"
     command = ${command}
     count = ${command_count}
@@ -104,7 +102,7 @@ EOF
   fi
 
   ((command_count++))
-done
+done | bin/bconsole
 
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out $log_home/messages.out
