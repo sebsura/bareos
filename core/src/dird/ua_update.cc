@@ -331,16 +331,16 @@ void UpdateVolPool(UaContext* ua,
 
   Mmsg(query, "UPDATE Media SET PoolId=%s WHERE MediaId=%s",
        edit_int64(mr->PoolId, ed1), edit_int64(mr->MediaId, ed2));
-  if (DbLocker _{ua->db}; !ua->db->SqlQuery(query.c_str())) {
+  if (!ua->db->SqlQuery(query.c_str())) {
     ua->ErrorMsg("%s", ua->db->strerror());
   } else {
     ua->InfoMsg(T_("New Pool is: %s\n"), pr.Name);
     opr->NumVols--;
-    if (DbLocker _{ua->db}; !ua->db->UpdatePoolRecord(ua->jcr, opr)) {
+    if (!ua->db->UpdatePoolRecord(ua->jcr, opr)) {
       ua->ErrorMsg("%s", ua->db->strerror());
     }
     pr.NumVols++;
-    if (DbLocker _{ua->db}; !ua->db->UpdatePoolRecord(ua->jcr, &pr)) {
+    if (!ua->db->UpdatePoolRecord(ua->jcr, &pr)) {
       ua->ErrorMsg("%s", ua->db->strerror());
     }
   }
@@ -369,7 +369,7 @@ void UpdateVolRecyclepool(UaContext* ua, char* val, MediaDbRecord* mr)
 
   Mmsg(query, "UPDATE Media SET RecyclePoolId=%s WHERE MediaId=%s",
        edit_int64(mr->RecyclePoolId, ed1), edit_int64(mr->MediaId, ed2));
-  if (DbLocker _{ua->db}; !ua->db->SqlQuery(query.c_str())) {
+  if (!ua->db->SqlQuery(query.c_str())) {
     ua->ErrorMsg("%s", ua->db->strerror());
   } else {
     ua->InfoMsg(T_("New RecyclePool is: %s\n"), poolname);
@@ -390,7 +390,7 @@ void UpdateVolStorage(UaContext* ua, char* val, MediaDbRecord* mr)
 
   Mmsg(query, "UPDATE Media SET StorageId=%s WHERE MediaId=%s",
        edit_int64(mr->StorageId, ed1), edit_int64(mr->MediaId, ed2));
-  if (DbLocker _{ua->db}; !ua->db->SqlQuery(query.c_str())) {
+  if (!ua->db->SqlQuery(query.c_str())) {
     ua->ErrorMsg("%s", ua->db->strerror());
   }
 }
