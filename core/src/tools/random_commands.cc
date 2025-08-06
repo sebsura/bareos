@@ -399,9 +399,15 @@ int main(int argc, char* argv[])
 
   CLI::App app{"generate random commands"};
 
-  app.add_option("-s,--seed", seed)->check(CLI::PositiveNumber);
-  app.add_option("-o,--offset", command_offset);
-  app.add_option("-c,--count", command_count);
+  bool zero_delimit = false;
+  app.add_flag(
+      "--zero", zero_delimit,
+      "use a literal 0 instead of a line feed to delimit generated strings");
+  app.add_option("-s,--seed", seed, "number to seed the prng")
+      ->check(CLI::PositiveNumber);
+  app.add_option("-o,--offset", command_offset,
+                 "skip the first `offset` generated values");
+  app.add_option("-c,--count", command_count, "generate `count` values");
 
   CLI11_PARSE(app, argc, argv);
 
@@ -417,9 +423,12 @@ int main(int argc, char* argv[])
 
   prand rand{seed};
 
+  char delimiter = zero_delimit ? '\0' : '\n';
+
   for (std::size_t i = 0; i < command_offset + command_count; ++i) {
     auto command = generate_random_update(rand);
     if (i < command_offset) { continue; }
-    fmt::println(stdout, "update {}", command);
+    fmt::print(stdout, "update {}{}", command, delimiter);
+    fflush(stdout);
   }
 }

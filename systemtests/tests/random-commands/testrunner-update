@@ -83,9 +83,11 @@ start_test
 command_count=0
 
 echo "executing ${BAREOS_RANDOM_COMMANDS_BINARY}"
-${BAREOS_RANDOM_COMMANDS_BINARY} --count 300 2>"${log_home}/seed.out" | while read -r command; do
+${BAREOS_RANDOM_COMMANDS_BINARY} --zero --count 300 2>"${log_home}/seed.out" | while read -d $'\0' -r command; do
   echo "executing command ${command_count}" 1>&2
   cat <<END_OF_DATA
+@$out $log_home/last-command.out
+@echo ${command_count}
 @$out $log_home/command-${command_count}.out
 ${command}
 .
@@ -94,15 +96,26 @@ ${command}
 .
 END_OF_DATA
   if ! bin/bareos status >${NULL_DEV}; then
-    cat <<EOF >"${log_home}/crash.out"
-    command = ${command}
-    count = ${command_count}
-EOF
-    exit 1
+    break
   fi
 
   ((command_count++))
 done | bin/bconsole
+
+if ! bin/bareos status >${NULL_DEV}; then
+  # we managed to create a crash, lets try to find out
+  # where it went wrong
+
+  # last_command is the _offset_ of the last tried command
+  last_command=$(tail -n2 "${log_home}/last-command.out" | head -n1)
+
+  cat <<EOF | tee >"${log_home}/crash.out"
+    CRASH!
+    $(cat "${log_home}/seed.out")
+    crashed at: ${last_command}
+EOF
+  exit 1
+fi
 
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out $log_home/messages.out
