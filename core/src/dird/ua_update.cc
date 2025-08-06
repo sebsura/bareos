@@ -383,11 +383,11 @@ void UpdateVolStorage(UaContext* ua, char* val, MediaDbRecord* mr)
   PoolMem query(PM_MESSAGE);
   char ed1[50], ed2[50];
 
+  DbLocker _{ua->db};
   bstrncpy(sr.Name, val, sizeof(sr.Name));
   if (!GetStorageDbr(ua, &sr)) { return; }
   mr->StorageId = sr.StorageId; /* set new StorageId */
 
-  DbLocker _{ua->db};
   Mmsg(query, "UPDATE Media SET StorageId=%s WHERE MediaId=%s",
        edit_int64(mr->StorageId, ed1), edit_int64(mr->MediaId, ed2));
   if (DbLocker _{ua->db}; !ua->db->SqlQuery(query.c_str())) {
