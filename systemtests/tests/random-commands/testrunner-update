@@ -1,49 +1,5 @@
 #!/bin/bash
 
-# TRUTHY = YES | TRUE
-# FALSY = NO | FALSE
-# NUMBER =  ...
-#
-# YESNO = [TRUTHY] | [FALSY]
-# ENABLED = [TRUTHY] | [FALSY] | (NUMBER) | ARCHIVED
-#
-# DURATION = (NUMBER) [N | SECONDS | MONTHS | MINUTES | MINS | HOURS | DAYS | WEEKS | QUARTERS | YEARS] REPEAT
-# SIZE = (NUMBER) [* | K | KB | M | MB | G | GB | T | TB | P | PB | E | EB] REPEAT
-# UTIME= (NUMBER)-(NUMBER)-(NUMBER) (NUMBER):(NUMBER):(NUMBER):(NUMBER)*{0-15}
-#
-# jobid= (JOB/Id)
-#   jobname=(C-JOB/NAME)
-#   jobtype=(STRING)
-#   starttime=[UTIME]
-#   client=(CLIENT/NAME)
-#   filesetid=(FILESET/ID)
-# #slots
-# stats
-#   days=(NUMBER)
-# pool=(POOL/NAME)
-# volume=(VOLUME/NAME) | (EMPTY)
-#   maxvoljobs= (NUMBER)
-#   maxvolfiles= (NUMBER)
-#   maxvolbytes= [SIZE]
-#   recycle= [YESNO]
-#   inchanger= [YESNO]
-#   pool= (POOL/NAME)
-#   frompool= (POOL/NAME)
-#   allfrompool= (POOL/NAME)
-#   recyclepool= (POOL/NAME) | (EMPTY)
-#   storage= (STORAGE/NAME)
-#   slot= (NUMBER)
-#   actiononpurge= TRUNCATE | *
-#   enabled= [ENABLED]
-#   volretention= [DURATION]
-#   *voluse= [DURATION]
-#   volstatus= APPEND | ARCHIVE | DISABLED | FULL | USED | CLEANING | RECYCLE | READ-ONLY | ERROR
-#   fromallpools
-
-# ${BAREOS_RANDOM_COMMANDS_BINARY} 3>&1 1>&2 2>&3 3>&-
-
-#!/bin/bash
-
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
 #   Copyright (C) 2025-2025 Bareos GmbH & Co. KG
@@ -63,9 +19,9 @@
 #   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 #   02110-1301, USA.
 
-# set -e
-# set -o pipefail
-# set -u
+set -e
+set -o pipefail
+set -u
 
 TestName="$(basename "$(pwd)")"
 export TestName
@@ -99,10 +55,10 @@ END_OF_DATA
     break
   fi
 
-  ((command_count++))
+  command_count=$((command_count + 1))
 done | bin/bconsole
 
-if ! bin/bareos status >${NULL_DEV}; then
+if ! bin/bareos status >"${NULL_DEV}"; then
   # we managed to create a crash, lets try to find out
   # where it went wrong
 
