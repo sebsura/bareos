@@ -109,7 +109,7 @@ if ! bin/bareos status >${NULL_DEV}; then
   # last_command is the _offset_ of the last tried command
   last_command=$(tail -n2 "${log_home}/last-command.out" | head -n1)
 
-  cat <<EOF | tee >"${log_home}/crash.out"
+  cat <<EOF | tee "${log_home}/crash.out"
     CRASH!
     $(cat "${log_home}/seed.out")
     crashed at: ${last_command}
@@ -120,7 +120,12 @@ fi
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out $log_home/messages.out
 messages
+quit
 END_OF_DATA
 run_bconsole || echo "result = $?"
+
+expect_not_grep "ERROR" \
+  "${log_home}/messages.out" \
+  "found (prevented) crash for seed $(cat "${log_home}/seed.out")"
 
 end_test
