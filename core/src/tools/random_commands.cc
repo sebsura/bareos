@@ -419,7 +419,7 @@ int main(int argc, char* argv[])
         1, std::numeric_limits<std::uint64_t>::max()}(generator);
   }
 
-  fmt::println(stderr, "Chosen seed: 0x{:x}", seed);
+  fmt::print(stderr, "Chosen seed: 0x{:x}\n", seed);
 
   prand rand{seed};
 
