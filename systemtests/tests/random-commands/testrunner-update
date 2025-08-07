@@ -52,6 +52,7 @@ ${command}
 .
 END_OF_DATA
   if ! bin/bareos status >${NULL_DEV}; then
+    echo "loop detected that bareos died" 1>&2
     break
   fi
 
