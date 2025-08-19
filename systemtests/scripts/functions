@@ -810,8 +810,8 @@ check_two_logs()
   restore_log=${2:-${default_restore_log}}
 
   if ! grep "^  Termination: *Backup OK$" "$backup_log" >/dev/null 2>&1; then
-    echo "Backup error!"
-    bstat=2
+    bstat=${bstate:-$?}
+    echo "Backup not ok!"
   fi
 
   if grep "^  Termination: .*Backup Error$" "$backup_log" >/dev/null 2>&1; then
@@ -819,8 +819,9 @@ check_two_logs()
     bstat=2
   fi
 
-  if grep "^  Termination: *Restore OK$" "$restore_log" >/dev/null 2>&1; then
+  if ! grep "^  Termination: *Restore OK$" "$restore_log" >/dev/null 2>&1; then
     rstat=${rstat:-$?}
+    echo "Restore not ok!"
   fi
 
   if grep "^  Termination: .*Restore Error$" "$restore_log" >/dev/null 2>&1; then
