@@ -28,5 +28,7 @@ set_tests_properties(
 
 set_tests_properties(
   system:random-commands:update
-  PROPERTIES FIXTURES_REQUIRED "system:random-commands:start-fixture"
+  PROPERTIES
+    FIXTURES_REQUIRED
+    "system:random-commands:start-fixture;system:random-commands-fixture"
 )
