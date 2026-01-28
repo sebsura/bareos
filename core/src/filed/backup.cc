@@ -346,7 +346,7 @@ bail_out:
 }
 
 // Terminate the signing digest and send it to the Storage daemon
-static inline bool TerminateSigningDigest(b_save_ctx& bsctx)
+static inline bool TerminateSigningDigest(b_save_ctx& bsctx, MessageStream& s)
 {
   uint32_t size = 0;
   bool retval = false;
@@ -379,9 +379,7 @@ static inline bool TerminateSigningDigest(b_save_ctx& bsctx)
   }
 
   // Send our header
-  sd->fsend("%" PRIu32 " %" PRId32 " 0", bsctx.jcr->JobFiles,
-            STREAM_SIGNED_DIGEST);
-  Dmsg1(300, "filed>stored:header %s", sd->msg);
+  s.printm("{} {} 0", bsctx.jcr->JobFiles, STREAM_SIGNED_DIGEST);
 
   // Encode signature data
   if (!CryptoSignEncode(signature, (uint8_t*)sd->msg, &size)) {
@@ -390,9 +388,9 @@ static inline bool TerminateSigningDigest(b_save_ctx& bsctx)
     goto bail_out;
   }
 
-  sd->message_length = size;
-  sd->send();
-  sd->signal(BNET_EOD); /* end of checksum */
+  memcpy(s.allocate(size).data(), sd->msg, size);
+  s.end_message();
+  s.append_signal(BNET_EOD);
   retval = true;
 
 bail_out:
@@ -401,15 +399,13 @@ bail_out:
 }
 
 // Terminate any digest and send it to Storage daemon
-static inline bool TerminateDigest(b_save_ctx& bsctx)
+static inline bool TerminateDigest(b_save_ctx& bsctx, MessageStream& s)
 {
   uint32_t size;
   bool retval = false;
   BareosSocket* sd = bsctx.jcr->store_bsock;
 
-  sd->fsend("%" PRIu32 " %" PRId32 " 0", bsctx.jcr->JobFiles,
-            bsctx.digest_stream);
-  Dmsg1(300, "filed>stored:header %s", sd->msg);
+  s.printm("{} {} 0", bsctx.jcr->JobFiles, bsctx.digest_stream);
 
   size = CRYPTO_DIGEST_MAX_SIZE;
 
@@ -429,9 +425,10 @@ static inline bool TerminateDigest(b_save_ctx& bsctx)
     bsctx.ff_pkt->linked->set_digest(bsctx.digest_stream, sd->msg, size);
   }
 
-  sd->message_length = size;
-  sd->send();
-  sd->signal(BNET_EOD); /* end of checksum */
+  memcpy(s.allocate(size).data(), sd->msg, size);
+  s.end_message();
+  s.append_signal(BNET_EOD);
+
   retval = true;
 
 bail_out:
@@ -521,6 +518,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   bool has_file_data = false;
   save_pkt sp; /* use by option plugin */
   BareosSocket* sd = jcr->store_bsock;
+  MessageStream footer;
 
   if (jcr->IsJobCanceled() || jcr->IsIncomplete()) { return 0; }
 
@@ -822,26 +820,25 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
 
   // Terminate the signing digest and send it to the Storage daemon
   if (bsctx.signing_digest) {
-    if (!TerminateSigningDigest(bsctx)) { goto bail_out; }
+    if (!TerminateSigningDigest(bsctx, footer)) { goto bail_out; }
   }
 
   // Terminate any digest and send it to Storage daemon
   if (bsctx.digest) {
-    if (!TerminateDigest(bsctx)) { goto bail_out; }
+    if (!TerminateDigest(bsctx, footer)) { goto bail_out; }
   }
 
   // Check if original file has a digest, and send it
   if (ff_pkt->type == FT_LNKSAVED && ff_pkt->digest) {
     Dmsg2(300, "Link %s digest %d\n", ff_pkt->fname, ff_pkt->digest_len);
-    sd->fsend("%" PRIu32 " %" PRId32 " 0", jcr->JobFiles,
-              ff_pkt->digest_stream);
+    footer.printm("{} {} 0", jcr->JobFiles, ff_pkt->digest_stream);
 
-    sd->msg = CheckPoolMemorySize(sd->msg, ff_pkt->digest_len);
-    memcpy(sd->msg, ff_pkt->digest, ff_pkt->digest_len);
-    sd->message_length = ff_pkt->digest_len;
-    sd->send();
+    memcpy(footer.allocate(ff_pkt->digest_len).data(), ff_pkt->digest,
+           ff_pkt->digest_len);
 
-    sd->signal(BNET_EOD); /* end of hardlink record */
+    footer.end_message();
+
+    footer.append_signal(BNET_EOD); /* end of hardlink record */
   }
 
 good_rtn:
@@ -850,15 +847,12 @@ good_rtn:
 bail_out:
   if (jcr->IsIncomplete() || jcr->IsJobCanceled()) { rtnstat = 0; }
   if (plugin_started) {
-    MessageStream s;
-
-    SendPluginName(jcr, &s, false); /* signal end of plugin data */
-
-    if (!s.write_into(sd)) {
-      Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
-            sd->bstrerror());
-      return false;
-    }
+    SendPluginName(jcr, &footer, false); /* signal end of plugin data */
+  }
+  if (!footer.write_into(sd)) {
+    Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
+          sd->bstrerror());
+    rtnstat = 0;
   }
   if (ff_pkt->opt_plugin) {
     jcr->fd_impl->plugin_sp = NULL; /* sp is local to this function */
