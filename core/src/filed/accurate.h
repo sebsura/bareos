@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -48,7 +48,37 @@
 #include "lib/jcr.h"
 #include "lib/htable.h"
 
+#include "include/jcr.h"
+#include "findlib/find.h"
+#include "lib/message_buffer.h"
+
 namespace filedaemon {
+
+struct attribute_send_context {
+  attribute_send_context(JobControlRecord* jcr_)
+      : jcr{jcr_}, target{jcr_->store_bsock}
+  {
+  }
+
+  void send(FindFilesPacket* ff_pkt, int& data_stream);
+  void end()
+  {
+    if (stream.used_size() > 0) {
+      if (!stream.write_into(target)) {
+        if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+          Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
+                target->bstrerror());
+        }
+      }
+    }
+  }
+
+ private:
+  JobControlRecord* jcr;
+  BareosSocket* target;
+  MessageStream stream;
+};
+
 
 struct accurate_payload {
   std::size_t filenr;

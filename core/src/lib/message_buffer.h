@@ -33,6 +33,11 @@ struct MessageStream {
  public:
   MessageStream() { insert_placeholder(); }
 
+  inline constexpr size_t used_size() const noexcept
+  {
+    return data.size() - sizeof(int32_t);
+  }
+
   std::span<char> allocate(std::size_t size) noexcept
   {
     std::size_t current_size = data.size();
@@ -156,11 +161,6 @@ struct MessageStream {
   }
 
   void insert_placeholder() noexcept { (void)allocate(sizeof(int32_t)); }
-
-  inline constexpr size_t used_size() const noexcept
-  {
-    return data.size() - sizeof(int32_t);
-  }
 };
 
 #endif  // BAREOS_LIB_MESSAGE_BUFFER_H_

@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -388,6 +388,20 @@ bool AccurateCmd(JobControlRecord* jcr)
   if (!jcr->fd_impl->file_list->EndLoad()) { return false; }
 
   return true;
+}
+
+void attribute_send_context::send(FindFilesPacket* ff_pkt, int& data_stream)
+{
+  EncodeAndSendAttributes(jcr, ff_pkt, data_stream, stream);
+  if (stream.used_size() > 2 << 10) {
+    if (!stream.write_into(target)) {
+      if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
+        Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
+              target->bstrerror());
+      }
+    }
+    stream = MessageStream{};
+  }
 }
 
 } /* namespace filedaemon */

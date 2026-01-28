@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -436,6 +436,8 @@ bool BareosAccurateFilelistLmdb::SendBaseFileList()
   ff_pkt = init_find_files();
   ff_pkt->type = FT_BASE;
 
+  attribute_send_context send_ctx{jcr_};
+
   result = mdb_cursor_open(db_ro_txn_, db_dbi_, &cursor);
   if (result == 0) {
     while ((result = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
@@ -446,7 +448,7 @@ bool BareosAccurateFilelistLmdb::SendBaseFileList()
         DecodeStat(payload->lstat, &ff_pkt->statp, sizeof(struct stat),
                    &LinkFIc); /* decode catalog stat */
         ff_pkt->fname = (char*)key.mv_data;
-        EncodeAndSendAttributes(jcr_, ff_pkt, stream);
+        send_ctx.send(ff_pkt, stream);
       }
     }
     mdb_cursor_close(cursor);
@@ -454,6 +456,8 @@ bool BareosAccurateFilelistLmdb::SendBaseFileList()
     Jmsg1(jcr_, M_FATAL, 0, T_("Unable create cursor: %s\n"),
           mdb_strerror(result));
   }
+
+  send_ctx.end();
 
   mdb_txn_reset(db_ro_txn_);
   result = mdb_txn_renew(db_ro_txn_);
@@ -497,6 +501,8 @@ bool BareosAccurateFilelistLmdb::SendDeletedList()
   ff_pkt = init_find_files();
   ff_pkt->type = FT_DELETED;
 
+  attribute_send_context send_ctx{jcr_};
+
   result = mdb_cursor_open(db_ro_txn_, db_dbi_, &cursor);
   if (result == 0) {
     while ((result = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
@@ -518,13 +524,15 @@ bool BareosAccurateFilelistLmdb::SendDeletedList()
       ff_pkt->fname = (char*)key.mv_data;
       ff_pkt->statp.st_mtime = statp.st_mtime;
       ff_pkt->statp.st_ctime = statp.st_ctime;
-      EncodeAndSendAttributes(jcr_, ff_pkt, stream);
+      send_ctx.send(ff_pkt, stream);
     }
     mdb_cursor_close(cursor);
   } else {
     Jmsg1(jcr_, M_FATAL, 0, T_("Unable create cursor: %s\n"),
           mdb_strerror(result));
   }
+
+  send_ctx.end();
 
   mdb_txn_reset(db_ro_txn_);
   result = mdb_txn_renew(db_ro_txn_);

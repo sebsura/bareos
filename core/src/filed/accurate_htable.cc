@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -145,6 +145,8 @@ bool BareosAccurateFilelistHtable::SendBaseFileList()
   ff_pkt = init_find_files();
   ff_pkt->type = FT_BASE;
 
+  attribute_send_context send_ctx{jcr_};
+
   foreach_htable (elt, file_list_) {
     if (seen_bitmap_.at(elt->payload.filenr)) {
       Dmsg1(debuglevel, "base file fname=%s\n", elt->fname);
@@ -152,9 +154,11 @@ bool BareosAccurateFilelistHtable::SendBaseFileList()
                  &LinkFIc); /* decode catalog stat */
       ff_pkt->fname = elt->fname;
       ff_pkt->statp = statp;
-      EncodeAndSendAttributes(jcr_, ff_pkt, stream);
+      send_ctx.send(ff_pkt, stream);
     }
   }
+
+  send_ctx.end();
 
   TermFindFiles(ff_pkt);
   return true;
@@ -173,6 +177,8 @@ bool BareosAccurateFilelistHtable::SendDeletedList()
   ff_pkt = init_find_files();
   ff_pkt->type = FT_DELETED;
 
+  attribute_send_context send_ctx{jcr_};
+
   foreach_htable (elt, file_list_) {
     if (seen_bitmap_.at(elt->payload.filenr)
         || PluginCheckFile(jcr_, elt->fname)) {
@@ -184,8 +190,10 @@ bool BareosAccurateFilelistHtable::SendDeletedList()
                &LinkFIc); /* decode catalog stat */
     ff_pkt->statp.st_mtime = statp.st_mtime;
     ff_pkt->statp.st_ctime = statp.st_ctime;
-    EncodeAndSendAttributes(jcr_, ff_pkt, stream);
+    send_ctx.send(ff_pkt, stream);
   }
+
+  send_ctx.end();
 
   TermFindFiles(ff_pkt);
   return true;

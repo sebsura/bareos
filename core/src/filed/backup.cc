@@ -98,7 +98,8 @@ static int send_data(JobControlRecord* jcr,
                      DIGEST* signature_digest);
 bool EncodeAndSendAttributes(JobControlRecord* jcr,
                              FindFilesPacket* ff_pkt,
-                             int& data_stream);
+                             int& data_stream,
+                             MessageStream& s);
 #if defined(WIN32_VSS)
 static void CloseVssBackupSession(JobControlRecord* jcr);
 #endif
@@ -693,23 +694,28 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     }
   }
 
-  if (do_plugin_set) {
-    // Tell bfile that it needs to call plugin
-    if (!SetCmdPlugin(&ff_pkt->bfd, jcr)) { goto bail_out; }
+  {
+    MessageStream header;
+    if (do_plugin_set) {
+      // Tell bfile that it needs to call plugin
+      if (!SetCmdPlugin(&ff_pkt->bfd, jcr)) { goto bail_out; }
 
-    MessageStream s;
-    SendPluginName(jcr, &s, true); /* signal start of plugin data */
+      SendPluginName(jcr, &header, true); /* signal start of plugin data */
 
-    if (!s.write_into(sd)) {
+      plugin_started = true;
+    }
+
+    // Send attributes -- must be done after binit()
+    if (!EncodeAndSendAttributes(jcr, ff_pkt, data_stream, header)) {
+      goto bail_out;
+    }
+
+    if (!header.write_into(sd)) {
       Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
             sd->bstrerror());
       return false;
     }
-    plugin_started = true;
   }
-
-  // Send attributes -- must be done after binit()
-  if (!EncodeAndSendAttributes(jcr, ff_pkt, data_stream)) { goto bail_out; }
 
   // Meta data only for restore object
   if (IS_FT_OBJECT(ff_pkt->type)) { goto good_rtn; }
@@ -1592,14 +1598,13 @@ static std::optional<int32_t> get_next_findex(JobControlRecord* jcr)
 
 bool EncodeAndSendAttributes(JobControlRecord* jcr,
                              FindFilesPacket* ff_pkt,
-                             int& data_stream)
+                             int& data_stream,
+                             MessageStream& s)
 {
-  BareosSocket* sd = jcr->store_bsock;
   PoolMem attribs(PM_NAME), attribsExBuf(PM_NAME);
   char* attribsEx = NULL;
   int attr_stream;
   int comp_len;
-  bool status;
   int hangup = GetHangup();
 #ifdef FD_NO_SEND_TEST
   return true;
@@ -1648,14 +1653,7 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
 
   /* Send Attributes header to Storage daemon
    *    <file-index> <stream> <info> */
-  if (!sd->fsend("%" PRIu32 " %" PRId32 " 0", jcr->JobFiles, attr_stream)) {
-    if (!jcr->IsJobCanceled() && !jcr->IsIncomplete()) {
-      Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
-            sd->bstrerror());
-    }
-    return false;
-  }
-  Dmsg1(300, ">stored: attrhdr %s", sd->msg);
+  s.printm("{} {} 0", jcr->JobFiles, attr_stream);
 
   /* Send file attributes to Storage daemon
    *   File_index
@@ -1689,17 +1687,16 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
     case FT_LNKSAVED:
       Dmsg3(300, "Link %d %s to %s\n", jcr->JobFiles, ff_pkt->fname,
             ff_pkt->link_or_dir);
-      status = sd->fsend("%" PRIu32 " %d %s%c%s%c%s%c%s%c%u%c", jcr->JobFiles,
-                         ff_pkt->type, ff_pkt->fname, 0, attribs.c_str(), 0,
-                         ff_pkt->link_or_dir, 0, attribsEx, 0,
-                         ff_pkt->delta_seq, 0);
+      s.printm("{} {} {}\0{}\0{}\0{}\0{}\0", jcr->JobFiles, ff_pkt->type,
+               ff_pkt->fname, attribs.c_str(), ff_pkt->link_or_dir, attribsEx,
+               ff_pkt->delta_seq);
       break;
     case FT_DIREND:
     case FT_REPARSE:
       /* Here link is the canonical filename (i.e. with trailing slash) */
-      status = sd->fsend("%" PRIu32 " %d %s%c%s%c%c%s%c%u%c", jcr->JobFiles,
-                         ff_pkt->type, ff_pkt->link_or_dir, 0, attribs.c_str(),
-                         0, 0, attribsEx, 0, ff_pkt->delta_seq, 0);
+      s.printm("{} {} {}\0{}\0\0{}\0{}\0", jcr->JobFiles, jcr->JobFiles,
+               ff_pkt->type, ff_pkt->link_or_dir, attribs.c_str(), attribsEx,
+               ff_pkt->delta_seq);
       break;
     case FT_PLUGIN_CONFIG:
     case FT_RESTORE_FIRST:
@@ -1723,29 +1720,21 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
               ff_pkt->object_len, comp_len);
       }
 
-      sd->message_length = Mmsg(
-          sd->msg, "%d %d %d %d %d %d %s%c%s%c", jcr->JobFiles, ff_pkt->type,
+      s.printm(
+          "{} {} {} {} {} {} {}\0{}\0{}\0\0", jcr->JobFiles, ff_pkt->type,
           ff_pkt->object_index, comp_len, ff_pkt->object_len,
-          ff_pkt->object_compression, ff_pkt->fname, 0, ff_pkt->object_name, 0);
-      sd->msg = CheckPoolMemorySize(sd->msg, sd->message_length + comp_len + 2);
-      memcpy(sd->msg + sd->message_length, ff_pkt->object, comp_len);
-
-      // Note we send one extra byte so Dir can store zero after object
-      sd->message_length += comp_len + 1;
-      // initalize the extra byte
-      sd->msg[sd->message_length - 1] = '\0';
-      status = sd->send();
+          ff_pkt->object_compression, ff_pkt->fname, ff_pkt->object_name,
+          std::string_view{ff_pkt->object, static_cast<std::size_t>(comp_len)});
       if (ff_pkt->object_compression) { FreeAndNullPoolMemory(ff_pkt->object); }
       break;
     case FT_REG:
-      status = sd->fsend("%" PRIu32 " %d %s%c%s%c%c%s%c%d%c", jcr->JobFiles,
-                         ff_pkt->type, ff_pkt->fname, 0, attribs.c_str(), 0, 0,
-                         attribsEx, 0, ff_pkt->delta_seq, 0);
+      s.printm("{} {} {}\0{}\0\0{}\0{}\0", jcr->JobFiles, ff_pkt->type,
+               ff_pkt->fname, attribs.c_str(), attribsEx, ff_pkt->delta_seq);
       break;
     default:
-      status = sd->fsend("%" PRIu32 " %d %s%c%s%c%c%s%c%u%c", jcr->JobFiles,
-                         ff_pkt->type, ff_pkt->fname, 0, attribs.c_str(), 0, 0,
-                         attribsEx, 0, ff_pkt->delta_seq, 0);
+      s.printm("{} {} {}\0{}\0\0{}\0{}\0", jcr->JobFiles, ff_pkt->type,
+               ff_pkt->fname, attribs.c_str(), attribsEx,
+               static_cast<unsigned>(ff_pkt->delta_seq));
       break;
   }
 
@@ -1753,15 +1742,9 @@ bool EncodeAndSendAttributes(JobControlRecord* jcr,
     UnstripPath(ff_pkt);
   }
 
-  Dmsg2(300, ">stored: attr len=%d: %s\n", sd->message_length, sd->msg);
-  if (!status && !jcr->IsJobCanceled()) {
-    Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
-          sd->bstrerror());
-  }
+  s.append_signal(BNET_EOD);
 
-  sd->signal(BNET_EOD); /* indicate end of attributes data */
-
-  return status;
+  return true;
 }
 
 // Do in place strip of path

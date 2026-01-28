@@ -77,14 +77,14 @@ target_link_libraries(fd_backup_notest PUBLIC Bareos::Lib)
 add_library(fd_objects_notest STATIC)
 add_library(Bareos::FD ALIAS fd_objects_notest)
 target_link_libraries(
-  fd_objects_notest PRIVATE fd_objects_common fd_backup_notest
+  fd_objects_notest PUBLIC fd_objects_common fd_backup_notest
 )
 
 add_executable(bareos-fd filed.cc)
 target_link_libraries(bareos-fd PRIVATE fd_objects_notest CLI11::CLI11)
 
 add_library(fd_objects_test STATIC)
-target_link_libraries(fd_objects_test PRIVATE fd_objects_common fd_backup_test)
+target_link_libraries(fd_objects_test PUBLIC fd_objects_common fd_backup_test)
 add_executable(bareos-test-fd filed.cc)
 target_link_libraries(bareos-test-fd PRIVATE fd_objects_test CLI11::CLI11)
 
