@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2025 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2026 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -146,7 +146,7 @@ target_link_libraries(
   bareos
   PRIVATE version-obj Bareos::Fastlz OpenSSL::SSL ZLIB::ZLIB CLI11::CLI11
           xxHash::xxhash utf8cpp::utf8cpp ${CMAKE_DL_LIBS}
-  PUBLIC ${THREADS_THREADS}
+  PUBLIC ${THREADS_THREADS} Microsoft.GSL::GSL fmt::fmt
 )
 
 if(TARGET Bareos::LowLevelScsi)
