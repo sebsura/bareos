@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -249,7 +249,8 @@ static bool SetupDCR(JobControlRecord* jcr,
 {
   if (!jcr->sd_impl->dcr) {
     jcr->sendJobStatus(JS_WaitSD);
-    if (TryReserveAfterUse(jcr, true)) {
+    // TryReserveAfterUse returns true if the job was canceled for some reason
+    if (TryReserveAfterUse(jcr, true) && !jcr->IsJobCanceled()) {
       Jmsg(jcr, M_INFO, 0, T_("Using Device %s to write.\n"),
            jcr->sd_impl->dcr->dev->print_name());
     } else {
