@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2007-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -1043,7 +1043,7 @@ int32_t BareosSocketTCP::read_nbytes(char* ptr, int32_t nbytes)
  * Write nbytes to the network.
  * It may require several writes.
  */
-int32_t BareosSocketTCP::write_nbytes(char* ptr, int32_t nbytes)
+int32_t BareosSocketTCP::write_nbytes(const char* ptr, int32_t nbytes)
 {
   int32_t nleft, nwritten;
 

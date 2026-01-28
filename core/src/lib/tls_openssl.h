@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -44,7 +44,9 @@ class TlsOpenSsl : public Tls {
       const std::vector<std::string>& verify_list) override;
 
   bool TlsBsockAccept(BareosSocket* bsock) override;
-  int TlsBsockWriten(BareosSocket* bsock, char* ptr, int32_t nbytes) override;
+  int TlsBsockWriten(BareosSocket* bsock,
+                     const char* ptr,
+                     int32_t nbytes) override;
   int TlsBsockReadn(BareosSocket* bsock, char* ptr, int32_t nbytes) override;
   bool TlsBsockConnect(BareosSocket* bsock) override;
   void TlsBsockShutdown(BareosSocket* bsock) override;

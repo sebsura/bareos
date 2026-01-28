@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2019-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2019-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -69,7 +69,7 @@ class BareosSocketMock : public BareosSocket {
   MOCK_METHOD0(recv, int32_t());
   MOCK_METHOD0(send, bool());
   MOCK_METHOD2(read_nbytes, int32_t(char*, int32_t));
-  MOCK_METHOD2(write_nbytes, int32_t(char*, int32_t));
+  MOCK_METHOD2(write_nbytes, int32_t(const char*, int32_t));
   MOCK_METHOD0(close, void());
   MOCK_METHOD0(destroy, void());
   MOCK_METHOD2(GetPeer, int(char*, socklen_t));

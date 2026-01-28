@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2009 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -52,6 +52,7 @@
 #include <mutex>
 #include <functional>
 #include <cassert>
+#include <span>
 #include <atomic>
 
 struct btimer_t; /* forward reference */
@@ -169,10 +170,11 @@ class BareosSocket {
                        int port,
                        bool verbose)
       = 0;
+
   virtual int32_t recv() = 0;
   virtual bool send() = 0;
   virtual int32_t read_nbytes(char* ptr, int32_t nbytes) = 0;
-  virtual int32_t write_nbytes(char* ptr, int32_t nbytes) = 0;
+  virtual int32_t write_nbytes(const char* ptr, int32_t nbytes) = 0;
   virtual void close() = 0;   /* close connection and destroy packet */
   virtual void destroy() = 0; /* destroy socket packet */
   virtual int GetPeer(char* buf, socklen_t buflen) = 0;

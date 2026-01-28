@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -80,7 +80,7 @@ class BareosSocketTCP : public BareosSocket {
   bool send() override;
   bool fsend(const char*, ...) PRINTF_LIKE(2, 3);
   int32_t read_nbytes(char* ptr, int32_t nbytes) override;
-  int32_t write_nbytes(char* ptr, int32_t nbytes) override;
+  int32_t write_nbytes(const char* ptr, int32_t nbytes) override;
   bool signal(int signal);
   void close() override;
   void destroy() override;
