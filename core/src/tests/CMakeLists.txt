@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2025 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2026 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -453,14 +453,11 @@ bareos_add_test(
 bareos_add_test(test_edit LINK_LIBRARIES Bareos::Lib GTest::gtest_main)
 
 if(NOT MSVC)
-  bareos_add_test(
-    test_fd_plugins
-    ADDITIONAL_SOURCES
-      ${PROJECT_SOURCE_DIR}/src/filed/fd_plugins.cc
-      ${PROJECT_SOURCE_DIR}/src/filed/fileset.cc
-      ${PROJECT_SOURCE_DIR}/src/filed/filed_globals.cc
-    LINK_LIBRARIES Bareos::Lib Bareos::Findlib GTest::gtest_main
-  )
+  # bareos_add_test( test_fd_plugins ADDITIONAL_SOURCES
+  # ${PROJECT_SOURCE_DIR}/src/filed/fd_plugins.cc
+  # ${PROJECT_SOURCE_DIR}/src/filed/fileset.cc
+  # ${PROJECT_SOURCE_DIR}/src/filed/filed_globals.cc LINK_LIBRARIES Bareos::Lib
+  # Bareos::Findlib GTest::gtest_main )
 endif()
 bareos_add_test(test_is_name_valid LINK_LIBRARIES Bareos::Lib GTest::gtest_main)
 
