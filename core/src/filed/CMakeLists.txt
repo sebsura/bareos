@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2025 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2026 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -65,12 +65,14 @@ endif()
 
 add_library(fd_backup_test OBJECT)
 target_sources(fd_backup_test PRIVATE backup.cc)
+target_link_libraries(fd_backup_test PUBLIC Bareos::Lib)
 target_compile_definitions(
   fd_backup_test PRIVATE MAXIMUM_ALLOWED_FILES_PER_JOB=10
 )
 
 add_library(fd_backup_notest OBJECT)
 target_sources(fd_backup_notest PRIVATE backup.cc)
+target_link_libraries(fd_backup_notest PUBLIC Bareos::Lib)
 
 add_library(fd_objects_notest STATIC)
 add_library(Bareos::FD ALIAS fd_objects_notest)

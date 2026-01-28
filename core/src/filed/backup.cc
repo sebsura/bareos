@@ -46,6 +46,7 @@
 #include "lib/berrno.h"
 #include "lib/bsock.h"
 #include "lib/btimers.h"
+#include "lib/message_buffer.h"
 #include "lib/parse_conf.h"
 #include "lib/util.h"
 #include "lib/version.h"
@@ -695,7 +696,15 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
   if (do_plugin_set) {
     // Tell bfile that it needs to call plugin
     if (!SetCmdPlugin(&ff_pkt->bfd, jcr)) { goto bail_out; }
-    SendPluginName(jcr, sd, true); /* signal start of plugin data */
+
+    MessageStream s;
+    SendPluginName(jcr, &s, true); /* signal start of plugin data */
+
+    if (!s.write_into(sd)) {
+      Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
+            sd->bstrerror());
+      return false;
+    }
     plugin_started = true;
   }
 
@@ -835,7 +844,15 @@ good_rtn:
 bail_out:
   if (jcr->IsIncomplete() || jcr->IsJobCanceled()) { rtnstat = 0; }
   if (plugin_started) {
-    SendPluginName(jcr, sd, false); /* signal end of plugin data */
+    MessageStream s;
+
+    SendPluginName(jcr, &s, false); /* signal end of plugin data */
+
+    if (!s.write_into(sd)) {
+      Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
+            sd->bstrerror());
+      return false;
+    }
   }
   if (ff_pkt->opt_plugin) {
     jcr->fd_impl->plugin_sp = NULL; /* sp is local to this function */

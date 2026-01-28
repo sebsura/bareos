@@ -3,7 +3,7 @@
 
    Copyright (C) 2007-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -44,6 +44,7 @@
 #include "lib/bsock.h"
 #include "lib/plugins.h"
 #include "lib/parse_conf.h"
+#include "lib/message_buffer.h"
 
 // Function pointers to be set here (findlib)
 BAREOS_IMPORT int (*plugin_bopen)(BareosFilePacket* bfd,
@@ -1130,9 +1131,8 @@ bail_out:
 }
 
 // Send plugin name start/end record to SD
-bool SendPluginName(JobControlRecord* jcr, BareosSocket* sd, bool start)
+bool SendPluginName(JobControlRecord* jcr, MessageStream* s, bool start)
 {
-  int status;
   auto index = jcr->JobFiles;
   save_pkt* sp = (save_pkt*)jcr->fd_impl->plugin_sp;
 
@@ -1146,28 +1146,20 @@ bool SendPluginName(JobControlRecord* jcr, BareosSocket* sd, bool start)
   Dmsg1(debuglevel, "SendPluginName=%s\n", sp->cmd);
 
   // Send stream header
-  if (!sd->fsend("%" PRIu32 " %" PRId32 " 0", index, STREAM_PLUGIN_NAME)) {
-    Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
-          sd->bstrerror());
-    return false;
-  }
-  Dmsg1(debuglevel, "send plugin name hdr: %s\n", sd->msg);
+  s->printm("{} {}", index, STREAM_PLUGIN_NAME);
+
 
   if (start) {
     // Send data -- not much
-    status
-        = sd->fsend("%" PRIu32 " 1 %d %s%c", index, sp->portable, sp->cmd, 0);
+    s->printm("{} 1 {:d} {}\0", index, sp->portable, sp->cmd);
   } else {
-    // Send end of data
-    status = sd->fsend("%" PRIu32 " 0", jcr->JobFiles);
+    s->printm("{} 0", jcr->JobFiles);
   }
-  if (!status) {
-    Jmsg1(jcr, M_FATAL, 0, T_("Network send error to SD. ERR=%s\n"),
-          sd->bstrerror());
-    return false;
-  }
-  Dmsg1(debuglevel, "send plugin start/end: %s\n", sd->msg);
-  sd->signal(BNET_EOD); /* indicate end of plugin name data */
+
+  Dmsg1(debuglevel, "send plugin start/end\n");
+  s->append_signal(BNET_EOD);
+
+  Dmsg1(debuglevel, "send plugin name hdr\n");
 
   return true;
 }
