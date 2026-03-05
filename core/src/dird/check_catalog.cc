@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2019-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2019-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -53,9 +53,8 @@ bool CheckCatalog(cat_op mode)
     db = db_init_database(NULL, catalog->db_driver, catalog->db_name,
                           catalog->db_user, catalog->db_password.value,
                           catalog->db_address, catalog->db_port,
-                          catalog->db_socket, catalog->mult_db_connections,
-                          catalog->disable_batch_insert, catalog->try_reconnect,
-                          catalog->exit_on_fatal, true);
+                          catalog->db_socket, 0, catalog->disable_batch_insert,
+                          catalog->try_reconnect, catalog->exit_on_fatal, true);
 
     if (!db) {
       Pmsg2(000, T_("Could not open Catalog \"%s\", database \"%s\".\n"),

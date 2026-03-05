@@ -207,7 +207,6 @@ class CatalogResource : public BareosResource {
   char* db_user = nullptr;
   char* db_name = nullptr;
   const char* db_driver = "postgresql"; /**< Select appropriate driver */
-  uint32_t mult_db_connections = 0; /**< Set if multiple connections wanted */
   bool disable_batch_insert
       = false;                /**< Set if batch inserts should be disabled */
   bool try_reconnect = true;  /**< Try to reconnect a database connection when

@@ -264,7 +264,6 @@ static const ResourceItem cat_items[] = {
   { "DbName", CFG_TYPE_STR, ITEM(res_cat, db_name), {config::Required{}}},
   { "DbSocket", CFG_TYPE_STR, ITEM(res_cat, db_socket), {config::Alias{"Socket"}}},
   /* Turned off for the moment */
-  { "MultipleConnections", CFG_TYPE_BIT, ITEM(res_cat, mult_db_connections), {config::DeprecatedSince{25,0,0}}},
   { "DisableBatchInsert", CFG_TYPE_BOOL, ITEM(res_cat, disable_batch_insert), {config::DeprecatedSince{25,0,0}, config::DefaultValue{"false"}}},
   { "Reconnect", CFG_TYPE_BOOL, ITEM(res_cat, try_reconnect), {config::IntroducedIn{15, 1, 0}, config::DefaultValue{"true"}, config::Description{"Try to reconnect a database connection when it is dropped"}}},
   { "ExitOnFatal", CFG_TYPE_BOOL, ITEM(res_cat, exit_on_fatal), {config::IntroducedIn{15, 1, 0}, config::DefaultValue{"false"}, config::Description{"Make any fatal error in the connection to the database exit the program"}}},

@@ -103,8 +103,6 @@ bool OpenClientDb(UaContext* ua, bool use_private)
 // Open the catalog database.
 bool OpenDb(UaContext* ua, bool use_private)
 {
-  bool mult_db_conn;
-
   /* See if we need to do any work at all.
    * Point the current used db e.g. ua->db to the correct database connection.
    */
@@ -128,16 +126,13 @@ bool OpenDb(UaContext* ua, bool use_private)
   }
 
   // Some modules like bvfs need their own private catalog connection
-  mult_db_conn = ua->catalog->mult_db_connections;
-  if (use_private) { mult_db_conn = true; }
-
   ua->jcr->dir_impl->res.catalog = ua->catalog;
   Dmsg0(100, "UA Open database\n");
   ua->db = DbSqlGetPooledConnection(
       ua->jcr, ua->catalog->db_driver, ua->catalog->db_name,
       ua->catalog->db_user, ua->catalog->db_password.value,
       ua->catalog->db_address, ua->catalog->db_port, ua->catalog->db_socket,
-      mult_db_conn, ua->catalog->disable_batch_insert,
+      use_private, ua->catalog->disable_batch_insert,
       ua->catalog->try_reconnect, ua->catalog->exit_on_fatal, use_private);
   if (ua->db == NULL) {
     ua->ErrorMsg(T_("Could not open catalog database \"%s\".\n"),

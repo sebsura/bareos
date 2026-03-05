@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -160,9 +160,8 @@ static void PrintCatalogDetails(CatalogResource* catalog)
   db = db_init_database(nullptr, catalog->db_driver, catalog->db_name,
                         catalog->db_user, catalog->db_password.value,
                         catalog->db_address, catalog->db_port,
-                        catalog->db_socket, catalog->mult_db_connections,
-                        catalog->disable_batch_insert, catalog->try_reconnect,
-                        catalog->exit_on_fatal);
+                        catalog->db_socket, 0, catalog->disable_batch_insert,
+                        catalog->try_reconnect, catalog->exit_on_fatal);
   if (db) {
     printf("%sdb_type=%s\nworking_dir=%s\n", catalog->display(catalog_details),
            db->GetType(), working_directory);
