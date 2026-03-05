@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2008 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -106,7 +106,6 @@ static const ResourceItem cli_items[] = {
   { "AllowedScriptDir", CFG_TYPE_ALIST_DIR, ITEM(res_client, allowed_script_dirs), {}},
   { "AllowedJobCommand", CFG_TYPE_ALIST_STR, ITEM(res_client, allowed_job_cmds), {}},
   { "AbsoluteJobTimeout", CFG_TYPE_PINT32, ITEM(res_client, jcr_watchdog_time), {config::IntroducedIn{14, 2, 0}, config::Description{"Absolute time after which a Job gets terminated regardless of its progress"}}},
-  { "AlwaysUseLmdb", CFG_TYPE_BOOL, ITEM(res_client, always_use_lmdb), {config::DeprecatedSince{24, 0, 0}, config::DefaultValue{"false"}, config::Description{"Ensure that bareos always chooses the lmdb backend for accurate information regardless of the file list size.  Use LmdbThreshold = 0 instead."}}},
   { "LmdbThreshold", CFG_TYPE_PINT32, ITEM(res_client, lmdb_threshold), {config::Description{"File count threshold after which bareos will use the lmdb backend to store accurate information."}}},
   { "SecureEraseCommand", CFG_TYPE_STR, ITEM(res_client, secure_erase_cmdline), {config::IntroducedIn{15, 2, 1}, config::Description{"Specify command that will be called when bareos unlinks files."}}},
   { "LogTimestampFormat", CFG_TYPE_STR, ITEM(res_client, log_timestamp_format), {config::IntroducedIn{15, 2, 3}, config::DefaultValue{"%d-%b %H:%M"}}},

@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2013-2014 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -340,9 +340,8 @@ bool AccurateCmd(JobControlRecord* jcr)
 
   jcr->fd_impl->file_list = nullptr;
 #ifdef HAVE_LMDB
-  if (me->always_use_lmdb
-      || (me->IsMemberPresent("LmdbThreshold")
-          && accurate_max_file_count >= me->lmdb_threshold)) {
+  if (me->IsMemberPresent("LmdbThreshold")
+      && accurate_max_file_count >= me->lmdb_threshold) {
     jcr->fd_impl->file_list
         = new BareosAccurateFilelistLmdb(jcr, accurate_max_file_count);
   }
