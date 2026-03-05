@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -96,7 +96,6 @@ class StorageResource
   alist<const char*>* plugin_names = nullptr;
   char* scripts_directory = nullptr;
   std::vector<std::string> backend_directories;
-  uint32_t MaxConcurrentJobs = 0;      /**< Maximum concurrent jobs to run */
   uint32_t ndmploglevel = 0;           /**< Initial NDMP log level */
   uint32_t jcr_watchdog_time = 0;      /**< Absolute time after which a Job gets
                                       terminated regardless of its progress */

@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2009 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -90,7 +90,6 @@ static const ResourceItem store_items[] = {
   { "PluginDirectory", CFG_TYPE_DIR, ITEM(res_store, plugin_directory), {}},
   { "PluginNames", CFG_TYPE_PLUGIN_NAMES, ITEM(res_store, plugin_names), {}},
   { "ScriptsDirectory", CFG_TYPE_DIR, ITEM(res_store, scripts_directory), {config::DefaultValue{PATH_BAREOS_SCRIPTDIR}, config::Description{"Path to directory containing script files"}, config::PlatformSpecific{}}},
-  { "MaximumConcurrentJobs", CFG_TYPE_PINT32, ITEM(res_store, MaxConcurrentJobs), {config::DeprecatedSince{24, 0, 0}, config::DefaultValue{"1000"}}},
   { "Messages", CFG_TYPE_RES, ITEM(res_store, messages), {config::Code{R_MSGS}}},
   { "SdConnectTimeout", CFG_TYPE_TIME, ITEM(res_store, SDConnectTimeout), {config::DefaultValue{"1800"}}},
   { "FdConnectTimeout", CFG_TYPE_TIME, ITEM(res_store, FDConnectTimeout), {config::DefaultValue{"1800"}}},
