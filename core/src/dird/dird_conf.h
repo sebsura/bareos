@@ -444,7 +444,6 @@ class JobResource : public BareosResource {
   bool enabled = false;              /**< Set if job enabled */
   bool accurate = false;             /**< Set if it is an accurate backup job */
   bool AllowDuplicateJobs = false;   /**< Allow duplicate jobs */
-  bool AllowHigherDuplicates = false; /**< Permit Higher Level */
   bool CancelLowerLevelDuplicates = false; /**< Cancel lower level backup jobs */
   bool CancelQueuedDuplicates = false;  /**< Cancel queued jobs */
   bool CancelRunningDuplicates = false; /**< Cancel Running jobs */

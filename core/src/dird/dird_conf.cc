@@ -344,7 +344,6 @@ const ResourceItem job_items[] = {
   { "SelectionType", CFG_TYPE_MIGTYPE, ITEM(res_job, selection_type), {}},
   { "Accurate", CFG_TYPE_BOOL, ITEM(res_job, accurate), {config::DefaultValue{"false"}}},
   { "AllowDuplicateJobs", CFG_TYPE_BOOL, ITEM(res_job, AllowDuplicateJobs), {config::DefaultValue{"true"}}},
-  { "AllowHigherDuplicates", CFG_TYPE_BOOL, ITEM(res_job, AllowHigherDuplicates), {config::DeprecatedSince{24, 0, 0}, config::DefaultValue{"true"}}},
   { "CancelLowerLevelDuplicates", CFG_TYPE_BOOL, ITEM(res_job, CancelLowerLevelDuplicates), {config::DefaultValue{"false"}}},
   { "CancelQueuedDuplicates", CFG_TYPE_BOOL, ITEM(res_job, CancelQueuedDuplicates), {config::DefaultValue{"false"}}},
   { "CancelRunningDuplicates", CFG_TYPE_BOOL, ITEM(res_job, CancelRunningDuplicates), {config::DefaultValue{"false"}}},
