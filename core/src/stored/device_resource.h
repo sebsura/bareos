@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -68,7 +68,6 @@ class DeviceResource : public BareosResource {
   uint32_t label_block_size{64512};     /**< block size of the label block*/
   uint32_t min_block_size{0};           /**< Current Minimum block size */
   uint32_t max_block_size{1024 * 1024}; /**< Current Maximum block size */
-  uint32_t max_network_buffer_size{0};  /**< Max network buf size */
   uint32_t max_concurrent_jobs{0};   /**< Maximum concurrent jobs this drive */
   uint32_t autodeflate_algorithm{0}; /**< Compression algorithm to use for
                                      compression */

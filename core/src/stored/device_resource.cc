@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -78,7 +78,6 @@ DeviceResource::DeviceResource(const DeviceResource& other)
   label_block_size = other.label_block_size;
   min_block_size = other.min_block_size;
   max_block_size = other.max_block_size;
-  max_network_buffer_size = other.max_network_buffer_size;
   max_concurrent_jobs = other.max_concurrent_jobs;
   autodeflate_algorithm = other.autodeflate_algorithm;
   autodeflate_level = other.autodeflate_level;
@@ -132,7 +131,6 @@ DeviceResource& DeviceResource::operator=(const DeviceResource& rhs)
   label_block_size = rhs.label_block_size;
   min_block_size = rhs.min_block_size;
   max_block_size = rhs.max_block_size;
-  max_network_buffer_size = rhs.max_network_buffer_size;
   max_concurrent_jobs = rhs.max_concurrent_jobs;
   autodeflate_algorithm = rhs.autodeflate_algorithm;
   autodeflate_level = rhs.autodeflate_level;

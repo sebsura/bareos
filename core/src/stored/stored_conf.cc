@@ -177,7 +177,6 @@ static const ResourceItem dev_items[] = {
   { "MaximumChangerWait", CFG_TYPE_TIME, ITEM(res_dev, max_changer_wait), {config::DefaultValue{"300"}}},
   { "MaximumOpenWait", CFG_TYPE_TIME, ITEM(res_dev, max_open_wait), {config::DefaultValue{"300"}}},
   { "MaximumOpenVolumes", CFG_TYPE_PINT32, ITEM(res_dev, max_open_vols), {config::DefaultValue{"1"}}},
-  { "MaximumNetworkBufferSize", CFG_TYPE_PINT32, ITEM(res_dev, max_network_buffer_size), {config::DeprecatedSince{24, 0, 0}, config::Description{"Replaced by MaximumNetworkBufferSize (SD->Storage)."}}},
   { "VolumePollInterval", CFG_TYPE_TIME, ITEM(res_dev, vol_poll_interval), {config::DefaultValue{"300"}}},
   { "MaximumRewindWait", CFG_TYPE_TIME, ITEM(res_dev, max_rewind_wait), {config::DefaultValue{"300"}}},
   { "LabelBlockSize", CFG_TYPE_PINT32, ITEM(res_dev, label_block_size), {config::DefaultValue{"64512"}}},
