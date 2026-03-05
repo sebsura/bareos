@@ -1280,9 +1280,6 @@ bool DotDefaultsCmd(UaContext* ua, const char*)
       ua->send->ObjectKeyValue("client", "%s=", client->resource_name_, "%s\n");
       ua->send->ObjectKeyValue("address", "%s=", client->address, "%s\n");
       ua->send->ObjectKeyValue("port", "%s=", client->FDport, "%d\n");
-      ua->send->ObjectKeyValue("job_retention",
-                               "%s=", edit_uint64(client->JobRetention, ed1),
-                               "%s\n");
       ua->send->ObjectKeyValue("enabled", "%s=", client->enabled, "%d\n");
       ua->send->ObjectKeyValue("catalog",
                                "%s=", client->catalog->resource_name_, "%s\n");

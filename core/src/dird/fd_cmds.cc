@@ -402,7 +402,7 @@ int SendJobInfoToFileDaemon(JobControlRecord* jcr)
                sizeof(cr.Name));
       cr.AutoPrune = false;
       cr.FileRetention = DEFAULT_FILE_RETENTION;
-      cr.JobRetention = jcr->dir_impl->res.client->JobRetention;
+      cr.JobRetention = DEFAULT_JOB_RETENTION;
       bstrncpy(cr.Uname, fd->msg + strlen(OKjob) + 1, sizeof(cr.Uname));
       if (DbLocker _{jcr->db}; !jcr->db->UpdateClientRecord(jcr, &cr)) {
         Jmsg(jcr, M_WARNING, 0, T_("Error updating Client record. ERR=%s\n"),

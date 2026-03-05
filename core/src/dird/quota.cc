@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2009 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version two of the GNU General Public
@@ -115,16 +115,14 @@ bool CheckHardquotas(JobControlRecord* jcr)
   if (!jcr->dir_impl->HasQuota) {
     if (jcr->dir_impl->res.client->QuotaIncludeFailedJobs) {
       if (DbLocker _{jcr->db}; !jcr->db->get_quota_jobbytes(
-              jcr, &jcr->dir_impl->jr,
-              jcr->dir_impl->res.client->JobRetention)) {
+              jcr, &jcr->dir_impl->jr, DEFAULT_JOB_RETENTION)) {
         Jmsg(jcr, M_WARNING, 0, T_("Error getting Quota value: ERR=%s\n"),
              jcr->db->strerror());
         goto bail_out;
       }
     } else {
       if (DbLocker _{jcr->db}; !jcr->db->get_quota_jobbytes_nofailed(
-              jcr, &jcr->dir_impl->jr,
-              jcr->dir_impl->res.client->JobRetention)) {
+              jcr, &jcr->dir_impl->jr, DEFAULT_JOB_RETENTION)) {
         Jmsg(jcr, M_WARNING, 0, T_("Error getting Quota value: ERR=%s\n"),
              jcr->db->strerror());
         goto bail_out;
@@ -174,8 +172,7 @@ bool CheckSoftquotas(JobControlRecord* jcr)
   if (!jcr->dir_impl->HasQuota) {
     if (jcr->dir_impl->res.client->QuotaIncludeFailedJobs) {
       if (DbLocker _{jcr->db}; !jcr->db->get_quota_jobbytes(
-              jcr, &jcr->dir_impl->jr,
-              jcr->dir_impl->res.client->JobRetention)) {
+              jcr, &jcr->dir_impl->jr, DEFAULT_JOB_RETENTION)) {
         Jmsg(jcr, M_WARNING, 0, T_("Error getting Quota value: ERR=%s\n"),
              jcr->db->strerror());
         goto bail_out;
@@ -183,8 +180,7 @@ bool CheckSoftquotas(JobControlRecord* jcr)
       Dmsg0(debuglevel, "Quota Includes Failed Jobs\n");
     } else {
       if (DbLocker _{jcr->db}; !jcr->db->get_quota_jobbytes_nofailed(
-              jcr, &jcr->dir_impl->jr,
-              jcr->dir_impl->res.client->JobRetention)) {
+              jcr, &jcr->dir_impl->jr, DEFAULT_JOB_RETENTION)) {
         Jmsg(jcr, M_WARNING, 0, T_("Error getting Quota value: ERR=%s\n"),
              jcr->db->strerror());
         goto bail_out;

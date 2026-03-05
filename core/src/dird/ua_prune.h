@@ -33,7 +33,10 @@ bool PruneFiles(UaContext* ua,
                 ClientResource* client,
                 PoolResource* pool,
                 utime_t FileRetention);
-bool PruneJobs(UaContext* ua, ClientResource* client, PoolResource* pool);
+bool PruneJobs(UaContext* ua,
+               ClientResource* client,
+               PoolResource* pool,
+               utime_t JobRetention);
 bool PruneVolume(UaContext* ua, MediaDbRecord* mr);
 int JobDeleteHandler(void* ctx, int num_fields, char** row);
 int DelCountHandler(void* ctx, int num_fields, char** row);

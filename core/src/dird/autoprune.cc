@@ -59,7 +59,7 @@ void DoAutoprune(JobControlRecord* jcr)
   pool = jcr->dir_impl->res.pool;
 
   if (job->PruneJobs) {
-    PruneJobs(ua, client, pool);
+    PruneJobs(ua, client, pool, DEFAULT_JOB_RETENTION);
     pruned = true;
   } else {
     pruned = false;

@@ -198,10 +198,11 @@ bool PruneCmd(UaContext* ua, const char*)
         pool = NULL;
       }
 
+      utime_t JobRetention = DEFAULT_JOB_RETENTION;
       // Pool Job Retention takes precedence over client Job Retention
-      if (!ConfirmRetention(ua, &client->JobRetention, "Job")) { return false; }
+      if (!ConfirmRetention(ua, &JobRetention, "Job")) { return false; }
 
-      return PruneJobs(ua, client, pool);
+      return PruneJobs(ua, client, pool, JobRetention);
     }
     case 2: /* prune volume */
       if (FindArg(ua, "all") >= 0) {
@@ -557,12 +558,12 @@ static int JobSelectHandler(void* ctx, int num_fields, char** row)
  *
  * For Restore Jobs there are no restrictions.
  */
-bool PruneJobs(UaContext* ua, ClientResource* client, PoolResource* pool)
+bool PruneJobs(UaContext* ua,
+               ClientResource* client,
+               PoolResource* pool,
+               utime_t period)
 {
-  utime_t period;
-  if (client) {
-    period = client->JobRetention;
-  } else {  // should specify at least pool or client
+  if (!client && !pool) { /* should specify at least pool or client */
     return false;
   }
 

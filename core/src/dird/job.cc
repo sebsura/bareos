@@ -1331,7 +1331,7 @@ bool GetOrCreateClientRecord(JobControlRecord* jcr)
   bstrncpy(cr.Name, jcr->dir_impl->res.client->resource_name_, sizeof(cr.Name));
   cr.AutoPrune = false;
   cr.FileRetention = DEFAULT_FILE_RETENTION;
-  cr.JobRetention = jcr->dir_impl->res.client->JobRetention;
+  cr.JobRetention = DEFAULT_JOB_RETENTION;
   if (!jcr->client_name) { jcr->client_name = GetPoolMemory(PM_NAME); }
   PmStrcpy(jcr->client_name, jcr->dir_impl->res.client->resource_name_);
   if (DbLocker _{jcr->db}; !jcr->db->CreateClientRecord(jcr, &cr)) {

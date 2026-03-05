@@ -238,6 +238,7 @@ struct RuntimeJobStatus;
 enum : utime_t
 {
   DEFAULT_FILE_RETENTION = 5184000UL,
+  DEFAULT_JOB_RETENTION = 15552000UL,
 };
 
 
@@ -259,7 +260,6 @@ class ClientResource
   uint64_t GraceTime = 0;      /* Time remaining on gracetime */
   uint64_t QuotaLimit = 0;     /* The total softquota supplied if over grace */
   utime_t SoftQuotaGracePeriod = {0}; /* Grace time for softquota */
-  utime_t JobRetention = {0};         /* Job retention period in seconds */
   utime_t heartbeat_interval = {0};   /* Interval to send heartbeats */
   char* address = nullptr;            /* Hostname for remote access to Client */
   char* lanaddress
