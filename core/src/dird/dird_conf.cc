@@ -408,7 +408,6 @@ static const ResourceItem pool_items[] = {
   { "RecyclePool", CFG_TYPE_RES, ITEM(res_pool, RecyclePool), {config::Code{R_POOL}}},
   { "ScratchPool", CFG_TYPE_RES, ITEM(res_pool, ScratchPool), {config::Code{R_POOL}}},
   { "Catalog", CFG_TYPE_RES, ITEM(res_pool, catalog), {config::Code{R_CATALOG}}},
-  { "FileRetention", CFG_TYPE_TIME, ITEM(res_pool, FileRetention), { config::DeprecatedSince{25, 1, 0} }},
   { "JobRetention", CFG_TYPE_TIME, ITEM(res_pool, JobRetention), { config::DeprecatedSince{25, 1, 0} }},
   { "MinimumBlockSize", CFG_TYPE_SIZE32, ITEM(res_pool, MinBlocksize), {}},
   { "MaximumBlockSize", CFG_TYPE_SIZE32, ITEM(res_pool, MaxBlocksize), {config::IntroducedIn{14, 2, 0}}},

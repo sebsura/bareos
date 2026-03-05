@@ -582,7 +582,6 @@ class PoolResource : public BareosResource {
   PoolResource* ScratchPool
       = nullptr; /* ScratchPool source when requesting media */
   CatalogResource* catalog = nullptr; /* Catalog to be used */
-  utime_t FileRetention = {0};        /* File retention period in seconds */
   utime_t JobRetention = {0};         /* Job retention period in seconds */
   uint32_t MinBlocksize = 0;          /* Minimum Blocksize */
   uint32_t MaxBlocksize = 0;          /* Maximum Blocksize */

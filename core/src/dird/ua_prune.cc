@@ -180,12 +180,7 @@ bool PruneCmd(UaContext* ua, const char*)
         pool = NULL;
       }
 
-      // Pool File Retention takes precedence over client File Retention
-      if (pool && pool->FileRetention > 0) {
-        if (!ConfirmRetention(ua, &pool->FileRetention, "File")) {
-          return false;
-        }
-      } else if (!ConfirmRetention(ua, &client->FileRetention, "File")) {
+      if (!ConfirmRetention(ua, &client->FileRetention, "File")) {
         return false;
       }
 
@@ -445,10 +440,7 @@ bool PruneFiles(UaContext* ua, ClientResource* client, PoolResource* pool)
   char ed1[50];
 
   utime_t period;
-  if (pool && pool->FileRetention > 0) {
-    period = pool->FileRetention;
-
-  } else if (client) {
+  if (client) {
     period = client->FileRetention;
 
   } else { /* should specify at least pool or client */
