@@ -157,11 +157,10 @@ static void PrintCatalogDetails(CatalogResource* catalog)
   POOLMEM* catalog_details = GetPoolMemory(PM_MESSAGE);
 
   // Instantiate a BareosDb class and see what db_type gets assigned to it.
-  db = db_init_database(nullptr, catalog->db_driver, catalog->db_name,
-                        catalog->db_user, catalog->db_password.value,
-                        catalog->db_address, catalog->db_port,
-                        catalog->db_socket, 0, catalog->disable_batch_insert,
-                        catalog->try_reconnect, catalog->exit_on_fatal);
+  db = db_init_database(
+      nullptr, catalog->db_driver, catalog->db_name, catalog->db_user,
+      catalog->db_password.value, catalog->db_address, catalog->db_port,
+      catalog->db_socket, 0, 0, catalog->try_reconnect, catalog->exit_on_fatal);
   if (db) {
     printf("%sdb_type=%s\nworking_dir=%s\n", catalog->display(catalog_details),
            db->GetType(), working_directory);

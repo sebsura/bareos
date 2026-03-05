@@ -3,7 +3,7 @@
 
    Copyright (C) 2009-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2016-2016 Planets Communications B.V.
-   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -49,7 +49,6 @@ class BareosDbPostgresql : public BareosDb {
                      int db_port,
                      const char* db_socket,
                      bool mult_db_connections,
-                     bool disable_batch_insert,
                      bool try_reconnect,
                      bool exit_on_fatal,
                      bool need_private);

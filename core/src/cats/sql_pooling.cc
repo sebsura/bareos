@@ -3,7 +3,7 @@
 
    Copyright (C) 2010-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -46,7 +46,6 @@ BareosDb* DbSqlGetNonPooledConnection(JobControlRecord* jcr,
                                       int db_port,
                                       const char* db_socket,
                                       bool mult_db_connections,
-                                      bool disable_batch_insert,
                                       bool try_reconnect,
                                       bool exit_on_fatal,
                                       bool need_private)
@@ -59,8 +58,7 @@ BareosDb* DbSqlGetNonPooledConnection(JobControlRecord* jcr,
 
   mdb = db_init_database(jcr, db_drivername, db_name, db_user, db_password,
                          db_address, db_port, db_socket, mult_db_connections,
-                         disable_batch_insert, try_reconnect, exit_on_fatal,
-                         need_private);
+                         try_reconnect, exit_on_fatal, need_private);
   if (mdb == NULL) { return NULL; }
 
   if (auto err = mdb->OpenDatabase(jcr)) {
@@ -83,7 +81,6 @@ bool db_sql_pool_initialize(const char*,
                             const char*,
                             int,
                             const char*,
-                            bool,
                             bool,
                             bool,
                             int,
@@ -120,15 +117,14 @@ BareosDb* DbSqlGetPooledConnection(JobControlRecord* jcr,
                                    int db_port,
                                    const char* db_socket,
                                    bool mult_db_connections,
-                                   bool disable_batch_insert,
                                    bool try_reconnect,
                                    bool exit_on_fatal,
                                    bool need_private)
 {
   return DbSqlGetNonPooledConnection(
       jcr, db_drivername, db_name, db_user, db_password, db_address, db_port,
-      db_socket, mult_db_connections, disable_batch_insert, try_reconnect,
-      exit_on_fatal, need_private);
+      db_socket, mult_db_connections, try_reconnect, exit_on_fatal,
+      need_private);
 }
 
 /**

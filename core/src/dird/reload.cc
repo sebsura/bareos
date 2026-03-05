@@ -140,8 +140,7 @@ bool InitializeSqlPooling(void)
     if (!db_sql_pool_initialize(
             catalog->db_driver, catalog->db_name, catalog->db_user,
             catalog->db_password.value, catalog->db_address, catalog->db_port,
-            catalog->db_socket, catalog->disable_batch_insert,
-            catalog->try_reconnect, catalog->exit_on_fatal,
+            catalog->db_socket, catalog->try_reconnect, catalog->exit_on_fatal,
             catalog->pooling_min_connections, catalog->pooling_max_connections,
             catalog->pooling_increment_connections,
             catalog->pooling_idle_timeout, catalog->pooling_validate_timeout)) {

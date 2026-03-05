@@ -53,8 +53,8 @@ bool CheckCatalog(cat_op mode)
     db = db_init_database(NULL, catalog->db_driver, catalog->db_name,
                           catalog->db_user, catalog->db_password.value,
                           catalog->db_address, catalog->db_port,
-                          catalog->db_socket, 0, catalog->disable_batch_insert,
-                          catalog->try_reconnect, catalog->exit_on_fatal, true);
+                          catalog->db_socket, 0, catalog->try_reconnect,
+                          catalog->exit_on_fatal, true);
 
     if (!db) {
       Pmsg2(000, T_("Could not open Catalog \"%s\", database \"%s\".\n"),

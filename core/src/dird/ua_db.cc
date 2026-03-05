@@ -132,8 +132,8 @@ bool OpenDb(UaContext* ua, bool use_private)
       ua->jcr, ua->catalog->db_driver, ua->catalog->db_name,
       ua->catalog->db_user, ua->catalog->db_password.value,
       ua->catalog->db_address, ua->catalog->db_port, ua->catalog->db_socket,
-      use_private, ua->catalog->disable_batch_insert,
-      ua->catalog->try_reconnect, ua->catalog->exit_on_fatal, use_private);
+      use_private, ua->catalog->try_reconnect, ua->catalog->exit_on_fatal,
+      use_private);
   if (ua->db == NULL) {
     ua->ErrorMsg(T_("Could not open catalog database \"%s\".\n"),
                  ua->catalog->db_name);

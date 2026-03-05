@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -506,14 +506,12 @@ class BareosDb : public BareosDbQueryEnum {
   char* db_socket_ = nullptr;    /**< Socket for local access */
   char* db_password_ = nullptr;  /**< Database password */
   char* last_query_text_
-      = nullptr;           /**< Last query text obtained from query table */
-  int db_port_ = 0;        /**< Port for host name address */
-  int cached_path_len = 0; /**< Length of cached path */
-  int changes = 0;         /**< Changes during transaction */
-  int fnl = 0;             /**< File name length */
-  int pnl = 0;             /**< Path name length */
-  bool disabled_batch_insert_
-      = false;                 /**< Explicitly disabled batch insert mode ? */
+      = nullptr;               /**< Last query text obtained from query table */
+  int db_port_ = 0;            /**< Port for host name address */
+  int cached_path_len = 0;     /**< Length of cached path */
+  int changes = 0;             /**< Changes during transaction */
+  int fnl = 0;                 /**< File name length */
+  int pnl = 0;                 /**< Path name length */
   bool is_private_ = false;    /**< Private connection ? */
   uint32_t cached_path_id = 0; /**< Cached path id */
   uint32_t last_hash_key_ = 0; /**< Last hash key lookup on query table */
@@ -1055,7 +1053,6 @@ BareosDb* db_init_database(JobControlRecord* jcr,
                            int db_port,
                            const char* db_socket,
                            bool mult_db_connections,
-                           bool disable_batch_insert,
                            bool try_reconnect,
                            bool exit_on_fatal,
                            bool need_private = false);

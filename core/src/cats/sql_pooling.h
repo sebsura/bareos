@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2019 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -30,7 +30,6 @@ bool db_sql_pool_initialize(const char* db_drivername,
                             const char* db_address,
                             int db_port,
                             const char* db_socket,
-                            bool disable_batch_insert,
                             bool try_reconnect,
                             bool exit_on_fatal,
                             int min_connections,
@@ -49,7 +48,6 @@ BareosDb* DbSqlGetNonPooledConnection(JobControlRecord* jcr,
                                       int db_port,
                                       const char* db_socket,
                                       bool mult_db_connections,
-                                      bool disable_batch_insert,
                                       bool try_reconnect,
                                       bool exit_on_fatal,
                                       bool need_private = false);
@@ -62,7 +60,6 @@ BareosDb* DbSqlGetPooledConnection(JobControlRecord* jcr,
                                    int db_port,
                                    const char* db_socket,
                                    bool mult_db_connections,
-                                   bool disable_batch_insert,
                                    bool try_reconnect,
                                    bool exit_on_fatal,
                                    bool need_private = false);

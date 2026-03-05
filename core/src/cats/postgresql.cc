@@ -3,7 +3,7 @@
 
    Copyright (C) 2003-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -123,7 +123,6 @@ BareosDbPostgresql::BareosDbPostgresql(JobControlRecord*,
                                        int db_port,
                                        const char* db_socket,
                                        bool mult_db_connections,
-                                       bool disable_batch_insert,
                                        bool try_reconnect,
                                        bool exit_on_fatal,
                                        bool need_private)
@@ -138,17 +137,11 @@ BareosDbPostgresql::BareosDbPostgresql(JobControlRecord*,
   if (db_address) { db_address_ = strdup(db_address); }
   if (db_socket) { db_socket_ = strdup(db_socket); }
   db_port_ = db_port;
-  if (disable_batch_insert) {
-    disabled_batch_insert_ = true;
-    have_batch_insert_ = false;
-  } else {
-    disabled_batch_insert_ = false;
 #  if defined(USE_BATCH_FILE_INSERT)
-    have_batch_insert_ = PQisthreadsafe();
+  have_batch_insert_ = PQisthreadsafe();
 #  else
-    have_batch_insert_ = false;
-#  endif /* USE_BATCH_FILE_INSERT */
-  }
+  have_batch_insert_ = false;
+#  endif                           /* USE_BATCH_FILE_INSERT */
   errmsg = GetPoolMemory(PM_EMSG); /* get error message buffer */
   *errmsg = 0;
   cmd = GetPoolMemory(PM_EMSG); /* get command buffer */
@@ -909,7 +902,6 @@ BareosDb* db_init_database(JobControlRecord* jcr,
                            int db_port,
                            const char* db_socket,
                            bool mult_db_connections,
-                           bool disable_batch_insert,
                            bool try_reconnect,
                            bool exit_on_fatal,
                            bool need_private)
@@ -938,8 +930,8 @@ BareosDb* db_init_database(JobControlRecord* jcr,
   Dmsg0(100, "db_init_database first time\n");
   mdb = new BareosDbPostgresql(jcr, db_driver, db_name, db_user, db_password,
                                db_address, db_port, db_socket,
-                               mult_db_connections, disable_batch_insert,
-                               try_reconnect, exit_on_fatal, need_private);
+                               mult_db_connections, try_reconnect,
+                               exit_on_fatal, need_private);
 
 bail_out:
   unlock_mutex(db_list_mutex);
