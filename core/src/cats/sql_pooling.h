@@ -23,22 +23,6 @@
 
 class BareosDb;
 
-bool db_sql_pool_initialize(const char* db_drivername,
-                            const char* db_name,
-                            const char* db_user,
-                            const char* db_password,
-                            const char* db_address,
-                            int db_port,
-                            const char* db_socket,
-                            bool try_reconnect,
-                            bool exit_on_fatal,
-                            int min_connections,
-                            int max_connections,
-                            int increment_connections,
-                            int idle_timeout,
-                            int validate_timeout);
-void DbSqlPoolDestroy(void);
-void DbSqlPoolFlush(void);
 BareosDb* DbSqlGetNonPooledConnection(JobControlRecord* jcr,
                                       const char* db_drivername,
                                       const char* db_name,

@@ -71,40 +71,6 @@ BareosDb* DbSqlGetNonPooledConnection(JobControlRecord* jcr,
 }
 
 /**
- * Initialize the sql connection pool.
- * For non pooling this is a no-op.
- */
-bool db_sql_pool_initialize(const char*,
-                            const char*,
-                            const char*,
-                            const char*,
-                            const char*,
-                            int,
-                            const char*,
-                            bool,
-                            bool,
-                            int,
-                            int,
-                            int,
-                            int,
-                            int)
-{
-  return true;
-}
-
-/**
- * Cleanup the sql connection pools.
- * For non pooling this is a no-op.
- */
-void DbSqlPoolDestroy(void) {}
-
-/**
- * Flush the sql connection pools.
- * For non pooling this is a no-op.
- */
-void DbSqlPoolFlush(void) {}
-
-/**
  * Get a new connection from the pool.
  * For non pooling we just call DbSqlGetNonPooledConnection.
  */

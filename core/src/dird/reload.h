@@ -37,7 +37,6 @@
 namespace directordaemon {
 
 bool CheckResources();
-bool InitializeSqlPooling(void);
 bool DoReloadConfig();
 
 } /* namespace directordaemon */
