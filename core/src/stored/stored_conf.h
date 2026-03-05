@@ -114,7 +114,6 @@ class StorageResource
   bool ndmp_enable = false;       /**< Enable NDMP protocol listener */
   bool ndmp_snooping = false;     /**< Enable NDMP protocol snooping */
   bool collect_dev_stats = false; /**< Collect Device Statistics */
-  bool collect_job_stats = false; /**< Collect Job Statistics */
   bool device_reserve_by_mediatype = false; /**< Allow device reservation based
                                        on a matching mediatype */
   bool filedevice_concurrent_read = false;  /**< Allow filedevices to be read

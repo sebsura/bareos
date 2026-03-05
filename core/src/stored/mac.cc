@@ -3,7 +3,7 @@
 
    Copyright (C) 2006-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -441,7 +441,6 @@ static inline void CheckAutoXflation(JobControlRecord* jcr)
 // Read Data and commit to new job.
 bool DoMacRun(JobControlRecord* jcr)
 {
-  utime_t now;
   char ec1[50];
   const char* Type;
   bool ok = true;
@@ -552,10 +551,6 @@ bool DoMacRun(JobControlRecord* jcr)
       goto bail_out;
     }
 
-    // Update the initial Job Statistics.
-    now = (utime_t)time(NULL);
-    UpdateJobStatistics(jcr, now);
-
     cb_data data{};
     // Read all data and send it to remote SD.
     ok = ReadRecords(jcr->sd_impl->read_dcr, CloneRecordToRemoteSd,
@@ -633,10 +628,6 @@ bool DoMacRun(JobControlRecord* jcr)
     }
 
     jcr->sendJobStatus(JS_Running);
-
-    // Update the initial Job Statistics.
-    now = (utime_t)time(NULL);
-    UpdateJobStatistics(jcr, now);
 
     if (!BeginDataSpool(jcr->sd_impl->dcr)) {
       ok = false;

@@ -1758,14 +1758,8 @@ static bool PassiveCmd(JobControlRecord* jcr)
     jcr->file_bsock = NULL;
     goto bail_out;
   } else {
-    utime_t now;
-
     Dmsg0(110, "Authenticated with FD.\n");
     *jcr->sd_impl->client_available.lock() = true;
-
-    // Update the initial Job Statistics.
-    now = (utime_t)time(NULL);
-    UpdateJobStatistics(jcr, now);
   }
 
   // Send OK to Director

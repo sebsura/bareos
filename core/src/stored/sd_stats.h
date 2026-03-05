@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -26,7 +26,6 @@ namespace storagedaemon {
 bool StartStatisticsThread(void);
 void StopStatisticsThread();
 void UpdateDeviceTapealert(const char* devname, uint64_t flags, utime_t now);
-void UpdateJobStatistics(JobControlRecord* jcr, utime_t now);
 bool StatsCmd(JobControlRecord* jcr);
 
 } /* namespace storagedaemon */

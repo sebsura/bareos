@@ -109,7 +109,6 @@ static const ResourceItem store_items[] = {
   { "AutoXFlateOnReplication", CFG_TYPE_BOOL, ITEM(res_store, autoxflateonreplication), {config::IntroducedIn{13, 4, 0}, config::DefaultValue{"false"}}},
   { "AbsoluteJobTimeout", CFG_TYPE_PINT32, ITEM(res_store, jcr_watchdog_time), {config::IntroducedIn{14, 2, 0}, config::Description{"Absolute time after which a Job gets terminated regardless of its progress"}}},
   { "CollectDeviceStatistics", CFG_TYPE_BOOL, ITEM(res_store, collect_dev_stats), {config::DeprecatedSince{22, 0, 0}, config::DefaultValue{"false"}}},
-  { "CollectJobStatistics", CFG_TYPE_BOOL, ITEM(res_store, collect_job_stats), {config::DeprecatedSince{22, 0, 0}, config::DefaultValue{"false"}}},
   { "StatisticsCollectInterval", CFG_TYPE_PINT32, ITEM(res_store, stats_collect_interval), {config::DeprecatedSince{22, 0, 0}, config::DefaultValue{"0"}}},
   { "DeviceReserveByMediaType", CFG_TYPE_BOOL, ITEM(res_store, device_reserve_by_mediatype), {config::DefaultValue{"false"}}},
   { "FileDeviceConcurrentRead", CFG_TYPE_BOOL, ITEM(res_store, filedevice_concurrent_read), {config::DefaultValue{"false"}}},

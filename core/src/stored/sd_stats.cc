@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -267,78 +267,6 @@ static inline void UpdateDeviceStatistics(const char* devname,
         dev_stat->VolCatBlocks);
 }
 
-void UpdateJobStatistics(JobControlRecord* jcr, utime_t now)
-{
-  bool found = false;
-  job_statistics_t* job_stats = NULL;
-  jobstatistic_item* job_stat = NULL;
-
-  if (!me || !me->collect_job_stats || !job_statistics) { return; }
-
-  // Skip job 0 info
-  if (!jcr->JobId) { return; }
-
-  // See if we already have statistics for this job.
-  foreach_dlist (job_stats, job_statistics) {
-    if (job_stats->JobId == jcr->JobId) {
-      found = true;
-      break;
-    }
-  }
-
-  /* If we have statistics and the cached entry is filled it points
-   * to the latest sampled statistics so we compare them with the current
-   * statistics and if nothing changed we just return. */
-  if (found && job_stats->cached) {
-    job_stat = job_stats->cached;
-
-    if (job_stat->JobFiles == jcr->JobFiles
-        && job_stat->JobBytes == jcr->JobBytes) {
-      return;
-    }
-  } else if (!found) {
-    job_stats = (job_statistics_t*)malloc(sizeof(job_statistics_t));
-    job_statistics_t empty_job_statistics;
-    *job_stats = empty_job_statistics;
-
-    job_stats->JobId = jcr->JobId;
-    lock_mutex(mutex);
-    job_statistics->append(job_stats);
-    unlock_mutex(mutex);
-  }
-
-  // Add a new set of statistics.
-  job_stat
-      = (struct jobstatistic_item*)malloc(sizeof(struct jobstatistic_item));
-  struct jobstatistic_item empty_job_statistic;
-  *job_stat = empty_job_statistic;
-
-  job_stat->timestamp = now;
-  job_stat->JobFiles = jcr->JobFiles;
-  job_stat->JobBytes = jcr->JobBytes;
-  if (jcr->sd_impl->dcr && jcr->sd_impl->dcr->device_resource) {
-    job_stat->DevName
-        = strdup(jcr->sd_impl->dcr->device_resource->resource_name_);
-  } else {
-    job_stat->DevName = strdup("unknown");
-  }
-
-  if (!job_stats->job_statistics) {
-    job_stats->job_statistics = new dlist<jobstatistic_item>();
-  }
-
-  lock_mutex(mutex);
-  job_stats->cached = job_stat;
-  job_stats->job_statistics->append(job_stat);
-  unlock_mutex(mutex);
-
-  Dmsg5(200,
-        "New stats [%" PRId64 "]: JobId %" PRIu32 ", JobFiles %" PRIu32
-        ", JobBytes %" PRIu64 ", DevName %s\n",
-        job_stat->timestamp, job_stats->JobId, job_stat->JobFiles,
-        job_stat->JobBytes, job_stat->DevName);
-}
-
 static inline void cleanup_cached_statistics()
 {
   device_statistics_t* dev_stats;
@@ -374,7 +302,6 @@ extern "C" void* statistics_thread_runner(void*)
   struct timeval tv;
   struct timespec timeout;
   DeviceResource* device_resource = nullptr;
-  JobControlRecord* jcr;
 
   setup_statistics();
 
@@ -394,12 +321,6 @@ extern "C" void* statistics_thread_runner(void*)
           }
         }
       }
-    }
-
-    if (me->collect_job_stats) {
-      // Loop over all running Jobs in the Storage Daemon.
-      foreach_jcr (jcr) { UpdateJobStatistics(jcr, now); }
-      endeach_jcr(jcr);
     }
 
     /* Wait for a next run. Normally this waits exactly
@@ -425,14 +346,11 @@ bool StartStatisticsThread(void)
   int status;
 
   // First see if device and job stats collection is enabled.
-  if (!me->stats_collect_interval
-      || (!me->collect_dev_stats && !me->collect_job_stats)) {
-    return false;
-  }
+  if (!me->stats_collect_interval || (!me->collect_dev_stats)) { return false; }
 
   /* See if only device stats collection is enabled that there is a least
    * one device of which stats are collected. */
-  if (me->collect_dev_stats && !me->collect_job_stats) {
+  if (me->collect_dev_stats) {
     DeviceResource* device_resource = nullptr;
     int cnt = 0;
 

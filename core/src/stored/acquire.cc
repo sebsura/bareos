@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2013 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -480,7 +480,6 @@ get_out:
  */
 bool ReleaseDevice(DeviceControlRecord* dcr)
 {
-  utime_t now;
   JobControlRecord* jcr = dcr->jcr;
   Device* dev = dcr->dev;
   bool retval = true;
@@ -488,10 +487,6 @@ bool ReleaseDevice(DeviceControlRecord* dcr)
   int was_blocked = BST_NOT_BLOCKED;
 
   Jmsg(jcr, M_INFO, 0, "Releasing device %s.\n", dev->print_name());
-
-  // Capture job statistics now that we are done using this device.
-  now = (utime_t)time(NULL);
-  UpdateJobStatistics(jcr, now);
 
   /* Some devices do cache write operations (e.g. DropletDevice).
    * Therefore flushing the cache is required to determine
