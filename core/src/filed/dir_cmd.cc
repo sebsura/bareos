@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -362,17 +362,6 @@ void CleanupFileset(JobControlRecord* jcr)
   jcr->fd_impl->ff->fileset = nullptr;
 }
 
-static inline bool AreMaxConcurrentJobsExceeded()
-{
-  JobControlRecord* jcr;
-  unsigned int cnt = 0;
-
-  foreach_jcr (jcr) { cnt++; }
-  endeach_jcr(jcr);
-
-  return (cnt >= me->MaxConcurrentJobs) ? true : false;
-}
-
 static inline JobControlRecord* NewFiledJcr()
 {
   JobControlRecord* jcr = new_jcr(&FiledFreeJcr);
@@ -558,13 +547,6 @@ void* handle_director_connection(BareosSocket* dir)
 #ifdef HAVE_WIN32
   PreventOsSuspensions();
 #endif
-
-  if (AreMaxConcurrentJobsExceeded()) {
-    Emsg0(M_ERROR, 0,
-          T_("Number of Jobs exhausted, please increase "
-             "MaximumConcurrentJobs\n"));
-    return nullptr;
-  }
 
   jcr = create_new_director_session(dir);
 

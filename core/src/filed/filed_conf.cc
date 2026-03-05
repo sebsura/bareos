@@ -89,7 +89,6 @@ static const ResourceItem cli_items[] = {
   { "PluginDirectory", CFG_TYPE_DIR, ITEM(res_client, plugin_directory), {}},
   { "PluginNames", CFG_TYPE_PLUGIN_NAMES, ITEM(res_client, plugin_names), {}},
   { "ScriptsDirectory", CFG_TYPE_DIR, ITEM(res_client, scripts_directory), {config::DefaultValue{PATH_BAREOS_SCRIPTDIR}, config::Description{"Path to directory containing script files"}, config::PlatformSpecific{}}},
-  { "MaximumConcurrentJobs", CFG_TYPE_PINT32, ITEM(res_client, MaxConcurrentJobs), {config::DeprecatedSince{24, 0, 0}, config::DefaultValue{"1000"}}},
   { "MaximumWorkersPerJob", CFG_TYPE_PINT32, ITEM(res_client, MaxWorkersPerJob), {config::IntroducedIn{23, 0, 0}, config::DefaultValue{"2"}, config::Description{"The maximum number of worker threads that bareos will use during backup."}}},
   { "Messages", CFG_TYPE_RES, ITEM(res_client, messages), {config::Code{R_MSGS}}},
   { "SdConnectTimeout", CFG_TYPE_TIME, ITEM(res_client, SDConnectTimeout), {config::DefaultValue{"1800"}}},

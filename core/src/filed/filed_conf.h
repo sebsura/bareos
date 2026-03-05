@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2007 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -91,7 +91,6 @@ class ClientResource
   alist<const char*>* plugin_names = nullptr;
   char* scripts_directory = nullptr;
   MessagesResource* messages = nullptr; /* Daemon message handler */
-  uint32_t MaxConcurrentJobs = 0;
   uint32_t MaxWorkersPerJob{0};
   utime_t SDConnectTimeout = {0};       /* Timeout in seconds */
   utime_t heartbeat_interval = {0};     /* Interval to send heartbeats */
