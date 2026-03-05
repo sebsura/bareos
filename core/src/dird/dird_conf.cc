@@ -217,7 +217,6 @@ static const ResourceItem client_items[] = {
     { config::DeprecatedSince{config::Version{23, 0, 0}}, config::DefaultValue{"5184000"}, config::Description{"File retention"}}},
   { "JobRetention", CFG_TYPE_TIME, ITEM(res_client, JobRetention), {config::DeprecatedSince{23, 0, 0}, config::DefaultValue{"15552000"}}},
   { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_client, heartbeat_interval), {config::DefaultValue{"0"}}},
-  { "AutoPrune", CFG_TYPE_BOOL, ITEM(res_client, AutoPrune), {config::DeprecatedSince{23, 0, 0}, config::DefaultValue{"false"}}},
   { "MaximumConcurrentJobs", CFG_TYPE_PINT32, ITEM(res_client, MaxConcurrentJobs), {config::DefaultValue{"1"}}},
   { "MaximumBandwidthPerJob", CFG_TYPE_SPEED, ITEM(res_client, max_bandwidth), {}},
   { "NdmpLogLevel", CFG_TYPE_PINT32, ITEM(res_client, ndmp_loglevel), {config::DefaultValue{"4"}}},

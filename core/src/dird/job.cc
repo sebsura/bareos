@@ -1329,7 +1329,7 @@ bool GetOrCreateClientRecord(JobControlRecord* jcr)
   ClientDbRecord cr;
 
   bstrncpy(cr.Name, jcr->dir_impl->res.client->resource_name_, sizeof(cr.Name));
-  cr.AutoPrune = jcr->dir_impl->res.client->AutoPrune;
+  cr.AutoPrune = false;
   cr.FileRetention = jcr->dir_impl->res.client->FileRetention;
   cr.JobRetention = jcr->dir_impl->res.client->JobRetention;
   if (!jcr->client_name) { jcr->client_name = GetPoolMemory(PM_NAME); }

@@ -1286,7 +1286,6 @@ bool DotDefaultsCmd(UaContext* ua, const char*)
       ua->send->ObjectKeyValue("job_retention",
                                "%s=", edit_uint64(client->JobRetention, ed1),
                                "%s\n");
-      ua->send->ObjectKeyValue("autoprune", "%s=", client->AutoPrune, "%d\n");
       ua->send->ObjectKeyValue("enabled", "%s=", client->enabled, "%d\n");
       ua->send->ObjectKeyValue("catalog",
                                "%s=", client->catalog->resource_name_, "%s\n");
