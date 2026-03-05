@@ -385,7 +385,6 @@ static const ResourceItem pool_items[] = {
   { "Description", CFG_TYPE_STR, ITEM(res_pool, description_), {}},
   { "PoolType", CFG_TYPE_POOLTYPE, ITEM(res_pool, pool_type), {config::DefaultValue{"Backup"}}},
   { "LabelFormat", CFG_TYPE_STRNAME, ITEM(res_pool, label_format), {}},
-  { "LabelType", CFG_TYPE_LABEL, ITEM(res_pool, LabelType), {config::DeprecatedSince{23, 0, 0}}},
   { "CleaningPrefix", CFG_TYPE_STRNAME, ITEM(res_pool, cleaning_prefix), {config::DefaultValue{"CLN"}}},
   { "UseCatalog", CFG_TYPE_BOOL, ITEM(res_pool, use_catalog), {config::DefaultValue{"true"}}},
   { "PurgeOldestVolume", CFG_TYPE_BOOL, ITEM(res_pool, purge_oldest_volume), {config::DefaultValue{"false"}}},

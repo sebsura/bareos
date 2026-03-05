@@ -556,7 +556,6 @@ class PoolResource : public BareosResource {
   char* pool_type = nullptr;        /* Pool type */
   char* label_format = nullptr;     /* Label format string */
   char* cleaning_prefix = nullptr;  /* Cleaning label prefix */
-  int32_t LabelType = 0;            /* Bareos/ANSI/IBM label type */
   uint32_t max_volumes = 0;         /* Max number of volumes */
   utime_t VolRetention = {0};       /* Volume retention period in seconds */
   utime_t VolUseDuration = {0};     /* Duration volume can be used */
