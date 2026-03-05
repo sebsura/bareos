@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -36,7 +36,6 @@
 #include "dird/job.h"
 #include "dird/scheduler.h"
 #include "dird/socket_server.h"
-#include "dird/stats.h"
 #include "lib/daemon.h"
 #include "lib/berrno.h"
 #include "lib/edit.h"
@@ -360,8 +359,6 @@ int main(int argc, char* argv[])
   DbgJcrAddHook(
       DbDebugPrint); /* used to debug BareosDb connexion after fatal signal */
 
-  StartStatisticsThread();
-
   Dmsg0(200, "Start UA server\n");
   if (!StartSocketServer(me->DIRaddrs)) { TerminateDird(0); }
 
@@ -396,7 +393,6 @@ static
 
   DestroyConfigureUsageString();
   StopSocketServer();
-  StopStatisticsThread();
   StopWatchdog();
   DbSqlPoolDestroy();
   UnloadDirPlugins();

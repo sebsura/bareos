@@ -248,11 +248,6 @@ if(NOT client-only)
                    Bareos::Findlib GTest::gtest_main
   )
   bareos_add_test(
-    dir_statistics_thread
-    LINK_LIBRARIES testing_common Bareos::Dir Bareos::Lib Bareos::SQL
-                   Bareos::Findlib GTest::gtest_main
-  )
-  bareos_add_test(
     globbing_test LINK_LIBRARIES Bareos::Lib Bareos::Dir Bareos::Findlib
                                  Bareos::SQL GTest::gtest_main
   )

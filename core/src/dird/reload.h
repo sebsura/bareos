@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2022-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2022-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -28,7 +28,6 @@
 #include "dird_globals.h"
 #include "dird/storage.h"
 #include "lib/parse_conf.h"
-#include "dird/stats.h"
 #include "cats/cats.h"
 #include "cats/sql_pooling.h"
 #include "dird/check_catalog.h"

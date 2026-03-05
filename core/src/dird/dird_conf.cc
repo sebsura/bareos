@@ -135,8 +135,6 @@ static const ResourceItem dir_items[] = {
   { "FdConnectTimeout", CFG_TYPE_TIME, ITEM(res_dir, FDConnectTimeout), {config::DefaultValue{"180"}}},
   { "SdConnectTimeout", CFG_TYPE_TIME, ITEM(res_dir, SDConnectTimeout), {config::DefaultValue{"1800"}}},
   { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_dir, heartbeat_interval), {config::DefaultValue{"0"}}},
-  { "StatisticsRetention", CFG_TYPE_TIME, ITEM(res_dir, stats_retention), {config::DeprecatedSince{22, 0, 0}, config::DefaultValue{"160704000"}}},
-  { "StatisticsCollectInterval", CFG_TYPE_PINT32, ITEM(res_dir, stats_collect_interval), {config::DeprecatedSince{22, 0, 0}, config::IntroducedIn{14, 2, 0}, config::DefaultValue{"0"}}},
   { "VerId", CFG_TYPE_STR, ITEM(res_dir, verid), {}},
   { "KeyEncryptionKey", CFG_TYPE_AUTOPASSWORD, ITEM(res_dir, keyencrkey), {config::Code{1}}},
   { "NdmpSnooping", CFG_TYPE_BOOL, ITEM(res_dir, ndmp_snooping), {config::IntroducedIn{13, 2, 0}}},
