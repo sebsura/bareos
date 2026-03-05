@@ -1341,8 +1341,6 @@ bool DotDefaultsCmd(UaContext* ua, const char*)
           "max_vol_bytes", "%s=", edit_uint64(pool->MaxVolBytes, ed1), "%s\n");
       ua->send->ObjectKeyValue("auto_prune", "%s=", pool->AutoPrune, "%d\n");
       ua->send->ObjectKeyValue("recycle", "%s=", pool->Recycle, "%d\n");
-      ua->send->ObjectKeyValue(
-          "job_retention", "%s=", edit_uint64(pool->JobRetention, ed1), "%s\n");
     }
   } else {
     ua->SendMsg(".defaults command requires a parameter.\n");

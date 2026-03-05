@@ -198,11 +198,7 @@ bool PruneCmd(UaContext* ua, const char*)
       }
 
       // Pool Job Retention takes precedence over client Job Retention
-      if (pool && pool->JobRetention > 0) {
-        if (!ConfirmRetention(ua, &pool->JobRetention, "Job")) { return false; }
-      } else if (!ConfirmRetention(ua, &client->JobRetention, "Job")) {
-        return false;
-      }
+      if (!ConfirmRetention(ua, &client->JobRetention, "Job")) { return false; }
 
       return PruneJobs(ua, client, pool);
     }
@@ -564,9 +560,7 @@ static int JobSelectHandler(void* ctx, int num_fields, char** row)
 bool PruneJobs(UaContext* ua, ClientResource* client, PoolResource* pool)
 {
   utime_t period;
-  if (pool && pool->JobRetention > 0) {
-    period = pool->JobRetention;
-  } else if (client) {
+  if (client) {
     period = client->JobRetention;
   } else {  // should specify at least pool or client
     return false;
