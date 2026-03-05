@@ -166,7 +166,6 @@ static const ResourceItem dev_items[] = {
   { "CloseOnPoll", CFG_TYPE_BIT, ITEM(res_dev, cap_bits), {config::DefaultValue{"off"}, config::Code{CAP_CLOSEONPOLL}}},
   { "BlockPositioning", CFG_TYPE_BIT, ITEM(res_dev, cap_bits), {config::DefaultValue{"on"}, config::Code{CAP_POSITIONBLOCKS}}},
   { "UseMtiocget", CFG_TYPE_BIT, ITEM(res_dev, cap_bits), {config::DefaultValue{"on"}, config::Code{CAP_MTIOCGET}}},
-  { "CheckLabels", CFG_TYPE_BIT, ITEM(res_dev, cap_bits), {config::DeprecatedSince{23, 0, 0}, config::DefaultValue{"off"}, config::Code{CAP_CHECKLABELS}}},
   { "RequiresMount", CFG_TYPE_BIT, ITEM(res_dev, cap_bits), {config::DefaultValue{"off"}, config::Code{CAP_REQMOUNT}}},
   { "OfflineOnUnmount", CFG_TYPE_BIT, ITEM(res_dev, cap_bits), {config::DefaultValue{"off"}, config::Code{CAP_OFFLINEUNMOUNT}}},
   { "BlockChecksum", CFG_TYPE_BIT, ITEM(res_dev, cap_bits), {config::DefaultValue{"on"}, config::Code{CAP_BLOCKCHECKSUM}}},

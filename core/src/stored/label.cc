@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -120,7 +120,7 @@ int ReadDevVolumeLabel(DeviceControlRecord* dcr)
   // Read ANSI/IBM label if so requested
   want_ansi_label = dcr->VolCatInfo.LabelType != B_BAREOS_LABEL
                     || dcr->device_resource->label_type != B_BAREOS_LABEL;
-  if (want_ansi_label || dcr->dev->HasCap(CAP_CHECKLABELS)) {
+  if (want_ansi_label) {
     status = ReadAnsiIbmLabel(dcr);
     // If we want a label and didn't find it, return error
     if (want_ansi_label && status != VOL_OK) { goto bail_out; }
