@@ -3,7 +3,7 @@
 
    Copyright (C) 2001-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -1039,9 +1039,7 @@ reread:
   // successful read (status > 0)
 
   block->read_len = status; /* save length read */
-  if (block->read_len == 80
-      && (dcr->VolCatInfo.LabelType != B_BAREOS_LABEL
-          || dcr->device_resource->label_type != B_BAREOS_LABEL)) {
+  if (block->read_len == 80 && dcr->VolCatInfo.LabelType != B_BAREOS_LABEL) {
     /* ***FIXME*** should check label */
     Dmsg2(100, "Ignore 80 byte ANSI label at %u:%u\n", dev->file,
           dev->block_num);

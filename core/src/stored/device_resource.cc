@@ -59,7 +59,6 @@ DeviceResource::DeviceResource(const DeviceResource& other)
     spool_directory = strdup(other.spool_directory);
   }
   device_type = other.device_type;
-  label_type = other.label_type;
   access_mode = other.access_mode;
   autoselect = other.autoselect;
   norewindonclose = other.norewindonclose;
@@ -112,7 +111,6 @@ DeviceResource& DeviceResource::operator=(const DeviceResource& rhs)
   alert_command = rhs.alert_command;
   spool_directory = rhs.spool_directory;
   device_type = rhs.device_type;
-  label_type = rhs.label_type;
   access_mode = rhs.access_mode;
   autoselect = rhs.autoselect;
   norewindonclose = rhs.norewindonclose;

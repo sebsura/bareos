@@ -47,7 +47,6 @@ class DeviceResource : public BareosResource {
   char* alert_command;         /**< Alert command -- external program */
   char* spool_directory;       /**< Spool file directory */
   std::string device_type{DeviceType::B_UNKNOWN_DEV};
-  uint32_t label_type{B_BAREOS_LABEL};
   IODirection access_mode{
       IODirection::READ_WRITE}; /**< Allowed access mode(s) for reservation */
   bool autoselect{true};        /**< Automatically select from AutoChanger */

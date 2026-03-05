@@ -192,7 +192,6 @@ static const ResourceItem dev_items[] = {
   { "MountPoint", CFG_TYPE_STRNAME, ITEM(res_dev, mount_point), {}},
   { "MountCommand", CFG_TYPE_STRNAME, ITEM(res_dev, mount_command), {}},
   { "UnmountCommand", CFG_TYPE_STRNAME, ITEM(res_dev, unmount_command), {}},
-  { "LabelType", CFG_TYPE_LABEL, ITEM(res_dev, label_type), {config::DeprecatedSince{23, 0, 0}}},
   { "NoRewindOnClose", CFG_TYPE_BOOL, ITEM(res_dev, norewindonclose), {config::DefaultValue{"true"}}},
   { "DriveTapeAlertEnabled", CFG_TYPE_BOOL, ITEM(res_dev, drive_tapealert_enabled), {}},
   { "DriveCryptoEnabled", CFG_TYPE_BOOL, ITEM(res_dev, drive_crypto_enabled), {}},
