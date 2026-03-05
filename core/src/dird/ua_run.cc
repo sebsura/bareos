@@ -2,7 +2,7 @@
 
    Copyright (C) 2001-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -1227,7 +1227,6 @@ static bool DisplayJobParameters(UaContext* ua,
   char ec1[30];
   JobResource* job = rc.job;
   char dt[MAX_TIME_LENGTH];
-  const char* verify_list = rc.verify_list;
 
   Dmsg1(800, "JobType=%c\n", jcr->getJobType());
   switch (jcr->getJobType()) {
@@ -1435,8 +1434,6 @@ static bool DisplayJobParameters(UaContext* ua,
         } else {
           Name = "";
         }
-        if (!verify_list) { verify_list = job->WriteVerifyList; }
-        if (!verify_list) { verify_list = ""; }
         if (ua->api) {
           ua->signal(BNET_RUN_CMD);
           ua->SendMsg(
@@ -1449,7 +1446,6 @@ static bool DisplayJobParameters(UaContext* ua,
               "Pool:        %s (From %s)\n"
               "Storage:     %s (From %s)\n"
               "Verify Job:  %s\n"
-              "Verify List: %s\n"
               "When:        %s\n"
               "Priority:    %d\n",
               job->resource_name_, JobLevelToString(jcr->getJobLevel()),
@@ -1458,7 +1454,7 @@ static bool DisplayJobParameters(UaContext* ua,
               NPRT(jcr->dir_impl->res.pool->resource_name_),
               jcr->dir_impl->res.pool_source,
               jcr->dir_impl->res.read_storage->resource_name_,
-              jcr->dir_impl->res.rstore_source, Name, verify_list,
+              jcr->dir_impl->res.rstore_source, Name,
               bstrutime(dt, sizeof(dt), jcr->sched_time), jcr->JobPriority);
         } else {
           ua->SendMsg(T_("Run Verify Job\n"
@@ -1469,7 +1465,6 @@ static bool DisplayJobParameters(UaContext* ua,
                          "Pool:        %s (From %s)\n"
                          "Storage:     %s (From %s)\n"
                          "Verify Job:  %s\n"
-                         "Verify List: %s\n"
                          "When:        %s\n"
                          "Priority:    %d\n"),
                       job->resource_name_, JobLevelToString(jcr->getJobLevel()),
@@ -1478,7 +1473,7 @@ static bool DisplayJobParameters(UaContext* ua,
                       NPRT(jcr->dir_impl->res.pool->resource_name_),
                       jcr->dir_impl->res.pool_source,
                       jcr->dir_impl->res.read_storage->resource_name_,
-                      jcr->dir_impl->res.rstore_source, Name, verify_list,
+                      jcr->dir_impl->res.rstore_source, Name,
                       bstrutime(dt, sizeof(dt), jcr->sched_time),
                       jcr->JobPriority);
         }
@@ -1744,40 +1739,39 @@ static bool ScanCommandLineArguments(UaContext* ua, RunContext& rc)
   bool kw_ok;
   int i, j;
   static const char* kw[]
-      = {                 /* command line arguments */
-         "job",           /* 0 */
-         "jobid",         /* 1 */
-         "client",        /* 2 */
-         "fd",            /* 3 */
-         "fileset",       /* 4 */
-         "level",         /* 5 */
-         "storage",       /* 6 */
-         "sd",            /* 7 */
-         "regexwhere",    /* 8 - where string as a bregexp */
-         "where",         /* 9 */
-         "bootstrap",     /* 10 */
-         "replace",       /* 11 */
-         "when",          /* 12 */
-         "priority",      /* 13 */
-         "yes",           /* 14 -- if you change this change YES_POS too */
-         "verifyjob",     /* 15 */
-         "files",         /* 16 - number of files to restore */
-         "catalog",       /* 17 - override catalog */
-         "since",         /* 18 - since */
-         "cloned",        /* 19 - cloned */
-         "verifylist",    /* 20 - verify output list */
-         "migrationjob",  /* 21 - migration job name */
-         "pool",          /* 22 */
-         "nextpool",      /* 23 */
-         "backupclient",  /* 24 */
-         "restoreclient", /* 25 */
-         "pluginoptions", /* 26 */
-         "spooldata",     /* 27 */
-         "comment",       /* 28 */
+      = {                  /* command line arguments */
+         "job",            /* 0 */
+         "jobid",          /* 1 */
+         "client",         /* 2 */
+         "fd",             /* 3 */
+         "fileset",        /* 4 */
+         "level",          /* 5 */
+         "storage",        /* 6 */
+         "sd",             /* 7 */
+         "regexwhere",     /* 8 - where string as a bregexp */
+         "where",          /* 9 */
+         "bootstrap",      /* 10 */
+         "replace",        /* 11 */
+         "when",           /* 12 */
+         "priority",       /* 13 */
+         "yes",            /* 14 -- if you change this change YES_POS too */
+         "verifyjob",      /* 15 */
+         "files",          /* 16 - number of files to restore */
+         "catalog",        /* 17 - override catalog */
+         "since",          /* 18 - since */
+         "cloned",         /* 19 - cloned */
+         "consolidatejob", /* 20 - parent consolidate job */
+         "migrationjob",   /* 21 - migration job name */
+         "pool",           /* 22 */
+         "nextpool",       /* 23 */
+         "backupclient",   /* 24 */
+         "restoreclient",  /* 25 */
+         "pluginoptions",  /* 26 */
+         "spooldata",      /* 27 */
+         "comment",        /* 28 */
          "ignoreduplicatecheck", /* 29 */
          "accurate",             /* 30 */
          "backupformat",         /* 31 */
-         "consolidatejob",       /* 32 - parent consolidate job */
          NULL};
 
 #define YES_POS 14
@@ -1963,8 +1957,12 @@ static bool ScanCommandLineArguments(UaContext* ua, RunContext& rc)
             rc.cloned = true;
             kw_ok = true;
             break;
-          case 20: /* write verify list output */
-            rc.verify_list = ua->argv[i];
+          case 32: /* consolidatejob */
+            if (consolidate_job_name) {
+              ua->SendMsg(T_("Consolidate Job specified twice.\n"));
+              return false;
+            }
+            consolidate_job_name = ua->argv[i];
             kw_ok = true;
             break;
           case 21: /* Migration Job */
@@ -2066,14 +2064,6 @@ static bool ScanCommandLineArguments(UaContext* ua, RunContext& rc)
               return false;
             }
             rc.backup_format = ua->argv[i];
-            kw_ok = true;
-            break;
-          case 32: /* consolidatejob */
-            if (consolidate_job_name) {
-              ua->SendMsg(T_("Consolidate Job specified twice.\n"));
-              return false;
-            }
-            consolidate_job_name = ua->argv[i];
             kw_ok = true;
             break;
           default:
