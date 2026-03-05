@@ -213,8 +213,6 @@ static const ResourceItem client_items[] = {
   { "SoftQuotaGracePeriod", CFG_TYPE_TIME, ITEM(res_client, SoftQuotaGracePeriod), {config::DefaultValue{"0"}}},
   { "StrictQuotas", CFG_TYPE_BOOL, ITEM(res_client, StrictQuotas), {config::DefaultValue{"false"}}},
   { "QuotaIncludeFailedJobs", CFG_TYPE_BOOL, ITEM(res_client, QuotaIncludeFailedJobs), {config::DefaultValue{"true"}}},
-  { "FileRetention", CFG_TYPE_TIME, ITEM(res_client, FileRetention),
-    { config::DeprecatedSince{config::Version{23, 0, 0}}, config::DefaultValue{"5184000"}, config::Description{"File retention"}}},
   { "JobRetention", CFG_TYPE_TIME, ITEM(res_client, JobRetention), {config::DeprecatedSince{23, 0, 0}, config::DefaultValue{"15552000"}}},
   { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_client, heartbeat_interval), {config::DefaultValue{"0"}}},
   { "MaximumConcurrentJobs", CFG_TYPE_PINT32, ITEM(res_client, MaxConcurrentJobs), {config::DefaultValue{"1"}}},

@@ -66,7 +66,7 @@ void DoAutoprune(JobControlRecord* jcr)
   }
 
   if (job->PruneFiles) {
-    PruneFiles(ua, client, pool);
+    PruneFiles(ua, client, pool, DEFAULT_FILE_RETENTION);
     pruned = true;
   }
   if (pruned) { Jmsg(jcr, M_INFO, 0, T_("End auto prune.\n\n")); }

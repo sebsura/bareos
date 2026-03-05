@@ -169,7 +169,7 @@ bool PruneCmd(UaContext* ua, const char*)
   }
 
   switch (kw) {
-    case 0: /* prune files */
+    case 0: { /* prune files */
 
       if (!(client = get_client_resource(ua))) { return false; }
 
@@ -180,13 +180,14 @@ bool PruneCmd(UaContext* ua, const char*)
         pool = NULL;
       }
 
-      if (!ConfirmRetention(ua, &client->FileRetention, "File")) {
-        return false;
-      }
+      utime_t FileRetention = DEFAULT_FILE_RETENTION;
 
-      PruneFiles(ua, client, pool);
+      if (!ConfirmRetention(ua, &FileRetention, "File")) { return false; }
+
+      PruneFiles(ua, client, pool, FileRetention);
 
       return true;
+    } break;
     case 1: { /* prune jobs */
       if (!(client = get_client_resource(ua))) { return false; }
 
@@ -431,15 +432,14 @@ static bool prune_set_filter(UaContext* ua,
  *
  * Note: client or pool can possibly be NULL (not both).
  */
-bool PruneFiles(UaContext* ua, ClientResource* client, PoolResource* pool)
+bool PruneFiles(UaContext* ua,
+                ClientResource* client,
+                PoolResource* pool,
+                utime_t period)
 {
   char ed1[50];
 
-  utime_t period;
-  if (client) {
-    period = client->FileRetention;
-
-  } else { /* should specify at least pool or client */
+  if (!client && !pool) { /* should specify at least pool or client */
     return false;
   }
 

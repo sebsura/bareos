@@ -401,7 +401,7 @@ int SendJobInfoToFileDaemon(JobControlRecord* jcr)
       bstrncpy(cr.Name, jcr->dir_impl->res.client->resource_name_,
                sizeof(cr.Name));
       cr.AutoPrune = false;
-      cr.FileRetention = jcr->dir_impl->res.client->FileRetention;
+      cr.FileRetention = DEFAULT_FILE_RETENTION;
       cr.JobRetention = jcr->dir_impl->res.client->JobRetention;
       bstrncpy(cr.Uname, fd->msg + strlen(OKjob) + 1, sizeof(cr.Uname));
       if (DbLocker _{jcr->db}; !jcr->db->UpdateClientRecord(jcr, &cr)) {
