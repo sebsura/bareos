@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -45,7 +45,6 @@
 #include "stored/ndmp_tape.h"
 #include "stored/sd_backends.h"
 #include "stored/sd_device_control_record.h"
-#include "stored/sd_stats.h"
 #include "stored/socket_server.h"
 #include "stored/stored_globals.h"
 #include "stored/wait.h"
@@ -297,8 +296,6 @@ int main(int argc, char* argv[])
     InitJcrSubsystem(
         me->jcr_watchdog_time); /* start JobControlRecord watchdogs etc. */
   }
-
-  StartStatisticsThread();
 
 #if HAVE_NDMP
   // Separate thread that handles NDMP connections
@@ -572,7 +569,6 @@ static
   }
   in_here = true;
   debug_level = 0; /* turn off any debug */
-  StopStatisticsThread();
 #if HAVE_NDMP
   if (me->ndmp_enable) { StopNdmpThreadServer(); }
 #endif

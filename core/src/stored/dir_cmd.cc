@@ -57,7 +57,6 @@
 #include "stored/reserve.h"
 #include "stored/sd_cmds.h"
 #include "stored/status.h"
-#include "stored/sd_stats.h"
 #include "stored/stored_globals.h"
 #include "stored/wait.h"
 #include "stored/job.h"
@@ -211,7 +210,6 @@ static struct s_sd_dir_cmds cmds[] = {
     {"setbandwidth=", SetbandwidthCmd, false},
     {"setdebug=", SetdebugCmd, false},  /**< Set debug level */
     {"setdevice", SetdeviceCmd, false}, /**< Set device parameter */
-    {"stats", StatsCmd, false},
     {"status", StatusCmd, true},
     {".status", DotstatusCmd, true},
     {"unmount", UnmountCmd, false},

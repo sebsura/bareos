@@ -37,8 +37,6 @@
 #include "stored/append.h"
 #include "stored/authenticate.h"
 #include "stored/stored_jcr_impl.h"
-#include "stored/sd_stats.h"
-#include "stored/sd_stats.h"
 #include "lib/bnet.h"
 #include "lib/bsock.h"
 #include "lib/edit.h"

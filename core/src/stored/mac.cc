@@ -39,7 +39,6 @@
 #include "stored/label.h"
 #include "stored/mount.h"
 #include "stored/read_record.h"
-#include "stored/sd_stats.h"
 #include "stored/spool.h"
 #include "lib/bget_msg.h"
 #include "lib/bnet.h"

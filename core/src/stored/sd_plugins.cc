@@ -3,7 +3,7 @@
 
    Copyright (C) 2007-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -33,7 +33,6 @@
 #include "stored/stored_jcr_impl.h"
 #include "sd_plugins.h"
 #include "lib/crypto_cache.h"
-#include "stored/sd_stats.h"
 #include "lib/edit.h"
 #include "include/jcr.h"
 
@@ -921,10 +920,9 @@ static bool bareosUpdateVolumeInfo(DeviceControlRecord* dcr)
 
 static void bareosUpdateTapeAlert(DeviceControlRecord* dcr, uint64_t flags)
 {
-  utime_t now;
-  now = (utime_t)time(NULL);
-
-  UpdateDeviceTapealert(dcr->device_resource->resource_name_, flags, now);
+  // not supported anymore
+  (void)dcr;
+  (void)flags;
 }
 
 static DeviceRecord* bareosNewRecord(bool with_data)

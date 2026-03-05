@@ -36,7 +36,6 @@
 #include "stored/job.h"
 #include "stored/label.h"
 #include "stored/sd_plugins.h"
-#include "stored/sd_stats.h"
 #include "stored/wait.h"
 #include "lib/berrno.h"
 #include "lib/edit.h"

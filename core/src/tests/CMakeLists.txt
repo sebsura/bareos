@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2025 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2026 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -320,11 +320,6 @@ if(NOT client-only)
     ${disable}
     LINK_LIBRARIES Bareos::SD Bareos::LibSD Bareos::Lib GTest::gtest_main
                    GTest::gmock
-  )
-  bareos_add_test(
-    sd_statistics_thread
-    LINK_LIBRARIES testing_common Bareos::Dir Bareos::Lib Bareos::SQL
-                   Bareos::Findlib GTest::gtest_main
   )
   bareos_add_test(
     select_functions LINK_LIBRARIES Bareos::Dir Bareos::Findlib Bareos::SQL
