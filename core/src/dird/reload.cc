@@ -102,26 +102,6 @@ bool CheckResources()
     }
   }
 
-  StorageResource *store, *nstore;
-  foreach_res (store, R_STORAGE) {
-    /* If we collect statistics on this SD make sure any other entry pointing to
-     * the same SD does not collect statistics otherwise we collect the same
-     * data multiple times. */
-    if (store->collectstats) {
-      nstore = store;
-      while ((nstore = (StorageResource*)my_config->GetNextRes(
-                  R_STORAGE, (BareosResource*)nstore))) {
-        if (IsSameStorageDaemon(store, nstore) && nstore->collectstats) {
-          nstore->collectstats = false;
-          Dmsg1(200,
-                T_("Disabling collectstats for storage \"%s\""
-                   " as other storage already collects from this SD.\n"),
-                nstore->resource_name_);
-        }
-      }
-    }
-  }
-
   ConsoleResource* console;
   BStringList consoles_with_auth_problems;
   foreach_res (console, R_CONSOLE) {

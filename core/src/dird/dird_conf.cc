@@ -248,7 +248,6 @@ static const ResourceItem store_items[] = {
   { "MaximumConcurrentReadJobs", CFG_TYPE_PINT32, ITEM(res_store, MaxConcurrentReadJobs), {config::DefaultValue{"0"}}},
   { "PairedStorage", CFG_TYPE_RES, ITEM(res_store, paired_storage), {config::Code{R_STORAGE}}},
   { "MaximumBandwidthPerJob", CFG_TYPE_SPEED, ITEM(res_store, max_bandwidth), {}},
-  { "CollectStatistics", CFG_TYPE_BOOL, ITEM(res_store, collectstats), {config::DeprecatedSince{22, 0, 0}, config::DefaultValue{"false"}}},
   { "NdmpChangerDevice", CFG_TYPE_STRNAME, ITEM(res_store, ndmp_changer_device), {config::IntroducedIn{16, 2, 4}, config::Description{"Allows direct control of a Storage Daemon Auto Changer device by the Director. Only used in NDMP_NATIVE environments."}}},
    TLS_COMMON_CONFIG(res_store),
    TLS_CERT_CONFIG(res_store),
