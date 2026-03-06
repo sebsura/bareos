@@ -1957,7 +1957,7 @@ static bool ScanCommandLineArguments(UaContext* ua, RunContext& rc)
             rc.cloned = true;
             kw_ok = true;
             break;
-          case 32: /* consolidatejob */
+          case 20: /* consolidatejob */
             if (consolidate_job_name) {
               ua->SendMsg(T_("Consolidate Job specified twice.\n"));
               return false;
