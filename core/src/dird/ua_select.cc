@@ -3,7 +3,7 @@
 
    Copyright (C) 2001-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -50,6 +50,30 @@ extern struct s_jl joblevels[];
 // Confirm a retention period
 bool ConfirmRetention(UaContext* ua, utime_t* ret, const char* msg)
 {
+  // JobRetention, FileRetention, ...
+  std::string retention_str = std::string{msg} + "Retention";
+
+  int retention_index = FindArg(ua, retention_str.c_str());
+
+  if (retention_index >= 0) {
+    const char* value = ua->argv[retention_index];
+    if (!value) {
+      ua->ErrorMsg("key \"%s\" has no associated value\n",
+                   retention_str.c_str());
+      goto choose_normally;
+    }
+
+    if (!DurationToUtime(value, ret)) {
+      ua->ErrorMsg(T_("key \"%s\" has bad associated value '%s'\n"),
+                   retention_str.c_str(), value);
+      goto choose_normally;
+    }
+
+    return true;
+  }
+
+choose_normally:
+
   bool retval;
   char ed1[100];
   int yes_in_arg;

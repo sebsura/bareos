@@ -2,7 +2,7 @@
 
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2025-2025 Bareos GmbH & Co. KG
+#   Copyright (C) 2025-2026 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -40,7 +40,7 @@ start_test
 
 cat <<END_OF_DATA >"$tmp/bconcmds"
 @$out ${log_home}/prune.out
-prune files pool=Full yes
+prune files pool=Full fileretention=1 yes
 wait
 @$out ${log_home}/restore.out
 restore jobid=11
