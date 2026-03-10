@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -1529,13 +1529,17 @@ SetDeviceCommand::ArgumentsList SetDeviceCommand::ScanCommandLine(UaContext* ua)
   }
   if (argument_missing) { return ArgumentsList(); }
 
-  try {
-    BoolString s{arguments["autoselect"].data()};  // throws
-    arguments["autoselect"].clear();
-    arguments["autoselect"] = s.get<bool>() == true ? "1" : "0";
-  } catch (const std::out_of_range& e) {
-    ua->ErrorMsg("Wrong argument: %s\n", arguments["autoselect"].c_str());
-    return ArgumentsList();
+  switch (parse_user_bool(arguments["autoselect"])) {
+    case parse_bool_result::True: {
+      arguments["autoselect"] = "1";
+    } break;
+    case parse_bool_result::False: {
+      arguments["autoselect"] = "0";
+    } break;
+    case parse_bool_result::Error: {
+      ua->ErrorMsg("Wrong argument: %s\n", arguments["autoselect"].c_str());
+      return ArgumentsList();
+    } break;
   }
 
   return arguments;

@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -26,6 +26,7 @@
  * Split from parse_conf.c April MMV
  */
 
+#include "lib/bool_string.h"
 #define NEED_JANSSON_NAMESPACE 1
 #include <openssl/md5.h>
 #include "include/bareos.h"
@@ -1131,14 +1132,18 @@ void ConfigurationParser::StoreBit(lexer* lc,
 {
   LexGetToken(lc, BCT_NAME);
   char* bitvalue = GetItemVariablePointer<char*>(*item);
-  if (Bstrcasecmp(lc->str, "yes") || Bstrcasecmp(lc->str, "true")) {
-    SetBit(item->code, bitvalue);
-  } else if (Bstrcasecmp(lc->str, "no") || Bstrcasecmp(lc->str, "false")) {
-    ClearBit(item->code, bitvalue);
-  } else {
-    scan_err2(lc, T_("Expect %s, got: %s"), "YES, NO, TRUE, or FALSE",
-              lc->str); /* YES and NO must not be translated */
-    return;
+  switch (parse_user_bool(lc->str)) {
+    case parse_bool_result::True: {
+      SetBit(item->code, bitvalue);
+    } break;
+    case parse_bool_result::False: {
+      ClearBit(item->code, bitvalue);
+    } break;
+    case parse_bool_result::Error: {
+      scan_err2(lc, T_("Expect %s, got: %s"), "YES, NO, TRUE, or FALSE",
+                lc->str); /* YES and NO must not be translated */
+      return;
+    } break;
   }
   ScanToEol(lc);
   item->SetPresent();
@@ -1152,14 +1157,18 @@ void ConfigurationParser::StoreBool(lexer* lc,
                                     int)
 {
   LexGetToken(lc, BCT_NAME);
-  if (Bstrcasecmp(lc->str, "yes") || Bstrcasecmp(lc->str, "true")) {
-    SetItemVariable<bool>(*item, true);
-  } else if (Bstrcasecmp(lc->str, "no") || Bstrcasecmp(lc->str, "false")) {
-    SetItemVariable<bool>(*item, false);
-  } else {
-    scan_err2(lc, T_("Expect %s, got: %s"), "YES, NO, TRUE, or FALSE",
-              lc->str); /* YES and NO must not be translated */
-    return;
+  switch (parse_user_bool(lc->str)) {
+    case parse_bool_result::True: {
+      SetItemVariable<bool>(*item, true);
+    } break;
+    case parse_bool_result::False: {
+      SetItemVariable<bool>(*item, false);
+    } break;
+    case parse_bool_result::Error: {
+      scan_err2(lc, T_("Expect %s, got: %s"), "YES, NO, TRUE, or FALSE",
+                lc->str); /* YES and NO must not be translated */
+      return;
+    } break;
   }
   ScanToEol(lc);
   item->SetPresent();
