@@ -296,27 +296,19 @@ static bool ValidateCommand(JobControlRecord* jcr,
 
 void CleanupFileset(JobControlRecord* jcr)
 {
-  findFILESET* fileset;
-  findFOPTS* fo;
-
-  fileset = jcr->fd_impl->ff->fileset;
+  findFILESET* fileset = jcr->fd_impl->ff->fileset;
   if (!fileset) { return; }
 
   // Delete FileSet Include lists
   for (auto* incexe : fileset->include_list) {
-    for (int j = 0; j < incexe->opts_list.size(); j++) {
-      fo = (findFOPTS*)incexe->opts_list.get(j);
+    for (findFOPTS* fo : incexe->opts_list) {
       if (fo->plugin) { free(fo->plugin); }
-      for (int k = 0; k < fo->regex.size(); k++) {
-        regfree((regex_t*)fo->regex.get(k));
-      }
-      for (int k = 0; k < fo->regexdir.size(); k++) {
-        regfree((regex_t*)fo->regexdir.get(k));
-      }
-      for (int k = 0; k < fo->regexfile.size(); k++) {
-        regfree((regex_t*)fo->regexfile.get(k));
-      }
+
+      for (regex_t* regex : fo->regex) { regfree(regex); }
+      for (regex_t* regex : fo->regexdir) { regfree(regex); }
+      for (regex_t* regex : fo->regexfile) { regfree(regex); }
       if (fo->size_match) { free(fo->size_match); }
+
       fo->regex.destroy();
       fo->regexdir.destroy();
       fo->regexfile.destroy();
@@ -333,8 +325,7 @@ void CleanupFileset(JobControlRecord* jcr)
 
   // Delete FileSet Exclude lists
   for (auto* incexe : fileset->exclude_list) {
-    for (int j = 0; j < incexe->opts_list.size(); j++) {
-      fo = (findFOPTS*)incexe->opts_list.get(j);
+    for (findFOPTS* fo : incexe->opts_list) {
       if (fo->size_match) { free(fo->size_match); }
       fo->regex.destroy();
       fo->regexdir.destroy();
