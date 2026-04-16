@@ -309,7 +309,7 @@ void CleanupFileset(JobControlRecord* jcr)
       for (regex_t* regex : fo->regexfile) { regfree(regex); }
       if (fo->size_match) { free(fo->size_match); }
 
-      std::destroy_at(fo);
+      delete fo;
     }
 
     std::destroy_at(incexe);
@@ -319,7 +319,7 @@ void CleanupFileset(JobControlRecord* jcr)
   for (auto* incexe : fileset->exclude_list) {
     for (findFOPTS* fo : incexe->opts_list) {
       if (fo->size_match) { free(fo->size_match); }
-      std::destroy_at(fo);
+      delete fo;
     }
 
     std::destroy_at(incexe);
