@@ -554,8 +554,8 @@ findFOPTS* start_options(FindFilesPacket* ff)
 
   if (state != state_options) {
     ff->fileset->state = state_options;
-    findFOPTS* fo = (findFOPTS*)malloc(sizeof(findFOPTS));
-    *fo = findFOPTS{};
+    void* storage = malloc(sizeof(findFOPTS));
+    auto* fo = new (storage) findFOPTS{};
     fo->regex.init(1, true);
     fo->regexdir.init(1, true);
     fo->regexfile.init(1, true);
@@ -575,10 +575,8 @@ findFOPTS* start_options(FindFilesPacket* ff)
 // Used by plugins to define a new options block
 void NewOptions(FindFilesPacket* ff, findIncludeExcludeItem* incexe)
 {
-  findFOPTS* fo;
-
-  fo = (findFOPTS*)malloc(sizeof(findFOPTS));
-  *fo = findFOPTS{};
+  void* storage = malloc(sizeof(findFOPTS));
+  auto* fo = new (storage) findFOPTS{};
   fo->regex.init(1, true);
   fo->regexdir.init(1, true);
   fo->regexfile.init(1, true);

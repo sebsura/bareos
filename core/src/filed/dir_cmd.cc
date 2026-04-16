@@ -309,15 +309,7 @@ void CleanupFileset(JobControlRecord* jcr)
       for (regex_t* regex : fo->regexfile) { regfree(regex); }
       if (fo->size_match) { free(fo->size_match); }
 
-      fo->regex.destroy();
-      fo->regexdir.destroy();
-      fo->regexfile.destroy();
-      fo->wild.destroy();
-      fo->wilddir.destroy();
-      fo->wildfile.destroy();
-      fo->wildbase.destroy();
-      fo->fstype.destroy();
-      fo->Drivetype.destroy();
+      std::destroy_at(fo);
     }
 
     std::destroy_at(incexe);
@@ -327,15 +319,7 @@ void CleanupFileset(JobControlRecord* jcr)
   for (auto* incexe : fileset->exclude_list) {
     for (findFOPTS* fo : incexe->opts_list) {
       if (fo->size_match) { free(fo->size_match); }
-      fo->regex.destroy();
-      fo->regexdir.destroy();
-      fo->regexfile.destroy();
-      fo->wild.destroy();
-      fo->wilddir.destroy();
-      fo->wildfile.destroy();
-      fo->wildbase.destroy();
-      fo->fstype.destroy();
-      fo->Drivetype.destroy();
+      std::destroy_at(fo);
     }
 
     std::destroy_at(incexe);
