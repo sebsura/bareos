@@ -3,7 +3,7 @@
 
    Copyright (C) 2001-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -144,6 +144,19 @@ struct findFOPTS {
   alist<const char*> wildbase;   /**< Wild card strings for basenames */
   alist<const char*> fstype;     /**< File system type limitation */
   alist<const char*> Drivetype;  /**< Drive type limitation */
+
+  findFOPTS()
+  {
+    regex.init(1, true);
+    regexdir.init(1, true);
+    regexfile.init(1, true);
+    wild.init(1, true);
+    wilddir.init(1, true);
+    wildfile.init(1, true);
+    wildbase.init(1, true);
+    fstype.init(1, true);
+    Drivetype.init(1, true);
+  }
 };
 
 // This is either an include item or an exclude item
@@ -153,6 +166,8 @@ struct findIncludeExcludeItem {
   dlist<dlistString> name_list;   /**< Filename list -- holds dlistString */
   dlist<dlistString> plugin_list; /**< Plugin list -- holds dlistString */
   alist<const char*> ignoredir;   /**< Ignore directories with this file(s) */
+
+  findIncludeExcludeItem() { opts_list.init(1, false); }
 };
 
 // FileSet Resource

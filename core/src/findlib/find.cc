@@ -510,8 +510,6 @@ findIncludeExcludeItem* allocate_new_incexe(void)
       = (findIncludeExcludeItem*)malloc(sizeof(findIncludeExcludeItem));
   new (incexe) findIncludeExcludeItem{};
 
-  incexe->opts_list.init(1, false);
-
   return incexe;
 }
 
@@ -553,15 +551,6 @@ findIncludeExcludeItem* new_preinclude(findFILESET* fileset)
 void NewOptions(FindFilesPacket* ff, findIncludeExcludeItem* incexe)
 {
   auto* fo = new findFOPTS{};
-  fo->regex.init(1, true);
-  fo->regexdir.init(1, true);
-  fo->regexfile.init(1, true);
-  fo->wild.init(1, true);
-  fo->wilddir.init(1, true);
-  fo->wildfile.init(1, true);
-  fo->wildbase.init(1, true);
-  fo->fstype.init(1, true);
-  fo->Drivetype.init(1, true);
   incexe->current_opts = fo;
   ff->fileset->state = state_options;
 
@@ -575,15 +564,6 @@ findFOPTS* start_options(FindFilesPacket* ff)
 
   if (state != state_options) {
     auto* fo = new findFOPTS{};
-    fo->regex.init(1, true);
-    fo->regexdir.init(1, true);
-    fo->regexfile.init(1, true);
-    fo->wild.init(1, true);
-    fo->wilddir.init(1, true);
-    fo->wildfile.init(1, true);
-    fo->wildbase.init(1, true);
-    fo->fstype.init(1, true);
-    fo->Drivetype.init(1, true);
     incexe->current_opts = fo;
     ff->fileset->state = state_options;
 
