@@ -503,21 +503,11 @@ void TermFindFiles(FindFilesPacket* ff)
   }
 }
 
-// Allocate a new include/exclude block.
-findIncludeExcludeItem* allocate_new_incexe(void)
-{
-  findIncludeExcludeItem* incexe
-      = (findIncludeExcludeItem*)malloc(sizeof(findIncludeExcludeItem));
-  new (incexe) findIncludeExcludeItem{};
-
-  return incexe;
-}
-
 // Define a new Exclude block in the FileSet
 findIncludeExcludeItem* new_exclude(findFILESET* fileset)
 {
   // New exclude
-  fileset->incexe = allocate_new_incexe();
+  fileset->incexe = new findIncludeExcludeItem{};
   fileset->exclude_list.append(fileset->incexe);
 
   return fileset->incexe;
@@ -527,7 +517,7 @@ findIncludeExcludeItem* new_exclude(findFILESET* fileset)
 findIncludeExcludeItem* new_include(findFILESET* fileset)
 {
   // New include
-  fileset->incexe = allocate_new_incexe();
+  fileset->incexe = new findIncludeExcludeItem{};
   fileset->include_list.append(fileset->incexe);
 
   return fileset->incexe;
@@ -541,7 +531,7 @@ findIncludeExcludeItem* new_include(findFILESET* fileset)
 findIncludeExcludeItem* new_preinclude(findFILESET* fileset)
 {
   // New pre-include
-  fileset->incexe = allocate_new_incexe();
+  fileset->incexe = new findIncludeExcludeItem{};
   fileset->include_list.prepend(fileset->incexe);
 
   return fileset->incexe;

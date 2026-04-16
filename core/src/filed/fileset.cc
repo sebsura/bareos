@@ -82,8 +82,8 @@ bool InitFileset(JobControlRecord* jcr)
 
   ff->fileset = fileset;
   fileset->state = state_none;
-  fileset->include_list.init(1, true);
-  fileset->exclude_list.init(1, true);
+  fileset->include_list.init(1, false);
+  fileset->exclude_list.init(1, false);
   return true;
 }
 

@@ -312,7 +312,7 @@ void CleanupFileset(JobControlRecord* jcr)
       delete fo;
     }
 
-    std::destroy_at(incexe);
+    delete incexe;
   }
 
   // Delete FileSet Exclude lists
@@ -322,7 +322,7 @@ void CleanupFileset(JobControlRecord* jcr)
       delete fo;
     }
 
-    std::destroy_at(incexe);
+    delete incexe;
   }
   delete fileset;
 }
