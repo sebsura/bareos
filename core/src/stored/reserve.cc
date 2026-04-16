@@ -518,43 +518,35 @@ bool FindSuitableDeviceForJob(JobControlRecord* jcr, ReserveContext& rctx)
  */
 int SearchResForDevice(JobControlRecord* jcr, ReserveContext& rctx)
 {
-  int status;
   AutochangerResource* changer;
+
+  std::vector<DeviceResource*> device_by_prio;
+
+  auto add_candidate = [&](DeviceResource* res) {
+    if (std::find(device_by_prio.begin(), device_by_prio.end(), res)
+        == device_by_prio.end()) {
+      device_by_prio.push_back(res);
+    }
+  };
 
   // Look through Autochangers first
   foreach_res (changer, R_AUTOCHANGER) {
     Dmsg2(debuglevel, "Try match changer res=%s, wanted %s\n",
           changer->resource_name_, rctx.device_name);
     // Find resource, and make sure we were able to open it
-    if (bstrcmp(rctx.device_name, changer->resource_name_)) {
-      // Try each device_resource in this AutoChanger
-      for (auto* device_resource : changer->device_resources) {
-        rctx.device_resource = device_resource;
-        Dmsg1(debuglevel, "Try changer device %s\n",
+    if (!bstrcmp(rctx.device_name, changer->resource_name_)) { continue; }
+
+    // Try each device_resource in this AutoChanger
+    for (auto* device_resource : changer->device_resources) {
+      Dmsg1(debuglevel, "Try changer device %s\n",
+            device_resource->resource_name_);
+      if (!device_resource->autoselect) {
+        Dmsg1(100, "Device %s not autoselect skipped.\n",
               device_resource->resource_name_);
-        if (!device_resource->autoselect) {
-          Dmsg1(100, "Device %s not autoselect skipped.\n",
-                device_resource->resource_name_);
-          continue; /* Device is not available */
-        }
-        status = ReserveDevice(jcr, rctx);
-        if (status != 1) { /* Try another device */
-          continue;
-        }
-
-        // Debug code
-        if (rctx.store->append) {
-          Dmsg2(debuglevel, "Device %s reserved=%d for append.\n",
-                device_resource->resource_name_,
-                jcr->sd_impl->dcr->dev->NumReserved());
-        } else {
-          Dmsg2(debuglevel, "Device %s reserved=%d for read.\n",
-                device_resource->resource_name_,
-                jcr->sd_impl->read_dcr->dev->NumReserved());
-        }
-
-        return status;
+        continue; /* Device is not available */
       }
+
+      add_candidate(device_resource);
     }
   }
 
@@ -566,21 +558,7 @@ int SearchResForDevice(JobControlRecord* jcr, ReserveContext& rctx)
 
       // Find resource, and make sure we were able to open it
       if (bstrcmp(rctx.device_name, rctx.device_resource->resource_name_)) {
-        status = ReserveDevice(jcr, rctx);
-        if (status != 1) { /* Try another device_resource */
-          continue;
-        }
-        // Debug code
-        if (rctx.store->append) {
-          Dmsg2(debuglevel, "Device %s reserved=%d for append.\n",
-                rctx.device_resource->resource_name_,
-                jcr->sd_impl->dcr->dev->NumReserved());
-        } else {
-          Dmsg2(debuglevel, "Device %s reserved=%d for read.\n",
-                rctx.device_resource->resource_name_,
-                jcr->sd_impl->read_dcr->dev->NumReserved());
-        }
-        return status;
+        add_candidate(rctx.device_resource);
       }
     }
 
@@ -596,24 +574,35 @@ int SearchResForDevice(JobControlRecord* jcr, ReserveContext& rctx)
 
         if (bstrcmp(rctx.store->media_type.c_str(),
                     rctx.device_resource->media_type)) {
-          status = ReserveDevice(jcr, rctx);
-          if (status != 1) { /* Try another device_resource */
-            continue;
-          }
-
-          // Debug code
-          if (rctx.store->append) {
-            Dmsg2(debuglevel, "Device %s reserved=%d for append.\n",
-                  rctx.device_resource->resource_name_,
-                  jcr->sd_impl->dcr->dev->NumReserved());
-          } else {
-            Dmsg2(debuglevel, "Device %s reserved=%d for read.\n",
-                  rctx.device_resource->resource_name_,
-                  jcr->sd_impl->read_dcr->dev->NumReserved());
-          }
-          return status;
+          add_candidate(rctx.device_resource);
         }
       }
+    }
+  }
+
+  Dmsg2(10, "Device List by Priority\n");
+  for (auto* device_res : device_by_prio) {
+    Dmsg2(10, " - '%s' (%s)\n", device_res->resource_name_,
+          device_res->dev->print_name());
+  }
+
+  for (auto* device_res : device_by_prio) {
+    rctx.device_resource = device_res;
+
+    auto status = ReserveDevice(jcr, rctx);
+
+    if (status != -1) {
+      if (rctx.store->append) {
+        Dmsg2(debuglevel, "Device %s reserved=%d for append.\n",
+              rctx.device_resource->resource_name_,
+              jcr->sd_impl->dcr->dev->NumReserved());
+      } else {
+        Dmsg2(debuglevel, "Device %s reserved=%d for read.\n",
+              rctx.device_resource->resource_name_,
+              jcr->sd_impl->read_dcr->dev->NumReserved());
+      }
+
+      return status;
     }
   }
 
