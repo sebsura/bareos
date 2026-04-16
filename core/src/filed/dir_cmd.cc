@@ -299,31 +299,6 @@ void CleanupFileset(JobControlRecord* jcr)
   findFILESET* fileset = jcr->fd_impl->ff->fileset;
   if (!fileset) { return; }
 
-  // Delete FileSet Include lists
-  for (auto* incexe : fileset->include_list) {
-    for (findFOPTS* fo : incexe->opts_list) {
-      if (fo->plugin) { free(fo->plugin); }
-
-      for (regex_t* regex : fo->regex) { regfree(regex); }
-      for (regex_t* regex : fo->regexdir) { regfree(regex); }
-      for (regex_t* regex : fo->regexfile) { regfree(regex); }
-      if (fo->size_match) { free(fo->size_match); }
-
-      delete fo;
-    }
-
-    delete incexe;
-  }
-
-  // Delete FileSet Exclude lists
-  for (auto* incexe : fileset->exclude_list) {
-    for (findFOPTS* fo : incexe->opts_list) {
-      if (fo->size_match) { free(fo->size_match); }
-      delete fo;
-    }
-
-    delete incexe;
-  }
   delete fileset;
 }
 

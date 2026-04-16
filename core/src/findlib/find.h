@@ -131,19 +131,19 @@ struct findFOPTS {
   int StripPath{};          /**< Strip path count */
   struct s_sz_matching* size_match{}; /**< Perform size matching ? */
   b_fileset_shadow_type shadow_type{
-      check_shadow_none};        /**< Perform fileset shadowing check ? */
-  char VerifyOpts[MAX_OPTS]{};   /**< Verify options */
-  char AccurateOpts[MAX_OPTS]{}; /**< Accurate mode options */
-  char* plugin{};                /**< Plugin that handle this section */
-  alist<regex_t*> regex;         /**< Regex string(s) */
-  alist<regex_t*> regexdir;      /**< Regex string(s) for directories */
-  alist<regex_t*> regexfile;     /**< Regex string(s) for files */
-  alist<const char*> wild;       /**< Wild card strings */
-  alist<const char*> wilddir;    /**< Wild card strings for directories */
-  alist<const char*> wildfile;   /**< Wild card strings for files */
-  alist<const char*> wildbase;   /**< Wild card strings for basenames */
-  alist<const char*> fstype;     /**< File system type limitation */
-  alist<const char*> Drivetype;  /**< Drive type limitation */
+      check_shadow_none};         /**< Perform fileset shadowing check ? */
+  char VerifyOpts[MAX_OPTS]{};    /**< Verify options */
+  char AccurateOpts[MAX_OPTS]{};  /**< Accurate mode options */
+  char* plugin{};                 /**< Plugin that handle this section */
+  alist<regex_t*> regex{};        /**< Regex string(s) */
+  alist<regex_t*> regexdir{};     /**< Regex string(s) for directories */
+  alist<regex_t*> regexfile{};    /**< Regex string(s) for files */
+  alist<const char*> wild{};      /**< Wild card strings */
+  alist<const char*> wilddir{};   /**< Wild card strings for directories */
+  alist<const char*> wildfile{};  /**< Wild card strings for files */
+  alist<const char*> wildbase{};  /**< Wild card strings for basenames */
+  alist<const char*> fstype{};    /**< File system type limitation */
+  alist<const char*> Drivetype{}; /**< Drive type limitation */
 
   findFOPTS()
   {
@@ -157,6 +157,17 @@ struct findFOPTS {
     fstype.init(1, true);
     Drivetype.init(1, true);
   }
+
+  ~findFOPTS()
+  {
+    if (plugin) { free(plugin); }
+
+    for (regex_t* rx : regex) { regfree(rx); }
+    for (regex_t* rx : regexdir) { regfree(rx); }
+    for (regex_t* rx : regexfile) { regfree(rx); }
+
+    if (size_match) { free(size_match); }
+  }
 };
 
 // This is either an include item or an exclude item
@@ -168,14 +179,30 @@ struct findIncludeExcludeItem {
   alist<const char*> ignoredir;   /**< Ignore directories with this file(s) */
 
   findIncludeExcludeItem() { opts_list.init(1, false); }
+  ~findIncludeExcludeItem()
+  {
+    for (findFOPTS* fo : opts_list) { delete fo; }
+  }
 };
 
 // FileSet Resource
 struct findFILESET {
   int state;
-  findIncludeExcludeItem* incexe; /**< Current item */
-  alist<findIncludeExcludeItem*> include_list;
-  alist<findIncludeExcludeItem*> exclude_list;
+  findIncludeExcludeItem* incexe{}; /**< Current item */
+  alist<findIncludeExcludeItem*> include_list{};
+  alist<findIncludeExcludeItem*> exclude_list{};
+
+  findFILESET()
+  {
+    state = state_none;
+    include_list.init(1, false);
+    exclude_list.init(1, false);
+  }
+  ~findFILESET()
+  {
+    for (auto* item : include_list) { delete item; }
+    for (auto* item : exclude_list) { delete item; }
+  }
 };
 
 // OSX resource fork.
