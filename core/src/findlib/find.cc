@@ -177,10 +177,8 @@ int FindFiles(JobControlRecord* jcr,
      * at this place flags options are "concatenated" across Include {} blocks
      * (not only Options{} blocks inside a Include{}) */
     ClearAllBits(FO_MAX, ff->flags);
-    for (int i = 0; i < fileset->include_list.size(); i++) {
+    for (auto* incexe : fileset->include_list) {
       dlistString* node;
-      findIncludeExcludeItem* incexe
-          = (findIncludeExcludeItem*)fileset->include_list.get(i);
       fileset->incexe = incexe;
 
       // Here, we reset some values between two different Include{}
@@ -192,10 +190,7 @@ int FindFiles(JobControlRecord* jcr,
 
       /* By setting all options, we in effect OR the global options which is
        * what we want. */
-      for (int j = 0; j < incexe->opts_list.size(); j++) {
-        findFOPTS* fo;
-
-        fo = (findFOPTS*)incexe->opts_list.get(j);
+      for (auto* fo : incexe->opts_list) {
         CopyBits(FO_MAX, fo->flags, ff->flags);
         ff->Compress_algo = fo->Compress_algo;
         ff->Compress_level = fo->Compress_level;
@@ -256,25 +251,20 @@ int FindFiles(JobControlRecord* jcr,
  */
 bool IsInFileset(FindFilesPacket* ff)
 {
-  int i;
-  char* fname;
   dlistString* node;
-  findIncludeExcludeItem* incexe;
   findFILESET* fileset = ff->fileset;
 
   if (fileset) {
-    for (i = 0; i < fileset->include_list.size(); i++) {
-      incexe = (findIncludeExcludeItem*)fileset->include_list.get(i);
+    for (auto* incexe : fileset->include_list) {
       foreach_dlist (node, &incexe->name_list) {
-        fname = node->c_str();
+        const char* fname = node->c_str();
         Dmsg2(debuglevel, "Inc fname=%s ff->fname=%s\n", fname, ff->fname);
         if (bstrcmp(fname, ff->fname)) { return true; }
       }
     }
-    for (i = 0; i < fileset->exclude_list.size(); i++) {
-      incexe = (findIncludeExcludeItem*)fileset->exclude_list.get(i);
+    for (auto* incexe : fileset->exclude_list) {
       foreach_dlist (node, &incexe->name_list) {
-        fname = node->c_str();
+        const char* fname = node->c_str();
         Dmsg2(debuglevel, "Exc fname=%s ff->fname=%s\n", fname, ff->fname);
         if (bstrcmp(fname, ff->fname)) { return true; }
       }
@@ -286,7 +276,6 @@ bool IsInFileset(FindFilesPacket* ff)
 
 bool AcceptFile(FindFilesPacket* ff)
 {
-  int i, j, k;
   int fnm_flags;
   const char* basename;
   findFILESET* fileset = ff->fileset;
@@ -305,10 +294,7 @@ bool AcceptFile(FindFilesPacket* ff)
     basename = ff->fname;
   }
 
-  for (j = 0; j < incexe->opts_list.size(); j++) {
-    findFOPTS* fo;
-
-    fo = (findFOPTS*)incexe->opts_list.get(j);
+  for (auto* fo : incexe->opts_list) {
     CopyBits(FO_MAX, fo->flags, ff->flags);
     ff->Compress_algo = fo->Compress_algo;
     ff->Compress_level = fo->Compress_level;
@@ -319,37 +305,31 @@ bool AcceptFile(FindFilesPacket* ff)
     fnm_flags |= BitIsSet(FO_ENHANCEDWILD, ff->flags) ? FNM_PATHNAME : 0;
 
     if (S_ISDIR(ff->statp.st_mode)) {
-      for (k = 0; k < fo->wilddir.size(); k++) {
-        if (match_func((char*)fo->wilddir.get(k), ff->fname, fnmode | fnm_flags)
-            == 0) {
+      for (auto* expr : fo->wilddir) {
+        if (match_func(expr, ff->fname, fnmode | fnm_flags) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
-            Dmsg2(debuglevel, "Exclude wilddir: %s file=%s\n",
-                  (char*)fo->wilddir.get(k), ff->fname);
+            Dmsg2(debuglevel, "Exclude wilddir: %s file=%s\n", expr, ff->fname);
             return false; /* reject dir */
           }
           return true; /* accept dir */
         }
       }
     } else {
-      for (k = 0; k < fo->wildfile.size(); k++) {
-        if (match_func((char*)fo->wildfile.get(k), ff->fname,
-                       fnmode | fnm_flags)
-            == 0) {
+      for (auto* expr : fo->wildfile) {
+        if (match_func(expr, ff->fname, fnmode | fnm_flags) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
-            Dmsg2(debuglevel, "Exclude wildfile: %s file=%s\n",
-                  (char*)fo->wildfile.get(k), ff->fname);
+            Dmsg2(debuglevel, "Exclude wildfile: %s file=%s\n", expr,
+                  ff->fname);
             return false; /* reject file */
           }
           return true; /* accept file */
         }
       }
 
-      for (k = 0; k < fo->wildbase.size(); k++) {
-        if (match_func((char*)fo->wildbase.get(k), basename, fnmode | fnm_flags)
-            == 0) {
+      for (auto* expr : fo->wildbase) {
+        if (match_func(expr, basename, fnmode | fnm_flags) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
-            Dmsg2(debuglevel, "Exclude wildbase: %s file=%s\n",
-                  (char*)fo->wildbase.get(k), basename);
+            Dmsg2(debuglevel, "Exclude wildbase: %s file=%s\n", expr, basename);
             return false; /* reject file */
           }
           return true; /* accept file */
@@ -357,12 +337,10 @@ bool AcceptFile(FindFilesPacket* ff)
       }
     }
 
-    for (k = 0; k < fo->wild.size(); k++) {
-      if (match_func((char*)fo->wild.get(k), ff->fname, fnmode | fnm_flags)
-          == 0) {
+    for (auto* expr : fo->wild) {
+      if (match_func(expr, ff->fname, fnmode | fnm_flags) == 0) {
         if (BitIsSet(FO_EXCLUDE, ff->flags)) {
-          Dmsg2(debuglevel, "Exclude wild: %s file=%s\n",
-                (char*)fo->wild.get(k), ff->fname);
+          Dmsg2(debuglevel, "Exclude wild: %s file=%s\n", expr, ff->fname);
           return false; /* reject file */
         }
         return true; /* accept file */
@@ -370,9 +348,8 @@ bool AcceptFile(FindFilesPacket* ff)
     }
 
     if (S_ISDIR(ff->statp.st_mode)) {
-      for (k = 0; k < fo->regexdir.size(); k++) {
-        if (regexec((regex_t*)fo->regexdir.get(k), ff->fname, 0, NULL, 0)
-            == 0) {
+      for (auto* expr : fo->regexdir) {
+        if (regexec(expr, ff->fname, 0, NULL, 0) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             return false; /* reject file */
           }
@@ -380,9 +357,8 @@ bool AcceptFile(FindFilesPacket* ff)
         }
       }
     } else {
-      for (k = 0; k < fo->regexfile.size(); k++) {
-        if (regexec((regex_t*)fo->regexfile.get(k), ff->fname, 0, NULL, 0)
-            == 0) {
+      for (auto* expr : fo->regexfile) {
+        if (regexec(expr, ff->fname, 0, NULL, 0) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             return false; /* reject file */
           }
@@ -391,8 +367,8 @@ bool AcceptFile(FindFilesPacket* ff)
       }
     }
 
-    for (k = 0; k < fo->regex.size(); k++) {
-      if (regexec((regex_t*)fo->regex.get(k), ff->fname, 0, NULL, 0) == 0) {
+    for (auto* expr : fo->regex) {
+      if (regexec(expr, ff->fname, 0, NULL, 0) == 0) {
         if (BitIsSet(FO_EXCLUDE, ff->flags)) { return false; /* reject file */ }
         return true; /* accept file */
       }
@@ -409,17 +385,13 @@ bool AcceptFile(FindFilesPacket* ff)
   }
 
   // Now apply the Exclude { } directive
-  for (i = 0; i < fileset->exclude_list.size(); i++) {
+  for (auto* exclude_item : fileset->exclude_list) {
     dlistString* node;
-    findIncludeExcludeItem* exclude_item
-        = (findIncludeExcludeItem*)fileset->exclude_list.get(i);
 
-    for (j = 0; j < exclude_item->opts_list.size(); j++) {
-      findFOPTS* fo = (findFOPTS*)exclude_item->opts_list.get(j);
+    for (auto* fo : exclude_item->opts_list) {
       fnm_flags = BitIsSet(FO_IGNORECASE, fo->flags) ? FNM_CASEFOLD : 0;
-      for (k = 0; k < fo->wild.size(); k++) {
-        if (fnmatch((char*)fo->wild.get(k), ff->fname, fnmode | fnm_flags)
-            == 0) {
+      for (auto* expr : fo->wild) {
+        if (fnmatch(expr, ff->fname, fnmode | fnm_flags) == 0) {
           Dmsg1(debuglevel, "Reject wild1: %s\n", ff->fname);
           return false; /* reject file */
         }

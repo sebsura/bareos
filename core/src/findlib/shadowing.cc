@@ -3,7 +3,7 @@
 
    Copyright (C) 2011-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2023 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -347,17 +347,11 @@ static inline void check_global_fileset_shadowing(JobControlRecord* jcr,
 
 void CheckIncludeListShadowing(JobControlRecord* jcr, findFILESET* fileset)
 {
-  int i;
-  findIncludeExcludeItem* incexe;
-  b_fileset_shadow_type shadow_type;
-
   // Walk the list of include blocks.
-  for (i = 0; i < fileset->include_list.size(); i++) {
-    incexe = (findIncludeExcludeItem*)fileset->include_list.get(i);
-
+  for (auto* incexe : fileset->include_list) {
     /* See if the shadow check option is enabled for this
      * include block. If not just continue with the next include block. */
-    shadow_type = IncludeBlockGetShadowType(incexe);
+    b_fileset_shadow_type shadow_type = IncludeBlockGetShadowType(incexe);
     switch (shadow_type) {
       case check_shadow_none:
         continue;
