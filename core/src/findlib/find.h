@@ -207,7 +207,7 @@ struct HfsPlusInfo {
  */
 /* clang-format off */
 struct FindFilesPacket {
-  char* top_fname{nullptr};          /**< Full filename before descending */
+  const char* top_fname{nullptr};          /**< Full filename before descending */
   char* fname{nullptr};              /**< Full filename */
   char* link_or_dir{nullptr};               /**< Link if file linked, or canonical directory path */
   char* object_name{nullptr};        /**< Object name */

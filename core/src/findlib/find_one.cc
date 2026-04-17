@@ -358,7 +358,7 @@ static inline bool HaveIgnoredir(FindFilesPacket* ff_pkt)
 }
 
 // Restore file times.
-static inline void RestoreFileTimes(FindFilesPacket* ff_pkt, char* fname)
+static inline void RestoreFileTimes(FindFilesPacket* ff_pkt, const char* fname)
 {
 #if defined(HAVE_LUTIMES)
   struct timeval restore_times[2];
@@ -422,7 +422,7 @@ static inline int process_hardlink(JobControlRecord* jcr,
                                    int HandleFile(JobControlRecord* jcr,
                                                   FindFilesPacket* ff,
                                                   bool top_level),
-                                   char* fname,
+                                   const char* fname,
                                    bool top_level,
                                    bool* done)
 {
@@ -468,7 +468,7 @@ static inline int process_regular_file(JobControlRecord* jcr,
                                        int HandleFile(JobControlRecord* jcr,
                                                       FindFilesPacket* ff,
                                                       bool top_level),
-                                       char* fname,
+                                       const char* fname,
                                        bool top_level)
 {
   int rtn_stat;
@@ -503,7 +503,7 @@ static inline int process_symlink(JobControlRecord* jcr,
                                   int HandleFile(JobControlRecord* jcr,
                                                  FindFilesPacket* ff,
                                                  bool top_level),
-                                  char* fname,
+                                  const char* fname,
                                   bool top_level)
 {
   int rtn_stat;
@@ -537,7 +537,7 @@ static inline int process_directory(JobControlRecord* jcr,
                                     int HandleFile(JobControlRecord* jcr,
                                                    FindFilesPacket* ff,
                                                    bool top_level),
-                                    char* fname,
+                                    const char* fname,
                                     dev_t parent_device,
                                     bool top_level)
 {
@@ -790,7 +790,7 @@ static inline int process_special_file(JobControlRecord* jcr,
                                        int HandleFile(JobControlRecord* jcr,
                                                       FindFilesPacket* ff,
                                                       bool top_level),
-                                       char*,
+                                       const char*,
                                        bool top_level)
 {
   int rtn_stat;
@@ -828,7 +828,7 @@ static inline int process_special_file(JobControlRecord* jcr,
 // See if we need to perform any processing for a given file.
 static inline bool NeedsProcessing(JobControlRecord* jcr,
                                    FindFilesPacket* ff_pkt,
-                                   char* fname)
+                                   const char* fname)
 {
   int loglevel = M_INFO;
 
@@ -890,14 +890,14 @@ int FindOneFile(JobControlRecord* jcr,
                 int HandleFile(JobControlRecord* jcr,
                                FindFilesPacket* ff,
                                bool top_level),
-                char* fname,
+                const char* fname,
                 dev_t parent_device,
                 bool top_level)
 {
   int rtn_stat;
   bool done = false;
 
-  ff_pkt->link_or_dir = ff_pkt->fname = fname;
+  ff_pkt->link_or_dir = ff_pkt->fname = const_cast<char*>(fname);
   ff_pkt->type = FT_UNSET;
   if (lstat(fname, &ff_pkt->statp) != 0) {
     // Cannot stat file
