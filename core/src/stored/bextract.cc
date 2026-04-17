@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -75,7 +75,7 @@ static Device* dev = nullptr;
 static DeviceControlRecord* g_dcr;
 static BareosFilePacket g_bfd;
 static JobControlRecord* g_jcr;
-static FindFilesPacket* ff;
+static file_filter ff;
 static bool extract = false;
 static int non_support_data = 0;
 static long total = 0;
@@ -110,7 +110,6 @@ int main(int argc, char* argv[])
 
   (void)WSA_Init(); /* Initialize Windows sockets */
 
-  ff = init_find_files();
   binit(&g_bfd);
 
   CLI::App bextract_app;
@@ -268,8 +267,6 @@ int main(int argc, char* argv[])
           T_("%d Win32 data or Win32 gzip data stream records. Ignored.\n"),
           win32_data_msg);
   }
-  TermIncludeExcludeFiles(ff);
-  TermFindFiles(ff);
   return BEXIT_SUCCESS;
 }
 

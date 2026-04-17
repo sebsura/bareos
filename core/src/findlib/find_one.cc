@@ -68,9 +68,6 @@ static inline FindFilesPacket* new_dir_ff_pkt(FindFilesPacket* ff_pkt)
   dir_ff_pkt->fname = strdup(ff_pkt->fname);
   dir_ff_pkt->link_or_dir = strdup(ff_pkt->link_or_dir);
   dir_ff_pkt->sys_fname = GetPoolMemory(PM_FNAME);
-  dir_ff_pkt->included_files_list = NULL;
-  dir_ff_pkt->excluded_files_list = NULL;
-  dir_ff_pkt->excluded_paths_list = NULL;
   dir_ff_pkt->linkhash = NULL;
   dir_ff_pkt->fname_save = NULL;
   dir_ff_pkt->link_save = NULL;
@@ -712,9 +709,7 @@ static inline int process_directory(JobControlRecord* jcr,
     memcpy(link + len, entry->d_name, name_length);
     link[len + name_length] = '\0';
 
-    if (!FileIsExcluded(ff_pkt, link)) {
-      rtn_stat = FindOneFile(jcr, ff_pkt, HandleFile, link, our_device, false);
-    }
+    rtn_stat = FindOneFile(jcr, ff_pkt, HandleFile, link, our_device, false);
   }
 
   closedir(directory);
@@ -755,10 +750,8 @@ static inline int process_directory(JobControlRecord* jcr,
     memcpy(link + len, result->d_name, name_length);
     link[len + name_length] = '\0';
 
-    if (!FileIsExcluded(ff_pkt, link)) {
-      rtn_stat = FindOneFile(jcr, ff_pkt, HandleFile, link, our_device, false);
-      if (ff_pkt->linked) { ff_pkt->linked->FileIndex = ff_pkt->FileIndex; }
-    }
+    rtn_stat = FindOneFile(jcr, ff_pkt, HandleFile, link, our_device, false);
+    if (ff_pkt->linked) { ff_pkt->linked->FileIndex = ff_pkt->FileIndex; }
   }
 
   closedir(directory);

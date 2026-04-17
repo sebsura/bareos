@@ -33,6 +33,7 @@
 #include "bfile.h"
 #include "lib/htable.h"
 #include "findlib/hardlink.h"
+#include "findlib/shadow.h"
 
 #include <dirent.h>
 #define NAMELEN(dirent) (strlen((dirent)->d_name))
@@ -77,15 +78,6 @@ enum
 
 typedef enum
 {
-  check_shadow_none,
-  check_shadow_local_warn,
-  check_shadow_local_remove,
-  check_shadow_global_warn,
-  check_shadow_global_remove
-} b_fileset_shadow_type;
-
-typedef enum
-{
   size_match_none,
   size_match_approx,
   size_match_smaller,
@@ -97,26 +89,6 @@ struct s_sz_matching {
   b_sz_match_type type{size_match_none};
   uint64_t begin_size{};
   uint64_t end_size{};
-};
-
-struct s_included_file {
-  struct s_included_file* next;
-  char options[FOPTS_BYTES]; /**< Backup options */
-  uint32_t cipher;           /**< Encryption cipher forced by fileset */
-  uint32_t algo; /**< Compression algorithm. 4 letters stored as an integer */
-  int level;     /**< Compression level */
-  int len;       /**< Length of fname */
-  int pattern;   /**< Set if wild card pattern */
-  struct s_sz_matching* size_match;  /**< Perform size matching ? */
-  b_fileset_shadow_type shadow_type; /**< Perform fileset shadowing check ? */
-  char VerifyOpts[20];               /**< Options for verify */
-  char fname[1];
-};
-
-struct s_excluded_file {
-  struct s_excluded_file* next;
-  int len;
-  char fname[1];
 };
 
 #define MAX_OPTS 20
@@ -236,9 +208,6 @@ struct FindFilesPacket {
   char VerifyOpts[MAX_OPTS]{};
   char AccurateOpts[MAX_OPTS]{};
   char BaseJobOpts[MAX_OPTS]{};
-  struct s_included_file* included_files_list{nullptr};
-  struct s_excluded_file* excluded_files_list{nullptr};
-  struct s_excluded_file* excluded_paths_list{nullptr};
   findFILESET* fileset{nullptr};
   int (*FileSave)(JobControlRecord*,
                   FindFilesPacket*,
@@ -278,9 +247,6 @@ int FindFiles(JobControlRecord* jcr,
               FindFilesPacket* ff,
               int file_sub(JobControlRecord*, FindFilesPacket* ff_pkt, bool),
               int PluginSub(JobControlRecord*, FindFilesPacket* ff_pkt, bool));
-bool MatchFiles(JobControlRecord* jcr,
-                FindFilesPacket* ff,
-                int sub(JobControlRecord*, FindFilesPacket* ff_pkt, bool));
 void TermFindFiles(FindFilesPacket* ff);
 bool IsInFileset(FindFilesPacket* ff);
 bool AcceptFile(FindFilesPacket* ff);

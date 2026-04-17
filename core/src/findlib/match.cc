@@ -57,292 +57,233 @@ static const int fnmode = FNM_CASEFOLD;
 static const int fnmode = 0;
 #endif
 
-bool MatchFiles(JobControlRecord* jcr,
-                FindFilesPacket* ff,
-                int FileSave(JobControlRecord*, FindFilesPacket* ff_pkt, bool))
-{
-  ff->FileSave = FileSave;
-
-  struct s_included_file* inc = NULL;
-
-  /* This is the old deprecated way */
-  while (!jcr->IsJobCanceled() && (inc = get_next_included_file(ff, inc))) {
-    /* Copy options for this file */
-    bstrncat(ff->VerifyOpts, inc->VerifyOpts, sizeof(ff->VerifyOpts));
-    Dmsg1(100, "FindFiles: file=%s\n", inc->fname);
-    if (!FileIsExcluded(ff, inc->fname)) {
-      if (FindOneFile(jcr, ff, FileSave, inc->fname, (dev_t)-1, 1) == 0) {
-        return false; /* error return */
-      }
-    }
-  }
-  return true;
-}
-
-/**
- * Done doing filename matching, release all
- *  resources used.
- */
-void TermIncludeExcludeFiles(FindFilesPacket* ff)
-{
-  struct s_included_file *inc, *next_inc;
-  struct s_excluded_file *exc, *next_exc;
-
-  for (inc = ff->included_files_list; inc;) {
-    next_inc = inc->next;
-    if (inc->size_match) { free(inc->size_match); }
-    free(inc);
-    inc = next_inc;
-  }
-  ff->included_files_list = NULL;
-
-  for (exc = ff->excluded_files_list; exc;) {
-    next_exc = exc->next;
-    free(exc);
-    exc = next_exc;
-  }
-  ff->excluded_files_list = NULL;
-
-  for (exc = ff->excluded_paths_list; exc;) {
-    next_exc = exc->next;
-    free(exc);
-    exc = next_exc;
-  }
-  ff->excluded_paths_list = NULL;
-}
-
 // Add a filename to list of included files
-void AddFnameToIncludeList(FindFilesPacket* ff, int prefixed, const char* fname)
+void AddFnameToIncludeList(file_filter& ff, int prefixed, const char* fname)
 {
-  int len, j;
-  struct s_included_file* inc;
-  char* p;
+  int j;
   const char* rp;
   char size[50];
 
-  len = strlen(fname);
+  auto& inc = ff.included_files.emplace_back();
 
-  inc = (struct s_included_file*)malloc(sizeof(struct s_included_file) + len
-                                        + 1);
-  memset(inc, 0, sizeof(struct s_included_file) + len + 1);
-  inc->VerifyOpts[0] = 'V';
-  inc->VerifyOpts[1] = ':';
-  inc->VerifyOpts[2] = 0;
+  inc.VerifyOpts[0] = 'V';
+  inc.VerifyOpts[1] = ':';
+  inc.VerifyOpts[2] = 0;
 
   /* prefixed = preceded with options */
   if (prefixed) {
     for (rp = fname; *rp && *rp != ' '; rp++) {
       switch (*rp) {
         case 'A':
-          SetBit(FO_ACL, inc->options);
+          SetBit(FO_ACL, inc.options);
           break;
         case 'a': /* always replace */
         case '0': /* no option */
           break;
         case 'c':
-          SetBit(FO_CHKCHANGES, inc->options);
+          SetBit(FO_CHKCHANGES, inc.options);
           break;
         case 'd':
           switch (*(rp + 1)) {
             case '1':
-              inc->shadow_type = check_shadow_local_warn;
+              inc.shadow_type = check_shadow_local_warn;
               rp++;
               break;
             case '2':
-              inc->shadow_type = check_shadow_local_remove;
+              inc.shadow_type = check_shadow_local_remove;
               rp++;
               break;
             case '3':
-              inc->shadow_type = check_shadow_global_warn;
+              inc.shadow_type = check_shadow_global_warn;
               rp++;
               break;
             case '4':
-              inc->shadow_type = check_shadow_global_remove;
+              inc.shadow_type = check_shadow_global_remove;
               rp++;
               break;
           }
           break;
         case 'e':
-          SetBit(FO_EXCLUDE, inc->options);
+          SetBit(FO_EXCLUDE, inc.options);
           break;
         case 'E':
           switch (*(rp + 1)) {
             case '3':
-              inc->cipher = CRYPTO_CIPHER_3DES_CBC;
+              inc.cipher = CRYPTO_CIPHER_3DES_CBC;
               rp++;
               break;
             case 'a':
               switch (*(rp + 2)) {
                 case '1':
-                  inc->cipher = CRYPTO_CIPHER_AES_128_CBC;
+                  inc.cipher = CRYPTO_CIPHER_AES_128_CBC;
                   rp += 2;
                   break;
                 case '2':
-                  inc->cipher = CRYPTO_CIPHER_AES_192_CBC;
+                  inc.cipher = CRYPTO_CIPHER_AES_192_CBC;
                   rp += 2;
                   break;
                 case '3':
-                  inc->cipher = CRYPTO_CIPHER_AES_256_CBC;
+                  inc.cipher = CRYPTO_CIPHER_AES_256_CBC;
                   rp += 2;
                   break;
               }
               break;
             case 'b':
-              inc->cipher = CRYPTO_CIPHER_BLOWFISH_CBC;
+              inc.cipher = CRYPTO_CIPHER_BLOWFISH_CBC;
               rp++;
               break;
             case 'c':
               switch (*(rp + 2)) {
                 case '1':
-                  inc->cipher = CRYPTO_CIPHER_CAMELLIA_128_CBC;
+                  inc.cipher = CRYPTO_CIPHER_CAMELLIA_128_CBC;
                   rp += 2;
                   break;
                 case '2':
-                  inc->cipher = CRYPTO_CIPHER_CAMELLIA_192_CBC;
+                  inc.cipher = CRYPTO_CIPHER_CAMELLIA_192_CBC;
                   rp += 2;
                   break;
                 case '3':
-                  inc->cipher = CRYPTO_CIPHER_CAMELLIA_256_CBC;
+                  inc.cipher = CRYPTO_CIPHER_CAMELLIA_256_CBC;
                   rp += 2;
                   break;
               }
               break;
             case 'f':
-              SetBit(FO_FORCE_ENCRYPT, inc->options);
+              SetBit(FO_FORCE_ENCRYPT, inc.options);
               rp++;
               break;
             case 'h':
               switch (*(rp + 2)) {
                 case '1':
-                  inc->cipher = CRYPTO_CIPHER_AES_128_CBC_HMAC_SHA1;
+                  inc.cipher = CRYPTO_CIPHER_AES_128_CBC_HMAC_SHA1;
                   rp += 2;
                   break;
                 case '2':
-                  inc->cipher = CRYPTO_CIPHER_AES_256_CBC_HMAC_SHA1;
+                  inc.cipher = CRYPTO_CIPHER_AES_256_CBC_HMAC_SHA1;
                   rp += 2;
                   break;
               }
           }
           break;
         case 'f':
-          SetBit(FO_MULTIFS, inc->options);
+          SetBit(FO_MULTIFS, inc.options);
           break;
         case 'H': /* no hard link handling */
-          SetBit(FO_NO_HARDLINK, inc->options);
+          SetBit(FO_NO_HARDLINK, inc.options);
           break;
         case 'h': /* no recursion */
-          SetBit(FO_NO_RECURSION, inc->options);
+          SetBit(FO_NO_RECURSION, inc.options);
           break;
         case 'i':
-          SetBit(FO_IGNORECASE, inc->options);
+          SetBit(FO_IGNORECASE, inc.options);
           break;
         case 'K':
-          SetBit(FO_NOATIME, inc->options);
+          SetBit(FO_NOATIME, inc.options);
           break;
         case 'k':
-          SetBit(FO_KEEPATIME, inc->options);
+          SetBit(FO_KEEPATIME, inc.options);
           break;
         case 'M': /* MD5 */
-          SetBit(FO_MD5, inc->options);
+          SetBit(FO_MD5, inc.options);
           break;
         case 'm':
-          SetBit(FO_MTIMEONLY, inc->options);
+          SetBit(FO_MTIMEONLY, inc.options);
           break;
         case 'N':
-          SetBit(FO_HONOR_NODUMP, inc->options);
+          SetBit(FO_HONOR_NODUMP, inc.options);
           break;
         case 'n':
-          SetBit(FO_NOREPLACE, inc->options);
+          SetBit(FO_NOREPLACE, inc.options);
           break;
         case 'p': /* use portable data format */
-          SetBit(FO_PORTABLE, inc->options);
+          SetBit(FO_PORTABLE, inc.options);
           break;
         case 'R': /* Resource forks and Finder Info */
-          SetBit(FO_HFSPLUS, inc->options);
+          SetBit(FO_HFSPLUS, inc.options);
           break;
         case 'r': /* read fifo */
-          SetBit(FO_READFIFO, inc->options);
+          SetBit(FO_READFIFO, inc.options);
           break;
         case 'S':
           switch (*(rp + 1)) {
             case '1':
-              SetBit(FO_SHA1, inc->options);
+              SetBit(FO_SHA1, inc.options);
               rp++;
               break;
 #ifdef HAVE_SHA2
             case '2':
-              SetBit(FO_SHA256, inc->options);
+              SetBit(FO_SHA256, inc.options);
               rp++;
               break;
             case '3':
-              SetBit(FO_SHA512, inc->options);
+              SetBit(FO_SHA512, inc.options);
               rp++;
               break;
 #endif
             case '4':
-              SetBit(FO_XXH128, inc->options);
+              SetBit(FO_XXH128, inc.options);
               rp++;
               break;
             default:
               /* If 2 or 3 is seen here, SHA2 is not configured, so
                *  eat the option, and drop back to SHA-1. */
               if (rp[1] == '2' || rp[1] == '3') { rp++; }
-              SetBit(FO_SHA1, inc->options);
+              SetBit(FO_SHA1, inc.options);
               break;
           }
           break;
         case 's':
-          SetBit(FO_SPARSE, inc->options);
+          SetBit(FO_SPARSE, inc.options);
           break;
         case 'V': /* verify options */
           /* Copy Verify Options */
           for (j = 0; *rp && *rp != ':'; rp++) {
-            inc->VerifyOpts[j] = *rp;
-            if (j < (int)sizeof(inc->VerifyOpts) - 1) { j++; }
+            inc.VerifyOpts[j] = *rp;
+            if (j < (int)sizeof(inc.VerifyOpts) - 1) { j++; }
           }
-          inc->VerifyOpts[j] = 0;
+          inc.VerifyOpts[j] = 0;
           break;
         case 'W':
-          SetBit(FO_ENHANCEDWILD, inc->options);
+          SetBit(FO_ENHANCEDWILD, inc.options);
           break;
         case 'w':
-          SetBit(FO_IF_NEWER, inc->options);
+          SetBit(FO_IF_NEWER, inc.options);
           break;
         case 'x':
-          SetBit(FO_NO_AUTOEXCL, inc->options);
+          SetBit(FO_NO_AUTOEXCL, inc.options);
           break;
         case 'X':
-          SetBit(FO_XATTR, inc->options);
+          SetBit(FO_XATTR, inc.options);
           break;
         case 'Z': /* Compression */
           rp++;   /* Skip Z */
           if (*rp >= '0' && *rp <= '9') {
-            SetBit(FO_COMPRESS, inc->options);
-            inc->algo = COMPRESS_GZIP;
-            inc->level = *rp - '0';
+            SetBit(FO_COMPRESS, inc.options);
+            inc.algo = COMPRESS_GZIP;
+            inc.level = *rp - '0';
           } else if (*rp == 'o') {
-            SetBit(FO_COMPRESS, inc->options);
-            inc->algo = COMPRESS_LZO1X;
-            inc->level = 1; /* Not used with LZO */
+            SetBit(FO_COMPRESS, inc.options);
+            inc.algo = COMPRESS_LZO1X;
+            inc.level = 1; /* Not used with LZO */
           } else if (*rp == 'f') {
             if (rp[1] == 'f') {
               rp++; /* Skip f */
-              SetBit(FO_COMPRESS, inc->options);
-              inc->algo = COMPRESS_FZFZ;
-              inc->level = 1; /* Not used with libfzlib */
+              SetBit(FO_COMPRESS, inc.options);
+              inc.algo = COMPRESS_FZFZ;
+              inc.level = 1; /* Not used with libfzlib */
             } else if (rp[1] == '4') {
               rp++; /* Skip f */
-              SetBit(FO_COMPRESS, inc->options);
-              inc->algo = COMPRESS_FZ4L;
-              inc->level = 1; /* Not used with libfzlib */
+              SetBit(FO_COMPRESS, inc.options);
+              inc.algo = COMPRESS_FZ4L;
+              inc.level = 1; /* Not used with libfzlib */
             } else if (rp[1] == 'h') {
               rp++; /* Skip f */
-              SetBit(FO_COMPRESS, inc->options);
-              inc->algo = COMPRESS_FZ4H;
-              inc->level = 1; /* Not used with libfzlib */
+              SetBit(FO_COMPRESS, inc.options);
+              inc.algo = COMPRESS_FZ4H;
+              inc.level = 1; /* Not used with libfzlib */
             }
           }
-          Dmsg2(200, "Compression alg=%d level=%d\n", inc->algo, inc->level);
+          Dmsg2(200, "Compression alg=%d level=%d\n", inc.algo, inc.level);
           break;
         case 'z': /* Min, Max or Approx size or Size range */
           rp++;   /* Skip z */
@@ -351,11 +292,11 @@ void AddFnameToIncludeList(FindFilesPacket* ff, int prefixed, const char* fname)
             if (j < (int)sizeof(size) - 1) { j++; }
           }
           size[j] = 0;
-          if (!inc->size_match) {
-            inc->size_match
+          if (!inc.size_match) {
+            inc.size_match
                 = (struct s_sz_matching*)malloc(sizeof(struct s_sz_matching));
           }
-          if (!ParseSizeMatch(size, inc->size_match)) {
+          if (!ParseSizeMatch(size, inc.size_match)) {
             Emsg1(M_ERROR, 0, T_("Unparsable size option: %s\n"), size);
           }
           break;
@@ -370,126 +311,91 @@ void AddFnameToIncludeList(FindFilesPacket* ff, int prefixed, const char* fname)
     rp = fname;
   }
 
-  strcpy(inc->fname, rp);
-  p = inc->fname;
-  len = strlen(p);
+  inc.fname = rp;
   /* Zap trailing slashes.  */
-  p += len - 1;
-  while (p > inc->fname && IsPathSeparator(*p)) {
-    *p-- = 0;
-    len--;
+  while (!inc.fname.empty() && IsPathSeparator(inc.fname.back())) {
+    inc.fname.pop_back();
   }
-  inc->len = len;
   /* Check for wild cards */
-  inc->pattern = 0;
-  for (p = inc->fname; *p; p++) {
-    if (*p == '*' || *p == '[' || *p == '?') {
-      inc->pattern = 1;
-      break;
-    }
-  }
+  inc.pattern = inc.fname.find_first_of("*[?") != inc.fname.npos;
+
 #if defined(HAVE_WIN32)
   /* Convert any \'s into /'s */
-  for (p = inc->fname; *p; p++) {
-    if (*p == '\\') { *p = '/'; }
+  for (auto& c : inc.fname) {
+    if (c == '\\') { c = '/'; }
   }
 #endif
-  inc->next = NULL;
-  /* Chain this one on the end of the list */
-  if (!ff->included_files_list) {
-    /* First one, so set head */
-    ff->included_files_list = inc;
-  } else {
-    struct s_included_file* next;
-    /* Walk to end of list */
-    for (next = ff->included_files_list; next->next; next = next->next) {}
-    next->next = inc;
-  }
   Dmsg4(100, "add_fname_to_include prefix=%d compress=%d alg= %d fname=%s\n",
-        prefixed, BitIsSet(FO_COMPRESS, inc->options), inc->algo, inc->fname);
+        prefixed, BitIsSet(FO_COMPRESS, inc.options), inc.algo,
+        inc.fname.c_str());
 }
 
 /**
  * We add an exclude name to either the exclude path
  *  list or the exclude filename list.
  */
-void AddFnameToExcludeList(FindFilesPacket* ff, const char* fname)
+void AddFnameToExcludeList(file_filter& ff, const char* fname)
 {
-  int len;
-  struct s_excluded_file *exc, **list;
-
   Dmsg1(20, "Add name to exclude: %s\n", fname);
 
-  if (first_path_separator(fname) != NULL) {
-    list = &ff->excluded_paths_list;
-  } else {
-    list = &ff->excluded_files_list;
-  }
+  auto& exc = [&]() -> excluded_file& {
+    if (first_path_separator(fname) != NULL) {
+      return ff.excluded_paths.emplace_back();
+    } else {
+      return ff.excluded_files.emplace_back();
+    }
+  }();
 
-  len = strlen(fname);
-
-  exc = (struct s_excluded_file*)malloc(sizeof(struct s_excluded_file) + len
-                                        + 1);
-  memset(exc, 0, sizeof(struct s_excluded_file) + len + 1);
-  exc->next = *list;
-  exc->len = len;
-  strcpy(exc->fname, fname);
+  exc.fname = fname;
 #if defined(HAVE_WIN32)
   /* Convert any \'s into /'s */
-  for (char* p = exc->fname; *p; p++) {
-    if (*p == '\\') { *p = '/'; }
+  for (auto& c : exc->fname) {
+    if (c == '\\') { c = '/'; }
   }
 #endif
-  *list = exc;
-}
-
-
-// Get next included file
-struct s_included_file* get_next_included_file(FindFilesPacket* ff,
-                                               struct s_included_file* ainc)
-{
-  struct s_included_file* inc;
-
-  if (ainc == NULL) {
-    inc = ff->included_files_list;
-  } else {
-    inc = ainc->next;
-  }
-  // copy inc_options for this file into the ff packet
-  if (inc) {
-    CopyBits(FO_MAX, inc->options, ff->flags);
-    ff->Compress_algo = inc->algo;
-    ff->Compress_level = inc->level;
-  }
-  return inc;
 }
 
 /**
  * Walk through the included list to see if this
  *  file is included possibly with wild-cards.
  */
-bool FileIsIncluded(FindFilesPacket* ff, const char* file)
+bool FileIsIncluded(file_filter& ff, const char* file)
 {
-  struct s_included_file* inc = ff->included_files_list;
-  int len;
+  auto& list = ff.included_files;
 
-  for (; inc; inc = inc->next) {
-    if (inc->pattern) {
-      if (fnmatch(inc->fname, file, fnmode | FNM_LEADING_DIR) == 0) {
+  for (auto& inc : list) {
+    if (inc.pattern) {
+      if (fnmatch(inc.fname.c_str(), file, fnmode | FNM_LEADING_DIR) == 0) {
         return true;
       }
       continue;
     }
     /* No wild cards. We accept a match to the
      *  end of any component. */
-    Dmsg2(900, "pat=%s file=%s\n", inc->fname, file);
-    len = strlen(file);
-    if (inc->len == len && bstrcmp(inc->fname, file)) { return true; }
-    if (inc->len < len && IsPathSeparator(file[inc->len])
-        && bstrncmp(inc->fname, file, inc->len)) {
+    Dmsg2(900, "pat=%s file=%s\n", inc.fname.c_str(), file);
+    size_t len = strlen(file);
+    if (inc.fname.size() == len && bstrcmp(inc.fname.c_str(), file)) {
       return true;
     }
-    if (inc->len == 1 && IsPathSeparator(inc->fname[0])) { return true; }
+
+    /* this doesnt make much sense to me:
+     *  | file = /a/b/c/
+     *  | inc.fname = /a
+     *  => file is included
+     *  | file = /a/b/c
+     *  | inc.fname = /a
+     *  => file is _not_ included
+     * but maybe there is a reason for this.
+     * Im guessing there was supposed to be a "inc.fname" is a directory
+     * check here "inc.fname ends in /", but somebody typoed "file ends in /"
+     * instead.
+     */
+
+    if (inc.fname.size() < len && IsPathSeparator(file[inc.fname.size()])
+        && bstrncmp(inc.fname.c_str(), file, inc.fname.size())) {
+      return true;
+    }
+    if (inc.fname.size() == 1 && IsPathSeparator(inc.fname[0])) { return true; }
   }
   return false;
 }
@@ -498,15 +404,14 @@ bool FileIsIncluded(FindFilesPacket* ff, const char* file)
  * This is the workhorse of excluded_file().
  * Determine if the file is excluded or not.
  */
-static bool FileInExcludedList(struct s_excluded_file* exc, const char* file)
+static bool FileInExcludedList(std::span<excluded_file> list, const char* file)
 {
-  if (exc == NULL) { Dmsg0(900, "exc is NULL\n"); }
-  for (; exc; exc = exc->next) {
-    if (fnmatch(exc->fname, file, fnmode | FNM_PATHNAME) == 0) {
-      Dmsg2(900, "Match exc pat=%s: file=%s:\n", exc->fname, file);
+  for (auto& exc : list) {
+    if (fnmatch(exc.fname.c_str(), file, fnmode | FNM_PATHNAME) == 0) {
+      Dmsg2(900, "Match exc pat=%s: file=%s:\n", exc.fname.c_str(), file);
       return true;
     }
-    Dmsg2(900, "No match exc pat=%s: file=%s:\n", exc->fname, file);
+    Dmsg2(900, "No match exc pat=%s: file=%s:\n", exc.fname.c_str(), file);
   }
   return false;
 }
@@ -516,7 +421,7 @@ static bool FileInExcludedList(struct s_excluded_file* exc, const char* file)
  *  file is excluded, or if it matches a component
  *  of an excluded directory.
  */
-bool FileIsExcluded(FindFilesPacket* ff, const char* file)
+bool FileIsExcluded(file_filter& ff, const char* file)
 {
   const char* p;
 
@@ -526,13 +431,13 @@ bool FileIsExcluded(FindFilesPacket* ff, const char* file)
   if (file[1] == ':') { file += 2; }
 #endif
 
-  if (FileInExcludedList(ff->excluded_paths_list, file)) { return true; }
+  if (FileInExcludedList(ff.excluded_paths, file)) { return true; }
 
   /* Try each component */
   for (p = file; *p; p++) {
     /* Match from the beginning of a component only */
     if ((p == file || (!IsPathSeparator(*p) && IsPathSeparator(p[-1])))
-        && FileInExcludedList(ff->excluded_files_list, p)) {
+        && FileInExcludedList(ff.excluded_files, p)) {
       return true;
     }
   }

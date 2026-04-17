@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -80,7 +80,7 @@ static Session_Label sessrec;
 static uint32_t num_files = 0;
 static Attributes* attr;
 
-static FindFilesPacket* ff;
+static file_filter ff;
 static BootStrapRecord* bsr = nullptr;
 
 int main(int argc, char* argv[])
@@ -99,8 +99,6 @@ int main(int argc, char* argv[])
   OSDependentInit();
 
   (void)WSA_Init(); /* Initialize Windows sockets */
-
-  ff = init_find_files();
 
   CLI::App bls_app;
   InitCLIApp(bls_app, "The Bareos ls tool.", 2000);
@@ -240,7 +238,7 @@ int main(int argc, char* argv[])
   ReadCryptoCache(me->working_directory, "bareos-sd",
                   GetFirstPortHostOrder(me->SDaddrs));
 
-  if (ff->included_files_list == nullptr) { AddFnameToIncludeList(ff, 0, "/"); }
+  if (ff.included_files.empty()) { AddFnameToIncludeList(ff, 0, "/"); }
 
 
   for (std::string device : device_names) {
@@ -285,8 +283,6 @@ int main(int argc, char* argv[])
     do_close(jcr);
   }
   if (bsr) { libbareos::FreeBsr(bsr); }
-  TermIncludeExcludeFiles(ff);
-  TermFindFiles(ff);
   return BEXIT_SUCCESS;
 }
 
