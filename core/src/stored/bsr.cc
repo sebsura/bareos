@@ -156,7 +156,7 @@ static int MatchFileregex(BootStrapRecord* bsr,
                           DeviceRecord* rec,
                           JobControlRecord* jcr)
 {
-  if (bsr->fileregex_re == NULL) return 1;
+  if (!bsr->fileregex_re) return 1;
 
   if (bsr->attr == NULL) { bsr->attr = new_attr(jcr); }
 
@@ -167,7 +167,7 @@ static int MatchFileregex(BootStrapRecord* bsr,
     bsr->skip_file = false;
     if (UnpackAttributesRecord(jcr, rec->Stream, rec->data, rec->data_len,
                                bsr->attr)) {
-      if (regexec(bsr->fileregex_re, bsr->attr->fname, 0, NULL, 0) == 0) {
+      if (regexec(&*bsr->fileregex_re, bsr->attr->fname, 0, NULL, 0) == 0) {
         Dmsg2(dbglevel, "Matched pattern, fname=%s FI=%d\n", bsr->attr->fname,
               rec->FileIndex);
       } else {

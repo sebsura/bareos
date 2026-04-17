@@ -134,9 +134,7 @@ struct kw_items items[] = {{"volume", store_vol},
 // Create a storagedaemon::BootStrapRecord record
 static storagedaemon::BootStrapRecord* new_bsr()
 {
-  storagedaemon::BootStrapRecord* bsr = (storagedaemon::BootStrapRecord*)malloc(
-      sizeof(storagedaemon::BootStrapRecord));
-  memset(bsr, 0, sizeof(storagedaemon::BootStrapRecord));
+  storagedaemon::BootStrapRecord* bsr = new storagedaemon::BootStrapRecord{};
   return bsr;
 }
 
@@ -505,14 +503,16 @@ static storagedaemon::BootStrapRecord* store_fileregex(
   if (bsr->fileregex) free(bsr->fileregex);
   bsr->fileregex = strdup(lc->str);
 
-  if (bsr->fileregex_re == NULL) {
-    bsr->fileregex_re = (regex_t*)malloc(sizeof(regex_t));
+  if (!bsr->fileregex_re) {
+    bsr->fileregex_re.emplace();
+  } else {
+    regfree(&*bsr->fileregex_re);
   }
 
-  rc = regcomp(bsr->fileregex_re, bsr->fileregex, REG_EXTENDED | REG_NOSUB);
+  rc = regcomp(&*bsr->fileregex_re, bsr->fileregex, REG_EXTENDED | REG_NOSUB);
   if (rc != 0) {
     char prbuf[500];
-    regerror(rc, bsr->fileregex_re, prbuf, sizeof(prbuf));
+    regerror(rc, &*bsr->fileregex_re, prbuf, sizeof(prbuf));
     Emsg2(M_ERROR, 0, T_("REGEX '%s' compile error. ERR=%s\n"), bsr->fileregex,
           prbuf);
     return NULL;
@@ -917,29 +917,21 @@ static inline void RemoveBsr(storagedaemon::BootStrapRecord* bsr)
   FreeBsrItem(bsr->FileIndex);
   FreeBsrItem(bsr->stream);
   if (bsr->fileregex) { free(bsr->fileregex); }
-  if (bsr->fileregex_re) {
-    regfree(bsr->fileregex_re);
-    free(bsr->fileregex_re);
-  }
+  if (bsr->fileregex_re) { regfree(&*bsr->fileregex_re); }
   if (bsr->attr) { FreeAttr(bsr->attr); }
   if (bsr->next) { bsr->next->prev = bsr->prev; }
   if (bsr->prev) { bsr->prev->next = bsr->next; }
-  free(bsr);
+  delete bsr;
 }
 
 // Free all bsrs in chain
 void FreeBsr(storagedaemon::BootStrapRecord* bsr)
 {
-  storagedaemon::BootStrapRecord* next_bsr;
-
-  if (!bsr) { return; }
-  next_bsr = bsr->next;
-
-  // Remove (free) current bsr
-  RemoveBsr(bsr);
-
-  // Now get the next one
-  FreeBsr(next_bsr);
+  while (bsr) {
+    auto* next_bsr = bsr->next;
+    RemoveBsr(bsr);
+    bsr = next_bsr;
+  }
 }
 
 } /* namespace libbareos */

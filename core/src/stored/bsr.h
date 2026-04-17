@@ -150,7 +150,7 @@ struct BootStrapRecord {
   BsrFileIndex* FileIndex;
   BsrStream* stream;
   char* fileregex; /* set if restore is filtered on filename */
-  regex_t* fileregex_re;
+  std::optional<regex_t> fileregex_re;
   Attributes* attr; /* scratch space for unpacking */
 };
 
