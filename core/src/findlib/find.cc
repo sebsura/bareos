@@ -195,11 +195,12 @@ int FindFiles(JobControlRecord* jcr,
         ff->Compress_algo = fo->Compress_algo;
         ff->Compress_level = fo->Compress_level;
         ff->StripPath = fo->StripPath;
-        ff->size_match = fo->size_match;
+        ff->size_match = fo->size_match.get();
         ff->fstypes = fo->fstype;
         ff->drivetypes = fo->Drivetype;
-        if (fo->plugin != NULL) {
-          ff->plugin = fo->plugin; /* TODO: generate a plugin event ? */
+        if (fo->plugin) {
+          ff->plugin
+              = fo->plugin->c_str(); /* TODO: generate a plugin event ? */
           ff->opt_plugin = true;
         }
         bstrncat(ff->VerifyOpts, fo->VerifyOpts,
@@ -305,20 +306,21 @@ bool AcceptFile(FindFilesPacket* ff)
     fnm_flags |= BitIsSet(FO_ENHANCEDWILD, ff->flags) ? FNM_PATHNAME : 0;
 
     if (S_ISDIR(ff->statp.st_mode)) {
-      for (auto* expr : fo->wilddir) {
-        if (match_func(expr, ff->fname, fnmode | fnm_flags) == 0) {
+      for (const auto& expr : fo->wilddir) {
+        if (match_func(expr.c_str(), ff->fname, fnmode | fnm_flags) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
-            Dmsg2(debuglevel, "Exclude wilddir: %s file=%s\n", expr, ff->fname);
+            Dmsg2(debuglevel, "Exclude wilddir: %s file=%s\n", expr.c_str(),
+                  ff->fname);
             return false; /* reject dir */
           }
           return true; /* accept dir */
         }
       }
     } else {
-      for (auto* expr : fo->wildfile) {
-        if (match_func(expr, ff->fname, fnmode | fnm_flags) == 0) {
+      for (const auto& expr : fo->wildfile) {
+        if (match_func(expr.c_str(), ff->fname, fnmode | fnm_flags) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
-            Dmsg2(debuglevel, "Exclude wildfile: %s file=%s\n", expr,
+            Dmsg2(debuglevel, "Exclude wildfile: %s file=%s\n", expr.c_str(),
                   ff->fname);
             return false; /* reject file */
           }
@@ -326,10 +328,11 @@ bool AcceptFile(FindFilesPacket* ff)
         }
       }
 
-      for (auto* expr : fo->wildbase) {
-        if (match_func(expr, basename, fnmode | fnm_flags) == 0) {
+      for (const auto& expr : fo->wildbase) {
+        if (match_func(expr.c_str(), basename, fnmode | fnm_flags) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
-            Dmsg2(debuglevel, "Exclude wildbase: %s file=%s\n", expr, basename);
+            Dmsg2(debuglevel, "Exclude wildbase: %s file=%s\n", expr.c_str(),
+                  basename);
             return false; /* reject file */
           }
           return true; /* accept file */
@@ -337,10 +340,11 @@ bool AcceptFile(FindFilesPacket* ff)
       }
     }
 
-    for (auto* expr : fo->wild) {
-      if (match_func(expr, ff->fname, fnmode | fnm_flags) == 0) {
+    for (const auto& expr : fo->wild) {
+      if (match_func(expr.c_str(), ff->fname, fnmode | fnm_flags) == 0) {
         if (BitIsSet(FO_EXCLUDE, ff->flags)) {
-          Dmsg2(debuglevel, "Exclude wild: %s file=%s\n", expr, ff->fname);
+          Dmsg2(debuglevel, "Exclude wild: %s file=%s\n", expr.c_str(),
+                ff->fname);
           return false; /* reject file */
         }
         return true; /* accept file */
@@ -348,8 +352,8 @@ bool AcceptFile(FindFilesPacket* ff)
     }
 
     if (S_ISDIR(ff->statp.st_mode)) {
-      for (auto* expr : fo->regexdir) {
-        if (regexec(expr, ff->fname, 0, NULL, 0) == 0) {
+      for (const auto& expr : fo->regexdir) {
+        if (regexec(expr.as_ptr(), ff->fname, 0, NULL, 0) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             return false; /* reject file */
           }
@@ -357,8 +361,8 @@ bool AcceptFile(FindFilesPacket* ff)
         }
       }
     } else {
-      for (auto* expr : fo->regexfile) {
-        if (regexec(expr, ff->fname, 0, NULL, 0) == 0) {
+      for (const auto& expr : fo->regexfile) {
+        if (regexec(expr.as_ptr(), ff->fname, 0, NULL, 0) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             return false; /* reject file */
           }
@@ -367,8 +371,8 @@ bool AcceptFile(FindFilesPacket* ff)
       }
     }
 
-    for (auto* expr : fo->regex) {
-      if (regexec(expr, ff->fname, 0, NULL, 0) == 0) {
+    for (const auto& expr : fo->regex) {
+      if (regexec(expr.as_ptr(), ff->fname, 0, NULL, 0) == 0) {
         if (BitIsSet(FO_EXCLUDE, ff->flags)) { return false; /* reject file */ }
         return true; /* accept file */
       }
@@ -390,8 +394,8 @@ bool AcceptFile(FindFilesPacket* ff)
 
     for (auto* fo : exclude_item.opts_list) {
       fnm_flags = BitIsSet(FO_IGNORECASE, fo->flags) ? FNM_CASEFOLD : 0;
-      for (auto* expr : fo->wild) {
-        if (fnmatch(expr, ff->fname, fnmode | fnm_flags) == 0) {
+      for (const auto& expr : fo->wild) {
+        if (fnmatch(expr.c_str(), ff->fname, fnmode | fnm_flags) == 0) {
           Dmsg1(debuglevel, "Reject wild1: %s\n", ff->fname);
           return false; /* reject file */
         }

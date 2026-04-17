@@ -54,7 +54,7 @@ extern "C" {
 #endif
 
 #include <deque>
-
+#include <span>
 
 #define MODE_RALL (S_IRUSR | S_IRGRP | S_IROTH)
 
@@ -131,45 +131,49 @@ struct findFOPTS {
                              integer */
   int Compress_level{};     /**< Compression level */
   int StripPath{};          /**< Strip path count */
-  struct s_sz_matching* size_match{}; /**< Perform size matching ? */
+  std::unique_ptr<s_sz_matching> size_match{}; /**< Perform size matching ? */
   b_fileset_shadow_type shadow_type{
-      check_shadow_none};         /**< Perform fileset shadowing check ? */
-  char VerifyOpts[MAX_OPTS]{};    /**< Verify options */
-  char AccurateOpts[MAX_OPTS]{};  /**< Accurate mode options */
-  char* plugin{};                 /**< Plugin that handle this section */
-  alist<regex_t*> regex{};        /**< Regex string(s) */
-  alist<regex_t*> regexdir{};     /**< Regex string(s) for directories */
-  alist<regex_t*> regexfile{};    /**< Regex string(s) for files */
-  alist<const char*> wild{};      /**< Wild card strings */
-  alist<const char*> wilddir{};   /**< Wild card strings for directories */
-  alist<const char*> wildfile{};  /**< Wild card strings for files */
-  alist<const char*> wildbase{};  /**< Wild card strings for basenames */
-  alist<const char*> fstype{};    /**< File system type limitation */
-  alist<const char*> Drivetype{}; /**< Drive type limitation */
+      check_shadow_none};              /**< Perform fileset shadowing check ? */
+  char VerifyOpts[MAX_OPTS]{};         /**< Verify options */
+  char AccurateOpts[MAX_OPTS]{};       /**< Accurate mode options */
+  std::optional<std::string> plugin{}; /**< Plugin that handle this section */
 
-  findFOPTS()
-  {
-    regex.init(1, true);
-    regexdir.init(1, true);
-    regexfile.init(1, true);
-    wild.init(1, true);
-    wilddir.init(1, true);
-    wildfile.init(1, true);
-    wildbase.init(1, true);
-    fstype.init(1, true);
-    Drivetype.init(1, true);
-  }
+  struct cregex {
+    int errc;
+    regex_t storage;
 
-  ~findFOPTS()
-  {
-    if (plugin) { free(plugin); }
+    cregex(const char* regex, int cflags = 0)
+    {
+      errc = regcomp(&storage, regex, cflags);
+    }
 
-    for (regex_t* rx : regex) { regfree(rx); }
-    for (regex_t* rx : regexdir) { regfree(rx); }
-    for (regex_t* rx : regexfile) { regfree(rx); }
+    cregex(const cregex&) = delete;
+    cregex(cregex&& other) = delete;
 
-    if (size_match) { free(size_match); }
-  }
+    cregex& operator=(const cregex&) = delete;
+    cregex& operator=(cregex&& other) = delete;
+
+    const regex_t* as_ptr() const { return &storage; }
+
+    size_t format_error(char* buf, size_t bufsize)
+    {
+      return regerror(errc, &storage, buf, bufsize);
+    }
+
+    operator bool() const { return errc == 0; }
+
+    ~cregex() { regfree(&storage); }
+  };
+
+  std::deque<cregex> regex{};          /**< Regex string(s) */
+  std::deque<cregex> regexdir{};       /**< Regex string(s) for directories */
+  std::deque<cregex> regexfile{};      /**< Regex string(s) for files */
+  std::vector<std::string> wild{};     /**< Wild card strings */
+  std::vector<std::string> wilddir{};  /**< Wild card strings for directories */
+  std::vector<std::string> wildfile{}; /**< Wild card strings for files */
+  std::vector<std::string> wildbase{}; /**< Wild card strings for basenames */
+  std::vector<std::string> fstype{};   /**< File system type limitation */
+  std::vector<std::string> Drivetype{}; /**< Drive type limitation */
 };
 
 // This is either an include item or an exclude item
@@ -213,7 +217,7 @@ struct FindFilesPacket {
   char* link_or_dir{nullptr};               /**< Link if file linked, or canonical directory path */
   char* object_name{nullptr};        /**< Object name */
   char* object{nullptr};             /**< Restore object */
-  char* plugin{nullptr};             /**< Current Options{Plugin=} name */
+  const char* plugin{nullptr};             /**< Current Options{Plugin=} name */
   POOLMEM* sys_fname{nullptr};       /**< System filename */
   POOLMEM* fname_save{nullptr};      /**< Save when stripping path */
   POOLMEM* link_save{nullptr};       /**< Save when stripping path */
@@ -258,8 +262,8 @@ struct FindFilesPacket {
   struct s_sz_matching* size_match{nullptr}; /**< Perform size matching ? */
   bool cmd_plugin{false}; /**< Set if we have a command plugin */
   bool opt_plugin{false}; /**< Set if we have an option plugin */
-  alist<const char*> fstypes;          /**< Allowed file system types */
-  alist<const char*> drivetypes;       /**< Allowed drive types */
+  std::span<std::string> fstypes;          /**< Allowed file system types */
+  std::span<std::string> drivetypes;       /**< Allowed drive types */
 
   // List of all hard linked files found
   LinkHash* linkhash{nullptr};       /**< Hard linked files */

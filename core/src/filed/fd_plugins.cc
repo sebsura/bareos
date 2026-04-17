@@ -692,7 +692,7 @@ bRC PluginOptionHandleFile(JobControlRecord* jcr,
   bEventType eventType;
   alist<PluginContext*>* plugin_ctx_list;
 
-  cmd = ff_pkt->plugin;
+  cmd = const_cast<char*>(ff_pkt->plugin);
   eventType = bEventHandleBackupFile;
   event.eventType = eventType;
 

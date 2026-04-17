@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -102,23 +102,22 @@ static bool AcceptFstype(FindFilesPacket*, void*) { return true; }
 #else
 static bool AcceptFstype(FindFilesPacket* ff, void*)
 {
-  int i;
   char fs[1000];
   bool accept = true;
 
-  if (ff->fstypes.size()) {
+  if (!ff->fstypes.empty()) {
     accept = false;
     if (!fstype(ff->fname, fs, sizeof(fs))) {
       Dmsg1(50, "Cannot determine file system type for \"%s\"\n", ff->fname);
     } else {
-      for (i = 0; i < ff->fstypes.size(); ++i) {
-        if (bstrcmp(fs, (char*)ff->fstypes.get(i))) {
+      for (const auto& allowed : ff->fstypes) {
+        if (bstrcmp(fs, allowed.c_str())) {
           Dmsg2(100, "Accepting fstype %s for \"%s\"\n", fs, ff->fname);
           accept = true;
           break;
         }
         Dmsg3(200, "fstype %s for \"%s\" does not match %s\n", fs, ff->fname,
-              ff->fstypes.get(i));
+              allowed.c_str());
       }
     }
   }
@@ -134,23 +133,22 @@ static bool AcceptFstype(FindFilesPacket* ff, void*)
 #if defined(HAVE_WIN32)
 static inline bool AcceptDrivetype(FindFilesPacket* ff, void*)
 {
-  int i;
   char dt[100];
   bool accept = true;
 
-  if (ff->drivetypes.size()) {
+  if (!ff->drivetypes.empty()) {
     accept = false;
     if (!Drivetype(ff->fname, dt, sizeof(dt))) {
       Dmsg1(50, "Cannot determine drive type for \"%s\"\n", ff->fname);
     } else {
-      for (i = 0; i < ff->drivetypes.size(); ++i) {
-        if (bstrcmp(dt, (char*)ff->drivetypes.get(i))) {
+      for (const auto& allowed : ff->drivetypes) {
+        if (bstrcmp(dt, allowed.c_str())) {
           Dmsg2(100, "Accepting drive type %s for \"%s\"\n", dt, ff->fname);
           accept = true;
           break;
         }
         Dmsg3(200, "drive type %s for \"%s\" does not match %s\n", dt,
-              ff->fname, ff->drivetypes.get(i));
+              ff->fname, allowed.c_str());
       }
     }
   }

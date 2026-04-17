@@ -187,30 +187,29 @@ void SetIncexe(JobControlRecord* jcr, findIncludeExcludeItem* incexe)
 int AddRegexToFileset(JobControlRecord* jcr, const char* item, int type)
 {
   findFOPTS* current_opts = start_options(jcr->fd_impl->ff);
-  regex_t* preg;
-  int rc;
+
   char prbuf[500];
 
-  preg = (regex_t*)malloc(sizeof(regex_t));
-  if (BitIsSet(FO_IGNORECASE, current_opts->flags)) {
-    rc = regcomp(preg, item, REG_EXTENDED | REG_ICASE);
+  std::deque<findFOPTS::cregex>* container = nullptr;
+  if (type == ' ') {
+    container = &current_opts->regex;
+  } else if (type == 'D') {
+    container = &current_opts->regexdir;
+  } else if (type == 'F') {
+    container = &current_opts->regexfile;
   } else {
-    rc = regcomp(preg, item, REG_EXTENDED);
-  }
-  if (rc != 0) {
-    regerror(rc, preg, prbuf, sizeof(prbuf));
-    regfree(preg);
-    free(preg);
-    Jmsg(jcr, M_FATAL, 0, T_("REGEX %s compile error. ERR=%s\n"), item, prbuf);
     return state_error;
   }
-  if (type == ' ') {
-    current_opts->regex.append(preg);
-  } else if (type == 'D') {
-    current_opts->regexdir.append(preg);
-  } else if (type == 'F') {
-    current_opts->regexfile.append(preg);
-  } else {
+
+  int flags = REG_EXTENDED;
+  if (BitIsSet(FO_IGNORECASE, current_opts->flags)) { flags |= REG_ICASE; }
+
+  auto& preg = container->emplace_back(item, flags);
+
+  if (!preg) {
+    preg.format_error(prbuf, sizeof(prbuf));
+    container->pop_back();
+    Jmsg(jcr, M_FATAL, 0, T_("REGEX %s compile error. ERR=%s\n"), item, prbuf);
     return state_error;
   }
 
@@ -223,13 +222,13 @@ int AddWildToFileset(JobControlRecord* jcr, const char* item, int type)
   findFOPTS* current_opts = start_options(jcr->fd_impl->ff);
 
   if (type == ' ') {
-    current_opts->wild.append(strdup(item));
+    current_opts->wild.emplace_back(item);
   } else if (type == 'D') {
-    current_opts->wilddir.append(strdup(item));
+    current_opts->wilddir.emplace_back(item);
   } else if (type == 'F') {
-    current_opts->wildfile.append(strdup(item));
+    current_opts->wildfile.emplace_back(item);
   } else if (type == 'B') {
-    current_opts->wildbase.append(strdup(item));
+    current_opts->wildbase.emplace_back(item);
   } else {
     return state_error;
   }
@@ -487,10 +486,9 @@ static int SetOptionsAndFlags(findFOPTS* fo, const char* opts)
         }
         size[j] = 0;
         if (!fo->size_match) {
-          fo->size_match
-              = (struct s_sz_matching*)malloc(sizeof(struct s_sz_matching));
+          fo->size_match = std::make_unique<s_sz_matching>();
         }
-        if (!ParseSizeMatch(size, fo->size_match)) {
+        if (!ParseSizeMatch(size, fo->size_match.get())) {
           Emsg1(M_ERROR, 0, T_("Unparsable size option: %s\n"), size);
         }
         break;
@@ -573,9 +571,9 @@ void AddFileset(JobControlRecord* jcr, const char* item)
       current_opts = start_options(ff);
       state = state_options;
       if (subcode == ' ') {
-        current_opts->fstype.append(strdup(item));
+        current_opts->fstype.emplace_back(item);
       } else if (subcode == 'D') {
-        current_opts->Drivetype.append(strdup(item));
+        current_opts->Drivetype.emplace_back(item);
       } else {
         state = state_error;
       }
@@ -631,7 +629,8 @@ bool TermFileset(JobControlRecord* jcr)
   for (auto& incexe : fileset->include_list) {
     for (auto* fo : incexe.opts_list) {
       if (fo->plugin) {
-        GeneratePluginEvent(jcr, bEventPluginCommand, (void*)fo->plugin);
+        GeneratePluginEvent(jcr, bEventPluginCommand,
+                            (void*)fo->plugin->c_str());
       }
     }
   }
