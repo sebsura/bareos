@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2002-2010 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -68,14 +68,6 @@ static int MatchJob(BootStrapRecord* bsr,
                     BsrJob* job,
                     Session_Label* sessrec,
                     bool done);
-static int MatchJobType(BootStrapRecord* bsr,
-                        BsrJobType* job_type,
-                        Session_Label* sessrec,
-                        bool done);
-static int MatchJobLevel(BootStrapRecord* bsr,
-                         BsrJoblevel* job_level,
-                         Session_Label* sessrec,
-                         bool done);
 static int MatchJobid(BootStrapRecord* bsr,
                       BsrJobid* jobid,
                       Session_Label* sessrec,
@@ -489,14 +481,6 @@ static int MatchAll(BootStrapRecord* bsr,
     Dmsg0(dbglevel, "fail on Client\n");
     goto no_match;
   }
-  if (!MatchJobType(bsr, bsr->JobType, sessrec, 1)) {
-    Dmsg0(dbglevel, "fail on Job type\n");
-    goto no_match;
-  }
-  if (!MatchJobLevel(bsr, bsr->JobLevel, sessrec, 1)) {
-    Dmsg0(dbglevel, "fail on Job level\n");
-    goto no_match;
-  }
   if (!MatchStream(bsr, bsr->stream, rec, 1)) {
     Dmsg0(dbglevel, "fail on stream\n");
     goto no_match;
@@ -548,30 +532,6 @@ static int MatchJob(BootStrapRecord* bsr,
   if (!job) { return 1; /* no specification matches all */ }
   if (bstrcmp(job->Job, sessrec->Job)) { return 1; }
   if (job->next) { return MatchJob(bsr, job->next, sessrec, 1); }
-  return 0;
-}
-
-static int MatchJobType(BootStrapRecord* bsr,
-                        BsrJobType* job_type,
-                        Session_Label* sessrec,
-                        bool)
-{
-  if (!job_type) { return 1; /* no specification matches all */ }
-  if (job_type->JobType == sessrec->JobType) { return 1; }
-  if (job_type->next) { return MatchJobType(bsr, job_type->next, sessrec, 1); }
-  return 0;
-}
-
-static int MatchJobLevel(BootStrapRecord* bsr,
-                         BsrJoblevel* job_level,
-                         Session_Label* sessrec,
-                         bool)
-{
-  if (!job_level) { return 1; /* no specification matches all */ }
-  if (job_level->JobLevel == sessrec->JobLevel) { return 1; }
-  if (job_level->next) {
-    return MatchJobLevel(bsr, job_level->next, sessrec, 1);
-  }
   return 0;
 }
 

@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2008 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -114,16 +114,6 @@ struct BsrJobid {
   uint32_t JobId2;
 };
 
-struct BsrJobType {
-  BsrJobType* next;
-  uint32_t JobType;
-};
-
-struct BsrJoblevel {
-  BsrJoblevel* next;
-  uint32_t JobLevel;
-};
-
 struct BsrJob {
   BsrJob* next;
   char Job[MAX_NAME_LENGTH];
@@ -158,8 +148,6 @@ struct BootStrapRecord {
   BsrJob* job;
   BsrClient* client;
   BsrFileIndex* FileIndex;
-  BsrJobType* JobType;
-  BsrJoblevel* JobLevel;
   BsrStream* stream;
   char* fileregex; /* set if restore is filtered on filename */
   regex_t* fileregex_re;
