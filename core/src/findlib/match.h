@@ -21,22 +21,11 @@
 #ifndef BAREOS_FINDLIB_MATCH_H_
 #define BAREOS_FINDLIB_MATCH_H_
 
-#include "include/fileopts.h"
-#include "findlib/shadow.h"
-
 #include <vector>
 #include <string>
-#include <cstdint>
 
 struct included_file {
-  char options[FOPTS_BYTES]; /**< Backup options */
-  uint32_t cipher;           /**< Encryption cipher forced by fileset */
-  uint32_t algo; /**< Compression algorithm. 4 letters stored as an integer */
-  int level;     /**< Compression level */
-  int pattern;   /**< Set if wild card pattern */
-  struct s_sz_matching* size_match;  /**< Perform size matching ? */
-  b_fileset_shadow_type shadow_type; /**< Perform fileset shadowing check ? */
-  char VerifyOpts[20];               /**< Options for verify */
+  bool pattern;
   std::string fname;
 };
 
@@ -50,7 +39,7 @@ struct file_filter {
   std::vector<excluded_file> excluded_paths;
 };
 
-void AddFnameToIncludeList(file_filter& ff, int prefixed, const char* fname);
+void AddFnameToIncludeList(file_filter& ff, const char* fname);
 void AddFnameToExcludeList(file_filter& ff, const char* fname);
 bool FileIsExcluded(file_filter& ff, const char* file);
 bool FileIsIncluded(file_filter& ff, const char* file);

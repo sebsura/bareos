@@ -33,7 +33,6 @@
 #include "bfile.h"
 #include "lib/htable.h"
 #include "findlib/hardlink.h"
-#include "findlib/shadow.h"
 
 #include <dirent.h>
 #define NAMELEN(dirent) (strlen((dirent)->d_name))
@@ -84,6 +83,15 @@ typedef enum
   size_match_greater,
   size_match_range
 } b_sz_match_type;
+
+typedef enum
+{
+  check_shadow_none,
+  check_shadow_local_warn,
+  check_shadow_local_remove,
+  check_shadow_global_warn,
+  check_shadow_global_remove
+} b_fileset_shadow_type;
 
 struct s_sz_matching {
   b_sz_match_type type{size_match_none};

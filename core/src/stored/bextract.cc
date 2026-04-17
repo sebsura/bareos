@@ -186,7 +186,7 @@ int main(int argc, char* argv[])
             while (fgets(line, sizeof(line), fd) != nullptr) {
               StripTrailingJunk(line);
               Dmsg1(900, "add_include %s\n", line);
-              AddFnameToIncludeList(ff, 0, line);
+              AddFnameToIncludeList(ff, line);
             }
             fclose(fd);
             got_inc = true;
@@ -249,8 +249,8 @@ int main(int argc, char* argv[])
   ReadCryptoCache(me->working_directory, "bareos-sd",
                   GetFirstPortHostOrder(me->SDaddrs));
 
-  if (!got_inc) {                      /* If no include file, */
-    AddFnameToIncludeList(ff, 0, "/"); /*   include everything */
+  if (!got_inc) {                   /* If no include file, */
+    AddFnameToIncludeList(ff, "/"); /*   include everything */
   }
 
   where = directory_to_store_files.data();

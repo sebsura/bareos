@@ -166,7 +166,7 @@ int main(int argc, char* argv[])
             while (fgets(line, sizeof(line), fd) != nullptr) {
               StripTrailingJunk(line);
               Dmsg1(100, "add_include %s\n", line);
-              AddFnameToIncludeList(ff, 0, line);
+              AddFnameToIncludeList(ff, line);
             }
             fclose(fd);
             return true;
@@ -238,7 +238,7 @@ int main(int argc, char* argv[])
   ReadCryptoCache(me->working_directory, "bareos-sd",
                   GetFirstPortHostOrder(me->SDaddrs));
 
-  if (ff.included_files.empty()) { AddFnameToIncludeList(ff, 0, "/"); }
+  if (ff.included_files.empty()) { AddFnameToIncludeList(ff, "/"); }
 
 
   for (std::string device : device_names) {
