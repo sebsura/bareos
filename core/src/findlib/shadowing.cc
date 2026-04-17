@@ -154,69 +154,59 @@ static void check_local_fileset_shadowing(JobControlRecord* jcr,
                                           findIncludeExcludeItem* incexe,
                                           bool remove)
 {
-  dlistString *str1, *str2, *next;
   bool recursive;
 
   // See if this is a recursive include block.
   recursive = IncludeBlockIsRecursive(incexe);
 
+  std::vector<std::string> unique_names;
+
   /* Loop over all entries in the name_list
    * and compare them against all next entries
    * after the one we are currently examining.
    * This way we only check shadowing only once. */
-  str1 = (dlistString*)incexe->name_list.first();
-  while (str1) {
-    str2 = (dlistString*)incexe->name_list.next(str1);
-    while (str1 && str2) {
-      if (check_include_pattern_shadowing(jcr, str1->c_str(), str2->c_str(),
-                                          recursive)) {
-        /* See what entry shadows the other, the longest entry
-         * shadow the shorter one. */
-        if (strlen(str1->c_str()) < strlen(str2->c_str())) {
-          if (remove) {
-            /* Pattern2 is longer then Pattern1 e.g. the include block patterns
-             * are probably sorted right. This is the easiest case where we just
-             * remove the entry from the list and continue. */
-            Jmsg(
-                jcr, M_WARNING, 0,
-                T_("Fileset include block entry %s shadows %s removing it from "
-                   "fileset\n"),
-                str2->c_str(), str1->c_str());
-            next = (dlistString*)incexe->name_list.next(str2);
-            incexe->name_list.remove(str2);
-            str2 = next;
-            continue;
-          } else {
+  for (auto& current : incexe->name_list) {
+    /* we first remove any element from unique_names that _we_ shadow,
+     * and then add ourselves if we are not shadowed */
+
+    bool shadowed = false;
+    unique_names.erase(std::remove_if(
+        std::begin(unique_names), std::end(unique_names), [&](auto& comp) {
+          if (!check_include_pattern_shadowing(jcr, current.c_str(),
+                                               comp.c_str(), recursive)) {
+            return false;
+          }
+
+          if (current.size() < comp.size()) {
+            // comp gets shadowed by us, so we remove it
+
             Jmsg(jcr, M_WARNING, 0,
                  T_("Fileset include block entry %s shadows %s\n"),
-                 str2->c_str(), str1->c_str());
+                 comp.c_str(), current.c_str());
+            return true;
           }
-        } else {
-          if (remove) {
-            /* Pattern1 is longer then Pattern2 e.g. the include block patterns
-             * are not sorted right and probably reverse. This is a bit more
-             * difficult. We remove the first pattern from the list and restart
-             * the shadow scan. By setting str1 to NULL we force a rescan as the
-             * next method of the dlist will start at the first entry of the
-             * dlist again. */
-            Jmsg(
-                jcr, M_WARNING, 0,
-                T_("Fileset include block entry %s shadows %s removing it from "
-                   "fileset\n"),
-                str1->c_str(), str2->c_str());
-            incexe->name_list.remove(str1);
-            str1 = NULL;
-            continue;
-          } else {
+
+          // we get shadowed by comp, so we print a warning
+          // and "remove" ourselves
+
+          if (!shadowed) {
+            shadowed = true;
+
             Jmsg(jcr, M_WARNING, 0,
                  T_("Fileset include block entry %s shadows %s\n"),
-                 str1->c_str(), str2->c_str());
+                 current.c_str(), comp.c_str());
           }
-        }
-      }
-      str2 = (dlistString*)incexe->name_list.next(str2);
-    }
-    str1 = (dlistString*)incexe->name_list.next(str1);
+
+          return false;
+        }));
+
+    if (!shadowed) { unique_names.emplace_back(current); }
+  }
+
+  if (remove) {
+    /* update the list, if instructed to do so */
+
+    incexe->name_list = std::move(unique_names);
   }
 }
 
@@ -229,7 +219,6 @@ static inline void check_global_fileset_shadowing(JobControlRecord* jcr,
                                                   bool remove)
 {
   bool local_recursive, global_recursive;
-  dlistString *str1, *str2, *next;
 
   /* Walk all the include blocks and see if there
    * is any shadowing between the different sets. */
@@ -268,15 +257,17 @@ static inline void check_global_fileset_shadowing(JobControlRecord* jcr,
 
       /* Walk over the filename list and compare it
        * against the other entry from the other list. */
-      str1 = (dlistString*)current->name_list.first();
-      while (str1) {
-        str2 = (dlistString*)compare_against->name_list.first();
-        while (str1 && str2) {
-          if (check_include_pattern_shadowing(jcr, str1->c_str(), str2->c_str(),
+      size_t index1 = 0;
+      while (index1 < current->name_list.size()) {
+        size_t index2 = 0;
+        while (index2 < compare_against->name_list.size()) {
+          auto& str1 = current->name_list[index1];
+          auto& str2 = compare_against->name_list[index2];
+          if (check_include_pattern_shadowing(jcr, str1.c_str(), str2.c_str(),
                                               global_recursive)) {
             /* See what entry shadows the other, the longest entry
              * shadow the shorter one. */
-            if (strlen(str1->c_str()) < strlen(str2->c_str())) {
+            if (str1.size() < str2.size()) {
               if (remove) {
                 /* Pattern2 is longer then Pattern1 e.g. the include block
                  * patterns are probably sorted right. This is the easiest case
@@ -284,15 +275,14 @@ static inline void check_global_fileset_shadowing(JobControlRecord* jcr,
                 Jmsg(jcr, M_WARNING, 0,
                      T_("Fileset include block entry %s shadows %s removing it "
                         "from fileset\n"),
-                     str2->c_str(), str1->c_str());
-                next = (dlistString*)compare_against->name_list.next(str2);
-                compare_against->name_list.remove(str2);
-                str2 = next;
+                     str2.c_str(), str1.c_str());
+                compare_against->name_list.erase(
+                    compare_against->name_list.begin() + index2);
                 continue;
               } else {
                 Jmsg(jcr, M_WARNING, 0,
                      T_("Fileset include block entry %s shadows %s\n"),
-                     str2->c_str(), str1->c_str());
+                     str2.c_str(), str1.c_str());
               }
             } else {
               if (remove) {
@@ -305,20 +295,20 @@ static inline void check_global_fileset_shadowing(JobControlRecord* jcr,
                 Jmsg(jcr, M_WARNING, 0,
                      T_("Fileset include block entry %s shadows %s removing it "
                         "from fileset\n"),
-                     str1->c_str(), str2->c_str());
-                current->name_list.remove(str1);
-                str1 = NULL;
-                continue;
+                     str1.c_str(), str2.c_str());
+                current->name_list.erase(current->name_list.begin() + index1);
+                index1 = current->name_list.size();
+                break;
               } else {
                 Jmsg(jcr, M_WARNING, 0,
                      T_("Fileset include block entry %s shadows %s\n"),
-                     str1->c_str(), str2->c_str());
+                     str1.c_str(), str2.c_str());
               }
             }
           }
-          str2 = (dlistString*)compare_against->name_list.next(str2);
+          index2 += 1;
         }
-        str1 = (dlistString*)current->name_list.next(str1);
+        index1 += 1;
       }
     }
   }

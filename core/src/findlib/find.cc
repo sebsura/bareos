@@ -178,7 +178,6 @@ int FindFiles(JobControlRecord* jcr,
      * (not only Options{} blocks inside a Include{}) */
     ClearAllBits(FO_MAX, ff->flags);
     for (auto& incexe : fileset->include_list) {
-      dlistString* node;
       fileset->incexe = &incexe;
 
       // Here, we reset some values between two different Include{}
@@ -215,11 +214,11 @@ int FindFiles(JobControlRecord* jcr,
             ff->VerifyOpts, ff->AccurateOpts, ff->BaseJobOpts,
             fopts_as_str(ff->flags).c_str());
 
-      foreach_dlist (node, &incexe.name_list) {
-        char* fname = node->c_str();
+      for (const auto& node : incexe.name_list) {
+        const char* fname = node.c_str();
 
         Dmsg1(debuglevel, "F %s\n", fname);
-        ff->top_fname = fname;
+        ff->top_fname = const_cast<char*>(fname);
         if (FindOneFile(jcr, ff, OurCallback, ff->top_fname, (dev_t)-1, true)
             == 0) {
           return 0; /* error return */
@@ -227,15 +226,15 @@ int FindFiles(JobControlRecord* jcr,
         if (jcr->IsJobCanceled()) { return 0; }
       }
 
-      foreach_dlist (node, &incexe.plugin_list) {
-        char* fname = node->c_str();
+      for (const auto& node : incexe.plugin_list) {
+        const char* fname = node.c_str();
 
         if (!PluginSave) {
           Jmsg(jcr, M_FATAL, 0, T_("Plugin: \"%s\" not found.\n"), fname);
           return 0;
         }
         Dmsg1(debuglevel, "PluginCommand: %s\n", fname);
-        ff->top_fname = fname;
+        ff->top_fname = const_cast<char*>(fname);
         ff->cmd_plugin = true;
         if (!PluginSave(jcr, ff, true)) { return 0; }
         ff->cmd_plugin = false;
@@ -252,20 +251,19 @@ int FindFiles(JobControlRecord* jcr,
  */
 bool IsInFileset(FindFilesPacket* ff)
 {
-  dlistString* node;
   findFILESET* fileset = ff->fileset;
 
   if (fileset) {
     for (auto& incexe : fileset->include_list) {
-      foreach_dlist (node, &incexe.name_list) {
-        const char* fname = node->c_str();
+      for (const auto& node : incexe.name_list) {
+        const char* fname = node.c_str();
         Dmsg2(debuglevel, "Inc fname=%s ff->fname=%s\n", fname, ff->fname);
         if (bstrcmp(fname, ff->fname)) { return true; }
       }
     }
     for (auto& incexe : fileset->exclude_list) {
-      foreach_dlist (node, &incexe.name_list) {
-        const char* fname = node->c_str();
+      for (const auto& node : incexe.name_list) {
+        const char* fname = node.c_str();
         Dmsg2(debuglevel, "Exc fname=%s ff->fname=%s\n", fname, ff->fname);
         if (bstrcmp(fname, ff->fname)) { return true; }
       }
@@ -392,8 +390,6 @@ bool AcceptFile(FindFilesPacket* ff)
 
   // Now apply the Exclude { } directive
   for (auto& exclude_item : fileset->exclude_list) {
-    dlistString* node;
-
     for (auto& option_block : exclude_item.opts_list) {
       fnm_flags
           = BitIsSet(FO_IGNORECASE, option_block.flags) ? FNM_CASEFOLD : 0;
@@ -408,8 +404,8 @@ bool AcceptFile(FindFilesPacket* ff)
                  && BitIsSet(FO_IGNORECASE, exclude_item.current_opts->flags))
                     ? FNM_CASEFOLD
                     : 0;
-    foreach_dlist (node, &exclude_item.name_list) {
-      char* fname = node->c_str();
+    for (const auto& node : exclude_item.name_list) {
+      const char* fname = node.c_str();
 
       if (fnmatch(fname, ff->fname, fnmode | fnm_flags) == 0) {
         Dmsg1(debuglevel, "Reject wild2: %s\n", ff->fname);

@@ -32,8 +32,6 @@
 #include "include/fileopts.h"
 #include "bfile.h"
 #include "lib/htable.h"
-#include "lib/dlist.h"
-#include "lib/alist.h"
 #include "findlib/hardlink.h"
 
 #include <dirent.h>
@@ -180,8 +178,8 @@ struct findFOPTS {
 struct findIncludeExcludeItem {
   findFOPTS* current_opts;         /**< Points to current options structure */
   std::deque<findFOPTS> opts_list; /**< Options list */
-  dlist<dlistString> name_list;    /**< Filename list -- holds dlistString */
-  dlist<dlistString> plugin_list;  /**< Plugin list -- holds dlistString */
+  std::vector<std::string> name_list;   /**< Filename list */
+  std::vector<std::string> plugin_list; /**< Plugin list */
   std::vector<std::string>
       ignoredir; /**< Ignore directories with this file(s) */
 };
