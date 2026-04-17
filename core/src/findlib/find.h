@@ -94,9 +94,8 @@ typedef enum
 } b_fileset_shadow_type;
 
 struct s_sz_matching {
-  b_sz_match_type type{size_match_none};
-  uint64_t begin_size{};
-  uint64_t end_size{};
+  int64_t begin_size{};
+  int64_t end_size{};
 };
 
 #define MAX_OPTS 20

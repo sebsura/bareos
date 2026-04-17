@@ -218,39 +218,14 @@ static inline bool no_dump(JobControlRecord*, FindFilesPacket*)
 // check for sizes
 static inline bool CheckSizeMatching(JobControlRecord*, FindFilesPacket* ff_pkt)
 {
-  int64_t begin_size, end_size, difference;
-
   // See if size matching is turned on.
   if (!ff_pkt->size_match) { return true; }
 
-  /* Loose the unsigned bits to keep the compiler from warning
-   * about comparing signed and unsigned. As a size of a file
-   * can only be positive the unsigned is not really to interesting. */
-  begin_size = ff_pkt->size_match->begin_size;
-  end_size = ff_pkt->size_match->end_size;
+  int64_t begin_size = ff_pkt->size_match->begin_size;
+  int64_t end_size = ff_pkt->size_match->end_size;
+  int64_t file_size = ff_pkt->statp.st_size;
 
-  // See what kind of matching should be done.
-  switch (ff_pkt->size_match->type) {
-    case size_match_approx:
-      // Calculate the fraction this size is of the wanted size.
-      if ((int64_t)ff_pkt->statp.st_size > begin_size) {
-        difference = ff_pkt->statp.st_size - begin_size;
-      } else {
-        difference = begin_size - ff_pkt->statp.st_size;
-      }
-
-      // See if the difference is less then 1% of the total.
-      return (difference < (begin_size / 100));
-    case size_match_smaller:
-      return (int64_t)ff_pkt->statp.st_size < begin_size;
-    case size_match_greater:
-      return (int64_t)ff_pkt->statp.st_size > begin_size;
-    case size_match_range:
-      return ((int64_t)ff_pkt->statp.st_size >= begin_size)
-             && ((int64_t)ff_pkt->statp.st_size <= end_size);
-    default:
-      return true;
-  }
+  return file_size >= begin_size && file_size <= end_size;
 }
 
 // Check if a file have changed during backup and display an error

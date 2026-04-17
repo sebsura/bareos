@@ -195,6 +195,17 @@ bool FileIsExcluded(file_filter& ff, const char* file)
   return false;
 }
 
+// this always returns a nonnegative integer
+// it does not parse negative integers at all
+static bool size_to_int64(const char* str, int64_t* result)
+{
+  uint64_t tmp = 0;
+  if (!size_to_uint64(str, &tmp)) { return false; }
+  if (tmp > std::numeric_limits<int64_t>::max()) { return false; }
+  *result = static_cast<int64_t>(tmp);
+  return true;
+}
+
 // Parse a size matching fileset option.
 bool ParseSizeMatch(const char* size_match_pattern,
                     struct s_sz_matching* size_matching)
@@ -207,38 +218,44 @@ bool ParseSizeMatch(const char* size_match_pattern,
    * eats its input. */
   private_copy = strdup(size_match_pattern);
 
-  // Empty the matching arguments.
-  *size_matching = s_sz_matching{};
+  s_sz_matching result{};
+
+  static constexpr int64_t MIN = std::numeric_limits<std::int64_t>::min();
+  static constexpr int64_t MAX = std::numeric_limits<std::int64_t>::max();
 
   /* See if the size is a range e.g. there is a - in the
    * match pattern. As a size of a file can never be negative
    * this is a workable solution. */
   if ((bp = strchr(private_copy, '-')) != NULL) {
     *bp++ = '\0';
-    size_matching->type = size_match_range;
-    if (!size_to_uint64(private_copy, &size_matching->begin_size)) {
-      goto bail_out;
-    }
-    if (!size_to_uint64(bp, &size_matching->end_size)) { goto bail_out; }
+
+    if (!size_to_int64(private_copy, &result.begin_size)) { goto bail_out; }
+    if (!size_to_int64(bp, &result.end_size)) { goto bail_out; }
   } else {
+    // we will compare via <= and >=, so we need to emulate <, > by
+    // adding / substracting 1
     switch (*private_copy) {
       case '<':
-        size_matching->type = size_match_smaller;
-        if (!size_to_uint64(private_copy + 1, &size_matching->begin_size)) {
+        result.begin_size = MIN;
+        if (!size_to_int64(private_copy + 1, &result.end_size)) {
           goto bail_out;
         }
+        result.end_size -= 1;
         break;
       case '>':
-        size_matching->type = size_match_greater;
-        if (!size_to_uint64(private_copy + 1, &size_matching->begin_size)) {
+        if (!size_to_int64(private_copy + 1, &result.begin_size)) {
           goto bail_out;
         }
+        result.begin_size += 1;
+        result.end_size = MAX;
         break;
       default:
-        size_matching->type = size_match_approx;
-        if (!size_to_uint64(private_copy, &size_matching->begin_size)) {
-          goto bail_out;
-        }
+        int64_t approx = 0;
+        if (!size_to_int64(private_copy, &approx)) { goto bail_out; }
+
+        // add a range of 1% (rounded up)
+        result.begin_size = approx - (approx + 99) / 100;
+        result.end_size = approx + (approx + 99) / 100;
         break;
     }
   }
@@ -246,6 +263,7 @@ bool ParseSizeMatch(const char* size_match_pattern,
   retval = true;
 
 bail_out:
+  *size_matching = result;
   free(private_copy);
   return retval;
 }
