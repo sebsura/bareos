@@ -3,7 +3,7 @@
 
    Copyright (C) 2002-2012 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -893,29 +893,30 @@ void DumpBsr(storagedaemon::BootStrapRecord* bsr, bool recurse)
 }
 
 // Free bsr resources
-static inline void FreeBsrItem(storagedaemon::BootStrapRecord* bsr)
+template <typename T> static inline void FreeBsrItem(T* item)
 {
-  if (bsr) {
-    FreeBsrItem(bsr->next);
-    free(bsr);
+  while (item) {
+    auto* next = item->next;
+    free(item);
+    item = next;
   }
 }
 
 // Remove a single item from the bsr tree
 static inline void RemoveBsr(storagedaemon::BootStrapRecord* bsr)
 {
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->volume);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->client);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->sessid);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->sesstime);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->volfile);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->volblock);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->voladdr);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->JobId);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->job);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->FileIndex);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->JobType);
-  FreeBsrItem((storagedaemon::BootStrapRecord*)bsr->JobLevel);
+  FreeBsrItem(bsr->volume);
+  FreeBsrItem(bsr->client);
+  FreeBsrItem(bsr->sessid);
+  FreeBsrItem(bsr->sesstime);
+  FreeBsrItem(bsr->volfile);
+  FreeBsrItem(bsr->volblock);
+  FreeBsrItem(bsr->voladdr);
+  FreeBsrItem(bsr->JobId);
+  FreeBsrItem(bsr->job);
+  FreeBsrItem(bsr->FileIndex);
+  FreeBsrItem(bsr->JobType);
+  FreeBsrItem(bsr->JobLevel);
   if (bsr->fileregex) { free(bsr->fileregex); }
   if (bsr->fileregex_re) {
     regfree(bsr->fileregex_re);
