@@ -915,6 +915,7 @@ static inline void RemoveBsr(storagedaemon::BootStrapRecord* bsr)
   FreeBsrItem(bsr->JobId);
   FreeBsrItem(bsr->job);
   FreeBsrItem(bsr->FileIndex);
+  FreeBsrItem(bsr->stream);
   if (bsr->fileregex) { free(bsr->fileregex); }
   if (bsr->fileregex_re) {
     regfree(bsr->fileregex_re);
