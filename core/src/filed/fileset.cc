@@ -586,7 +586,7 @@ void AddFileset(JobControlRecord* jcr, const char* item)
       break;
     case 'Z': /* Ignore dir */
       state = state_include;
-      fileset->incexe->ignoredir.append(strdup(item));
+      fileset->incexe->ignoredir.emplace_back(item);
       break;
     case 'D':
       current_opts = start_options(ff);
@@ -627,10 +627,10 @@ bool TermFileset(JobControlRecord* jcr)
 
   // Generate bEventPluginCommand events for each Options Plugin.
   for (auto& incexe : fileset->include_list) {
-    for (auto* fo : incexe.opts_list) {
-      if (fo->plugin) {
+    for (auto& option_block : incexe.opts_list) {
+      if (option_block.plugin) {
         GeneratePluginEvent(jcr, bEventPluginCommand,
-                            (void*)fo->plugin->c_str());
+                            (void*)option_block.plugin->c_str());
       }
     }
   }

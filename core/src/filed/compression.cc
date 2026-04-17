@@ -49,8 +49,8 @@ bool AdjustCompressionBuffers(JobControlRecord* jcr)
 
   if (fileset) {
     for (auto& incexe : fileset->include_list) {
-      for (auto* fo : incexe.opts_list) {
-        if (!SetupCompressionBuffers(jcr, fo->Compress_algo,
+      for (auto& option_block : incexe.opts_list) {
+        if (!SetupCompressionBuffers(jcr, option_block.Compress_algo,
                                      &compress_buf_size)) {
           return false;
         }

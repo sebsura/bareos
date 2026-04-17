@@ -190,23 +190,23 @@ int FindFiles(JobControlRecord* jcr,
 
       /* By setting all options, we in effect OR the global options which is
        * what we want. */
-      for (auto* fo : incexe.opts_list) {
-        CopyBits(FO_MAX, fo->flags, ff->flags);
-        ff->Compress_algo = fo->Compress_algo;
-        ff->Compress_level = fo->Compress_level;
-        ff->StripPath = fo->StripPath;
-        ff->size_match = fo->size_match.get();
-        ff->fstypes = fo->fstype;
-        ff->drivetypes = fo->Drivetype;
-        if (fo->plugin) {
-          ff->plugin
-              = fo->plugin->c_str(); /* TODO: generate a plugin event ? */
+      for (auto& option_block : incexe.opts_list) {
+        CopyBits(FO_MAX, option_block.flags, ff->flags);
+        ff->Compress_algo = option_block.Compress_algo;
+        ff->Compress_level = option_block.Compress_level;
+        ff->StripPath = option_block.StripPath;
+        ff->size_match = option_block.size_match.get();
+        ff->fstypes = option_block.fstype;
+        ff->drivetypes = option_block.Drivetype;
+        if (option_block.plugin) {
+          ff->plugin = option_block.plugin
+                           ->c_str(); /* TODO: generate a plugin event ? */
           ff->opt_plugin = true;
         }
-        bstrncat(ff->VerifyOpts, fo->VerifyOpts,
+        bstrncat(ff->VerifyOpts, option_block.VerifyOpts,
                  sizeof(ff->VerifyOpts)); /* TODO: Concat or replace? */
-        if (fo->AccurateOpts[0]) {
-          bstrncpy(ff->AccurateOpts, fo->AccurateOpts,
+        if (option_block.AccurateOpts[0]) {
+          bstrncpy(ff->AccurateOpts, option_block.AccurateOpts,
                    sizeof(ff->AccurateOpts));
         }
       }
@@ -295,18 +295,18 @@ bool AcceptFile(FindFilesPacket* ff)
     basename = ff->fname;
   }
 
-  for (auto* fo : incexe->opts_list) {
-    CopyBits(FO_MAX, fo->flags, ff->flags);
-    ff->Compress_algo = fo->Compress_algo;
-    ff->Compress_level = fo->Compress_level;
-    ff->fstypes = fo->fstype;
-    ff->drivetypes = fo->Drivetype;
+  for (auto& option_block : incexe->opts_list) {
+    CopyBits(FO_MAX, option_block.flags, ff->flags);
+    ff->Compress_algo = option_block.Compress_algo;
+    ff->Compress_level = option_block.Compress_level;
+    ff->fstypes = option_block.fstype;
+    ff->drivetypes = option_block.Drivetype;
 
     fnm_flags = BitIsSet(FO_IGNORECASE, ff->flags) ? FNM_CASEFOLD : 0;
     fnm_flags |= BitIsSet(FO_ENHANCEDWILD, ff->flags) ? FNM_PATHNAME : 0;
 
     if (S_ISDIR(ff->statp.st_mode)) {
-      for (const auto& expr : fo->wilddir) {
+      for (const auto& expr : option_block.wilddir) {
         if (match_func(expr.c_str(), ff->fname, fnmode | fnm_flags) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             Dmsg2(debuglevel, "Exclude wilddir: %s file=%s\n", expr.c_str(),
@@ -317,7 +317,7 @@ bool AcceptFile(FindFilesPacket* ff)
         }
       }
     } else {
-      for (const auto& expr : fo->wildfile) {
+      for (const auto& expr : option_block.wildfile) {
         if (match_func(expr.c_str(), ff->fname, fnmode | fnm_flags) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             Dmsg2(debuglevel, "Exclude wildfile: %s file=%s\n", expr.c_str(),
@@ -328,7 +328,7 @@ bool AcceptFile(FindFilesPacket* ff)
         }
       }
 
-      for (const auto& expr : fo->wildbase) {
+      for (const auto& expr : option_block.wildbase) {
         if (match_func(expr.c_str(), basename, fnmode | fnm_flags) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             Dmsg2(debuglevel, "Exclude wildbase: %s file=%s\n", expr.c_str(),
@@ -340,7 +340,7 @@ bool AcceptFile(FindFilesPacket* ff)
       }
     }
 
-    for (const auto& expr : fo->wild) {
+    for (const auto& expr : option_block.wild) {
       if (match_func(expr.c_str(), ff->fname, fnmode | fnm_flags) == 0) {
         if (BitIsSet(FO_EXCLUDE, ff->flags)) {
           Dmsg2(debuglevel, "Exclude wild: %s file=%s\n", expr.c_str(),
@@ -352,7 +352,7 @@ bool AcceptFile(FindFilesPacket* ff)
     }
 
     if (S_ISDIR(ff->statp.st_mode)) {
-      for (const auto& expr : fo->regexdir) {
+      for (const auto& expr : option_block.regexdir) {
         if (regexec(expr.as_ptr(), ff->fname, 0, NULL, 0) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             return false; /* reject file */
@@ -361,7 +361,7 @@ bool AcceptFile(FindFilesPacket* ff)
         }
       }
     } else {
-      for (const auto& expr : fo->regexfile) {
+      for (const auto& expr : option_block.regexfile) {
         if (regexec(expr.as_ptr(), ff->fname, 0, NULL, 0) == 0) {
           if (BitIsSet(FO_EXCLUDE, ff->flags)) {
             return false; /* reject file */
@@ -371,7 +371,7 @@ bool AcceptFile(FindFilesPacket* ff)
       }
     }
 
-    for (const auto& expr : fo->regex) {
+    for (const auto& expr : option_block.regex) {
       if (regexec(expr.as_ptr(), ff->fname, 0, NULL, 0) == 0) {
         if (BitIsSet(FO_EXCLUDE, ff->flags)) { return false; /* reject file */ }
         return true; /* accept file */
@@ -379,10 +379,12 @@ bool AcceptFile(FindFilesPacket* ff)
     }
 
     // If we have an empty Options clause with exclude, then exclude the file
-    if (BitIsSet(FO_EXCLUDE, ff->flags) && fo->regex.size() == 0
-        && fo->wild.size() == 0 && fo->regexdir.size() == 0
-        && fo->wilddir.size() == 0 && fo->regexfile.size() == 0
-        && fo->wildfile.size() == 0 && fo->wildbase.size() == 0) {
+    if (BitIsSet(FO_EXCLUDE, ff->flags) && option_block.regex.size() == 0
+        && option_block.wild.size() == 0 && option_block.regexdir.size() == 0
+        && option_block.wilddir.size() == 0
+        && option_block.regexfile.size() == 0
+        && option_block.wildfile.size() == 0
+        && option_block.wildbase.size() == 0) {
       Dmsg1(debuglevel, "Empty options, rejecting: %s\n", ff->fname);
       return false; /* reject file */
     }
@@ -392,9 +394,10 @@ bool AcceptFile(FindFilesPacket* ff)
   for (auto& exclude_item : fileset->exclude_list) {
     dlistString* node;
 
-    for (auto* fo : exclude_item.opts_list) {
-      fnm_flags = BitIsSet(FO_IGNORECASE, fo->flags) ? FNM_CASEFOLD : 0;
-      for (const auto& expr : fo->wild) {
+    for (auto& option_block : exclude_item.opts_list) {
+      fnm_flags
+          = BitIsSet(FO_IGNORECASE, option_block.flags) ? FNM_CASEFOLD : 0;
+      for (const auto& expr : option_block.wild) {
         if (fnmatch(expr.c_str(), ff->fname, fnmode | fnm_flags) == 0) {
           Dmsg1(debuglevel, "Reject wild1: %s\n", ff->fname);
           return false; /* reject file */
@@ -513,11 +516,8 @@ findIncludeExcludeItem* new_preinclude(findFILESET* fileset)
 // Used by plugins to define a new options block
 void NewOptions(FindFilesPacket* ff, findIncludeExcludeItem* incexe)
 {
-  auto* fo = new findFOPTS{};
-  incexe->current_opts = fo;
   ff->fileset->state = state_options;
-
-  incexe->opts_list.prepend(fo);
+  incexe->current_opts = &incexe->opts_list.emplace_front();
 }
 
 findFOPTS* start_options(FindFilesPacket* ff)
@@ -526,11 +526,8 @@ findFOPTS* start_options(FindFilesPacket* ff)
   findIncludeExcludeItem* incexe = ff->fileset->incexe;
 
   if (state != state_options) {
-    auto* fo = new findFOPTS{};
-    incexe->current_opts = fo;
     ff->fileset->state = state_options;
-
-    incexe->opts_list.append(fo);
+    incexe->current_opts = &incexe->opts_list.emplace_back();
   }
 
   return incexe->current_opts;

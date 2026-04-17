@@ -178,17 +178,12 @@ struct findFOPTS {
 
 // This is either an include item or an exclude item
 struct findIncludeExcludeItem {
-  findFOPTS* current_opts;        /**< Points to current options structure */
-  alist<findFOPTS*> opts_list;    /**< Options list */
-  dlist<dlistString> name_list;   /**< Filename list -- holds dlistString */
-  dlist<dlistString> plugin_list; /**< Plugin list -- holds dlistString */
-  alist<const char*> ignoredir;   /**< Ignore directories with this file(s) */
-
-  findIncludeExcludeItem() { opts_list.init(1, false); }
-  ~findIncludeExcludeItem()
-  {
-    for (findFOPTS* fo : opts_list) { delete fo; }
-  }
+  findFOPTS* current_opts;         /**< Points to current options structure */
+  std::deque<findFOPTS> opts_list; /**< Options list */
+  dlist<dlistString> name_list;    /**< Filename list -- holds dlistString */
+  dlist<dlistString> plugin_list;  /**< Plugin list -- holds dlistString */
+  std::vector<std::string>
+      ignoredir; /**< Ignore directories with this file(s) */
 };
 
 // FileSet Resource

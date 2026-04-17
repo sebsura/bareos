@@ -1491,8 +1491,8 @@ static void LogFlagStatus(JobControlRecord* jcr,
   bool found = false;
   if (fileset) {
     for (auto& incexe : fileset->include_list) {
-      for (auto* fo : incexe.opts_list) {
-        if (BitIsSet(flag, fo->flags)) { found = true; }
+      for (auto& option_block : incexe.opts_list) {
+        if (BitIsSet(flag, option_block.flags)) { found = true; }
       }
     }
   }
@@ -1519,9 +1519,9 @@ static inline void ClearFlagInFileset(JobControlRecord* jcr,
   fileset = jcr->fd_impl->ff->fileset;
   if (fileset) {
     for (auto& incexe : fileset->include_list) {
-      for (auto* fo : incexe.opts_list) {
-        if (BitIsSet(flag, fo->flags)) {
-          ClearBit(flag, fo->flags);
+      for (auto& option_block : incexe.opts_list) {
+        if (BitIsSet(flag, option_block.flags)) {
+          ClearBit(flag, option_block.flags);
           cleared_flag = true;
         }
       }
@@ -1544,10 +1544,10 @@ static inline void ClearCompressionFlagInFileset(JobControlRecord* jcr)
   fileset = jcr->fd_impl->ff->fileset;
   if (fileset) {
     for (auto& incexe : fileset->include_list) {
-      for (auto* fo : incexe.opts_list) {
+      for (auto& option_block : incexe.opts_list) {
         // See if a compression flag is set in this option block.
-        if (BitIsSet(FO_COMPRESS, fo->flags)) {
-          switch (fo->Compress_algo) {
+        if (BitIsSet(FO_COMPRESS, option_block.flags)) {
+          switch (option_block.Compress_algo) {
             case COMPRESS_GZIP:
               break;
 #if defined(HAVE_LZO)
@@ -1565,9 +1565,9 @@ static inline void ClearCompressionFlagInFileset(JobControlRecord* jcr)
                    "%s compression support requested in fileset but not "
                    "available on this platform. Disabling "
                    "...\n",
-                   CompressorName(fo->Compress_algo).c_str());
-              ClearBit(FO_COMPRESS, fo->flags);
-              fo->Compress_algo = 0;
+                   CompressorName(option_block.Compress_algo).c_str());
+              ClearBit(FO_COMPRESS, option_block.flags);
+              option_block.Compress_algo = 0;
               break;
           }
         }
@@ -1588,10 +1588,12 @@ bool GetWantedCryptoCipher(JobControlRecord* jcr, crypto_cipher_t* cipher)
   fileset = jcr->fd_impl->ff->fileset;
   if (fileset) {
     for (auto& incexe : fileset->include_list) {
-      for (auto* fo : incexe.opts_list) {
-        if (BitIsSet(FO_FORCE_ENCRYPT, fo->flags)) { force_encrypt = true; }
+      for (auto& option_block : incexe.opts_list) {
+        if (BitIsSet(FO_FORCE_ENCRYPT, option_block.flags)) {
+          force_encrypt = true;
+        }
 
-        if (fo->Encryption_cipher != CRYPTO_CIPHER_NONE) {
+        if (option_block.Encryption_cipher != CRYPTO_CIPHER_NONE) {
           // Make sure we have not found a cipher definition before.
           if (wanted_cipher != CRYPTO_CIPHER_NONE) {
             Jmsg(jcr, M_FATAL, 0,
@@ -1614,7 +1616,7 @@ bool GetWantedCryptoCipher(JobControlRecord* jcr, crypto_cipher_t* cipher)
             jcr->fd_impl->crypto.pki_encrypt = true;
           }
 
-          wanted_cipher = (crypto_cipher_t)fo->Encryption_cipher;
+          wanted_cipher = (crypto_cipher_t)option_block.Encryption_cipher;
         }
       }
     }
