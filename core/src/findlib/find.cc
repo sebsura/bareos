@@ -177,9 +177,9 @@ int FindFiles(JobControlRecord* jcr,
      * at this place flags options are "concatenated" across Include {} blocks
      * (not only Options{} blocks inside a Include{}) */
     ClearAllBits(FO_MAX, ff->flags);
-    for (auto* incexe : fileset->include_list) {
+    for (auto& incexe : fileset->include_list) {
       dlistString* node;
-      fileset->incexe = incexe;
+      fileset->incexe = &incexe;
 
       // Here, we reset some values between two different Include{}
       strcpy(ff->VerifyOpts, "V");
@@ -190,7 +190,7 @@ int FindFiles(JobControlRecord* jcr,
 
       /* By setting all options, we in effect OR the global options which is
        * what we want. */
-      for (auto* fo : incexe->opts_list) {
+      for (auto* fo : incexe.opts_list) {
         CopyBits(FO_MAX, fo->flags, ff->flags);
         ff->Compress_algo = fo->Compress_algo;
         ff->Compress_level = fo->Compress_level;
@@ -214,7 +214,7 @@ int FindFiles(JobControlRecord* jcr,
             ff->VerifyOpts, ff->AccurateOpts, ff->BaseJobOpts,
             fopts_as_str(ff->flags).c_str());
 
-      foreach_dlist (node, &incexe->name_list) {
+      foreach_dlist (node, &incexe.name_list) {
         char* fname = node->c_str();
 
         Dmsg1(debuglevel, "F %s\n", fname);
@@ -226,7 +226,7 @@ int FindFiles(JobControlRecord* jcr,
         if (jcr->IsJobCanceled()) { return 0; }
       }
 
-      foreach_dlist (node, &incexe->plugin_list) {
+      foreach_dlist (node, &incexe.plugin_list) {
         char* fname = node->c_str();
 
         if (!PluginSave) {
@@ -255,15 +255,15 @@ bool IsInFileset(FindFilesPacket* ff)
   findFILESET* fileset = ff->fileset;
 
   if (fileset) {
-    for (auto* incexe : fileset->include_list) {
-      foreach_dlist (node, &incexe->name_list) {
+    for (auto& incexe : fileset->include_list) {
+      foreach_dlist (node, &incexe.name_list) {
         const char* fname = node->c_str();
         Dmsg2(debuglevel, "Inc fname=%s ff->fname=%s\n", fname, ff->fname);
         if (bstrcmp(fname, ff->fname)) { return true; }
       }
     }
-    for (auto* incexe : fileset->exclude_list) {
-      foreach_dlist (node, &incexe->name_list) {
+    for (auto& incexe : fileset->exclude_list) {
+      foreach_dlist (node, &incexe.name_list) {
         const char* fname = node->c_str();
         Dmsg2(debuglevel, "Exc fname=%s ff->fname=%s\n", fname, ff->fname);
         if (bstrcmp(fname, ff->fname)) { return true; }
@@ -385,10 +385,10 @@ bool AcceptFile(FindFilesPacket* ff)
   }
 
   // Now apply the Exclude { } directive
-  for (auto* exclude_item : fileset->exclude_list) {
+  for (auto& exclude_item : fileset->exclude_list) {
     dlistString* node;
 
-    for (auto* fo : exclude_item->opts_list) {
+    for (auto* fo : exclude_item.opts_list) {
       fnm_flags = BitIsSet(FO_IGNORECASE, fo->flags) ? FNM_CASEFOLD : 0;
       for (auto* expr : fo->wild) {
         if (fnmatch(expr, ff->fname, fnmode | fnm_flags) == 0) {
@@ -397,11 +397,11 @@ bool AcceptFile(FindFilesPacket* ff)
         }
       }
     }
-    fnm_flags = (exclude_item->current_opts != NULL
-                 && BitIsSet(FO_IGNORECASE, exclude_item->current_opts->flags))
+    fnm_flags = (exclude_item.current_opts != NULL
+                 && BitIsSet(FO_IGNORECASE, exclude_item.current_opts->flags))
                     ? FNM_CASEFOLD
                     : 0;
-    foreach_dlist (node, &exclude_item->name_list) {
+    foreach_dlist (node, &exclude_item.name_list) {
       char* fname = node->c_str();
 
       if (fnmatch(fname, ff->fname, fnmode | fnm_flags) == 0) {
@@ -479,8 +479,7 @@ void TermFindFiles(FindFilesPacket* ff)
 findIncludeExcludeItem* new_exclude(findFILESET* fileset)
 {
   // New exclude
-  fileset->incexe = new findIncludeExcludeItem{};
-  fileset->exclude_list.append(fileset->incexe);
+  fileset->incexe = &fileset->exclude_list.emplace_back();
 
   return fileset->incexe;
 }
@@ -489,8 +488,7 @@ findIncludeExcludeItem* new_exclude(findFILESET* fileset)
 findIncludeExcludeItem* new_include(findFILESET* fileset)
 {
   // New include
-  fileset->incexe = new findIncludeExcludeItem{};
-  fileset->include_list.append(fileset->incexe);
+  fileset->incexe = &fileset->include_list.emplace_back();
 
   return fileset->incexe;
 }
@@ -503,8 +501,7 @@ findIncludeExcludeItem* new_include(findFILESET* fileset)
 findIncludeExcludeItem* new_preinclude(findFILESET* fileset)
 {
   // New pre-include
-  fileset->incexe = new findIncludeExcludeItem{};
-  fileset->include_list.prepend(fileset->incexe);
+  fileset->incexe = &fileset->include_list.emplace_front();
 
   return fileset->incexe;
 }

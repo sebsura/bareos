@@ -245,18 +245,15 @@ static inline void check_global_fileset_shadowing(JobControlRecord* jcr,
                                                   findFILESET* fileset,
                                                   bool remove)
 {
-  int i, j;
   bool local_recursive, global_recursive;
-  findIncludeExcludeItem *current, *compare_against;
   dlistString *str1, *str2, *next;
 
   /* Walk all the include blocks and see if there
    * is any shadowing between the different sets. */
-  for (i = 0; i < fileset->include_list.size(); i++) {
-    current = (findIncludeExcludeItem*)fileset->include_list.get(i);
-
+  for (auto current = fileset->include_list.begin();
+       current != fileset->include_list.end(); ++current) {
     // See if there is any local shadowing.
-    check_local_fileset_shadowing(jcr, current, remove);
+    check_local_fileset_shadowing(jcr, &*current, remove);
 
     /* Only check global shadowing against this include block
      * when it doesn't have any patterns. Testing if a fileset
@@ -265,7 +262,7 @@ static inline void check_global_fileset_shadowing(JobControlRecord* jcr,
      * in so many forms we forget it all together. When you
      * are smart enough to create include/exclude patterns
      * we also don't provide you with basic stop gap measures. */
-    if (IncludeBlockHasPatterns(current)) { continue; }
+    if (IncludeBlockHasPatterns(&*current)) { continue; }
 
     /* Now compare this block against any include block after this one.
      * We can shortcut as we don't have to start at the beginning of
@@ -275,17 +272,16 @@ static inline void check_global_fileset_shadowing(JobControlRecord* jcr,
      * as we did that in the first run already.
      *
      * See if this is a recursive include block. */
-    local_recursive = IncludeBlockIsRecursive(current);
-    for (j = i + 1; j < fileset->include_list.size(); j++) {
-      compare_against = (findIncludeExcludeItem*)fileset->include_list.get(j);
-
+    local_recursive = IncludeBlockIsRecursive(&*current);
+    for (auto compare_against = current + 1;
+         compare_against != fileset->include_list.end(); ++compare_against) {
       /* Only check global shadowing against this include block
        * when it doesn't have any patterns. */
-      if (IncludeBlockHasPatterns(compare_against)) { continue; }
+      if (IncludeBlockHasPatterns(&*compare_against)) { continue; }
 
       // See if both include blocks are recursive.
       global_recursive
-          = (local_recursive && IncludeBlockIsRecursive(compare_against));
+          = (local_recursive && IncludeBlockIsRecursive(&*compare_against));
 
       /* Walk over the filename list and compare it
        * against the other entry from the other list. */
@@ -348,17 +344,17 @@ static inline void check_global_fileset_shadowing(JobControlRecord* jcr,
 void CheckIncludeListShadowing(JobControlRecord* jcr, findFILESET* fileset)
 {
   // Walk the list of include blocks.
-  for (auto* incexe : fileset->include_list) {
+  for (auto& incexe : fileset->include_list) {
     /* See if the shadow check option is enabled for this
      * include block. If not just continue with the next include block. */
-    b_fileset_shadow_type shadow_type = IncludeBlockGetShadowType(incexe);
+    b_fileset_shadow_type shadow_type = IncludeBlockGetShadowType(&incexe);
     switch (shadow_type) {
       case check_shadow_none:
         continue;
       case check_shadow_local_warn:
       case check_shadow_local_remove:
         // Check only for local shadowing within the same include block.
-        check_local_fileset_shadowing(jcr, incexe,
+        check_local_fileset_shadowing(jcr, &incexe,
                                       shadow_type == check_shadow_local_remove);
         break;
       case check_shadow_global_warn:

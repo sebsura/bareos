@@ -628,8 +628,8 @@ bool TermFileset(JobControlRecord* jcr)
 #endif
 
   // Generate bEventPluginCommand events for each Options Plugin.
-  for (auto* incexe : fileset->include_list) {
-    for (auto* fo : incexe->opts_list) {
+  for (auto& incexe : fileset->include_list) {
+    for (auto* fo : incexe.opts_list) {
       if (fo->plugin) {
         GeneratePluginEvent(jcr, bEventPluginCommand, (void*)fo->plugin);
       }

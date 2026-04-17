@@ -53,6 +53,8 @@ extern "C" {
 #else
 #endif
 
+#include <deque>
+
 
 #define MODE_RALL (S_IRUSR | S_IRGRP | S_IROTH)
 
@@ -187,22 +189,10 @@ struct findIncludeExcludeItem {
 
 // FileSet Resource
 struct findFILESET {
-  int state;
+  int state{state_none};
   findIncludeExcludeItem* incexe{}; /**< Current item */
-  alist<findIncludeExcludeItem*> include_list{};
-  alist<findIncludeExcludeItem*> exclude_list{};
-
-  findFILESET()
-  {
-    state = state_none;
-    include_list.init(1, false);
-    exclude_list.init(1, false);
-  }
-  ~findFILESET()
-  {
-    for (auto* item : include_list) { delete item; }
-    for (auto* item : exclude_list) { delete item; }
-  }
+  std::deque<findIncludeExcludeItem> include_list{};
+  std::deque<findIncludeExcludeItem> exclude_list{};
 };
 
 // OSX resource fork.

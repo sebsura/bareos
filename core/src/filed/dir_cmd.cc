@@ -1490,8 +1490,8 @@ static void LogFlagStatus(JobControlRecord* jcr,
   findFILESET* fileset = jcr->fd_impl->ff->fileset;
   bool found = false;
   if (fileset) {
-    for (auto* incexe : fileset->include_list) {
-      for (auto* fo : incexe->opts_list) {
+    for (auto& incexe : fileset->include_list) {
+      for (auto* fo : incexe.opts_list) {
         if (BitIsSet(flag, fo->flags)) { found = true; }
       }
     }
@@ -1518,8 +1518,8 @@ static inline void ClearFlagInFileset(JobControlRecord* jcr,
 
   fileset = jcr->fd_impl->ff->fileset;
   if (fileset) {
-    for (auto* incexe : fileset->include_list) {
-      for (auto* fo : incexe->opts_list) {
+    for (auto& incexe : fileset->include_list) {
+      for (auto* fo : incexe.opts_list) {
         if (BitIsSet(flag, fo->flags)) {
           ClearBit(flag, fo->flags);
           cleared_flag = true;
@@ -1543,8 +1543,8 @@ static inline void ClearCompressionFlagInFileset(JobControlRecord* jcr)
 
   fileset = jcr->fd_impl->ff->fileset;
   if (fileset) {
-    for (auto* incexe : fileset->include_list) {
-      for (auto* fo : incexe->opts_list) {
+    for (auto& incexe : fileset->include_list) {
+      for (auto* fo : incexe.opts_list) {
         // See if a compression flag is set in this option block.
         if (BitIsSet(FO_COMPRESS, fo->flags)) {
           switch (fo->Compress_algo) {
@@ -1587,8 +1587,8 @@ bool GetWantedCryptoCipher(JobControlRecord* jcr, crypto_cipher_t* cipher)
    * crypto cipher. */
   fileset = jcr->fd_impl->ff->fileset;
   if (fileset) {
-    for (auto* incexe : fileset->include_list) {
-      for (auto* fo : incexe->opts_list) {
+    for (auto& incexe : fileset->include_list) {
+      for (auto* fo : incexe.opts_list) {
         if (BitIsSet(FO_FORCE_ENCRYPT, fo->flags)) { force_encrypt = true; }
 
         if (fo->Encryption_cipher != CRYPTO_CIPHER_NONE) {
