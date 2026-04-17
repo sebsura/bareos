@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2025 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2026 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -57,10 +57,6 @@ if(NOT HAVE_MSVC)
 endif()
 
 if(NOT HAVE_WIN32)
-  add_executable(btestls btestls.cc)
-  target_link_libraries(btestls Bareos::Findlib Bareos::Lib)
-  list(APPEND TOOLS_SBIN btestls)
-
   add_executable(bpluginfo bpluginfo.cc)
   target_link_libraries(bpluginfo Bareos::Lib ${CMAKE_DL_LIBS} CLI11::CLI11)
   list(APPEND TOOLS_SBIN bpluginfo)

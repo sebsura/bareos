@@ -282,7 +282,6 @@ For example:
    bls JobId 1: -rwxr-xr-x   1 root     root         1189448 2022-09-13 14:36:48  /usr/sbin/bwild
    bls JobId 1: -rwxr-xr-x   1 root     root         1188048 2022-09-13 14:36:48  /usr/sbin/bregex
    bls JobId 1: -rwxr-xr-x   1 root     root         1210744 2022-09-13 14:36:48  /usr/sbin/bpluginfo
-   bls JobId 1: -rwxr-xr-x   1 root     root           22568 2022-09-13 14:36:48  /usr/sbin/btestls
    bls JobId 1: -rwxr-xr-x   1 root     root           27464 2022-09-13 14:36:48  /usr/sbin/bsmtp
    bls JobId 1: -rwxr-xr-x   1 root     root         1516440 2022-09-13 14:36:48  /usr/sbin/bareos-sd
    bls JobId 1: -rwxr-xr-x   1 root     root         1249256 2022-09-13 14:36:48  /usr/sbin/bls

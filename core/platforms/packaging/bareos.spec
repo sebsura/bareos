@@ -911,7 +911,6 @@ for F in  \
     %{_sbindir}/bareos_vadp_dumper_wrapper.sh \
     %{_sbindir}/vmware_cbt_tool.py \
 %endif
-    %{_sbindir}/btestls \
     %{script_dir}/bareos \
     %{script_dir}/btraceback.dbx \
     %{script_dir}/btraceback.mdb \

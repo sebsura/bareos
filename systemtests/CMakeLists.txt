@@ -180,7 +180,6 @@ set(ALL_BINARIES_BEING_USED_BY_SYSTEMTESTS
     bpluginfo
     bsmtp
     bscrypto
-    btestls
     drivetype
     fstype
     bregex
