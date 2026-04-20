@@ -44,48 +44,50 @@
 #include "stored/stored.h"
 #include "include/jcr.h"
 
+#include <span>
+
 namespace storagedaemon {
 
 const int dbglevel = 500;
 
 /* Forward references */
 static int MatchVolume(BootStrapRecord* bsr,
-                       BsrVolume* volume,
+                       std::span<const BsrVolume> volume,
                        Volume_Label* volrec,
                        bool done);
 static int MatchSesstime(BootStrapRecord* bsr,
-                         BsrSessionTime* sesstime,
+                         std::span<BsrSessionTime> sesstime,
                          DeviceRecord* rec,
                          bool done);
 static int MatchSessid(BootStrapRecord* bsr,
-                       BsrSessionId* sessid,
+                       std::span<const BsrSessionId> sessid,
                        DeviceRecord* rec);
 static int MatchClient(BootStrapRecord* bsr,
-                       BsrClient* client,
+                       std::span<const BsrClient> client,
                        Session_Label* sessrec,
                        bool done);
 static int MatchJob(BootStrapRecord* bsr,
-                    BsrJob* job,
+                    std::span<const BsrJob> job,
                     Session_Label* sessrec,
                     bool done);
 static int MatchJobid(BootStrapRecord* bsr,
-                      BsrJobid* jobid,
+                      std::span<const BsrJobid> jobid,
                       Session_Label* sessrec,
                       bool done);
 static int MatchFindex(BootStrapRecord* bsr,
-                       BsrFileIndex* findex,
+                       std::span<BsrFileIndex> findex,
                        DeviceRecord* rec,
                        bool done);
 static int MatchVolfile(BootStrapRecord* bsr,
-                        BsrVolumeFile* volfile,
+                        std::span<BsrVolumeFile> volfile,
                         DeviceRecord* rec,
                         bool done);
 static int MatchVoladdr(BootStrapRecord* bsr,
-                        BsrVolumeAddress* voladdr,
+                        std::span<BsrVolumeAddress> voladdr,
                         DeviceRecord* rec,
                         bool done);
 static int MatchStream(BootStrapRecord* bsr,
-                       BsrStream* stream,
+                       std::span<const BsrStream> stream,
                        DeviceRecord* rec,
                        bool done);
 static int MatchAll(BootStrapRecord* bsr,
@@ -95,10 +97,10 @@ static int MatchAll(BootStrapRecord* bsr,
                     bool done,
                     JobControlRecord* jcr);
 static int MatchBlockSesstime(BootStrapRecord* bsr,
-                              BsrSessionTime* sesstime,
+                              std::span<const BsrSessionTime> sesstime,
                               DeviceBlock* block);
 static int MatchBlockSessid(BootStrapRecord* bsr,
-                            BsrSessionId* sessid,
+                            std::span<const BsrSessionId> sessid,
                             DeviceBlock* block);
 static BootStrapRecord* find_smallest_volfile(BootStrapRecord* fbsr,
                                               BootStrapRecord* bsr);
@@ -129,26 +131,30 @@ int MatchBsrBlock(BootStrapRecord* bsr, DeviceBlock* block)
   return 0;
 }
 
-static int MatchBlockSesstime(BootStrapRecord* bsr,
-                              BsrSessionTime* sesstime,
+static int MatchBlockSesstime(BootStrapRecord*,
+                              std::span<const BsrSessionTime> sesstimes,
                               DeviceBlock* block)
 {
-  if (!sesstime) { return 1; /* no specification matches all */ }
-  if (sesstime->sesstime == block->VolSessionTime) { return 1; }
-  if (sesstime->next) { return MatchBlockSesstime(bsr, sesstime->next, block); }
+  if (sesstimes.empty()) { return 1; /* no specification matches all */ }
+
+  for (auto& sesstime : sesstimes) {
+    if (sesstime.sesstime == block->VolSessionTime) { return 1; }
+  }
+
   return 0;
 }
 
-static int MatchBlockSessid(BootStrapRecord* bsr,
-                            BsrSessionId* sessid,
+static int MatchBlockSessid(BootStrapRecord*,
+                            std::span<const BsrSessionId> sessids,
                             DeviceBlock* block)
 {
-  if (!sessid) { return 1; /* no specification matches all */ }
-  if (sessid->sessid <= block->VolSessionId
-      && sessid->sessid2 >= block->VolSessionId) {
-    return 1;
+  if (sessids.empty()) { return 1; /* no specification matches all */ }
+  for (auto& sessid : sessids) {
+    if (sessid.sessid <= block->VolSessionId
+        && sessid.sessid2 >= block->VolSessionId) {
+      return 1;
+    }
   }
-  if (sessid->next) { return MatchBlockSessid(bsr, sessid->next, block); }
   return 0;
 }
 
@@ -257,17 +263,18 @@ BootStrapRecord* find_next_bsr(BootStrapRecord* root_bsr, Device* dev)
  * Get the smallest address from this voladdr part
  * Don't use "done" elements
  */
-static bool GetSmallestVoladdr(BsrVolumeAddress* va, uint64_t* ret)
+static bool GetSmallestVoladdr(std::span<const BsrVolumeAddress> vas,
+                               uint64_t* ret)
 {
   bool ok = false;
   uint64_t min_val = 0;
 
-  for (; va; va = va->next) {
-    if (!va->done) {
+  for (auto& va : vas) {
+    if (!va.done) {
       if (ok) {
-        min_val = MIN(min_val, va->saddr);
+        min_val = MIN(min_val, va.saddr);
       } else {
-        min_val = va->saddr;
+        min_val = va.saddr;
         ok = true;
       }
     }
@@ -291,8 +298,6 @@ static BootStrapRecord* find_smallest_volfile(BootStrapRecord* found_bsr,
                                               BootStrapRecord* bsr)
 {
   BootStrapRecord* return_bsr = found_bsr;
-  BsrVolumeFile* vf;
-  BsrVolumeBlock* vb;
   uint32_t found_bsr_sfile, bsr_sfile;
   uint32_t found_bsr_sblock, bsr_sblock;
   uint64_t found_bsr_saddr, bsr_saddr;
@@ -308,37 +313,38 @@ static BootStrapRecord* find_smallest_volfile(BootStrapRecord* found_bsr,
     }
   }
 
-  /* Find the smallest file in the found_bsr */
-  vf = found_bsr->volfile;
-  found_bsr_sfile = vf->sfile;
-  while ((vf = vf->next)) {
-    if (vf->sfile < found_bsr_sfile) { found_bsr_sfile = vf->sfile; }
-  }
+  auto smallest_sfile = [](std::span<const BsrVolumeFile> files) {
+    auto smallest = &files[0];
 
-  /* Find the smallest file in the bsr */
-  vf = bsr->volfile;
-  bsr_sfile = vf->sfile;
-  while ((vf = vf->next)) {
-    if (vf->sfile < bsr_sfile) { bsr_sfile = vf->sfile; }
-  }
+    for (auto& file : files.subspan(1)) {
+      if (file.sfile < smallest->sfile) { smallest = &file; }
+    }
+
+    return smallest->sfile;
+  };
+
+  auto smallest_block = [](std::span<const BsrVolumeBlock> blocks) {
+    auto smallest = &blocks[0];
+
+    for (auto& block : blocks.subspan(1)) {
+      if (block.sblock < smallest->sblock) { smallest = &block; }
+    }
+
+    return smallest->sblock;
+  };
+
+  /* Find the smallest file */
+  found_bsr_sfile = smallest_sfile(found_bsr->volfile);
+  bsr_sfile = smallest_sfile(bsr->volfile);
 
   /* if the bsr file is less than the found_bsr file, return bsr */
   if (found_bsr_sfile > bsr_sfile) {
     return_bsr = bsr;
   } else if (found_bsr_sfile == bsr_sfile) {
     /* Files are equal */
-    /* find smallest block in found_bsr */
-    vb = found_bsr->volblock;
-    found_bsr_sblock = vb->sblock;
-    while ((vb = vb->next)) {
-      if (vb->sblock < found_bsr_sblock) { found_bsr_sblock = vb->sblock; }
-    }
-    /* Find smallest block in bsr */
-    vb = bsr->volblock;
-    bsr_sblock = vb->sblock;
-    while ((vb = vb->next)) {
-      if (vb->sblock < bsr_sblock) { bsr_sblock = vb->sblock; }
-    }
+    /* find smallest block */
+    found_bsr_sblock = smallest_block(found_bsr->volblock);
+    bsr_sblock = smallest_block(bsr->volblock);
     /* Compare and return the smallest */
     if (found_bsr_sblock > bsr_sblock) { return_bsr = bsr; }
   }
@@ -394,50 +400,51 @@ static int MatchAll(BootStrapRecord* bsr,
   }
   if (!MatchVolume(bsr, bsr->volume, volrec, 1)) {
     Dmsg2(dbglevel, "bsr fail bsr_vol=%s != rec read_vol=%s\n",
-          bsr->volume->VolumeName, volrec->VolumeName);
+          bsr->volume[0].VolumeName, volrec->VolumeName);
     goto no_match;
   }
   Dmsg2(dbglevel, "OK bsr match bsr_vol=%s read_vol=%s\n",
-        bsr->volume->VolumeName, volrec->VolumeName);
+        bsr->volume[0].VolumeName, volrec->VolumeName);
 
   if (!MatchVolfile(bsr, bsr->volfile, rec, 1)) {
-    if (bsr->volfile) {
+    if (!bsr->volfile.empty()) {
       Dmsg3(dbglevel, "Fail on file=%u. bsr=%u,%u\n", rec->File,
-            bsr->volfile->sfile, bsr->volfile->efile);
+            bsr->volfile[0].sfile, bsr->volfile[0].efile);
     }
     goto no_match;
   }
 
   if (!MatchVoladdr(bsr, bsr->voladdr, rec, 1)) {
-    if (bsr->voladdr) {
+    if (!bsr->voladdr.empty()) {
       Dmsg3(dbglevel, "Fail on Addr=%" PRIu64 ". bsr=%" PRIu64 ",%" PRIu64 "\n",
-            GetRecordAddress(rec), bsr->voladdr->saddr, bsr->voladdr->eaddr);
+            GetRecordAddress(rec), bsr->voladdr[0].saddr,
+            bsr->voladdr[0].eaddr);
     }
     goto no_match;
   }
 
   if (!MatchSesstime(bsr, bsr->sesstime, rec, 1)) {
     Dmsg2(dbglevel, "Fail on sesstime. bsr=%u rec=%u\n",
-          bsr->sesstime->sesstime, rec->VolSessionTime);
+          bsr->sesstime[0].sesstime, rec->VolSessionTime);
     goto no_match;
   }
 
   /* NOTE!! This test MUST come after the sesstime test */
   if (!MatchSessid(bsr, bsr->sessid, rec)) {
-    Dmsg2(dbglevel, "Fail on sessid. bsr=%u rec=%u\n", bsr->sessid->sessid,
+    Dmsg2(dbglevel, "Fail on sessid. bsr=%u rec=%u\n", bsr->sessid[0].sessid,
           rec->VolSessionId);
     goto no_match;
   }
 
   /* NOTE!! This test MUST come after sesstime and sessid tests */
-  if (bsr->FileIndex) {
+  if (!bsr->FileIndex.empty()) {
     if (!MatchFindex(bsr, bsr->FileIndex, rec, 1)) {
       Dmsg3(dbglevel, "Fail on findex=%d. bsr=%d,%d\n", rec->FileIndex,
-            bsr->FileIndex->findex, bsr->FileIndex->findex2);
+            bsr->FileIndex[0].findex, bsr->FileIndex[0].findex2);
       goto no_match;
     } else {
       Dmsg3(dbglevel, "match on findex=%d. bsr=%d,%d\n", rec->FileIndex,
-            bsr->FileIndex->findex, bsr->FileIndex->findex2);
+            bsr->FileIndex[0].findex, bsr->FileIndex[0].findex2);
     }
   } else {
     Dmsg0(dbglevel, "No bsr->FileIndex!\n");
@@ -460,7 +467,7 @@ static int MatchAll(BootStrapRecord* bsr,
    *   after processing the record or records, we can update
    *   the found count. I.e. rec->bsr points to the bsr that
    *   satisfied the match. */
-  if (bsr->count && bsr->FileIndex) {
+  if (bsr->count && !bsr->FileIndex.empty()) {
     rec->bsr = bsr;
     Dmsg0(dbglevel, "Leave MatchAll 1\n");
     return 1; /* this is a complete match */
@@ -499,138 +506,156 @@ no_match:
   return 0;
 }
 
-static int MatchVolume(BootStrapRecord* bsr,
-                       BsrVolume* volume,
+static int MatchVolume(BootStrapRecord*,
+                       std::span<const BsrVolume> volumes,
                        Volume_Label* volrec,
                        bool)
 {
-  if (!volume) { return 0; /* Volume must match */ }
-  if (bstrcmp(volume->VolumeName, volrec->VolumeName)) {
-    Dmsg1(dbglevel, "MatchVolume=%s\n", volrec->VolumeName);
-    return 1;
+  if (volumes.empty()) { return 0; /* Volume must match */ }
+  for (auto& volume : volumes) {
+    if (bstrcmp(volume.VolumeName, volrec->VolumeName)) {
+      Dmsg1(dbglevel, "MatchVolume=%s\n", volrec->VolumeName);
+      return 1;
+    }
   }
-  if (volume->next) { return MatchVolume(bsr, volume->next, volrec, 1); }
   return 0;
 }
 
-static int MatchClient(BootStrapRecord* bsr,
-                       BsrClient* client,
+static int MatchClient(BootStrapRecord*,
+                       std::span<const BsrClient> clients,
                        Session_Label* sessrec,
                        bool)
 {
-  if (!client) { return 1; /* no specification matches all */ }
-  if (bstrcmp(client->ClientName, sessrec->ClientName)) { return 1; }
-  if (client->next) { return MatchClient(bsr, client->next, sessrec, 1); }
+  if (clients.empty()) { return 1; /* no specification matches all */ }
+  for (auto& client : clients) {
+    if (bstrcmp(client.ClientName, sessrec->ClientName)) { return 1; }
+  }
   return 0;
 }
 
-static int MatchJob(BootStrapRecord* bsr,
-                    BsrJob* job,
+static int MatchJob(BootStrapRecord*,
+                    std::span<const BsrJob> jobs,
                     Session_Label* sessrec,
                     bool)
 {
-  if (!job) { return 1; /* no specification matches all */ }
-  if (bstrcmp(job->Job, sessrec->Job)) { return 1; }
-  if (job->next) { return MatchJob(bsr, job->next, sessrec, 1); }
+  if (jobs.empty()) { return 1; /* no specification matches all */ }
+  for (auto& job : jobs) {
+    if (bstrcmp(job.Job, sessrec->Job)) { return 1; }
+  }
   return 0;
 }
 
-static int MatchJobid(BootStrapRecord* bsr,
-                      BsrJobid* jobid,
+static int MatchJobid(BootStrapRecord*,
+                      std::span<const BsrJobid> jobids,
                       Session_Label* sessrec,
                       bool)
 {
-  if (!jobid) { return 1; /* no specification matches all */ }
-  if (jobid->JobId <= sessrec->JobId && jobid->JobId2 >= sessrec->JobId) {
-    return 1;
+  if (jobids.empty()) { return 1; /* no specification matches all */ }
+  for (auto& jobid : jobids) {
+    if (jobid.JobId <= sessrec->JobId && jobid.JobId2 >= sessrec->JobId) {
+      return 1;
+    }
   }
-  if (jobid->next) { return MatchJobid(bsr, jobid->next, sessrec, 1); }
   return 0;
 }
 
 static int MatchVolfile(BootStrapRecord* bsr,
-                        BsrVolumeFile* volfile,
+                        std::span<BsrVolumeFile> volfiles,
                         DeviceRecord* rec,
                         bool done)
 {
-  if (!volfile) { return 1; /* no specification matches all */ }
+  if (volfiles.empty()) { return 1; /* no specification matches all */ }
   /* The following code is turned off because this should now work
    *   with disk files too, though since a "volfile" is 4GB, it does
    *   not improve performance much. */
-  if (volfile->sfile <= rec->File && volfile->efile >= rec->File) { return 1; }
-  /* Once we get past last efile, we are done */
-  if (rec->File > volfile->efile) { volfile->done = true; /* set local done */ }
-  if (volfile->next) {
-    return MatchVolfile(bsr, volfile->next, rec, volfile->done && done);
+
+  for (auto& volfile : volfiles) {
+    if (volfile.sfile <= rec->File && volfile.efile >= rec->File) { return 1; }
+    /* Once we get past last efile, we are done */
+    if (rec->File > volfile.efile) {
+      volfile.done = true; /* set local done */
+    }
+    /* otherwise the bsr is not done */
+    else if (!volfile.done) {
+      done = false;
+    }
   }
 
   /* If we are done and all prior matches are done, this bsr is finished */
-  if (volfile->done && done) {
+  if (done) {
     bsr->done = true;
     bsr->root->Reposition = true;
     Dmsg2(dbglevel, "bsr done from volfile rec=%u volefile=%u\n", rec->File,
-          volfile->efile);
+          volfiles.back().efile);
   }
   return 0;
 }
 
 static int MatchVoladdr(BootStrapRecord* bsr,
-                        BsrVolumeAddress* voladdr,
+                        std::span<BsrVolumeAddress> voladdrs,
                         DeviceRecord* rec,
                         bool done)
 {
-  if (!voladdr) { return 1; /* no specification matches all */ }
+  if (voladdrs.empty()) { return 1; /* no specification matches all */ }
 
   uint64_t addr = GetRecordAddress(rec);
-  Dmsg6(dbglevel,
-        "MatchVoladdr: saddr=%" PRIu64 " eaddr=%" PRIu64 " recaddr=%" PRIu64
-        " "
-        "sfile=%" PRIu64 " efile=%" PRIu64 " recfile=%" PRIu64 "\n",
-        voladdr->saddr, voladdr->eaddr, addr, voladdr->saddr >> 32,
-        voladdr->eaddr >> 32, addr >> 32);
+  for (auto& voladdr : voladdrs) {
+    Dmsg6(dbglevel,
+          "MatchVoladdr: saddr=%" PRIu64 " eaddr=%" PRIu64 " recaddr=%" PRIu64
+          " "
+          "sfile=%" PRIu64 " efile=%" PRIu64 " recfile=%" PRIu64 "\n",
+          voladdr.saddr, voladdr.eaddr, addr, voladdr.saddr >> 32,
+          voladdr.eaddr >> 32, addr >> 32);
 
-  if (voladdr->saddr <= addr && voladdr->eaddr >= addr) { return 1; }
-  /* Once we get past last eblock, we are done */
-  if (addr > voladdr->eaddr) { voladdr->done = true; /* set local done */ }
-  if (voladdr->next) {
-    return MatchVoladdr(bsr, voladdr->next, rec, voladdr->done && done);
+    if (voladdr.saddr <= addr && voladdr.eaddr >= addr) { return 1; }
+    /* Once we get past last eblock, we are done */
+    if (addr > voladdr.eaddr) {
+      voladdr.done = true; /* set local done */
+    } else if (!voladdr.done) {
+      done = false;
+    }
   }
 
   /* If we are done and all prior matches are done, this bsr is finished */
-  if (voladdr->done && done) {
+  if (done) {
     bsr->done = true;
     bsr->root->Reposition = true;
     Dmsg2(dbglevel,
           "bsr done from voladdr rec=%" PRIu64 " voleaddr=%" PRIu64 "\n", addr,
-          voladdr->eaddr);
+          voladdrs.back().eaddr);
   }
   return 0;
 }
 
 
-static int MatchStream(BootStrapRecord* bsr,
-                       BsrStream* stream,
+static int MatchStream(BootStrapRecord*,
+                       std::span<const BsrStream> streams,
                        DeviceRecord* rec,
                        bool)
 {
-  if (!stream) { return 1; /* no specification matches all */ }
-  if (stream->stream == rec->Stream) { return 1; }
-  if (stream->next) { return MatchStream(bsr, stream->next, rec, 1); }
+  if (streams.empty()) { return 1; /* no specification matches all */ }
+  for (auto& stream : streams) {
+    if (stream.stream == rec->Stream) { return 1; }
+  }
   return 0;
 }
 
 static int MatchSesstime(BootStrapRecord* bsr,
-                         BsrSessionTime* sesstime,
+                         std::span<BsrSessionTime> sesstimes,
                          DeviceRecord* rec,
                          bool done)
 {
-  if (!sesstime) { return 1; /* no specification matches all */ }
-  if (sesstime->sesstime == rec->VolSessionTime) { return 1; }
-  if (rec->VolSessionTime > sesstime->sesstime) { sesstime->done = true; }
-  if (sesstime->next) {
-    return MatchSesstime(bsr, sesstime->next, rec, sesstime->done && done);
+  if (sesstimes.empty()) { return 1; /* no specification matches all */ }
+
+  for (auto& sesstime : sesstimes) {
+    if (sesstime.sesstime == rec->VolSessionTime) { return 1; }
+    if (rec->VolSessionTime > sesstime.sesstime) {
+      sesstime.done = true;
+    } else if (!sesstime.done) {
+      done = false;
+    }
   }
-  if (sesstime->done && done) {
+  if (done) {
     bsr->done = true;
     bsr->root->Reposition = true;
     Dmsg0(dbglevel, "bsr done from sesstime\n");
@@ -643,16 +668,18 @@ static int MatchSesstime(BootStrapRecord* bsr,
  *  have interleaved records, and there may be more of what we want
  *  later.
  */
-static int MatchSessid(BootStrapRecord* bsr,
-                       BsrSessionId* sessid,
+static int MatchSessid(BootStrapRecord*,
+                       std::span<const BsrSessionId> sessids,
                        DeviceRecord* rec)
 {
-  if (!sessid) { return 1; /* no specification matches all */ }
-  if (sessid->sessid <= rec->VolSessionId
-      && sessid->sessid2 >= rec->VolSessionId) {
-    return 1;
+  if (sessids.empty()) { return 1; /* no specification matches all */ }
+
+  for (auto& sessid : sessids) {
+    if (sessid.sessid <= rec->VolSessionId
+        && sessid.sessid2 >= rec->VolSessionId) {
+      return 1;
+    }
   }
-  if (sessid->next) { return MatchSessid(bsr, sessid->next, rec); }
   return 0;
 }
 
@@ -664,23 +691,26 @@ static int MatchSessid(BootStrapRecord* bsr,
  * We could optimize by removing the recursion.
  */
 static int MatchFindex(BootStrapRecord* bsr,
-                       BsrFileIndex* findex,
+                       std::span<BsrFileIndex> findices,
                        DeviceRecord* rec,
                        bool done)
 {
-  if (!findex) { return 1; /* no specification matches all */ }
-  if (!findex->done) {
-    if (findex->findex <= rec->FileIndex && findex->findex2 >= rec->FileIndex) {
-      Dmsg3(dbglevel, "Match on findex=%d. bsrFIs=%d,%d\n", rec->FileIndex,
-            findex->findex, findex->findex2);
-      return 1;
+  if (findices.empty()) { return 1; /* no specification matches all */ }
+  for (auto& findex : findices) {
+    if (!findex.done) {
+      if (findex.findex <= rec->FileIndex && findex.findex2 >= rec->FileIndex) {
+        Dmsg3(dbglevel, "Match on findex=%d. bsrFIs=%d,%d\n", rec->FileIndex,
+              findex.findex, findex.findex2);
+        return 1;
+      }
+      if (rec->FileIndex > findex.findex2) {
+        findex.done = true;
+      } else if (!findex.done) {
+        done = false;
+      }
     }
-    if (rec->FileIndex > findex->findex2) { findex->done = true; }
   }
-  if (findex->next) {
-    return MatchFindex(bsr, findex->next, rec, findex->done && done);
-  }
-  if (findex->done && done) {
+  if (done) {
     bsr->done = true;
     bsr->root->Reposition = true;
     Dmsg1(dbglevel, "bsr done from findex %d\n", rec->FileIndex);
@@ -694,16 +724,16 @@ uint64_t GetBsrStartAddr(BootStrapRecord* bsr, uint32_t* file, uint32_t* block)
   uint32_t sfile = 0, sblock = 0;
 
   if (bsr) {
-    if (bsr->voladdr) {
-      bsr_addr = bsr->voladdr->saddr;
+    if (!bsr->voladdr.empty()) {
+      bsr_addr = bsr->voladdr[0].saddr;
       sfile = bsr_addr >> 32;
       sblock = (uint32_t)bsr_addr;
 
-    } else if (bsr->volfile && bsr->volblock) {
+    } else if (!bsr->volfile.empty() && !bsr->volblock.empty()) {
       bsr_addr
-          = (((uint64_t)bsr->volfile->sfile) << 32) | bsr->volblock->sblock;
-      sfile = bsr->volfile->sfile;
-      sblock = bsr->volblock->sblock;
+          = (((uint64_t)bsr->volfile[0].sfile) << 32) | bsr->volblock[0].sblock;
+      sfile = bsr->volfile[0].sfile;
+      sblock = bsr->volblock[0].sblock;
     }
   }
 
@@ -779,23 +809,22 @@ void CreateRestoreVolumeList(JobControlRecord* jcr)
   jcr->sd_impl->CurReadVolume = 0;
   if (jcr->sd_impl->read_session.bsr) {
     BootStrapRecord* bsr = jcr->sd_impl->read_session.bsr;
-    if (!bsr->volume || !bsr->volume->VolumeName[0]) { return; }
+    if (bsr->volume.empty() || !bsr->volume[0].VolumeName[0]) { return; }
     for (; bsr; bsr = bsr->next) {
-      BsrVolume* bsrvol;
-      BsrVolumeFile* volfile;
       uint32_t sfile = UINT32_MAX;
 
       /* Find minimum start file so that we can forward space to it */
-      for (volfile = bsr->volfile; volfile; volfile = volfile->next) {
-        if (volfile->sfile < sfile) { sfile = volfile->sfile; }
+      for (auto& volfile : bsr->volfile) {
+        if (volfile.sfile < sfile) { sfile = volfile.sfile; }
       }
+
       /* Now add volumes for this bsr */
-      for (bsrvol = bsr->volume; bsrvol; bsrvol = bsrvol->next) {
+      for (auto& bsrvol : bsr->volume) {
         vol = new_restore_volume();
-        bstrncpy(vol->VolumeName, bsrvol->VolumeName, sizeof(vol->VolumeName));
-        bstrncpy(vol->MediaType, bsrvol->MediaType, sizeof(vol->MediaType));
-        bstrncpy(vol->device, bsrvol->device, sizeof(vol->device));
-        vol->Slot = bsrvol->Slot;
+        bstrncpy(vol->VolumeName, bsrvol.VolumeName, sizeof(vol->VolumeName));
+        bstrncpy(vol->MediaType, bsrvol.MediaType, sizeof(vol->MediaType));
+        bstrncpy(vol->device, bsrvol.device, sizeof(vol->device));
+        vol->Slot = bsrvol.Slot;
         vol->start_file = sfile;
         if (AddRestoreVolume(jcr, vol)) {
           jcr->sd_impl->NumReadVolumes++;

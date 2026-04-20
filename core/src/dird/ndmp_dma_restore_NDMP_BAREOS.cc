@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2011-2016 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -359,7 +359,6 @@ static inline bool DoNdmpRestoreBootstrap(JobControlRecord* jcr)
   NIS* nis = NULL;
   int32_t current_fi;
   bootstrap_info info;
-  storagedaemon::BsrFileIndex* fileindex;
   struct ndm_session ndmp_sess;
   struct ndm_job_param ndmp_job;
   bool session_initialized = false;
@@ -456,30 +455,30 @@ static inline bool DoNdmpRestoreBootstrap(JobControlRecord* jcr)
     bool first_run = true;
     bool next_sessid = true;
     bool next_fi = true;
-    int first_fi = jcr->dir_impl->bsr->FileIndex->findex;
-    int last_fi = jcr->dir_impl->bsr->FileIndex->findex2;
-    VolumeSessionInfo current_session{jcr->dir_impl->bsr->sessid->sessid,
-                                      jcr->dir_impl->bsr->sesstime->sesstime};
+    int first_fi = jcr->dir_impl->bsr->FileIndex[0].findex;
+    int last_fi = jcr->dir_impl->bsr->FileIndex[0].findex2;
+    VolumeSessionInfo current_session{jcr->dir_impl->bsr->sessid[0].sessid,
+                                      jcr->dir_impl->bsr->sesstime[0].sesstime};
     cnt = 0;
 
     for (bsr = jcr->dir_impl->bsr; bsr; bsr = bsr->next) {
-      if (current_session.id != bsr->sessid->sessid) {
-        current_session = {bsr->sessid->sessid, bsr->sesstime->sesstime};
+      if (current_session.id != bsr->sessid[0].sessid) {
+        current_session = {bsr->sessid[0].sessid, bsr->sesstime[0].sesstime};
         first_run = true;
         next_sessid = true;
       }
       /* check for the first and last fileindex  we have in the current
        * BootStrapRecord */
-      for (fileindex = bsr->FileIndex; fileindex; fileindex = fileindex->next) {
+      for (auto& fileindex : bsr->FileIndex) {
         if (first_run) {
-          first_fi = fileindex->findex;
-          last_fi = fileindex->findex2;
+          first_fi = fileindex.findex;
+          last_fi = fileindex.findex2;
           first_run = false;
         } else {
-          first_fi = MIN(first_fi, fileindex->findex);
-          if (last_fi != fileindex->findex2) {
+          first_fi = MIN(first_fi, fileindex.findex);
+          if (last_fi != fileindex.findex2) {
             next_fi = true;
-            last_fi = fileindex->findex2;
+            last_fi = fileindex.findex2;
           }
         }
         Dmsg4(20, "sessionid:sesstime : first_fi/last_fi : %d:%d %d/%d \n",

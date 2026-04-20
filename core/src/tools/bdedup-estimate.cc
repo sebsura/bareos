@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2023-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2023-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -157,12 +157,12 @@ class SimpleVolumesBsr {
   {
     using namespace storagedaemon;
     for (auto& name : volumenames) {
-      auto* bsrvolume = (BsrVolume*)calloc(1, sizeof(BsrVolume));
+      BootStrapRecord* bsr = new BootStrapRecord{};
+
+      auto* bsrvolume = &bsr->volume.emplace_back();
       bstrncpy(bsrvolume->VolumeName, name.c_str(),
                sizeof(bsrvolume->VolumeName));
 
-      BootStrapRecord* bsr = (BootStrapRecord*)calloc(1, sizeof(*bsr));
-      bsr->volume = bsrvolume;
       if (root) {
         bsr->next = root;
         root->prev = bsr;
@@ -181,8 +181,7 @@ class SimpleVolumesBsr {
   {
     while (root) {
       auto* next = root->next;
-      free(root->volume);
-      free(root);
+      delete root;
       root = next;
     }
   }

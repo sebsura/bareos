@@ -46,17 +46,7 @@ struct VolumeList {
   uint32_t start_file;
 };
 
-/**
- * !!!!!!!!!!!!!!!!!! NOTE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- * !!!                                               !!!
- * !!!   All records must have a pointer to          !!!
- * !!!   the next item as the first item defined.    !!!
- * !!!                                               !!!
- * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- */
-
 struct BsrVolume {
-  BsrVolume* next;
   char VolumeName[MAX_NAME_LENGTH];
   char MediaType[MAX_NAME_LENGTH];
   char device[MAX_NAME_LENGTH];
@@ -64,64 +54,54 @@ struct BsrVolume {
 };
 
 struct BsrClient {
-  BsrClient* next;
   char ClientName[MAX_NAME_LENGTH];
 };
 
 struct BsrSessionId {
-  BsrSessionId* next;
   uint32_t sessid;
   uint32_t sessid2;
 };
 
 struct BsrSessionTime {
-  BsrSessionTime* next;
   uint32_t sesstime;
   bool done; /* local done */
 };
 
 struct BsrVolumeFile {
-  BsrVolumeFile* next;
   uint32_t sfile; /* start file */
   uint32_t efile; /* end file */
   bool done;      /* local done */
 };
 
 struct BsrVolumeBlock {
-  BsrVolumeBlock* next;
   uint32_t sblock; /* start block */
   uint32_t eblock; /* end block */
   bool done;       /* local done */
 };
 
 struct BsrVolumeAddress {
-  BsrVolumeAddress* next;
   uint64_t saddr; /* start address */
   uint64_t eaddr; /* end address */
   bool done;      /* local done */
 };
 
 struct BsrFileIndex {
-  BsrFileIndex* next;
   int32_t findex;  /* start file index */
   int32_t findex2; /* end file index */
   bool done;       /* local done */
 };
 
 struct BsrJobid {
-  BsrJobid* next;
   uint32_t JobId;
   uint32_t JobId2;
 };
 
 struct BsrJob {
-  BsrJob* next;
   char Job[MAX_NAME_LENGTH];
   bool done; /* local done */
 };
 
 struct BsrStream {
-  BsrStream* next;
   int32_t stream; /* stream desired */
 };
 
@@ -136,19 +116,20 @@ struct BootStrapRecord {
   bool use_fast_rejection; /* set if fast rejection can be used */
   bool use_positioning;    /* set if we can position the archive */
   bool skip_file;          /* skip all records for current file */
-  BsrVolume* volume;
-  uint32_t count; /* count of files to restore this bsr */
-  uint32_t found; /* count of restored files this bsr */
-  BsrVolumeFile* volfile;
-  BsrVolumeBlock* volblock;
-  BsrVolumeAddress* voladdr;
-  BsrSessionTime* sesstime;
-  BsrSessionId* sessid;
-  BsrJobid* JobId;
-  BsrJob* job;
-  BsrClient* client;
-  BsrFileIndex* FileIndex;
-  BsrStream* stream;
+  uint32_t count;          /* count of files to restore this bsr */
+  uint32_t found;          /* count of restored files this bsr */
+
+  std::vector<BsrVolume> volume;
+  std::vector<BsrVolumeFile> volfile;
+  std::vector<BsrVolumeBlock> volblock;
+  std::vector<BsrVolumeAddress> voladdr;
+  std::vector<BsrSessionTime> sesstime;
+  std::vector<BsrSessionId> sessid;
+  std::vector<BsrJobid> JobId;
+  std::vector<BsrJob> job;
+  std::vector<BsrClient> client;
+  std::vector<BsrFileIndex> FileIndex;
+  std::vector<BsrStream> stream;
   std::string fileregex; /* set if restore is filtered on filename */
   std::optional<regex_t> fileregex_re;
   Attributes* attr; /* scratch space for unpacking */
