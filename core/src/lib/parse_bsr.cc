@@ -500,8 +500,7 @@ static storagedaemon::BootStrapRecord* store_fileregex(
   token = LexGetToken(lc, BCT_STRING);
   if (token == BCT_ERROR) { return NULL; }
 
-  if (bsr->fileregex) free(bsr->fileregex);
-  bsr->fileregex = strdup(lc->str);
+  bsr->fileregex = lc->str;
 
   if (!bsr->fileregex_re) {
     bsr->fileregex_re.emplace();
@@ -509,12 +508,13 @@ static storagedaemon::BootStrapRecord* store_fileregex(
     regfree(&*bsr->fileregex_re);
   }
 
-  rc = regcomp(&*bsr->fileregex_re, bsr->fileregex, REG_EXTENDED | REG_NOSUB);
+  rc = regcomp(&*bsr->fileregex_re, bsr->fileregex.c_str(),
+               REG_EXTENDED | REG_NOSUB);
   if (rc != 0) {
     char prbuf[500];
     regerror(rc, &*bsr->fileregex_re, prbuf, sizeof(prbuf));
-    Emsg2(M_ERROR, 0, T_("REGEX '%s' compile error. ERR=%s\n"), bsr->fileregex,
-          prbuf);
+    Emsg2(M_ERROR, 0, T_("REGEX '%s' compile error. ERR=%s\n"),
+          bsr->fileregex.c_str(), prbuf);
     return NULL;
   }
   return bsr;
@@ -916,7 +916,6 @@ static inline void RemoveBsr(storagedaemon::BootStrapRecord* bsr)
   FreeBsrItem(bsr->job);
   FreeBsrItem(bsr->FileIndex);
   FreeBsrItem(bsr->stream);
-  if (bsr->fileregex) { free(bsr->fileregex); }
   if (bsr->fileregex_re) { regfree(&*bsr->fileregex_re); }
   if (bsr->attr) { FreeAttr(bsr->attr); }
   if (bsr->next) { bsr->next->prev = bsr->prev; }

@@ -444,7 +444,7 @@ static int MatchAll(BootStrapRecord* bsr,
   }
 
   if (!MatchFileregex(bsr, rec, jcr)) {
-    Dmsg1(dbglevel, "Fail on fileregex='%s'\n", bsr->fileregex);
+    Dmsg1(dbglevel, "Fail on fileregex='%s'\n", bsr->fileregex.c_str());
     goto no_match;
   }
 
