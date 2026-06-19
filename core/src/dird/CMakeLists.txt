@@ -188,5 +188,9 @@ install(CODE "set(SRC_DIR \"${PROJECT_BINARY_DIR}\")")
 install(SCRIPT ${PROJECT_SOURCE_DIR}/cmake/install-dird-configfiles.cmake)
 include(DebugEdit)
 
+find_package(CURL REQUIRED)
 add_executable(oidc-test oidc.cc)
-target_link_library(oidc-test CLI11::CLI11 Jansson::Jansson)
+target_link_libraries(
+  oidc-test PRIVATE fmt::fmt CLI11::CLI11 Jansson::Jansson CURL::libcurl
+                    Bareos::Lib
+)
