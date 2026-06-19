@@ -1,3 +1,21 @@
+/* BAREOS® - Backup Archiving REcovery Open Sourced
+ *
+ * Copyright (C) 2026-2026 Bareos GmbH & Co. KG
+ *
+ * This program is Free Software; you can redistribute it and/or
+ * modify it under the terms of version three of the GNU Affero General Public
+ * License as published by the Free Software Foundation and included
+ * in the file LICENSE.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA. */
 #include "CLI/App.hpp"
 #include "CLI/Config.hpp"
 #include "CLI/Formatter.hpp"
@@ -12,25 +30,16 @@
 
 #include <cassert>
 #include <charconv>
+#include <chrono>
 #include <condition_variable>
 #include <iostream>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <thread>
 #include <variant>
 
 #if 0
-#include <lib/base64.h>
-
-static constexpr std::string_view api_root = "https://graph.microsoft.com/v1.0";
-std::string tenant_id;
-std::string client_id;
-std::string client_secret;
-
-struct bearer_token {
-  std::chrono::steady_clock::time_point expiry_point;
-  std::string value;
-};
 
 struct string_writer {
   std::string s;
@@ -109,137 +118,6 @@ bool read_file(std::vector<char>& s, const char* path)
   return total_bytes_read == s.size();
 }
 
-template <typename F> auto curl_easy_write_cb(CURL* curl, F&& fun)
-{
-  curl_easy_setopt(
-      curl, CURLOPT_WRITEFUNCTION,
-      +[](char* curldata, size_t size, size_t nmemb, void* userdata) -> size_t {
-        auto* cb = static_cast<std::remove_reference_t<F>*>(userdata);
-
-        size_t bytes = size * nmemb;
-        return (*cb)(curldata, bytes);
-      });
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &fun);
-
-  return curl_easy_perform(curl);
-}
-
-template <typename F> void curl_easy_set_read_cb(CURL* curl, F&& fun)
-{
-  curl_easy_setopt(
-      curl, CURLOPT_READFUNCTION,
-      +[](char* curldata, size_t size, size_t nmemb, void* userdata) -> size_t {
-        auto* cb = static_cast<std::remove_reference_t<F>*>(userdata);
-
-        size_t bytes = size * nmemb;
-        return (*cb)(curldata, bytes);
-      });
-  curl_easy_setopt(curl, CURLOPT_READDATA, &fun);
-}
-
-struct url_encoder {
-  void add_kv(std::string_view key, std::string_view value)
-  {
-    if (!encoded.empty()) { encoded += '&'; }
-
-    char* escaped = curl_easy_escape(nullptr, value.data(), value.size());
-
-    encoded += key;
-    encoded += '=';
-    encoded += escaped;
-
-    curl_free(escaped);
-  }
-
-
-  const char* c_str() const { return encoded.c_str(); }
-  const std::string& str() const& { return encoded; }
-  std::string_view view() const { return encoded; }
-
-  std::string&& str() && { return std::move(encoded); }
-
- private:
-  std::string encoded{};
-};
-
-std::optional<bearer_token> request_token()
-{
-  CURL* curl = curl_easy_init();
-
-  if (!curl) {
-    std::cerr << "Could not initialize curl" << std::endl;
-    return std::nullopt;
-  }
-
-  curl_easy_setopt(
-      curl, CURLOPT_URL,
-      fmt::format("https://login.microsoftonline.com/{}/oauth2/v2.0/token",
-                  tenant_id)
-          .c_str());
-
-  url_encoder encoder{};
-
-  encoder.add_kv("client_id", client_id);
-  encoder.add_kv("scope", "https://graph.microsoft.com/.default");
-  encoder.add_kv("client_secret", client_secret);
-  encoder.add_kv("grant_type", "client_credentials");
-
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoder.c_str());
-  curl_easy_setopt(curl, CURLOPT_POST, 1L);
-
-
-  auto now = std::chrono::steady_clock::now();
-  string_writer sw;
-  auto res = curl_easy_write_cb(curl, sw);
-
-  curl_easy_cleanup(curl);
-
-  if (res != CURLE_OK) {
-    std::cerr << "Could not fetch token" << std::endl;
-    return std::nullopt;
-  }
-
-  json_error_t err = {};
-  json_t* json = json_loadb(sw.s.data(), sw.s.size(), 0, &err);
-
-  if (!json) {
-    std::cerr << "Response is not json" << std::endl;
-    return std::nullopt;
-  }
-
-  json_t* type = json_object_get(json, "token_type");
-  if (!type || !json_is_string(type)) {
-    std::cerr << "Bad token type in json" << std::endl;
-    json_decref(json);
-    return std::nullopt;
-  }
-  json_t* token = json_object_get(json, "access_token");
-  if (!token || !json_is_string(token)) {
-    std::cerr << "Bad token in json" << std::endl;
-    json_decref(json);
-    return std::nullopt;
-  }
-  json_t* expiry = json_object_get(json, "expires_in");
-  if (!expiry || !json_is_integer(expiry)) {
-    std::cerr << "Bad expiry in json" << std::endl;
-    json_decref(json);
-    return std::nullopt;
-  }
-
-  if (json_string_value(type) != std::string_view{"Bearer"}) {
-    std::cerr << "Wrong token type " << json_string_value(type) << std::endl;
-    json_decref(json);
-    return std::nullopt;
-  }
-
-  bearer_token tk{
-      .expiry_point = now + std::chrono::seconds(json_integer_value(expiry)),
-      .value = json_string_value(token)};
-
-  json_decref(json);
-
-  return tk;
-}
 
 struct fetch_token_data {
   bool execute()
@@ -3030,6 +2908,449 @@ int main(int argc, const char* argv[])
 
 #endif
 
-int main()
+#include <lib/base64.h>
+
+static constexpr std::string_view api_root = "https://graph.microsoft.com/v1.0";
+std::string tenant_id;
+std::string client_id;
+std::string client_secret;
+std::string app_uri;
+
+struct bearer_token {
+  std::chrono::steady_clock::time_point expiry_point;
+  std::string scope;
+  std::string value;
+};
+
+struct string_writer {
+  std::string s;
+
+  size_t operator()(const char* data, size_t size)
+  {
+    s.insert(s.end(), data, data + size);
+    return size;
+  }
+
+  void reset() { s = {}; }
+};
+
+bool ParseMessage(std::string_view to_parse, bearer_token* token)
 {
+  json_error_t err = {};
+  json_t* json = json_loadb(to_parse.data(), to_parse.size(), 0, &err);
+
+  if (!json || !json_is_object(json)) { return false; }
+
+
+  const char* access_token{};
+  const char* scope{};
+  json_int_t expires_in{};
+
+  bool success = true;
+
+  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:I}", "access_token",
+                     &access_token, "scope", &scope, "expires_in", &expires_in)
+      == 0) {
+    token->scope = scope;
+    token->value = access_token;
+    token->expiry_point
+        = std::chrono::steady_clock::now() + std::chrono::seconds{expires_in};
+    success = true;
+  }
+
+  json_decref(json);
+  return success;
+}
+
+template <typename F> auto curl_easy_write_cb(CURL* curl, F&& fun)
+{
+  curl_easy_setopt(
+      curl, CURLOPT_WRITEFUNCTION,
+      +[](char* curldata, size_t size, size_t nmemb, void* userdata) -> size_t {
+        auto* cb = static_cast<std::remove_reference_t<F>*>(userdata);
+
+        size_t bytes = size * nmemb;
+        return (*cb)(curldata, bytes);
+      });
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &fun);
+
+  return curl_easy_perform(curl);
+}
+
+template <typename F> void curl_easy_set_read_cb(CURL* curl, F&& fun)
+{
+  curl_easy_setopt(
+      curl, CURLOPT_READFUNCTION,
+      +[](char* curldata, size_t size, size_t nmemb, void* userdata) -> size_t {
+        auto* cb = static_cast<std::remove_reference_t<F>*>(userdata);
+
+        size_t bytes = size * nmemb;
+        return (*cb)(curldata, bytes);
+      });
+  curl_easy_setopt(curl, CURLOPT_READDATA, &fun);
+}
+
+struct url_encoder {
+  void add_kv(std::string_view key, std::string_view value)
+  {
+    if (!encoded.empty()) { encoded += '&'; }
+
+    char* escaped = curl_easy_escape(nullptr, value.data(), value.size());
+
+    encoded += key;
+    encoded += '=';
+    encoded += escaped;
+
+    curl_free(escaped);
+  }
+
+
+  const char* c_str() const { return encoded.c_str(); }
+  const std::string& str() const& { return encoded; }
+  std::string_view view() const { return encoded; }
+
+  std::string&& str() && { return std::move(encoded); }
+
+ private:
+  std::string encoded{};
+};
+
+// see rfc 7519
+
+struct jwt_payload {
+  std::string issuer;
+  std::string subject;
+  std::string audience;
+  std::string expiry;
+  std::string not_before;
+  std::string issued_at;
+  std::string id;
+};
+
+struct jwt {
+  std::string header;
+  std::string payload;
+  std::string signature;
+};
+
+jwt ExtractJwt(std::string_view token)
+{
+  auto to_parse = token;
+  auto end = to_parse.find('.');
+  if (end == to_parse.npos) { throw std::runtime_error{"no dots"}; }
+
+  auto header64 = to_parse.substr(0, end);
+  to_parse.remove_prefix(end);
+
+  std::cout << "HEADER64: " << header64 << std::endl;
+  std::cout << "REST: " << to_parse << std::endl;
+
+  std::string header;
+  header.resize(header64.size());
+  int actual_size = Base64ToBin(header.data(), header.size(), header64.data(),
+                                header64.size());
+  header.resize(actual_size);
+
+  // check if "alg" is "RS256"; we do not accept anything else
+  std::cout << "HEADER: " << header << std::endl;
+
+  end = to_parse.find('.');
+  if (end == to_parse.npos) { throw std::runtime_error{"only one dot"}; }
+
+  auto payload64 = to_parse.substr(0, end);
+  to_parse.remove_prefix(end);
+
+  std::cout << "PAYLOAD64: " << payload64 << std::endl;
+  std::cout << "REST: " << to_parse << std::endl;
+
+  std::string payload;
+  payload.resize(payload64.size());
+  actual_size = Base64ToBin(payload.data(), payload.size(), payload64.data(),
+                            payload64.size());
+  payload.resize(actual_size);
+
+  std::cout << "PAYLOAD: " << payload << std::endl;
+
+  throw std::runtime_error{"not implemented"};
+}
+
+struct site_metadata {
+  std::string token_endpoint{};
+  std::string jwks_uri{};
+  std::string issuer{};
+  std::string device_authorization_endpoint{};
+};
+
+site_metadata fetch_metadata(CURL* curl)
+{
+  curl_easy_setopt(curl, CURLOPT_URL,
+                   fmt::format("https://login.microsoftonline.com/{}/v2.0/"
+                               ".well-known/openid-configuration",
+                               tenant_id)
+                       .c_str());
+
+  string_writer sw;
+  auto res = curl_easy_write_cb(curl, sw);
+
+  if (res != CURLE_OK) { throw std::runtime_error{"could not fetch metadata"}; }
+
+  curl_easy_reset(curl);
+
+  json_error_t err = {};
+  json_t* json = json_loadb(sw.s.data(), sw.s.size(), 0, &err);
+  if (!json || !json_is_object(json)) { throw std::runtime_error{"bad json"}; }
+
+  const char* token_endpoint{};
+  const char* jwks_uri{};
+  const char* issuer{};
+  const char* device_authorization_endpoint{};
+
+  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:s, s:s}", "token_endpoint",
+                     &token_endpoint, "jwks_uri", &jwks_uri, "issuer", &issuer,
+                     "device_authorization_endpoint",
+                     &device_authorization_endpoint)
+      < 0) {
+    throw std::runtime_error{"missing values in json object"};
+  }
+
+  return {token_endpoint, jwks_uri, issuer, device_authorization_endpoint};
+}
+
+std::unordered_map<std::string, std::string>
+get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
+{
+  curl_easy_setopt(curl, CURLOPT_URL, key_uri.c_str());
+
+  string_writer sw;
+  auto res = curl_easy_write_cb(curl, sw);
+
+  if (res != CURLE_OK) { throw std::runtime_error{"could not fetch keys"}; }
+
+  json_error_t err = {};
+  json_t* keys = json_loadb(sw.s.data(), sw.s.size(), 0, &err);
+
+  if (!keys || !json_is_object(keys)) {
+    throw std::runtime_error{"bad json keys"};
+  }
+
+  json_t* key_array = json_object_get(keys, "keys");
+  if (!key_array || !json_is_array(key_array)) {
+    throw std::runtime_error{"bad json key array"};
+  }
+
+  std::unordered_map<std::string, std::string> keyset;
+
+  json_int_t index{};
+  json_t* key{};
+  json_array_foreach(key_array, index, key)
+  {
+    if (!key || !json_is_object(key)) {
+      throw std::runtime_error{"bad json key"};
+    }
+
+    const char* key_type{};
+    const char* key_usage{};
+    const char* key_id{};
+    const char* key_issuer{};
+    const char* key_value64{};
+    if (json_unpack_ex(key, &err, 0, "{s:s, s:s, s:s, s:s, s:s}", "kty",
+                       &key_type, "use", &key_usage, "kid", &key_id, "issuer",
+                       &key_issuer, "n", &key_value64)
+        < 0) {
+      continue;
+    }
+
+    // we only care about signing keys
+    if (std::string_view{"sig"} != key_usage) {
+      std::cerr << "Skipping key " << key_id << " (bad usage)" << std::endl;
+      continue;
+    }
+
+    // we only care about keys from the issuer
+    if (std::string_view{key_issuer} != issuer) {
+      std::cerr << "Skipping key " << key_id << " (bad issuer)" << std::endl;
+      continue;
+    }
+
+    if (std::string_view{"RSA"} != key_type) {
+      std::cerr << "Skipping key " << key_id << " (bad key type)" << std::endl;
+      continue;
+    }
+
+    std::string_view k64{key_value64};
+    std::string key_value;
+    key_value.resize(k64.size());
+
+    auto actual_size = Base64ToBin(key_value.data(), key_value.size(),
+                                   k64.data(), k64.size());
+
+    if (actual_size <= 0) {
+      std::cerr << "Skipping key " << key_id << " (bad key)" << std::endl;
+      continue;
+    }
+
+    key_value.resize(actual_size);
+
+    keyset.emplace(key_id, std::move(key_value));
+  }
+
+  return keyset;
+}
+
+int main(int argc, const char* argv[])
+{
+  CLI::App app;
+
+  app.add_option("--tenant-id", tenant_id)->required()->envname("TENANT_ID");
+  app.add_option("--client-id", client_id)->required()->envname("CLIENT_ID");
+  app.add_option("--client-secret", client_secret)
+      ->required()
+      ->envname("CLIENT_SECRET");
+  app.add_option("--app-uri", app_uri)->required()->envname("APP_URI");
+
+  CLI11_PARSE(app, argc, argv);
+
+  CURL* curl = curl_easy_init();
+
+  if (!curl) { std::cerr << "Could not initialize curl" << std::endl; }
+
+  auto meta = fetch_metadata(curl);
+  auto keys = get_keys(curl, meta.jwks_uri, meta.issuer);
+
+  std::cerr << "KEYS:\n" << std::endl;
+  for (const auto& [id, _] : keys) { std::cerr << " - " << id << std::endl; }
+
+  curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+  curl_easy_setopt(curl, CURLOPT_URL,
+                   meta.device_authorization_endpoint.c_str());
+  auto start = std::chrono::steady_clock::now();
+  string_writer sw;
+  auto res = [&] {
+    url_encoder encoder{};
+
+    encoder.add_kv("client_id", client_id);
+    encoder.add_kv("scope", app_uri);
+    // encoder.add_kv("client_secret", client_secret);
+    // encoder.add_kv("grant_type", "client_credentials");
+
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoder.c_str());
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+    return curl_easy_write_cb(curl, sw);
+  }();
+
+
+  curl_easy_reset(curl);
+
+  if (res != CURLE_OK) {
+    std::cerr << "Could not fetch device" << std::endl;
+    return 1;
+  }
+
+  json_error_t err = {};
+  json_t* json = json_loadb(sw.s.data(), sw.s.size(), 0, &err);
+
+  if (!json) {
+    std::cerr << "Response is not json: '" << sw.s << "'" << std::endl;
+    return 1;
+  }
+
+  // std::cout << json_dumps(json, 0) << std::endl;
+
+  // TODO: do proper checking of these values
+  std::string user_code = json_string_value(json_object_get(json, "user_code"));
+  std::string device_code
+      = json_string_value(json_object_get(json, "device_code"));
+  std::string verification_uri
+      = json_string_value(json_object_get(json, "verification_uri"));
+  std::chrono::seconds expires_in{
+      json_integer_value(json_object_get(json, "expires_in"))};
+  std::chrono::seconds poll_interval{
+      json_integer_value(json_object_get(json, "interval"))};
+  std::string message = json_string_value(json_object_get(json, "message"));
+
+  std::cout << "URL:  " << verification_uri << std::endl;
+  std::cout << "CODE: " << user_code << std::endl;
+
+  bearer_token token;
+
+  auto str
+      = R"END({"token_type":"Bearer","scope":"api://9c3e303f-c576-4e48-b916-c127cc32256a/console","expires_in":4623,"ext_expires_in":4623,"access_token":"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IndoMDZzRWt6TEhKNXNOTmFVeVJZMl82TzhLMCIsImtpZCI6IndoMDZzRWt6TEhKNXNOTmFVeVJZMl82TzhLMCJ9.eyJhdWQiOiJhcGk6Ly85YzNlMzAzZi1jNTc2LTRlNDgtYjkxNi1jMTI3Y2MzMjI1NmEiLCJpc3MiOiJodHRwczovL3N0cy53aW5kb3dzLm5ldC9iNTk2MmU2My05OGIyLTRkMDktYjcyYS0yNzc1MWFkYzQ1MjQvIiwiaWF0IjoxNzgxODQ2MTM4LCJuYmYiOjE3ODE4NDYxMzgsImV4cCI6MTc4MTg1MTA2MiwiYWNyIjoiMSIsImFpbyI6IkFWUUFxLzhjQUFBQVJhdWtKM2cxdWlaYzZMOXhab1hKOXBnRlFXaU5jVW5CaEdDVS9jWnVBVVFjRWw3VTBKYXA4TlozSzd5OENSTDh6NzkrNDRBQWlSeFZDNGovdWltNU5UWWlZRTUrZS9jUzY0VG5GVjMwY1pFPSIsImFtciI6WyJwd2QiXSwiYXBwaWQiOiI5YzNlMzAzZi1jNTc2LTRlNDgtYjkxNi1jMTI3Y2MzMjI1NmEiLCJhcHBpZGFjciI6IjAiLCJnaXZlbl9uYW1lIjoiU2ViYXN0aWFuIiwiaXBhZGRyIjoiMjAwMTo0ZGQ0OmE3NWU6MDpmMGM3OjQ4NTk6NGRkNTo5ZmY0IiwibmFtZSI6IlNlYmFzdGlhbiIsIm9pZCI6IjQ3YmJjNGFkLTBkNWMtNDQ0Ny04MTNiLTRiNTg4ZTUxNDI2NiIsInJoIjoiMS5BUk1CWXk2V3RiS1lDVTIzS2lkMUd0eEZKRDh3UHB4MnhVaE91UmJCSjh3eUpXb0FBSzRUQVEuIiwicm9sZXMiOlsiYWRtaW4iXSwic2NwIjoiY29uc29sZSIsInNpZCI6IjAwNWU1NDhhLThjZGUtOGI1Ny1kMTM4LTI4NmUzYTQ4YjAzZSIsInN1YiI6IklNMjJSZE1RbU1QX0U4UkdwbU12RThud3NwMjRKWDFab0JKUFV2SXg3OUUiLCJ0aWQiOiJiNTk2MmU2My05OGIyLTRkMDktYjcyYS0yNzc1MWFkYzQ1MjQiLCJ1bmlxdWVfbmFtZSI6InNlYmFzdGlhbkBxN3A0Lm9ubWljcm9zb2Z0LmNvbSIsInVwbiI6InNlYmFzdGlhbkBxN3A0Lm9ubWljcm9zb2Z0LmNvbSIsInV0aSI6IkFSaE0zQ3VXbTBTdmtuelF4MDFhQUEiLCJ2ZXIiOiIxLjAiLCJ4bXNfZnRkIjoiLTY0YTVEdl9LRUR5bmFGUWl6S0J1aklSNDlyM2U0WVJVeGVRTWdsQmFsOEJaWFZ5YjNCbGQyVnpkQzFrYzIxeiJ9.cU1kdeqqho-qAK7HcmRhaoZ66W-0WnRyirypFkbDXKy_rDDSxCArr5a7gcnl42ZDGbcQhli3RU5iYLZXCQ3s9P-mE0dePBHJITKX_zI1du--FdBUeT0zfcTaJDuHOVXjiqG0QhOjCpFpQoGaaQsBqb_41Z0rKOl-13Qg8QqSJlDOUbHyDOXGp2quU42rk8zMp_EUNKekSvxgn0yvfOkUCjfnfJ1-tM4OOYRGQkSlAvIqOv8ltWJgKWn5u8O6Dx1CK79hdE_YbWURJLTcwVZDjgNJea-tSruPoVTwYUFszzJSmjdhHE6NK9WyGNaQTRWBTDXlW5FT1fimhLN9IzIjrQ"})END";
+
+  for (;;) {
+    if (std::chrono::steady_clock::now() - start >= expires_in) {
+      std::cout << "Too slow ..." << std::endl;
+      return 1;
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, meta.token_endpoint.c_str());
+
+    url_encoder encoder{};
+    encoder.add_kv("client_id", client_id);
+    encoder.add_kv("device_code", device_code);
+    encoder.add_kv("grant_type",
+                   "urn:ietf:params:oauth:grant-type:device_code");
+    // encoder.add_kv("client_secret", client_secret);
+
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoder.c_str());
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+    string_writer writer;
+    auto res2 = curl_easy_write_cb(curl, writer);
+
+    curl_easy_reset(curl);
+
+    if (res2 == CURLE_OK) {
+      writer.s = str;
+      if (ParseMessage(writer.s, &token)) { break; }
+      std::cout << "Got: " << writer.s << std::endl;
+    } else {
+      std::cout << "Got err: " << writer.s << " (" << res2 << ")" << std::endl;
+    }
+
+
+    std::cerr << "Retrying in " << poll_interval << " seconds" << std::endl;
+    std::this_thread::sleep_for(poll_interval);
+  }
+
+
+  std::cout << token.value << " | " << token.scope << std::endl;
+
+  std::string_view scope = token.scope;
+
+#if 0
+  if (!scope.starts_with(app_uri)) {
+    std::cerr << "bad scope" << std::endl;
+    return 1;
+  }
+
+  scope.remove_prefix(app_uri.size());
+
+  if (!scope.starts_with("/")) {
+    std::cerr << "bad scope (2)" << std::endl;
+    return 1;
+  }
+
+  scope.remove_prefix(1);
+
+  // this is now the "actual" scope
+  if (scope != "console") {
+    std::cerr << "bad scope (3)" << std::endl;
+    return 1;
+  }
+#else
+  if (scope != app_uri) {
+    std::cerr << "bad scope" << std::endl;
+    return 1;
+  }
+#endif
+
+  // an jwt token conists of three parts:
+  // header.payload.signature
+
+  auto [header, paylod, signature] = ExtractJwt(token.value);
+
+
+  curl_easy_cleanup(curl);
 }
