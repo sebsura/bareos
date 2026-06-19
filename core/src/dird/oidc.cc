@@ -26,6 +26,10 @@
 #include <dirent.h>
 #include <fmt/format.h>
 #include <jansson.h>
+#include <openssl/evp.h>
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
+#include <openssl/core_names.h>
 #include <sys/stat.h>
 
 #include <cassert>
@@ -3016,6 +3020,10 @@ struct url_encoder {
 };
 
 // see rfc 7519
+struct jwt_header {
+  std::string algorithm;
+  std::string key_id;
+};
 
 struct jwt_payload {
   std::string issuer;
@@ -3028,11 +3036,34 @@ struct jwt_payload {
 };
 
 struct jwt {
-  std::string header;
-  std::string payload;
-  std::string signature;
+  jwt_header header;
+  jwt_payload payload;
 };
 
+std::pair<std::string, std::vector<char>> ExtractSignature(
+    std::string_view to_parse)
+{
+  auto end = to_parse.find_last_of('.');
+  if (end == to_parse.npos || end == to_parse.size() - 1) {
+    throw std::runtime_error{"no dots or bad dot at end"};
+  }
+
+  auto signature64 = to_parse.substr(end + 1);
+  std::vector<char> signature;
+  signature.resize(signature64.size() + 1);
+  auto actual_size = Base64ToBin(signature.data(), signature.size(),
+                                 signature64.data(), signature64.size());
+
+  if (actual_size <= 0) {
+    throw std::runtime_error{"bad base64 encoded signature"};
+  }
+
+  signature.resize(actual_size);
+
+  return {std::string{to_parse.substr(0, end)}, std::move(signature)};
+}
+
+// std does not include the signature
 jwt ExtractJwt(std::string_view token)
 {
   auto to_parse = token;
@@ -3054,14 +3085,33 @@ jwt ExtractJwt(std::string_view token)
   // check if "alg" is "RS256"; we do not accept anything else
   std::cout << "HEADER: " << header << std::endl;
 
-  end = to_parse.find('.');
-  if (end == to_parse.npos) { throw std::runtime_error{"only one dot"}; }
+  json_error_t err = {};
+  json_t* jheader = json_loadb(header.data(), header.size(), 0, &err);
+  if (!jheader || !json_is_object(jheader)) {
+    throw std::runtime_error{"bad jwt header"};
+  }
 
-  auto payload64 = to_parse.substr(0, end);
-  to_parse.remove_prefix(end);
+  const char* header_type{};
+  const char* header_algo{};
+  const char* header_key_id{};
+  if (json_unpack_ex(jheader, &err, 0, "{s:s, s:s, s:s}", "typ", &header_type,
+                     "alg", &header_algo, "kid", &header_key_id)
+      < 0) {
+    throw std::runtime_error{"missing values in jwt header"};
+  }
+
+  if (std::string_view{"JWT"} != header_type) {
+    throw std::runtime_error{"bad jwt header (bad type)"};
+  }
+  if (std::string_view{"RS256"} != header_algo) {
+    throw std::runtime_error{"bad jwt header (bad algo)"};
+  }
+
+  std::cerr << "Want key with id " << header_key_id << std::endl;
+
+  auto payload64 = to_parse.substr(1);
 
   std::cout << "PAYLOAD64: " << payload64 << std::endl;
-  std::cout << "REST: " << to_parse << std::endl;
 
   std::string payload;
   payload.resize(payload64.size());
@@ -3071,7 +3121,7 @@ jwt ExtractJwt(std::string_view token)
 
   std::cout << "PAYLOAD: " << payload << std::endl;
 
-  throw std::runtime_error{"not implemented"};
+  return {{header_algo, header_key_id}, {}};
 }
 
 struct site_metadata {
@@ -3116,8 +3166,14 @@ site_metadata fetch_metadata(CURL* curl)
   return {token_endpoint, jwks_uri, issuer, device_authorization_endpoint};
 }
 
-std::unordered_map<std::string, std::string>
-get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
+struct rsa_key {
+  std::vector<char> exponent;
+  std::vector<char> modulus;
+};
+
+std::unordered_map<std::string, rsa_key> get_keys(CURL* curl,
+                                                  const std::string& key_uri,
+                                                  std::string_view issuer)
 {
   curl_easy_setopt(curl, CURLOPT_URL, key_uri.c_str());
 
@@ -3138,7 +3194,7 @@ get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
     throw std::runtime_error{"bad json key array"};
   }
 
-  std::unordered_map<std::string, std::string> keyset;
+  std::unordered_map<std::string, rsa_key> keyset;
 
   json_int_t index{};
   json_t* key{};
@@ -3152,10 +3208,11 @@ get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
     const char* key_usage{};
     const char* key_id{};
     const char* key_issuer{};
-    const char* key_value64{};
-    if (json_unpack_ex(key, &err, 0, "{s:s, s:s, s:s, s:s, s:s}", "kty",
+    const char* key_modulus64{};
+    const char* key_exponent64{};
+    if (json_unpack_ex(key, &err, 0, "{s:s, s:s, s:s, s:s, s:s, s:s}", "kty",
                        &key_type, "use", &key_usage, "kid", &key_id, "issuer",
-                       &key_issuer, "n", &key_value64)
+                       &key_issuer, "n", &key_modulus64, "e", &key_exponent64)
         < 0) {
       continue;
     }
@@ -3177,24 +3234,105 @@ get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
       continue;
     }
 
-    std::string_view k64{key_value64};
-    std::string key_value;
-    key_value.resize(k64.size());
+    rsa_key rsa;
+    std::string_view m64{key_modulus64};
+    rsa.modulus.resize(m64.size() + 1);
 
-    auto actual_size = Base64ToBin(key_value.data(), key_value.size(),
-                                   k64.data(), k64.size());
+    auto actual_size = Base64ToBin(rsa.modulus.data(), rsa.modulus.size(),
+                                   m64.data(), m64.size());
 
     if (actual_size <= 0) {
       std::cerr << "Skipping key " << key_id << " (bad key)" << std::endl;
       continue;
     }
 
-    key_value.resize(actual_size);
+    rsa.modulus.resize(actual_size);
 
-    keyset.emplace(key_id, std::move(key_value));
+    std::string_view e64{key_exponent64};
+    rsa.exponent.resize(e64.size() + 1);
+
+    actual_size = Base64ToBin(rsa.exponent.data(), rsa.exponent.size(),
+                              e64.data(), e64.size());
+
+    if (actual_size <= 0) {
+      std::cerr << "Skipping key " << key_id << " (bad key)" << std::endl;
+      continue;
+    }
+
+    rsa.exponent.resize(actual_size);
+
+    keyset.emplace(key_id, std::move(rsa));
   }
 
   return keyset;
+}
+
+EVP_PKEY* create_public_key(std::span<const char> modulus,
+                            std::span<const char> exponent)
+{
+  EVP_PKEY* result{};
+  EVP_PKEY_CTX* ctx{};
+  OSSL_PARAM params[3]{};
+
+  ctx = EVP_PKEY_CTX_new_from_name(nullptr, "RSA", nullptr);
+  if (!ctx) { goto cleanup; }
+
+  if (EVP_PKEY_fromdata_init(ctx) != 1) { goto cleanup; }
+  params[0] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_N,
+      const_cast<unsigned char*>(
+          reinterpret_cast<const unsigned char*>(modulus.data())),
+      static_cast<int>(modulus.size()));
+  params[1] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_E,
+      const_cast<unsigned char*>(
+          reinterpret_cast<const unsigned char*>(exponent.data())),
+      static_cast<int>(exponent.size()));
+  params[2] = OSSL_PARAM_construct_end();
+
+  if (EVP_PKEY_fromdata(ctx, &result, EVP_PKEY_PUBLIC_KEY, params) != 1) {
+    goto cleanup;
+  }
+
+cleanup:
+  if (ctx) { EVP_PKEY_CTX_free(ctx); }
+
+  return result;
+}
+
+bool verify_signature(std::string_view token,
+                      std::span<const char> signature,
+                      const rsa_key& key)
+{
+  bool success = false;
+  (void)key;
+  EVP_PKEY* public_key = create_public_key(key.modulus, key.exponent);
+  if (!public_key) { return false; }
+
+  EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+  if (!ctx) { goto cleanup; }
+
+  if (EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, public_key)
+      != 1) {
+    goto cleanup;
+  }
+
+  if (EVP_DigestVerifyUpdate(ctx, token.data(), token.size()) != 1) {
+    goto cleanup;
+  }
+
+  {
+    auto result = EVP_DigestVerifyFinal(
+        ctx, reinterpret_cast<const unsigned char*>(signature.data()),
+        signature.size());
+    success = result == 1;
+  }
+
+cleanup:
+  if (ctx) { EVP_MD_CTX_free(ctx); }
+  EVP_PKEY_free(public_key);
+
+  return success;
 }
 
 int main(int argc, const char* argv[])
@@ -3217,7 +3355,7 @@ int main(int argc, const char* argv[])
   auto meta = fetch_metadata(curl);
   auto keys = get_keys(curl, meta.jwks_uri, meta.issuer);
 
-  std::cerr << "KEYS:\n" << std::endl;
+  std::cerr << "KEYS:" << std::endl;
   for (const auto& [id, _] : keys) { std::cerr << " - " << id << std::endl; }
 
   curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
@@ -3349,7 +3487,21 @@ int main(int argc, const char* argv[])
   // an jwt token conists of three parts:
   // header.payload.signature
 
-  auto [header, paylod, signature] = ExtractJwt(token.value);
+  auto [value, signature] = ExtractSignature(token.value);
+  auto [header, paylod] = ExtractJwt(value);
+
+  if (auto iter = keys.find(header.key_id); iter != keys.end()) {
+    const auto& used_key = iter->second;
+    // we need to check that value matches signature via used_key
+
+    if (!verify_signature(value, signature, used_key)) {
+      std::cerr << "bad signature! rejecting key" << std::endl;
+    }
+
+  } else {
+    std::cerr << "key not available" << std::endl;
+    return 1;
+  }
 
 
   curl_easy_cleanup(curl);
