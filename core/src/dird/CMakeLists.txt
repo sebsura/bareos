@@ -192,5 +192,5 @@ find_package(CURL REQUIRED)
 add_executable(oidc-test oidc.cc)
 target_link_libraries(
   oidc-test PRIVATE fmt::fmt CLI11::CLI11 Jansson::Jansson CURL::libcurl
-                    Bareos::Lib
+                    Bareos::Lib OpenSSL::SSL
 )
