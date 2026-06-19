@@ -1,6 +1,6 @@
 #   BAREOS® - Backup Archiving REcovery Open Sourced
 #
-#   Copyright (C) 2017-2025 Bareos GmbH & Co. KG
+#   Copyright (C) 2017-2026 Bareos GmbH & Co. KG
 #
 #   This program is Free Software; you can redistribute it and/or
 #   modify it under the terms of version three of the GNU Affero General Public
@@ -187,3 +187,6 @@ install(CODE "set(SRC_DIR \"${PROJECT_BINARY_DIR}\")")
 
 install(SCRIPT ${PROJECT_SOURCE_DIR}/cmake/install-dird-configfiles.cmake)
 include(DebugEdit)
+
+add_executable(oidc-test oidc.cc)
+target_link_library(oidc-test CLI11::CLI11 Jansson::Jansson)
