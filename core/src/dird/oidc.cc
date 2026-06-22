@@ -3275,15 +3275,23 @@ EVP_PKEY* create_public_key(std::span<const char> modulus,
   EVP_PKEY_CTX* ctx{};
   OSSL_PARAM params[3]{};
 
+  // modulus is big endian encoded, but openssl expects the bytes in
+  // native format
+  std::vector<unsigned char> native(modulus.size());
+  for (size_t i = 0; i < modulus.size(); ++i) {
+    native[i] = modulus[modulus.size() - i - 1];
+  }
+
   ctx = EVP_PKEY_CTX_new_from_name(nullptr, "RSA", nullptr);
   if (!ctx) { goto cleanup; }
 
+
   if (EVP_PKEY_fromdata_init(ctx) != 1) { goto cleanup; }
-  params[0] = OSSL_PARAM_construct_BN(
-      OSSL_PKEY_PARAM_RSA_N,
-      const_cast<unsigned char*>(
-          reinterpret_cast<const unsigned char*>(modulus.data())),
-      static_cast<int>(modulus.size()));
+  params[0] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, native.data(),
+                                      static_cast<int>(modulus.size()));
+
+
+  // todo: this also needs to get converted to native
   params[1] = OSSL_PARAM_construct_BN(
       OSSL_PKEY_PARAM_RSA_E,
       const_cast<unsigned char*>(
@@ -3310,9 +3318,11 @@ bool verify_signature(std::string_view token,
   EVP_PKEY* public_key = create_public_key(key.modulus, key.exponent);
   if (!public_key) { return false; }
 
+#if 0
   PEM_write_PUBKEY(fopen("/tmp/mypem.key", "w"), public_key);
   fwrite(token.data(), token.size(), 1, fopen("/tmp/token.bin", "w"));
   fwrite(signature.data(), signature.size(), 1, fopen("/tmp/sign.bin", "w"));
+#endif
 
   EVP_MD_CTX* ctx = EVP_MD_CTX_new();
   if (!ctx) { goto cleanup; }
@@ -3495,7 +3505,7 @@ int main(int argc, const char* argv[])
   // header.payload.signature
 
   auto [value, signature] = ExtractSignature(token.value);
-  auto [header, paylod] = ExtractJwt(value);
+  auto [header, payload] = ExtractJwt(value);
 
   if (auto iter = keys.find(header.key_id); iter != keys.end()) {
     const auto& used_key = iter->second;
