@@ -3030,6 +3030,7 @@ struct jwt_payload {
   std::string issuer;
   std::string subject;
   std::string audience;
+  std::string scope;
   std::int64_t expiry;
   std::int64_t not_before;
   std::int64_t issued_at;
@@ -3143,14 +3144,15 @@ jwt ExtractJwt(std::string_view token)
   json_int_t not_before{};
   json_int_t issued_at{};
   const char* id{"unknown"};
+  const char* scope{};
   const char* user_id{};
   const char* user_name{};
   // first parse required fields
   if (json_unpack_ex(jpayload, &err, 0,
-                     "{s:s, s:s, s:s, s:s, s:s,s:i, s:i, s:i, s:o}", "oid",
+                     "{s:s, s:s, s:s, s:s, s:s,s:i, s:i, s:i, s:s, s:o}", "oid",
                      &user_id, "name", &user_name, "iss", &issuer, "sub",
                      &subject, "aud", &audience, "exp", &expiry, "nbf",
-                     &not_before, "iat", &issued_at,
+                     &not_before, "iat", &issued_at, "scp", &scope,
                      // "jti", &id,
                      "roles", &roles)
       < 0) {
@@ -3162,8 +3164,9 @@ jwt ExtractJwt(std::string_view token)
     throw std::runtime_error{"bad roles value in jwt payload"};
   }
 
-  jwt_payload payload_jwt{issuer,    subject, audience, expiry,    not_before,
-                          issued_at, id,      user_id,  user_name, {}};
+  jwt_payload payload_jwt{issuer,  subject,    audience,  scope,
+                          expiry,  not_before, issued_at, id,
+                          user_id, user_name,  {}};
 
   json_t* role{};
   json_int_t idx{};
@@ -3409,6 +3412,8 @@ int main(int argc, const char* argv[])
 {
   CLI::App app;
 
+  std::string tok{};
+
   app.add_option("--tenant-id", tenant_id)->required()->envname("TENANT_ID");
   app.add_option("--client-id", client_id)->required()->envname("CLIENT_ID");
   app.add_option("--client-secret", client_secret)
@@ -3416,6 +3421,7 @@ int main(int argc, const char* argv[])
       ->envname("CLIENT_SECRET");
   app.add_option("--app-uri", app_uri)->required()->envname("APP_URI");
   app.add_option("--app-scope", app_scope)->envname("APP_SCOPE");
+  app.add_option("--token", tok);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -3486,49 +3492,53 @@ int main(int argc, const char* argv[])
 
   bearer_token token;
 
-  for (;;) {
-    if (std::chrono::steady_clock::now() - start >= expires_in) {
-      std::cout << "Too slow ..." << std::endl;
+  if (tok.empty()) {
+    for (;;) {
+      if (std::chrono::steady_clock::now() - start >= expires_in) {
+        std::cout << "Too slow ..." << std::endl;
+        return 1;
+      }
+
+      curl_easy_setopt(curl, CURLOPT_URL, meta.token_endpoint.c_str());
+
+      url_encoder encoder{};
+      encoder.add_kv("client_id", client_id);
+      encoder.add_kv("device_code", device_code);
+      encoder.add_kv("grant_type",
+                     "urn:ietf:params:oauth:grant-type:device_code");
+      // encoder.add_kv("client_secret", client_secret);
+
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoder.c_str());
+      curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+      string_writer writer;
+      auto res2 = curl_easy_write_cb(curl, writer);
+
+      curl_easy_reset(curl);
+
+      if (res2 == CURLE_OK) {
+        if (ParseMessage(writer.s, &token)) { break; }
+        std::cout << "Got: " << writer.s << std::endl;
+      } else {
+        std::cout << "Got err: " << writer.s << " (" << res2 << ")"
+                  << std::endl;
+      }
+
+
+      std::cerr << "Retrying in " << poll_interval << " seconds" << std::endl;
+      std::this_thread::sleep_for(poll_interval);
+    }
+
+    std::cout << token.value << " | " << token.scope << std::endl;
+
+    std::string_view scope = token.scope;
+
+    if (scope != scoped_uri) {
+      std::cerr << "bad scope" << std::endl;
       return 1;
     }
-
-    curl_easy_setopt(curl, CURLOPT_URL, meta.token_endpoint.c_str());
-
-    url_encoder encoder{};
-    encoder.add_kv("client_id", client_id);
-    encoder.add_kv("device_code", device_code);
-    encoder.add_kv("grant_type",
-                   "urn:ietf:params:oauth:grant-type:device_code");
-    // encoder.add_kv("client_secret", client_secret);
-
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoder.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-
-    string_writer writer;
-    auto res2 = curl_easy_write_cb(curl, writer);
-
-    curl_easy_reset(curl);
-
-    if (res2 == CURLE_OK) {
-      if (ParseMessage(writer.s, &token)) { break; }
-      std::cout << "Got: " << writer.s << std::endl;
-    } else {
-      std::cout << "Got err: " << writer.s << " (" << res2 << ")" << std::endl;
-    }
-
-
-    std::cerr << "Retrying in " << poll_interval << " seconds" << std::endl;
-    std::this_thread::sleep_for(poll_interval);
-  }
-
-
-  std::cout << token.value << " | " << token.scope << std::endl;
-
-  std::string_view scope = token.scope;
-
-  if (scope != scoped_uri) {
-    std::cerr << "bad scope" << std::endl;
-    return 1;
+  } else {
+    token.value = tok;
   }
 
   // an jwt token conists of three parts:
@@ -3550,6 +3560,12 @@ int main(int argc, const char* argv[])
     return 1;
   }
 
+  // TODO: allow skew of ~30 sec
+  if (std::chrono::system_clock::now().time_since_epoch().count()
+      < payload.issued_at) {
+    std::cerr << "token does not exist yet" << std::endl;
+  }
+
   if (std::chrono::system_clock::now().time_since_epoch().count()
       < payload.not_before) {
     std::cerr << "token not ready yet" << std::endl;
@@ -3562,6 +3578,10 @@ int main(int argc, const char* argv[])
 
   if (payload.audience != app_uri) {
     std::cerr << "this token is not for me" << std::endl;
+  }
+
+  if (payload.scope != app_scope) {
+    std::cerr << "this token is for a different use" << std::endl;
   }
 
   std::cout << "Hello " << payload.user_name << " (" << payload.user_id << ")"
