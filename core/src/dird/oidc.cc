@@ -19,7 +19,6 @@
 #include "CLI/App.hpp"
 #include "CLI/Config.hpp"
 #include "CLI/Formatter.hpp"
-#include "CLI/ExtraValidators.hpp"
 
 #include <curl/curl.h>
 #include <curl/easy.h>
@@ -28,6 +27,7 @@
 #include <jansson.h>
 #include <openssl/evp.h>
 #include <openssl/bn.h>
+#include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include <openssl/core_names.h>
 #include <sys/stat.h>
@@ -2950,7 +2950,7 @@ bool ParseMessage(std::string_view to_parse, bearer_token* token)
   const char* scope{};
   json_int_t expires_in{};
 
-  bool success = true;
+  bool success = false;
 
   if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:I}", "access_token",
                      &access_token, "scope", &scope, "expires_in", &expires_in)
@@ -3261,6 +3261,7 @@ std::unordered_map<std::string, rsa_key> get_keys(CURL* curl,
 
     rsa.exponent.resize(actual_size);
 
+    assert(keyset.find(key_id) == keyset.end());
     keyset.emplace(key_id, std::move(rsa));
   }
 
@@ -3304,18 +3305,28 @@ bool verify_signature(std::string_view token,
                       std::span<const char> signature,
                       const rsa_key& key)
 {
+  EVP_PKEY_CTX* kctx{};
   bool success = false;
-  (void)key;
   EVP_PKEY* public_key = create_public_key(key.modulus, key.exponent);
   if (!public_key) { return false; }
+
+  PEM_write_PUBKEY(fopen("/tmp/mypem.key", "w"), public_key);
+  fwrite(token.data(), token.size(), 1, fopen("/tmp/token.bin", "w"));
+  fwrite(signature.data(), signature.size(), 1, fopen("/tmp/sign.bin", "w"));
 
   EVP_MD_CTX* ctx = EVP_MD_CTX_new();
   if (!ctx) { goto cleanup; }
 
-  if (EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, public_key)
+  if (EVP_DigestVerifyInit(ctx, &kctx, EVP_sha256(), nullptr, public_key)
       != 1) {
     goto cleanup;
   }
+
+  if (EVP_PKEY_CTX_set_rsa_padding(kctx, RSA_PKCS1_PADDING) <= 0) {
+    goto cleanup;
+  }
+
+  if (EVP_PKEY_CTX_set_signature_md(kctx, EVP_sha256()) <= 0) { goto cleanup; }
 
   if (EVP_DigestVerifyUpdate(ctx, token.data(), token.size()) != 1) {
     goto cleanup;
@@ -3413,9 +3424,6 @@ int main(int argc, const char* argv[])
 
   bearer_token token;
 
-  auto str
-      = R"END({"token_type":"Bearer","scope":"api://9c3e303f-c576-4e48-b916-c127cc32256a/console","expires_in":4623,"ext_expires_in":4623,"access_token":"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IndoMDZzRWt6TEhKNXNOTmFVeVJZMl82TzhLMCIsImtpZCI6IndoMDZzRWt6TEhKNXNOTmFVeVJZMl82TzhLMCJ9.eyJhdWQiOiJhcGk6Ly85YzNlMzAzZi1jNTc2LTRlNDgtYjkxNi1jMTI3Y2MzMjI1NmEiLCJpc3MiOiJodHRwczovL3N0cy53aW5kb3dzLm5ldC9iNTk2MmU2My05OGIyLTRkMDktYjcyYS0yNzc1MWFkYzQ1MjQvIiwiaWF0IjoxNzgxODQ2MTM4LCJuYmYiOjE3ODE4NDYxMzgsImV4cCI6MTc4MTg1MTA2MiwiYWNyIjoiMSIsImFpbyI6IkFWUUFxLzhjQUFBQVJhdWtKM2cxdWlaYzZMOXhab1hKOXBnRlFXaU5jVW5CaEdDVS9jWnVBVVFjRWw3VTBKYXA4TlozSzd5OENSTDh6NzkrNDRBQWlSeFZDNGovdWltNU5UWWlZRTUrZS9jUzY0VG5GVjMwY1pFPSIsImFtciI6WyJwd2QiXSwiYXBwaWQiOiI5YzNlMzAzZi1jNTc2LTRlNDgtYjkxNi1jMTI3Y2MzMjI1NmEiLCJhcHBpZGFjciI6IjAiLCJnaXZlbl9uYW1lIjoiU2ViYXN0aWFuIiwiaXBhZGRyIjoiMjAwMTo0ZGQ0OmE3NWU6MDpmMGM3OjQ4NTk6NGRkNTo5ZmY0IiwibmFtZSI6IlNlYmFzdGlhbiIsIm9pZCI6IjQ3YmJjNGFkLTBkNWMtNDQ0Ny04MTNiLTRiNTg4ZTUxNDI2NiIsInJoIjoiMS5BUk1CWXk2V3RiS1lDVTIzS2lkMUd0eEZKRDh3UHB4MnhVaE91UmJCSjh3eUpXb0FBSzRUQVEuIiwicm9sZXMiOlsiYWRtaW4iXSwic2NwIjoiY29uc29sZSIsInNpZCI6IjAwNWU1NDhhLThjZGUtOGI1Ny1kMTM4LTI4NmUzYTQ4YjAzZSIsInN1YiI6IklNMjJSZE1RbU1QX0U4UkdwbU12RThud3NwMjRKWDFab0JKUFV2SXg3OUUiLCJ0aWQiOiJiNTk2MmU2My05OGIyLTRkMDktYjcyYS0yNzc1MWFkYzQ1MjQiLCJ1bmlxdWVfbmFtZSI6InNlYmFzdGlhbkBxN3A0Lm9ubWljcm9zb2Z0LmNvbSIsInVwbiI6InNlYmFzdGlhbkBxN3A0Lm9ubWljcm9zb2Z0LmNvbSIsInV0aSI6IkFSaE0zQ3VXbTBTdmtuelF4MDFhQUEiLCJ2ZXIiOiIxLjAiLCJ4bXNfZnRkIjoiLTY0YTVEdl9LRUR5bmFGUWl6S0J1aklSNDlyM2U0WVJVeGVRTWdsQmFsOEJaWFZ5YjNCbGQyVnpkQzFrYzIxeiJ9.cU1kdeqqho-qAK7HcmRhaoZ66W-0WnRyirypFkbDXKy_rDDSxCArr5a7gcnl42ZDGbcQhli3RU5iYLZXCQ3s9P-mE0dePBHJITKX_zI1du--FdBUeT0zfcTaJDuHOVXjiqG0QhOjCpFpQoGaaQsBqb_41Z0rKOl-13Qg8QqSJlDOUbHyDOXGp2quU42rk8zMp_EUNKekSvxgn0yvfOkUCjfnfJ1-tM4OOYRGQkSlAvIqOv8ltWJgKWn5u8O6Dx1CK79hdE_YbWURJLTcwVZDjgNJea-tSruPoVTwYUFszzJSmjdhHE6NK9WyGNaQTRWBTDXlW5FT1fimhLN9IzIjrQ"})END";
-
   for (;;) {
     if (std::chrono::steady_clock::now() - start >= expires_in) {
       std::cout << "Too slow ..." << std::endl;
@@ -3440,7 +3448,6 @@ int main(int argc, const char* argv[])
     curl_easy_reset(curl);
 
     if (res2 == CURLE_OK) {
-      writer.s = str;
       if (ParseMessage(writer.s, &token)) { break; }
       std::cout << "Got: " << writer.s << std::endl;
     } else {
