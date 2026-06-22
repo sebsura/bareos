@@ -2919,6 +2919,7 @@ std::string tenant_id;
 std::string client_id;
 std::string client_secret;
 std::string app_uri;
+std::string app_scope{"console"};
 
 struct bearer_token {
   std::chrono::steady_clock::time_point expiry_point;
@@ -3029,10 +3030,15 @@ struct jwt_payload {
   std::string issuer;
   std::string subject;
   std::string audience;
-  std::string expiry;
-  std::string not_before;
-  std::string issued_at;
+  std::int64_t expiry;
+  std::int64_t not_before;
+  std::int64_t issued_at;
   std::string id;
+
+  std::string user_id;
+  std::string user_name;
+
+  std::vector<std::string> roles;
 };
 
 struct jwt {
@@ -3100,6 +3106,8 @@ jwt ExtractJwt(std::string_view token)
     throw std::runtime_error{"missing values in jwt header"};
   }
 
+  // todo: check the header for any other key and reject it if its unknown
+
   if (std::string_view{"JWT"} != header_type) {
     throw std::runtime_error{"bad jwt header (bad type)"};
   }
@@ -3121,7 +3129,54 @@ jwt ExtractJwt(std::string_view token)
 
   std::cout << "PAYLOAD: " << payload << std::endl;
 
-  return {{header_algo, header_key_id}, {}};
+  json_t* jpayload = json_loadb(payload.data(), payload.size(), 0, &err);
+  if (!jpayload || !json_is_object(jpayload)) {
+    throw std::runtime_error{"bad jwt payload"};
+  }
+
+
+  json_t* roles{};
+  const char* issuer{};
+  const char* subject{};
+  const char* audience{};
+  json_int_t expiry{};
+  json_int_t not_before{};
+  json_int_t issued_at{};
+  const char* id{"unknown"};
+  const char* user_id{};
+  const char* user_name{};
+  // first parse required fields
+  if (json_unpack_ex(jpayload, &err, 0,
+                     "{s:s, s:s, s:s, s:s, s:s,s:i, s:i, s:i, s:o}", "oid",
+                     &user_id, "name", &user_name, "iss", &issuer, "sub",
+                     &subject, "aud", &audience, "exp", &expiry, "nbf",
+                     &not_before, "iat", &issued_at,
+                     // "jti", &id,
+                     "roles", &roles)
+      < 0) {
+    throw std::runtime_error{std::string{"missing values in jwt payload: "}
+                             + err.text};
+  }
+
+  if (!json_is_array(roles)) {
+    throw std::runtime_error{"bad roles value in jwt payload"};
+  }
+
+  jwt_payload payload_jwt{issuer,    subject, audience, expiry,    not_before,
+                          issued_at, id,      user_id,  user_name, {}};
+
+  json_t* role{};
+  json_int_t idx{};
+  json_array_foreach(roles, idx, role)
+  {
+    if (!json_is_string(role)) {
+      throw std::runtime_error{"bad role value in jwt payload"};
+    }
+
+    payload_jwt.roles.push_back(json_string_value(role));
+  }
+
+  return {{header_algo, header_key_id}, payload_jwt};
 }
 
 struct site_metadata {
@@ -3318,12 +3373,6 @@ bool verify_signature(std::string_view token,
   EVP_PKEY* public_key = create_public_key(key.modulus, key.exponent);
   if (!public_key) { return false; }
 
-#if 0
-  PEM_write_PUBKEY(fopen("/tmp/mypem.key", "w"), public_key);
-  fwrite(token.data(), token.size(), 1, fopen("/tmp/token.bin", "w"));
-  fwrite(signature.data(), signature.size(), 1, fopen("/tmp/sign.bin", "w"));
-#endif
-
   EVP_MD_CTX* ctx = EVP_MD_CTX_new();
   if (!ctx) { goto cleanup; }
 
@@ -3366,8 +3415,11 @@ int main(int argc, const char* argv[])
       ->required()
       ->envname("CLIENT_SECRET");
   app.add_option("--app-uri", app_uri)->required()->envname("APP_URI");
+  app.add_option("--app-scope", app_scope)->envname("APP_SCOPE");
 
   CLI11_PARSE(app, argc, argv);
+
+  auto scoped_uri = app_uri + "/" + app_scope;
 
   CURL* curl = curl_easy_init();
 
@@ -3389,7 +3441,7 @@ int main(int argc, const char* argv[])
     url_encoder encoder{};
 
     encoder.add_kv("client_id", client_id);
-    encoder.add_kv("scope", app_uri);
+    encoder.add_kv("scope", scoped_uri);
     // encoder.add_kv("client_secret", client_secret);
     // encoder.add_kv("grant_type", "client_credentials");
 
@@ -3474,32 +3526,10 @@ int main(int argc, const char* argv[])
 
   std::string_view scope = token.scope;
 
-#if 0
-  if (!scope.starts_with(app_uri)) {
+  if (scope != scoped_uri) {
     std::cerr << "bad scope" << std::endl;
     return 1;
   }
-
-  scope.remove_prefix(app_uri.size());
-
-  if (!scope.starts_with("/")) {
-    std::cerr << "bad scope (2)" << std::endl;
-    return 1;
-  }
-
-  scope.remove_prefix(1);
-
-  // this is now the "actual" scope
-  if (scope != "console") {
-    std::cerr << "bad scope (3)" << std::endl;
-    return 1;
-  }
-#else
-  if (scope != app_uri) {
-    std::cerr << "bad scope" << std::endl;
-    return 1;
-  }
-#endif
 
   // an jwt token conists of three parts:
   // header.payload.signature
@@ -3520,6 +3550,24 @@ int main(int argc, const char* argv[])
     return 1;
   }
 
+  if (std::chrono::system_clock::now().time_since_epoch().count()
+      < payload.not_before) {
+    std::cerr << "token not ready yet" << std::endl;
+  }
+
+  if (payload.expiry
+      >= std::chrono::system_clock::now().time_since_epoch().count()) {
+    std::cerr << "token expired" << std::endl;
+  }
+
+  if (payload.audience != app_uri) {
+    std::cerr << "this token is not for me" << std::endl;
+  }
+
+  std::cout << "Hello " << payload.user_name << " (" << payload.user_id << ")"
+            << std::endl;
+  std::cout << "Your roles:" << std::endl;
+  for (auto& role : payload.roles) { std::cout << " - " << role << std::endl; }
 
   curl_easy_cleanup(curl);
 }
