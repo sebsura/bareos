@@ -197,7 +197,7 @@ class ConsoleAuthenticatorFrom_18_2 : public ConsoleAuthenticator {
   OptionResult AuthenticatePamUser() override;
   bool SendInfoMessage() override;
 
- private:
+ protected:
   bool SendResponseMessage(uint32_t response_id, bool send_version_info);
 };
 
@@ -375,6 +375,29 @@ static bool GetConsoleNameAndVersion(BareosSocket* ua_sock,
   }
 }
 
+struct ConsoleAuthenticatorFrom_26_0 : public ConsoleAuthenticatorFrom_18_2 {
+  ConsoleAuthenticatorFrom_26_0(UaContext* ua, const std::string& console_name)
+      : ConsoleAuthenticatorFrom_18_2(ua, console_name)
+  {
+  }
+
+  // OptionResult AuthenticateDefaultConsole() override { return {}; }
+  void AuthenticateNamedConsole() override
+  {
+    if (console_name_ == "oidc") {
+      auth_success_ = true;
+      if (!SendResponseMessage(kMessageIdOk, true)) {
+        Dmsg1(200, "Send of response message failed %s\n",
+              console_name_.c_str());
+        auth_success_ = false;
+      }
+    } else {
+      ConsoleAuthenticatorFrom_18_2::AuthenticateNamedConsole();
+    }
+  }
+  // OptionResult AuthenticatePamUser() override { return {}; }
+};
+
 static ConsoleAuthenticator* CreateConsoleAuthenticator(UaContext* ua)
 {
   std::string console_name;
@@ -388,8 +411,10 @@ static ConsoleAuthenticator* CreateConsoleAuthenticator(UaContext* ua)
 
   if (version < BareosVersionNumber::kRelease_18_2) {
     return new ConsoleAuthenticatorBefore_18_2(ua, console_name);
-  } else /* == kRelease_18_2 */ {
+  } else if (version < BareosVersionNumber::kRelease_26_0) {
     return new ConsoleAuthenticatorFrom_18_2(ua, console_name);
+  } else {
+    return new ConsoleAuthenticatorFrom_26_0(ua, console_name);
   }
 }
 

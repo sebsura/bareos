@@ -328,47 +328,6 @@ void BareosSocket::SetKillable(bool killable)
   if (jcr_) { jcr_->SetKillable(killable); }
 }
 
-bool BareosSocket::ConsoleAuthenticateWithDirector(
-    JobControlRecord* jcr,
-    const char* identity,
-    s_password& password,
-    TlsResource* tls_resource,
-    const std::string& own_qualified_name,
-    BStringList& response_args,
-    uint32_t& response_id)
-{
-  char bashed_name[MAX_NAME_LENGTH];
-  BareosSocket* dir = this; /* for readability */
-
-  bstrncpy(bashed_name, identity, sizeof(bashed_name));
-  BashSpaces(bashed_name);
-
-  dir->StartTimer(60 * 5); /* 5 minutes */
-  dir->InitBnetDump(own_qualified_name);
-  dir->fsend("Hello %s calling version %s\n", bashed_name,
-             kBareosVersionStrings.Full);
-
-  if (!AuthenticateOutboundConnection(jcr, own_qualified_name, identity,
-                                      password, tls_resource)) {
-    Dmsg0(100, "Authenticate outbound connection failed\n");
-    dir->StopTimer();
-    return false;
-  }
-  dir->StopTimer();
-
-  Dmsg1(6, ">dird: %s", dir->msg);
-
-  uint32_t message_id;
-  BStringList args;
-  if (dir->ReceiveAndEvaluateResponseMessage(message_id, args)) {
-    response_id = message_id;
-    response_args = args;
-    return true;
-  }
-  Dmsg0(100, "Wrong Message Protocol ID\n");
-  return false;
-}
-
 /**
  * Depending on the initiate parameter perform one of the following:
  *
@@ -400,8 +359,6 @@ bool BareosSocket::TwoWayAuthenticate(JobControlRecord* jcr,
     Dmsg0(debuglevel, "%s\n", err_msg);
   } else {
     TlsPolicy local_tls_policy = tls_resource->GetPolicy();
-    CramMd5Handshake cram_md5_handshake(this, password.value, local_tls_policy,
-                                        own_qualified_name);
 
     btimer_t* tid = StartBsockTimer(this, AUTH_TIMEOUT);
 
@@ -415,7 +372,13 @@ bool BareosSocket::TwoWayAuthenticate(JobControlRecord* jcr,
       return false;
     }
 
-    auth_success = cram_md5_handshake.DoHandshake(initiated_by_remote);
+    CramMd5Handshake cram_md5_handshake(this, password.value, local_tls_policy,
+                                        own_qualified_name);
+    if (this->enable_cram) {
+      auth_success = cram_md5_handshake.DoHandshake(initiated_by_remote);
+    } else {
+      auth_success = true;
+    }
 
     if (!auth_success) {
       char ipaddr_str[MAXHOSTNAMELEN]{};

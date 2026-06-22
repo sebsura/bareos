@@ -66,7 +66,9 @@ void StopBsockTimer(btimer_t* wid);
 class BareosSocket {
   /* Note, keep this public part before the private otherwise
    *  bat breaks on some systems such as RedHat. */
+
  public:
+  bool enable_cram{true};
   int fd_{kInvalidFiledescriptor}; /* Socket file descriptor */
   uint64_t read_seqno;             /* Read sequence number */
   POOLMEM* msg;                    /* Message pool buffer */
@@ -194,13 +196,6 @@ class BareosSocket {
   bool signal(int signal);
   const char* bstrerror(); /* last error on socket */
   bool despool(void UpdateAttrSpoolSize(ssize_t size), ssize_t tsize);
-  bool ConsoleAuthenticateWithDirector(JobControlRecord* jcr,
-                                       const char* name,
-                                       s_password& password,
-                                       TlsResource* tls_resource,
-                                       const std::string& own_qualified_name,
-                                       BStringList& response_args,
-                                       uint32_t& response_id);
   bool ParameterizeAndInitTlsConnection(TlsResource* tls_resource,
                                         const char* identity,
                                         const char* password,

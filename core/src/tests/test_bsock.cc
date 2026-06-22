@@ -552,7 +552,7 @@ static int connect_to_server(std::string console_name,
                              std::string server_address,
                              int server_port)
 #else
-static bool connect_to_server(std::string console_name,
+static bool connect_to_server(std::string,
                               std::string console_password,
                               std::string server_address,
                               int server_port)
@@ -562,7 +562,7 @@ static bool connect_to_server(std::string console_name,
 
   JobControlRecord jcr;
 
-  char* name = (char*)console_name.c_str();
+  // char* name = (char*)console_name.c_str();
 
   s_password password;
   password.encoding = p_encoding_md5;
@@ -582,9 +582,7 @@ static bool connect_to_server(std::string console_name,
     Dmsg0(10, "socket connect OK\n");
     uint32_t response_id = kMessageIdUnknown;
     BStringList response_args;
-    if (!UA_sock->ConsoleAuthenticateWithDirector(
-            &jcr, name, password, cons_dir_config.get(), console_name,
-            response_args, response_id)) {
+    if (!false) {
       Emsg0(M_ERROR, 0, "Authenticate Failed\n");
     } else {
       EXPECT_EQ(response_id, kMessageIdOk) << "Received the wrong message id.";

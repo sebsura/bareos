@@ -1,7 +1,7 @@
 /*
    BAREOS® - Backup Archiving REcovery Open Sourced
 
-   Copyright (C) 2018-2022 Bareos GmbH & Co. KG
+   Copyright (C) 2018-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -28,8 +28,51 @@
 #include "lib/qualified_resource_name_type_converter.h"
 #include "lib/bstringlist.h"
 #include "lib/bsock_tcp.h"
+#include "lib/version.h"
 
 namespace console {
+
+bool ConsoleAuthenticateWithDirector(BareosSocket* dir,
+                                     JobControlRecord* jcr,
+                                     const char* identity,
+                                     s_password& password,
+                                     TlsResource* tls_resource,
+                                     const std::string& own_qualified_name,
+                                     BStringList& response_args,
+                                     uint32_t& response_id)
+{
+  char bashed_name[MAX_NAME_LENGTH];
+
+  bstrncpy(bashed_name, identity, sizeof(bashed_name));
+  BashSpaces(bashed_name);
+
+  dir->enable_cram = false;
+  dir->StartTimer(60 * 5); /* 5 minutes */
+  dir->InitBnetDump(own_qualified_name);
+  dir->fsend("Hello %s calling version %s\n", bashed_name,
+             kBareosVersionStrings.Full);
+
+  if (!dir->AuthenticateOutboundConnection(jcr, own_qualified_name, identity,
+                                           password, tls_resource)) {
+    Dmsg0(100, "Authenticate outbound connection failed\n");
+    dir->StopTimer();
+    return false;
+  }
+  dir->StopTimer();
+
+  Dmsg1(6, ">dird: %s", dir->msg);
+
+  uint32_t message_id;
+  BStringList args;
+  if (dir->ReceiveAndEvaluateResponseMessage(message_id, args)) {
+    response_id = message_id;
+    response_args = args;
+    return true;
+  }
+  Dmsg0(100, "Wrong Message Protocol ID\n");
+  return false;
+}
+
 BareosSocket* ConnectToDirector(JobControlRecord& jcr,
                                 utime_t heart_beat,
                                 BStringList& response_args,
@@ -84,9 +127,9 @@ BareosSocket* ConnectToDirector(JobControlRecord& jcr,
   std::string own_qualified_name = "R_CONSOLE::";
   own_qualified_name += name;
 
-  if (!UA_sock->ConsoleAuthenticateWithDirector(
-          &jcr, name, *password, director_resource, own_qualified_name,
-          response_args, response_id)) {
+  if (!ConsoleAuthenticateWithDirector(UA_sock, &jcr, name, *password,
+                                       director_resource, own_qualified_name,
+                                       response_args, response_id)) {
     delete UA_sock;
     UA_sock = nullptr;
     jcr.dir_bsock = nullptr;

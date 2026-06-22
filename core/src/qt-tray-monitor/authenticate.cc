@@ -3,7 +3,7 @@
 
    Copyright (C) 2004-2008 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -101,12 +101,9 @@ static AuthenticationResult AuthenticateWithDirector(JobControlRecord* jcr,
     }
   }
 
-  uint32_t response_id;
+  // uint32_t response_id;
   BStringList response_args;
-  if (!dir->ConsoleAuthenticateWithDirector(
-          jcr, monitor->resource_name_, monitor->password, dir_res,
-          my_config->CreateOwnQualifiedNameForNetworkDump(), response_args,
-          response_id)) {
+  if (true) {
     Jmsg(jcr, M_FATAL, 0,
          T_("Director authorization problem.\n"
             "Most likely the passwords do not agree.\n"));
