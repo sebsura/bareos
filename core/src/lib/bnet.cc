@@ -500,7 +500,7 @@ bool EvaluateResponseMessageId(const std::string& message,
 bool BareosSocket::ReceiveAndEvaluateResponseMessage(uint32_t& id_out,
                                                      BStringList& args_out)
 {
-  StartTimer(30);  // 30 seconds
+  StartTimer(30000);  // 30 seconds
   int ret = recv();
   StopTimer();
 

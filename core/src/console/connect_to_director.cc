@@ -58,9 +58,26 @@ bool ConsoleAuthenticateWithDirector(BareosSocket* dir,
     dir->StopTimer();
     return false;
   }
-  dir->StopTimer();
 
   Dmsg1(6, ">dird: %s", dir->msg);
+
+  if (dir->recv() <= 0) {
+    Dmsg0(100, "Authenticate did not return oidc stuff\n");
+    dir->StopTimer();
+    return false;
+  }
+
+  char url[128] = {};
+  char user_code[128] = {};
+  if (bsscanf(dir->msg, "oidc auth %127s %127s", url, user_code) != 2) {
+    Dmsg0(100, "could not parse oidc stuff\n");
+    dir->StopTimer();
+    return false;
+  }
+
+  dir->StopTimer();
+
+  printf("LOGIN via oidc:\n URL:  %s\n CODE: %s\n", url, user_code);
 
   uint32_t message_id;
   BStringList args;

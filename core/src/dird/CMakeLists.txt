@@ -35,6 +35,8 @@ endif()
 
 add_library(dird_objects STATIC)
 add_library(Bareos::Dir ALIAS dird_objects)
+
+find_package(CURL REQUIRED)
 target_sources(
   dird_objects
   PRIVATE admin.cc
@@ -119,7 +121,10 @@ target_sources(
           vbackup.cc
           verify.cc
           pthread_detach_if_not_detached.cc
+          oidc.cc
 )
+
+target_link_libraries(dird_objects PUBLIC CURL::libcurl fmt::fmt)
 
 if(HAVE_PAM)
   target_sources(dird_objects PRIVATE auth_pam.cc)
@@ -188,9 +193,10 @@ install(CODE "set(SRC_DIR \"${PROJECT_BINARY_DIR}\")")
 install(SCRIPT ${PROJECT_SOURCE_DIR}/cmake/install-dird-configfiles.cmake)
 include(DebugEdit)
 
-find_package(CURL REQUIRED)
-add_executable(oidc-test oidc.cc)
-target_link_libraries(
-  oidc-test PRIVATE fmt::fmt CLI11::CLI11 Jansson::Jansson CURL::libcurl
-                    Bareos::Lib OpenSSL::SSL
-)
+if(0)
+  add_executable(oidc-test oidc.cc)
+  target_link_libraries(
+    oidc-test PRIVATE fmt::fmt CLI11::CLI11 Jansson::Jansson CURL::libcurl
+                      Bareos::Lib OpenSSL::SSL
+  )
+endif()

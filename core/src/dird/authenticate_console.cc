@@ -39,6 +39,8 @@
 #include "include/version_numbers.h"
 #include "console_connection_lease.h"
 
+#include "dird/oidc.h"
+
 namespace directordaemon {
 
 enum class OptionResult
@@ -385,11 +387,18 @@ struct ConsoleAuthenticatorFrom_26_0 : public ConsoleAuthenticatorFrom_18_2 {
   void AuthenticateNamedConsole() override
   {
     if (console_name_ == "oidc") {
-      auth_success_ = true;
-      if (!SendResponseMessage(kMessageIdOk, true)) {
+      auth_success_ = false;
+      if (ConsoleResource* oidc
+          = oidc::AuthenticateConnection(ua_->UA_sock, my_config);
+          !oidc) {
+        Dmsg1(200, "Could not authenticate %s\n", console_name_.c_str());
+
+      } else if (!SendResponseMessage(kMessageIdOk, true)) {
         Dmsg1(200, "Send of response message failed %s\n",
               console_name_.c_str());
-        auth_success_ = false;
+      } else {
+        ua_->user_acl = &oidc->user_acl;
+        auth_success_ = true;
       }
     } else {
       ConsoleAuthenticatorFrom_18_2::AuthenticateNamedConsole();
