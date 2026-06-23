@@ -77,7 +77,46 @@ bool ConsoleAuthenticateWithDirector(BareosSocket* dir,
 
   dir->StopTimer();
 
-  printf("LOGIN via oidc:\n URL:  %s\n CODE: %s\n", url, user_code);
+  // generated via qrencode
+  char8_t qrcode[]
+      = {u8R"(█████████████████████████████████████
+█████████████████████████████████████
+████ ▄▄▄▄▄ █▀█ █▄   ▀██▄▄█ ▄▄▄▄▄ ████
+████ █   █ █▀▀▀█ ▄▀ █▀ ▄▄█ █   █ ████
+████ █▄▄▄█ █▀ █▀▀██▄▄ ▄▄ █ █▄▄▄█ ████
+████▄▄▄▄▄▄▄█▄▀ ▀▄█ █ █ ▀ █▄▄▄▄▄▄▄████
+████▄▄ ▄▄█▄ ▄▄▀▄▀▀▀▀█▄▀ ▀ ▀ ▀▄█▄▀████
+████▄█▄▄██▄▀██▄█▀ ▄  ▄▄▀▄▀ ▄▄▀█▀█████
+████▄▄▀▀ █▄█ ▄▄█▄█▄▄▀ ▀▀  ▀▀▀▄▄█▀████
+████ ██   ▄▀█▄▀ ▄█▀▄▄▄█▀ ▀  ▀▄▄▀█████
+████▀▀ ▀█▄▄▀███▄▀▀▀▄▀ ▀ ▀▀▀▀▀▄ █▀████
+████ █ ██▀▄ █ ▀█▀ ▄ ▄██▀██▄ ██▄▀█████
+████▄███▄█▄▄ ▀▀█▄█▄█▀  ▀ ▄▄▄ ▀   ████
+████ ▄▄▄▄▄ █▄▄█ ▄█▀▄▀▄█  █▄█ ▄▄▀▀████
+████ █   █ █ █▀▄▀▀▀▄ ▄▀▀ ▄▄▄▄▀  ▀████
+████ █▄▄▄█ █ ▄██▀ ▄  █▀█▀  ▄  ▄ █████
+████▄▄▄▄▄▄▄█▄▄██▄█▄▄█▄█▄███▄██▄██████
+█████████████████████████████████████
+█████████████████████████████████████)"};
+
+  printf("LOGIN via oidc:\n%s\n URL:  %s\n CODE: %s\n", (const char*)qrcode,
+         url, user_code);
+
+  if (dir->recv() <= 0) {
+    Dmsg0(100, "Authenticate did not return token\n");
+    return false;
+  }
+
+  char access[2048] = {};
+  char refresh[2048] = {};
+  if (bsscanf(dir->msg, "oidc token access=%2047s refresh=%2047s", access,
+              refresh)
+      != 2) {
+    Dmsg0(100, "could not parse oidc tokens\n");
+    return false;
+  }
+
+  Dmsg0(5, "access=%s refresh=%s\n", access, refresh);
 
   uint32_t message_id;
   BStringList args;

@@ -49,7 +49,9 @@
 struct bearer_token {
   std::chrono::steady_clock::time_point expiry_point;
   std::string scope;
-  std::string value;
+  std::string access_token;
+  std::string refresh_token;
+  std::string id_token;
 };
 
 struct string_writer {
@@ -74,15 +76,20 @@ bool ParseMessage(std::string_view to_parse, bearer_token* token)
 
   const char* access_token{};
   const char* scope{};
+  const char* id_token{};
+  const char* refresh_token{};
   json_int_t expires_in{};
 
   bool success = false;
 
-  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:I}", "access_token",
-                     &access_token, "scope", &scope, "expires_in", &expires_in)
+  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:s, s:s, s:I}", "access_token",
+                     &access_token, "id_token", &id_token, "refresh_token",
+                     &refresh_token, "scope", &scope, "expires_in", &expires_in)
       == 0) {
     token->scope = scope;
-    token->value = access_token;
+    token->access_token = access_token;
+    token->refresh_token = refresh_token;
+    token->id_token = id_token;
     token->expiry_point
         = std::chrono::steady_clock::now() + std::chrono::seconds{expires_in};
     success = true;
@@ -716,7 +723,7 @@ directordaemon::ConsoleResource* AuthenticateConnection(
     // an jwt token conists of three parts:
     // header.payload.signature
 
-    auto [value, signature] = ExtractSignature(token.value);
+    auto [value, signature] = ExtractSignature(token.access_token);
     auto [header, payload] = ExtractJwt(value);
 
     if (auto iter = keys.find(header.key_id); iter != keys.end()) {
@@ -764,6 +771,10 @@ directordaemon::ConsoleResource* AuthenticateConnection(
 
     Dmsg0(100, "%s\n", msg.str().c_str());
 
+    if (!conn->fsend("oidc token access=%s refresh=%s\n",
+                     token.access_token.c_str(), token.refresh_token.c_str())) {
+      throw std::runtime_error{"Could not send tokens to client"};
+    }
 
     result = new directordaemon::ConsoleResource{};
     result->resource_name_ = strdup(payload.user_name.data());
