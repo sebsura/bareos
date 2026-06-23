@@ -6,7 +6,7 @@ Director {
   Name = @basename@-dir
   Port = @dir_port@
   Address = @hostname@
-  Password = "@dir_password@"
+  Password = "unused"
 
   TLS Enable = yes
   TLS Require = yes
@@ -15,4 +15,9 @@ Director {
   TLS Key = @tls_con_key@
   TLS CA Certificate File = "@tls_ca_certificate@"
 
+}
+
+Console {
+  Name = "oidc"
+  Password = "unused"
 }
