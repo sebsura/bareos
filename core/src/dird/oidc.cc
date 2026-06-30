@@ -517,13 +517,13 @@ struct DeviceAuthRequest {
 
 namespace oidc {
 struct config {
-  std::string tenant_id{""};
+  std::string provider_url{""};
   std::string client_id{""};
   std::string client_secret{""};
-  std::string app_uri{""};
+  std::string audience{""};
   std::string app_scope{""};
 
-  std::string scoped_uri{app_uri + "/" + app_scope};
+  std::string scoped_uri{audience + "/" + app_scope};
 
 
   bool fetch_token(CURL* curl,
@@ -563,11 +563,10 @@ struct config {
 
   site_metadata fetch_metadata(CURL* curl)
   {
-    curl_easy_setopt(curl, CURLOPT_URL,
-                     fmt::format("https://login.microsoftonline.com/{}/v2.0/"
-                                 ".well-known/openid-configuration",
-                                 tenant_id)
-                         .c_str());
+    curl_easy_setopt(
+        curl, CURLOPT_URL,
+        fmt::format("{}/.well-known/openid-configuration", provider_url)
+            .c_str());
 
     string_writer sw;
     auto res = curl_easy_write_cb(curl, sw);
@@ -754,7 +753,7 @@ directordaemon::ConsoleResource* AuthenticateConnection(
       throw std::runtime_error{"token expired"};
     }
 
-    if (payload.audience != cfg.app_uri) {
+    if (payload.audience != cfg.audience) {
       throw std::runtime_error{"this token is not for me"};
     }
 
