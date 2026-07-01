@@ -517,11 +517,13 @@ struct DeviceAuthRequest {
 
 namespace oidc {
 struct config {
-  std::string provider_url{""};
+  std::string openid_config_url{""};
   std::string client_id{""};
   std::string client_secret{""};
   std::string audience{""};
+
   std::string app_scope{""};
+  std::string refresh_scope{""};
 
   std::string scoped_uri{audience + "/" + app_scope};
 
@@ -563,10 +565,7 @@ struct config {
 
   site_metadata fetch_metadata(CURL* curl)
   {
-    curl_easy_setopt(
-        curl, CURLOPT_URL,
-        fmt::format("{}/.well-known/openid-configuration", provider_url)
-            .c_str());
+    curl_easy_setopt(curl, CURLOPT_URL, openid_config_url.c_str());
 
     string_writer sw;
     auto res = curl_easy_write_cb(curl, sw);
@@ -609,7 +608,11 @@ struct config {
       url_encoder encoder{};
 
       encoder.add_kv("client_id", client_id.c_str());
-      encoder.add_kv("scope", (scoped_uri + " openid offline_access").c_str());
+
+      std::string scopes = app_scope;
+      if (!refresh_scope.empty()) { scopes += " " + refresh_scope; }
+
+      encoder.add_kv("scope", scopes.c_str());
 
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoder.c_str());
       curl_easy_setopt(curl, CURLOPT_POST, 1L);
@@ -696,6 +699,12 @@ directordaemon::ConsoleResource* AuthenticateConnection(
 
     auto auth_timeout = start + device_authentication.expires_in;
     for (;;) {
+      // this will be done on the cliet, so we can actually ignore this
+      if (!conn->signal(BNET_HEARTBEAT)) {
+        throw std::runtime_error{"connection seems to be dead"};
+      }
+
+
       if (std::chrono::steady_clock::now() >= auth_timeout) {
         throw std::runtime_error{"auth request timed out"};
       }
