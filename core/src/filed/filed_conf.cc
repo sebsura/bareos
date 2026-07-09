@@ -502,3 +502,17 @@ static bool SaveResource(int type, const ResourceItem* items, int pass)
   return (error == 0);
 }
 } /* namespace filedaemon */
+
+
+template <> ResourceTable* introspect<filedaemon::DirectorResource>()
+{
+  return &filedaemon::resources[filedaemon::R_DIRECTOR];
+}
+template <> ResourceTable* introspect<filedaemon::ClientResource>()
+{
+  return &filedaemon::resources[filedaemon::R_CLIENT];
+}
+template <> ResourceTable* introspect<MessagesResource>()
+{
+  return &filedaemon::resources[filedaemon::R_MSGS];
+}

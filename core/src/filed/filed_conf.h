@@ -32,6 +32,8 @@
 #include "lib/messages_resource.h"
 #include "lib/tls_conf.h"
 #include "lib/crypto.h"
+#include "lib/parse_conf.h"
+
 template <typename T> class alist;
 template <typename T> class dlist;
 class IPADDR;
@@ -132,6 +134,9 @@ class ClientResource
 
 ConfigurationParser* InitFdConfig(const char* configfile, int exit_code);
 bool PrintConfigSchemaJson(PoolMem& buffer);
-
 } /* namespace filedaemon */
+
+template <> ResourceTable* introspect<filedaemon::DirectorResource>();
+template <> ResourceTable* introspect<filedaemon::ClientResource>();
+template <> ResourceTable* introspect<MessagesResource>();
 #endif  // BAREOS_FILED_FILED_CONF_H_
