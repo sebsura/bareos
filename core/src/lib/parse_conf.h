@@ -82,6 +82,8 @@ struct ResourceTable {
   bool deprecated = false;
 };
 
+template <typename ResourceType> ResourceTable* introspect() = delete;
+
 // Common Resource definitions
 #define MAX_RES_NAME_LENGTH \
   (MAX_NAME_LENGTH - 1) /* maximum resource name length */
@@ -357,6 +359,66 @@ class ConfigurationParser {
 
  public:
   static const char* GetDefaultConfigDir();
+
+  template <typename ResourceType> struct view {
+    const ConfigurationParser* p;
+    uint32_t rcode;
+
+    struct iter {
+      BareosResource* res{nullptr};
+      const ConfigurationParser* p_{nullptr};
+      uint32_t rcode_{0};
+
+      iter() = default;
+      iter(BareosResource* in_res,
+           const ConfigurationParser* in_p,
+           uint32_t in_rcode)
+          : res{in_res}, p_{in_p}, rcode_{in_rcode}
+      {
+        while (dynamic_cast<ResourceType*>(res) == nullptr && res != nullptr) {
+          res = p_->GetNextRes(rcode_, res);
+        }
+
+        if (!res) {
+          p_ = nullptr;
+          rcode_ = 0;
+        }
+      }
+
+      ResourceType* operator*() { return nullptr; }
+
+      friend bool operator==(const iter& a, const iter& b)
+      {
+        return a.res == b.res && a.p_ == b.p_ && a.rcode_ == b.rcode_;
+      }
+
+      bool operator!=(const iter& other) { return !(*this == other); }
+
+      iter& operator++()
+      {
+        do {
+          res = p_->GetNextRes(rcode_, res);
+        } while (dynamic_cast<ResourceType*>(res) == nullptr && res != nullptr);
+
+        if (!res) {
+          p_ = nullptr;
+          rcode_ = 0;
+        }
+
+        return *this;
+      }
+    };
+
+    iter begin() { return {p->GetNextRes(rcode, nullptr), p, rcode}; }
+
+    iter end() { return {}; }
+  };
+  template <typename ResourceType> view<ResourceType> iterate() const
+  {
+    auto* table = introspect<ResourceType>();
+
+    return {this, table->rcode};
+  }
 
  private:
   bool GetConfigFile(PoolMem& full_path,
