@@ -583,14 +583,13 @@ static void* handle_connection_to_director(void* director_resource)
 bool StartConnectToDirectorThreads()
 {
   bool result = false;
-  DirectorResource* dir_res = nullptr;
   int pthread_create_result = 0;
   if (!client_initiated_connection_threads) {
     client_initiated_connection_threads = new alist<pthread_t*>();
   }
   pthread_t* thread;
 
-  foreach_res (dir_res, R_DIRECTOR) {
+  for (auto* dir_res : my_config->iterate<DirectorResource>()) {
     if (dir_res->conn_from_fd_to_dir) {
       if (!dir_res->address) {
         Emsg1(M_ERROR, 0,
