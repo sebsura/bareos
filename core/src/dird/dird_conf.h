@@ -597,7 +597,7 @@ class PoolResource : public BareosResource {
 };
 
 // Run structure contained in Schedule Resource
-class RunResource : public BareosResource {
+class RunResource {
  public:
   RunResource() = default;
   virtual ~RunResource() = default;

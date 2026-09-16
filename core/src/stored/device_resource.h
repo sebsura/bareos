@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -96,8 +96,6 @@ class DeviceResource : public BareosResource {
 
   DeviceResource() = default;
   virtual ~DeviceResource() = default;
-  DeviceResource(const DeviceResource& other);
-  DeviceResource& operator=(const DeviceResource& rhs);
 
   bool PrintConfig(OutputFormatterResource& send,
                    const ConfigurationParser& /* unused */,
@@ -105,7 +103,7 @@ class DeviceResource : public BareosResource {
                    bool verbose = false) override;
   bool Validate() override;
 
-  std::unique_ptr<DeviceResource> CreateCopy(const std::string& copy_name);
+  std::unique_ptr<DeviceResource> CreateCopy(std::string_view copy_name);
 };
 } /* namespace storagedaemon */
 

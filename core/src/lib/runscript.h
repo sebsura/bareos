@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2006-2008 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2024 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -68,12 +68,8 @@ struct TempParserCommand {
   int32_t code_ = 0;
 };
 
-class RunScript : public BareosResource {
+class RunScript {
  public:
-  RunScript() = default;
-  virtual ~RunScript() = default;
-  RunScript(const RunScript& other) = default;
-
   std::string command;       /* Command string */
   std::string target;        /* Host target. Values:
                                 Empty string: run locally.

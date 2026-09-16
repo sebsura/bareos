@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2019-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2019-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -50,17 +50,6 @@ AutochangerResource::CreateImplicitAutochanger(const std::string& device_name)
   return autochanger;
 }
 
-AutochangerResource& AutochangerResource::operator=(
-    const AutochangerResource& rhs)
-{
-  BareosResource::operator=(rhs);
-  device_resources = rhs.device_resources;
-  changer_name = rhs.changer_name;
-  changer_command = rhs.changer_command;
-  changer_lock = rhs.changer_lock;
-  return *this;
-}
-
 bool AutochangerResource::PrintConfig(OutputFormatterResource& send,
                                       const ConfigurationParser&,
                                       bool hide_sensitive_data,
@@ -76,20 +65,17 @@ bool AutochangerResource::PrintConfig(OutputFormatterResource& send,
         = device_resource->multiplied_device_resource) {
       if (original_copy_devices.find(original_copy_device)
           == original_copy_devices.end()) {
-        DeviceResource* d = new DeviceResource(*original_copy_device);
-        temp_alist->append(d);
+        temp_alist->append(original_copy_device);
         original_copy_devices.insert(original_copy_device);
       }
     } else {
-      DeviceResource* d = new DeviceResource(*device_resource);
-      temp_alist->append(d);
+      temp_alist->append(device_resource);
     }
   }
   device_resources = temp_alist;
   bool res = BareosResource::PrintConfig(send, *my_config, hide_sensitive_data,
                                          verbose);
   device_resources = original_alist;
-  for (auto* device_resource : temp_alist) { delete device_resource; }
   delete temp_alist;
   return res;
 }

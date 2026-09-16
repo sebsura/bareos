@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2019-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2019-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -42,7 +42,6 @@ class AutochangerResource : public BareosResource {
       const std::string& device_name);
 
   virtual ~AutochangerResource() = default;
-  AutochangerResource& operator=(const AutochangerResource& rhs);
   bool PrintConfig(OutputFormatterResource& send,
                    const ConfigurationParser&,
                    bool hide_sensitive_data,

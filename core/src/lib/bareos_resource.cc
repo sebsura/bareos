@@ -3,7 +3,7 @@
 
    Copyright (C) 2000-2010 Free Software Foundation Europe e.V.
    Copyright (C) 2011-2012 Planets Communications B.V.
-   Copyright (C) 2013-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2013-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -33,29 +33,4 @@ const char* GetResourceName(const void* resource)
   return resource_name;
 }
 
-BareosResource::BareosResource(const BareosResource& other)
-{
-  /* do not copy next_ because that is part of the resource chain */
-  next_ = nullptr;
-  resource_name_
-      = other.resource_name_ ? strdup(other.resource_name_) : nullptr;
-  description_ = other.description_ ? strdup(other.description_) : nullptr;
-  rcode_ = other.rcode_;
-  refcnt_ = other.refcnt_;
-  item_present_ = other.item_present_;
-  ::memcpy(inherit_content_, other.inherit_content_, MAX_RES_ITEMS);
-}
-
 bool BareosResource::Validate() { return true; }
-
-BareosResource& BareosResource::operator=(const BareosResource& rhs)
-{
-  next_ = rhs.next_;
-  resource_name_ = rhs.resource_name_;
-  description_ = rhs.description_;
-  rcode_ = rhs.rcode_;
-  refcnt_ = rhs.refcnt_;
-  item_present_ = rhs.item_present_;
-  ::memcpy(inherit_content_, rhs.inherit_content_, MAX_RES_ITEMS);
-  return *this;
-}
