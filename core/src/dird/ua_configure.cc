@@ -266,6 +266,8 @@ static inline bool ConfigureCreateFdResource(UaContext* ua,
   const bool create_directories = true;
   const bool overwrite = true;
 
+  ResLocker _{my_config};
+
   if (!ConfigureCreateFdResourceString(ua, resource, clientname)) {
     return false;
   }
@@ -404,6 +406,7 @@ static inline bool ConfigureAddResource(UaContext* ua,
 
 static inline bool ConfigureAdd(UaContext* ua, int resource_type_parameter)
 {
+  ResLocker _{my_config};
   bool result = false;
   const ResourceTable* res_table
       = my_config->GetResourceTable(ua->argk[resource_type_parameter]);
