@@ -306,6 +306,9 @@ lexer* lex_open_file(lexer* lf,
       filename_expanded = fileglob.gl_pathv[i];
       if ((fd = fopen(filename_expanded, "rb")) == NULL) {
         globfree(&fileglob);
+
+        while (lf) { lf = LexCloseFile(lf); }
+
         return NULL;
       }
       lf = lex_add(lf, filename_expanded, fd, bpipe, ScanError, scan_warning);
