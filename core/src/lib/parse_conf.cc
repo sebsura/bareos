@@ -101,7 +101,6 @@ ConfigurationParser::ConfigurationParser(
 {
   cf_ = cf == nullptr ? "" : cf;
   use_config_include_dir_ = false;
-  config_include_naming_format_ = "%s/%s/%s.conf";
   init_res_ = init_res;
   store_res_ = store_res;
   print_res_ = print_res;
@@ -436,7 +435,7 @@ bool ConfigurationParser::GetConfigIncludePath(PoolMem& full_path,
     if (PathIsDirectory(full_path)) {
       config_dir_ = config_dir;
       // Set full_path to wildcard path.
-      if (GetPathOfResource(full_path, nullptr, nullptr, nullptr, true)) {
+      if (GetWildcardPathOfResources(full_path)) {
         use_config_include_dir_ = true;
         found = true;
       }
@@ -620,47 +619,54 @@ void ConfigurationParser::DumpResources(sender* sendit,
   }
 }
 
+namespace {
+bool ConstructResourcePath(PoolMem& path,
+                           const char* base_dir,
+                           const char* component,
+                           const char* resourcetype,
+                           const char* name)
+{
+  ASSERT(base_dir);
+  ASSERT(component);
+  ASSERT(resourcetype);
+  ASSERT(name);
+
+  if (size_t dir_len = strlen(base_dir);
+      dir_len == 0 || base_dir[dir_len - 1] == '/') {
+    // this should always be the case
+    path.bsprintf("%s%s/%s/%s.conf", base_dir, component, resourcetype, name);
+  } else {
+    path.bsprintf("%s/%s/%s/%s.conf", base_dir, component, resourcetype, name);
+  }
+
+  return true;
+}
+};  // namespace
+
 bool ConfigurationParser::GetPathOfResource(PoolMem& path,
                                             const char* component,
                                             const char* resourcetype,
-                                            const char* name,
-                                            bool set_wildcards)
+                                            const char* name)
 {
-  PoolMem rel_path(PM_FNAME);
-  PoolMem directory(PM_FNAME);
   PoolMem resourcetype_lowercase(resourcetype);
   resourcetype_lowercase.toLower();
 
-  if (!component) {
-    if (!config_include_dir_.empty()) {
-      component = config_include_dir_.c_str();
-    } else {
-      return false;
-    }
-  }
+  if (!component) { return false; }
 
-  if (resourcetype_lowercase.strlen() <= 0) {
-    if (set_wildcards) {
-      resourcetype_lowercase.strcpy("*");
-    } else {
-      return false;
-    }
-  }
+  if (resourcetype_lowercase.strlen() <= 0) { return false; }
 
-  if (!name) {
-    if (set_wildcards) {
-      name = "*";
-    } else {
-      return false;
-    }
-  }
+  if (!name) { return false; }
 
-  path.strcpy(config_dir_.c_str());
-  rel_path.bsprintf(config_include_naming_format_.c_str(), component,
-                    resourcetype_lowercase.c_str(), name);
-  PathAppend(path, rel_path);
+  return ConstructResourcePath(path, config_dir_.c_str(), component,
+                               resourcetype_lowercase.c_str(), name);
+}
 
-  return true;
+bool ConfigurationParser::GetWildcardPathOfResources(PoolMem& path)
+{
+  if (config_include_dir_.empty()) { return false; }
+
+  return ConstructResourcePath(path, config_dir_.c_str(),
+                               config_include_dir_.c_str(), "*", "*");
 }
 
 bool ConfigurationParser::GetPathOfNewResource(PoolMem& path,
@@ -676,9 +682,8 @@ bool ConfigurationParser::GetPathOfNewResource(PoolMem& path,
   PoolMem resourcetype_lowercase(resourcetype);
   resourcetype_lowercase.toLower();
 
-  if (!GetPathOfResource(path, component, resourcetype, name, false)) {
-    return false;
-  }
+  if (!component) { component = config_include_dir_.c_str(); }
+  if (!GetPathOfResource(path, component, resourcetype, name)) { return false; }
 
   PathGetDirectory(directory, path);
 

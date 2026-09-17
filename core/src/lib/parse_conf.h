@@ -288,8 +288,8 @@ class ConfigurationParser {
   bool GetPathOfResource(PoolMem& path,
                          const char* component,
                          const char* resourcetype,
-                         const char* name,
-                         bool set_wildcards = false);
+                         const char* name);
+  bool GetWildcardPathOfResources(PoolMem& path);
   bool GetPathOfNewResource(PoolMem& path,
                             PoolMem& extramsg,
                             const char* component,
@@ -348,9 +348,7 @@ class ConfigurationParser {
       config_include_dir_; /* rel. path to the config include directory
                                (bareos-dir.d, bareos-sd.d, bareos-fd.d, ...) */
   bool use_config_include_dir_{false}; /* Use the config include directory */
-  std::string config_include_naming_format_; /* Format string for file paths of
-                                                resources */
-  std::string used_config_path_;             /* Config file that is used. */
+  std::string used_config_path_;       /* Config file that is used. */
   ParseConfigReadyCb_t ParseConfigReadyCb_{nullptr};
   bool parser_first_run_{true};
   BStringList warnings_;
