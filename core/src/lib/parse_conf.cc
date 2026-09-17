@@ -657,8 +657,24 @@ bool ConfigurationParser::GetPathOfResource(PoolMem& path,
 
   if (!name) { return false; }
 
+  // Both / and . are allowed inside names, but .. is obviously not ok
+  // inside a path.  name and ./name will also currently map to the same path.
+  // As such we replace . with a character thats invalid in a name but
+  // valid in a path, so that bad mappings cannot happen.
+
+
+  // '!' was chosen because:
+  //    - it is not allowed in names
+  //    - paths do not care about it (neither unix nor win32)
+  //    - should not cause issues inside scripts
+  static constexpr char REPLACEMENT_CHAR = '!';
+
+  std::string name_in_path{name};
+  std::replace(name_in_path.begin(), name_in_path.end(), '.', REPLACEMENT_CHAR);
+
   return ConstructResourcePath(path, config_dir_.c_str(), component,
-                               resourcetype_lowercase.c_str(), name);
+                               resourcetype_lowercase.c_str(),
+                               name_in_path.c_str());
 }
 
 bool ConfigurationParser::GetWildcardPathOfResources(PoolMem& path)
