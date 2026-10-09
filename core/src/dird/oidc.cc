@@ -794,7 +794,7 @@ directordaemon::ConsoleResource* AuthenticateConnection(
           parser->GetResWithName(directordaemon::R_PROFILE, name, 0));
     };
 
-    result->user_acl.corresponding_resource = result;
+    // result->user_acl.corresponding_resource = result;
     result->user_acl.profiles
         = new alist<directordaemon::ProfileResource*>(10, not_owned_by_alist);
     for (auto& role : payload.roles) {
