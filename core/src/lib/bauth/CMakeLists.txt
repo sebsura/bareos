@@ -79,3 +79,15 @@ target_sources(bauth_trust PRIVATE tls.cc)
 define_auth_plugin(cram-md5 VERIFIER bauth_cram-md5 PROVER bauth_cram-md5)
 
 define_auth_plugin(trust VERIFIER bauth_trust PROVER bauth_trust)
+
+find_package(CURL REQUIRED)
+add_library(bauth_oidc_verifier OBJECT)
+target_sources(bauth_oidc_verifier PRIVATE oidc_verifier.cc)
+target_link_libraries(bauth_oidc_verifier PRIVATE CURL::libcurl)
+
+add_library(bauth_oidc_prover OBJECT)
+target_sources(bauth_oidc_prover PRIVATE oidc_prover.cc)
+
+define_auth_plugin(
+  bauth_oidc VERIFIER bauth_oidc_verifier PROVER bauth_oidc_prover
+)
