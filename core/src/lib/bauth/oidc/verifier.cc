@@ -36,6 +36,8 @@
 #include <sstream>
 #include <string_view>
 
+#include "common.h"
+
 #define UNIQUE_PTR(Type)                           \
   std::unique_ptr<Type, decltype([](Type* val) {   \
                     if (val) { Type##_free(val); } \
@@ -731,9 +733,13 @@ void VerifyToken(const auth::Oidc::config& cfg,
 namespace auth::Oidc {
 std::vector<char> Verifier::generate_challenge()
 {
+  Data data{};
+
+  auto to_send = data.format();
+
   std::vector<char> result;
 
-  result.insert(result.end(), cfg.oidc_url.begin(), cfg.oidc_url.end());
+  result.insert(result.end(), to_send.begin(), to_send.end());
 
   return {};
 }
