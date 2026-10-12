@@ -23,19 +23,77 @@
 #define BAREOS_LIB_BAUTH_OIDC_COMMON_H_
 
 #include "lib/bauth.h"
+#include <curl/curl.h>
 
 namespace auth::Oidc {
+struct url_encoder {
+  void add_kv(std::string_view key, std::string_view value)
+  {
+    if (!encoded.empty()) { encoded += '&'; }
+
+    char* escaped = curl_easy_escape(nullptr, value.data(), value.size());
+
+    encoded += key;
+    encoded += '=';
+    encoded += escaped;
+
+    curl_free(escaped);
+  }
+
+
+  const char* c_str() const { return encoded.c_str(); }
+  const std::string& str() const& { return encoded; }
+  std::string_view view() const { return encoded; }
+
+  std::string&& str() && { return std::move(encoded); }
+
+ private:
+  std::string encoded{};
+};
+
+CURLcode curl_easy_write_into_str(CURL* curl, std::string* buffer);
+
+struct site_metadata {
+  std::string token_endpoint{};
+  std::string jwks_uri{};
+  std::string issuer{};
+  std::string device_authorization_endpoint{};
+};
+
+struct bearer_token {
+  std::chrono::steady_clock::time_point expiry_point;
+  std::string scope;
+  std::string access_token;
+  std::string refresh_token;
+  std::string id_token;
+};
+
+site_metadata fetch_metadata(CURL* curl, const std::string& url);
 
 struct Data {
   std::string url;
+  std::string client_id;
+  std::string scope;
 
   static std::optional<Data> parse(std::span<const char> data)
   {
     std::string result{data.begin(), data.end()};
-    return Data{result};
+    return Data{result, "", ""};
   }
 
   std::string format() { return url; }
+};
+
+struct KeyResponse {
+  std::string key;
+
+  static std::optional<KeyResponse> parse(std::span<const char> data)
+  {
+    std::string result{data.begin(), data.end()};
+    return KeyResponse{result};
+  }
+
+  std::string format() { return key; }
 };
 
 };  // namespace auth::Oidc

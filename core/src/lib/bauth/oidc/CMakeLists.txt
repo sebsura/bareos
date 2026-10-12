@@ -18,12 +18,23 @@
 #   02110-1301, USA.
 
 find_package(CURL REQUIRED)
+
+add_library(oidc_common OBJECT)
+target_sources(oidc_common PRIVATE common.cc)
+
 add_library(bauth_oidc_verifier OBJECT)
 target_sources(bauth_oidc_verifier PRIVATE verifier.cc)
-target_link_libraries(bauth_oidc_verifier PRIVATE CURL::libcurl Bareos::Lib)
+target_link_libraries(
+  bauth_oidc_verifier PRIVATE CURL::libcurl Bareos::Lib Jansson::Jansson
+                              oidc_common
+)
 
 add_library(bauth_oidc_prover OBJECT)
 target_sources(bauth_oidc_prover PRIVATE prover.cc)
+target_link_libraries(
+  bauth_oidc_prover PRIVATE CURL::libcurl Bareos::Lib Jansson::Jansson
+                            oidc_common
+)
 
 define_auth_plugin(
   bauth_oidc VERIFIER bauth_oidc_verifier PROVER bauth_oidc_prover

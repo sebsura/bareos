@@ -19,7 +19,7 @@
    02110-1301, USA.
 */
 
-#include "lib/bauth/oidc/verifier.h"
+#include "verifier.h"
 
 #include <curl/curl.h>
 #include <curl/easy.h>
@@ -49,34 +49,14 @@ using evp_md_ctx = UNIQUE_PTR(EVP_MD_CTX);
 
 #undef UNIQUE_PTR
 
+namespace auth::Oidc {
 namespace {
-struct bearer_token {
-  std::chrono::steady_clock::time_point expiry_point;
-  std::string scope;
-  std::string access_token;
-  std::string refresh_token;
-  std::string id_token;
-};
-
-struct string_writer {
-  std::string s;
-
-  size_t operator()(const char* data, size_t size)
-  {
-    s.insert(s.end(), data, data + size);
-    return size;
-  }
-
-  void reset() { s = {}; }
-};
-
 bool ParseMessage(std::string_view to_parse, bearer_token* token)
 {
   json_error_t err = {};
   json_t* json = json_loadb(to_parse.data(), to_parse.size(), 0, &err);
 
   if (!json || !json_is_object(json)) { return false; }
-
 
   const char* access_token{};
   const char* scope{};
@@ -130,31 +110,6 @@ template <typename F> void curl_easy_set_read_cb(CURL* curl, F&& fun)
       });
   curl_easy_setopt(curl, CURLOPT_READDATA, &fun);
 }
-
-struct url_encoder {
-  void add_kv(std::string_view key, std::string_view value)
-  {
-    if (!encoded.empty()) { encoded += '&'; }
-
-    char* escaped = curl_easy_escape(nullptr, value.data(), value.size());
-
-    encoded += key;
-    encoded += '=';
-    encoded += escaped;
-
-    curl_free(escaped);
-  }
-
-
-  const char* c_str() const { return encoded.c_str(); }
-  const std::string& str() const& { return encoded; }
-  std::string_view view() const { return encoded; }
-
-  std::string&& str() && { return std::move(encoded); }
-
- private:
-  std::string encoded{};
-};
 
 // see rfc 7519
 struct jwt_header {
@@ -318,13 +273,6 @@ jwt ExtractJwt(std::string_view token)
   return {{header_algo, header_key_id}, payload_jwt};
 }
 
-struct site_metadata {
-  std::string token_endpoint{};
-  std::string jwks_uri{};
-  std::string issuer{};
-  std::string device_authorization_endpoint{};
-};
-
 struct rsa_key {
   std::vector<char> exponent;
   std::vector<char> modulus;
@@ -336,13 +284,13 @@ keyset get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
 {
   curl_easy_setopt(curl, CURLOPT_URL, key_uri.c_str());
 
-  string_writer sw;
-  auto res = curl_easy_write_cb(curl, sw);
+  std::string response;
+  auto res = curl_easy_write_into_str(curl, &response);
 
   if (res != CURLE_OK) { throw std::runtime_error{"could not fetch keys"}; }
 
   json_error_t err = {};
-  json_t* keys_json = json_loadb(sw.s.data(), sw.s.size(), 0, &err);
+  json_t* keys_json = json_loadb(response.data(), response.size(), 0, &err);
 
   if (!keys_json || !json_is_object(keys_json)) {
     throw std::runtime_error{"bad json keys"};
@@ -513,150 +461,6 @@ bool verify_signature(std::string_view token,
   return true;
 }
 
-struct DeviceAuthRequest {
-  std::string user_code;
-  std::string device_code;
-  std::string verification_uri;
-  std::chrono::seconds expires_in;
-  std::chrono::seconds poll_interval;
-  std::string message;
-};
-
-#if 0
-bool fetch_token(CURL* curl,
-                 const site_metadata& meta,
-                 DeviceAuthRequest& device_authentication,
-                 bearer_token* token)
-{
-  curl_easy_setopt(curl, CURLOPT_URL, meta.token_endpoint.c_str());
-
-  url_encoder encoder{};
-  encoder.add_kv("client_id", client_id);
-  encoder.add_kv("device_code", device_authentication.device_code);
-  encoder.add_kv("grant_type", "urn:ietf:params:oauth:grant-type:device_code");
-
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoder.c_str());
-  curl_easy_setopt(curl, CURLOPT_POST, 1L);
-
-  string_writer writer;
-  auto res = curl_easy_write_cb(curl, writer);
-
-  curl_easy_reset(curl);
-
-  if (res != CURLE_OK) {
-    Dmsg0(100, "Could not fetch from %s: %s (%d)\n",
-          meta.token_endpoint.c_str(), curl_easy_strerror(res), res);
-
-    return false;
-  }
-
-  Dmsg0(0, "Result: %s\n", writer.s.c_str());
-
-  // todo: we need to handle "slow down" messages, by adjusting
-  //    the poll interval in device_authentication
-  return ParseMessage(writer.s, token);
-}
-#endif
-
-site_metadata fetch_metadata(CURL* curl, const std::string& url)
-{
-  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-
-  string_writer sw;
-  auto res = curl_easy_write_cb(curl, sw);
-
-  if (res != CURLE_OK) { throw std::runtime_error{"could not fetch metadata"}; }
-
-  curl_easy_reset(curl);
-
-  json_error_t err = {};
-  json_t* json = json_loadb(sw.s.data(), sw.s.size(), 0, &err);
-  if (!json || !json_is_object(json)) { throw std::runtime_error{"bad json"}; }
-
-  const char* token_endpoint{};
-  const char* jwks_uri{};
-  const char* issuer{};
-  const char* device_authorization_endpoint{};
-
-  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:s, s:s}", "token_endpoint",
-                     &token_endpoint, "jwks_uri", &jwks_uri, "issuer", &issuer,
-                     "device_authorization_endpoint",
-                     &device_authorization_endpoint)
-      < 0) {
-    throw std::runtime_error{std::string{"missing values in json object: "}
-                             + sw.s};
-  }
-
-  return {token_endpoint, jwks_uri, issuer, device_authorization_endpoint};
-}
-
-#if 0
-DeviceAuthRequest start_device_auth(CURL* curl, const site_metadata& meta)
-{
-  curl_easy_setopt(curl, CURLOPT_URL,
-                   meta.device_authorization_endpoint.c_str());
-  string_writer sw;
-  auto res = [&] {
-    url_encoder encoder{};
-
-    encoder.add_kv("client_id", client_id.c_str());
-
-    std::string scopes = app_scope;
-    if (!refresh_scope.empty()) { scopes += " " + refresh_scope; }
-
-    encoder.add_kv("scope", scopes.c_str());
-
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoder.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-
-    return curl_easy_write_cb(curl, sw);
-  }();
-
-  curl_easy_reset(curl);
-
-  if (res != CURLE_OK) {
-    throw std::runtime_error{(std::stringstream{}
-                              << "could not start device auth: "
-                              << curl_easy_strerror(res) << " (" << res << ")")
-                                 .str()};
-  }
-
-  Dmsg0(0, "Result: %s\n", sw.s.c_str());
-
-  json_error_t err = {};
-  json_t* json = json_loadb(sw.s.data(), sw.s.size(), 0, &err);
-  if (!json) {
-    throw std::runtime_error{std::string{"Could not parse response as json: "}
-                             + err.text};
-  }
-
-
-  const char* user_code;
-  const char* device_code;
-  const char* verification_uri;
-  json_int_t expires_in;
-  json_int_t poll_interval;
-  const char* message;
-
-  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:s, s:i, s:i, s:s}",
-                     "user_code", &user_code, "device_code", &device_code,
-                     "verification_uri", &verification_uri, "expires_in",
-                     &expires_in, "interval", &poll_interval, "message",
-                     &message)
-      < 0) {
-    throw std::runtime_error{
-        std::string{"missing values in device auth response: "} + err.text};
-  }
-
-  return DeviceAuthRequest{user_code,
-                           device_code,
-                           verification_uri,
-                           std::chrono::seconds{expires_in},
-                           std::chrono::seconds{poll_interval},
-                           message};
-}
-#endif
-
 void VerifyToken(const auth::Oidc::config& cfg,
                  const keyset& keys,
                  const bearer_token& token)
@@ -729,8 +533,6 @@ void VerifyToken(const auth::Oidc::config& cfg,
 }
 };  // namespace
 
-
-namespace auth::Oidc {
 std::vector<char> Verifier::generate_challenge()
 {
   Data data{};
