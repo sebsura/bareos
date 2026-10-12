@@ -24,10 +24,15 @@
 
 #include "lib/bauth.h"
 
-// this authentication scheme does nothing
-// it is intended for situations where the authentication
-// was already done (implicitly) by tls
 namespace auth::Oidc {
+struct config {
+  // we look at <openid_config_url>/.well-known/openid-configuration
+  std::string oidc_url{};
+  std::string client_id{""};
+  std::string client_secret{""};
+  std::string audience{""};
+};
+
 struct Verifier : public auth::Verifier {
   using Base = auth::Verifier;
 
@@ -45,11 +50,13 @@ struct Verifier : public auth::Verifier {
   enum
   {
     INITIAL = 0,
-    ACCEPTED_RESULT,
+    CHECKED_TOKEN,
     ERROR,
   } current_state{INITIAL};
 
   std::string error;
+
+  config cfg;
 };
 };  // namespace auth::Oidc
 
