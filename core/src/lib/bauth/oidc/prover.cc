@@ -19,7 +19,7 @@
    02110-1301, USA.
 */
 
-#include "lib/bauth/oidc_prover.h"
+#include "lib/bauth/oidc/prover.h"
 
 namespace auth::Oidc {
 bool Prover::step(std::vector<char>&, std::span<const char> received)
