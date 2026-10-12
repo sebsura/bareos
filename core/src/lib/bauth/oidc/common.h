@@ -60,28 +60,22 @@ struct site_metadata {
   std::string device_authorization_endpoint{};
 };
 
-struct bearer_token {
-  std::chrono::steady_clock::time_point expiry_point;
-  std::string scope;
-  std::string access_token;
-  std::string refresh_token;
-  std::string id_token;
-};
-
 site_metadata fetch_metadata(CURL* curl, const std::string& url);
 
-struct Data {
+struct Challenge {
   std::string url;
-  std::string client_id;
+  std::string audience;
   std::string scope;
 
-  static std::optional<Data> parse(std::span<const char> data)
+  Challenge(std::string url_, std::string audience_, std::string scope_)
+      : url{std::move(url_)}
+      , audience{std::move(audience_)}
+      , scope{std::move(scope_)}
   {
-    std::string result{data.begin(), data.end()};
-    return Data{result, "", ""};
   }
 
-  std::string format() { return url; }
+  static std::optional<Challenge> parse(std::span<const char> data);
+  std::string format();
 };
 
 struct KeyResponse {

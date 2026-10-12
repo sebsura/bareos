@@ -24,21 +24,23 @@
 #include <jansson.h>
 
 namespace auth::Oidc {
+namespace {
+size_t curl_write_cb(char* curldata, size_t size, size_t nmemb, void* userdata)
+{
+  auto* str = static_cast<std::string*>(userdata);
+
+  size_t bytes = size * nmemb;
+
+  str->append(curldata, bytes);
+  return bytes;
+}
+};  // namespace
 CURLcode curl_easy_write_into_str(CURL* curl, std::string* buffer)
 {
   ASSERT(buffer);
 
-  curl_easy_setopt(
-      curl, CURLOPT_WRITEFUNCTION,
-      +[](char* curldata, size_t size, size_t nmemb, void* userdata) -> size_t {
-        auto* str = static_cast<std::string*>(userdata);
-
-        size_t bytes = size * nmemb;
-
-        str->append(curldata, bytes);
-        return bytes;
-      });
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, *buffer);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, buffer);
 
   return curl_easy_perform(curl);
 }
@@ -73,5 +75,45 @@ site_metadata fetch_metadata(CURL* curl, const std::string& url)
   }
 
   return {token_endpoint, jwks_uri, issuer, device_authorization_endpoint};
+}
+
+
+std::optional<Challenge> Challenge::parse(std::span<const char> data)
+{
+  json_error_t err = {};
+  json_t* json = json_loadb(data.data(), data.size(), 0, &err);
+
+  if (!json) { return std::nullopt; }
+
+
+  const char* url;
+  const char* client_id;
+  const char* scope;
+
+  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:s}", "url", &url, "client_id",
+                     &client_id, "scope", &scope)
+      < 0) {
+    json_decref(json);
+    return std::nullopt;
+  }
+
+  std::string result{data.begin(), data.end()};
+  return Challenge{url, client_id, scope};
+}
+std::string Challenge::format()
+{
+  json_error_t err = {};
+  json_t* json
+      = json_pack_ex(&err, 0, "{s:s, s:s, s:s}", "url", url.c_str(),
+                     "client_id", audience.c_str(), "scope", scope.c_str());
+
+  if (!json) { ASSERT(false); }
+
+  auto* str = json_dumps(json, JSON_COMPACT);
+  json_decref(json);
+  std::string cpy{str};
+  free(str);
+
+  return cpy;
 }
 };  // namespace auth::Oidc

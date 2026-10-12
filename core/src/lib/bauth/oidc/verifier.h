@@ -25,12 +25,23 @@
 #include "lib/bauth.h"
 
 namespace auth::Oidc {
+
+// TODO: document that with entra id you need to set
+// api.requestedAccessTokenVersion = 2 in the manifest
+
+
 struct config {
   // we look at <openid_config_url>/.well-known/openid-configuration
   std::string oidc_url{};
-  std::string client_id{""};
-  std::string client_secret{""};
-  std::string audience{""};
+  std::string audience{};
+  std::string token_scope{};
+
+  // TODO: if unset, should be set to token_scope
+  std::string api_scope{};
+
+  // TODO: these should maybe come with defaults
+  std::string scopes_name{};
+  std::string roles_name{};
 };
 
 struct Verifier : public auth::Verifier {
@@ -45,6 +56,8 @@ struct Verifier : public auth::Verifier {
   const char* err() const override { return error.c_str(); }
 
   virtual ~Verifier() = default;
+
+  std::vector<std::string> roles;
 
  private:
   enum

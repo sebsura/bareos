@@ -51,66 +51,6 @@ using evp_md_ctx = UNIQUE_PTR(EVP_MD_CTX);
 
 namespace auth::Oidc {
 namespace {
-bool ParseMessage(std::string_view to_parse, bearer_token* token)
-{
-  json_error_t err = {};
-  json_t* json = json_loadb(to_parse.data(), to_parse.size(), 0, &err);
-
-  if (!json || !json_is_object(json)) { return false; }
-
-  const char* access_token{};
-  const char* scope{};
-  const char* id_token{};
-  const char* refresh_token{};
-  json_int_t expires_in{};
-
-  bool success = false;
-
-  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:s, s:s, s:I}", "access_token",
-                     &access_token, "id_token", &id_token, "refresh_token",
-                     &refresh_token, "scope", &scope, "expires_in", &expires_in)
-      == 0) {
-    token->scope = scope;
-    token->access_token = access_token;
-    token->refresh_token = refresh_token;
-    token->id_token = id_token;
-    token->expiry_point
-        = std::chrono::steady_clock::now() + std::chrono::seconds{expires_in};
-    success = true;
-  }
-
-  json_decref(json);
-  return success;
-}
-
-template <typename F> auto curl_easy_write_cb(CURL* curl, F&& fun)
-{
-  curl_easy_setopt(
-      curl, CURLOPT_WRITEFUNCTION,
-      +[](char* curldata, size_t size, size_t nmemb, void* userdata) -> size_t {
-        auto* cb = static_cast<std::remove_reference_t<F>*>(userdata);
-
-        size_t bytes = size * nmemb;
-        return (*cb)(curldata, bytes);
-      });
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &fun);
-
-  return curl_easy_perform(curl);
-}
-
-template <typename F> void curl_easy_set_read_cb(CURL* curl, F&& fun)
-{
-  curl_easy_setopt(
-      curl, CURLOPT_READFUNCTION,
-      +[](char* curldata, size_t size, size_t nmemb, void* userdata) -> size_t {
-        auto* cb = static_cast<std::remove_reference_t<F>*>(userdata);
-
-        size_t bytes = size * nmemb;
-        return (*cb)(curldata, bytes);
-      });
-  curl_easy_setopt(curl, CURLOPT_READDATA, &fun);
-}
-
 // see rfc 7519
 struct jwt_header {
   std::string algorithm;
@@ -162,7 +102,9 @@ std::pair<std::string, std::vector<char>> ExtractSignature(
 }
 
 // std does not include the signature
-jwt ExtractJwt(std::string_view token)
+jwt ExtractJwt(std::string_view token,
+               const char* roles_name,
+               const char* scopes_name)
 {
   auto to_parse = token;
   auto end = to_parse.find('.');
@@ -243,9 +185,9 @@ jwt ExtractJwt(std::string_view token)
                      "{s:s, s:s, s:s, s:s, s:s,s:i, s:i, s:i, s:s, s:o}", "oid",
                      &user_id, "name", &user_name, "iss", &issuer, "sub",
                      &subject, "aud", &audience, "exp", &expiry, "nbf",
-                     &not_before, "iat", &issued_at, "scp", &scope,
+                     &not_before, "iat", &issued_at, scopes_name, &scope,
                      // "jti", &id,
-                     "roles", &roles)
+                     roles_name, &roles)
       < 0) {
     throw std::runtime_error{std::string{"missing values in jwt payload: "}
                              + err.text};
@@ -461,23 +403,13 @@ bool verify_signature(std::string_view token,
   return true;
 }
 
-void VerifyToken(const auth::Oidc::config& cfg,
-                 const keyset& keys,
-                 const bearer_token& token)
+jwt_payload VerifyToken(const auth::Oidc::config& cfg,
+                        const keyset& keys,
+                        std::string_view token)
 {
-#if 0
-  std::string_view scope = token.scope;
-
-  if (scope != cfg.scoped_uri) {
-    throw std::runtime_error{
-      "received token with bad scope: expected:'" + cfg.scoped_uri
-      + "' got:'" + std::string{scope} + "'",
-    };
-  }
-#endif
-
-  auto [value, signature] = ExtractSignature(token.access_token);
-  auto [header, payload] = ExtractJwt(value);
+  auto [value, signature] = ExtractSignature(token);
+  auto [header, payload]
+      = ExtractJwt(value, cfg.roles_name.c_str(), cfg.scopes_name.c_str());
 
   if (payload.issuer != cfg.oidc_url) {
     throw std::runtime_error{
@@ -525,17 +457,21 @@ void VerifyToken(const auth::Oidc::config& cfg,
     throw std::runtime_error{"this token is not for me"};
   }
 
-#if 0
-  if (payload.scope != cfg.app_scope) {
+  if (payload.scope != cfg.token_scope) {
     throw std::runtime_error{"this token is for a different use"};
   }
-#endif
+
+  return std::move(payload);
 }
 };  // namespace
 
 std::vector<char> Verifier::generate_challenge()
 {
-  Data data{};
+  Challenge data{
+      cfg.oidc_url,
+      cfg.audience,
+      cfg.api_scope,
+  };
 
   auto to_send = data.format();
 
@@ -543,7 +479,7 @@ std::vector<char> Verifier::generate_challenge()
 
   result.insert(result.end(), to_send.begin(), to_send.end());
 
-  return {};
+  return result;
 }
 
 Status Verifier::step(std::vector<char>&, std::span<const char> received)
@@ -562,11 +498,9 @@ Status Verifier::step(std::vector<char>&, std::span<const char> received)
     return Status::Error;
   }
 
-  bearer_token token;
-
-  if (!ParseMessage(std::string_view{received.begin(), received.end()},
-                    &token)) {
-    error = "could not parse bearer token from input";
+  auto response = KeyResponse::parse(received);
+  if (!response) {
+    error = "could not parse keyresponse input";
     current_state = ERROR;
     return Status::Error;
   }
@@ -588,7 +522,9 @@ Status Verifier::step(std::vector<char>&, std::span<const char> received)
     auto meta = fetch_metadata(curl, config_url);
     auto keys = get_keys(curl, meta.jwks_uri, meta.issuer);
 
-    VerifyToken(cfg, keys, token);
+    auto payload = VerifyToken(cfg, keys, response->key);
+
+    roles = std::move(payload.roles);
   } catch (const std::exception& ex) {
     error = ex.what();
     current_state = ERROR;
