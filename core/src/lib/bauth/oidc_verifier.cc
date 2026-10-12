@@ -36,6 +36,17 @@
 #include <sstream>
 #include <string_view>
 
+#define UNIQUE_PTR(Type)                           \
+  std::unique_ptr<Type, decltype([](Type* val) {   \
+                    if (val) { Type##_free(val); } \
+                  })>
+
+using evp_pkey = UNIQUE_PTR(EVP_PKEY);
+using evp_pkey_ctx = UNIQUE_PTR(EVP_PKEY_CTX);
+using evp_md_ctx = UNIQUE_PTR(EVP_MD_CTX);
+
+#undef UNIQUE_PTR
+
 namespace {
 struct bearer_token {
   std::chrono::steady_clock::time_point expiry_point;
@@ -414,13 +425,9 @@ keyset get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
   return keys;
 }
 
-EVP_PKEY* create_public_key(std::span<const char> modulus,
-                            std::span<const char> exponent)
+evp_pkey create_public_key(std::span<const char> modulus,
+                           std::span<const char> exponent)
 {
-  EVP_PKEY* result{};
-  EVP_PKEY_CTX* ctx{};
-  OSSL_PARAM params[3]{};
-
   // modulus is big endian encoded, but openssl expects the bytes in
   // native format
   std::vector<unsigned char> native(modulus.size());
@@ -428,14 +435,15 @@ EVP_PKEY* create_public_key(std::span<const char> modulus,
     native[i] = modulus[modulus.size() - i - 1];
   }
 
-  ctx = EVP_PKEY_CTX_new_from_name(nullptr, "RSA", nullptr);
-  if (!ctx) { goto cleanup; }
+  evp_pkey_ctx ctx{EVP_PKEY_CTX_new_from_name(nullptr, "RSA", nullptr)};
+  if (!ctx) { return {}; }
 
 
-  if (EVP_PKEY_fromdata_init(ctx) != 1) { goto cleanup; }
+  if (EVP_PKEY_fromdata_init(ctx.get()) != 1) { return {}; }
+
+  OSSL_PARAM params[3]{};
   params[0] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, native.data(),
                                       static_cast<int>(modulus.size()));
-
 
   // todo: this also needs to get converted to native
   params[1] = OSSL_PARAM_construct_BN(
@@ -445,55 +453,62 @@ EVP_PKEY* create_public_key(std::span<const char> modulus,
       static_cast<int>(exponent.size()));
   params[2] = OSSL_PARAM_construct_end();
 
-  if (EVP_PKEY_fromdata(ctx, &result, EVP_PKEY_PUBLIC_KEY, params) != 1) {
-    goto cleanup;
+  EVP_PKEY* result{};
+
+  if (EVP_PKEY_fromdata(ctx.get(), &result, EVP_PKEY_PUBLIC_KEY, params) != 1) {
+    return {};
   }
 
-cleanup:
-  if (ctx) { EVP_PKEY_CTX_free(ctx); }
-
-  return result;
+  return evp_pkey{result};
 }
 
 bool verify_signature(std::string_view token,
                       std::span<const char> signature,
                       const rsa_key& key)
 {
-  EVP_PKEY_CTX* kctx{};
-  bool success = false;
-  EVP_PKEY* public_key = create_public_key(key.modulus, key.exponent);
+  evp_pkey public_key = create_public_key(key.modulus, key.exponent);
   if (!public_key) { return false; }
 
-  EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-  if (!ctx) { goto cleanup; }
+  evp_md_ctx ctx{EVP_MD_CTX_new()};
+  if (!ctx) { return false; }
 
-  if (EVP_DigestVerifyInit(ctx, &kctx, EVP_sha256(), nullptr, public_key)
+  EVP_PKEY_CTX* kctx{};  // this is owned by ctx, so we use a non-owning ptr
+  if (EVP_DigestVerifyInit(ctx.get(), &kctx, EVP_sha256(), nullptr,
+                           public_key.get())
       != 1) {
-    goto cleanup;
+    Dmsg0(100, "Could not init verify digest\n");
+    return false;
+  }
+
+  if (!kctx) {
+    Dmsg0(100, "No kctx was provided\n");
+    return false;
   }
 
   if (EVP_PKEY_CTX_set_rsa_padding(kctx, RSA_PKCS1_PADDING) <= 0) {
-    goto cleanup;
+    Dmsg0(100, "Could not set rsa padding\n");
+    return false;
   }
 
-  if (EVP_PKEY_CTX_set_signature_md(kctx, EVP_sha256()) <= 0) { goto cleanup; }
-
-  if (EVP_DigestVerifyUpdate(ctx, token.data(), token.size()) != 1) {
-    goto cleanup;
+  if (EVP_PKEY_CTX_set_signature_md(kctx, EVP_sha256()) <= 0) {
+    Dmsg0(100, "Could not set signature md\n");
+    return false;
   }
 
-  {
-    auto result = EVP_DigestVerifyFinal(
-        ctx, reinterpret_cast<const unsigned char*>(signature.data()),
-        signature.size());
-    success = result == 1;
+  if (EVP_DigestVerifyUpdate(ctx.get(), token.data(), token.size()) != 1) {
+    Dmsg0(100, "Could not compute digest\n");
+    return false;
   }
 
-cleanup:
-  if (ctx) { EVP_MD_CTX_free(ctx); }
-  EVP_PKEY_free(public_key);
+  if (EVP_DigestVerifyFinal(
+          ctx.get(), reinterpret_cast<const unsigned char*>(signature.data()),
+          signature.size())
+      != 1) {
+    Dmsg0(100, "Could not get digest\n");
+    return false;
+  }
 
-  return success;
+  return true;
 }
 
 struct DeviceAuthRequest {
@@ -722,6 +737,7 @@ std::vector<char> Verifier::generate_challenge()
 
   return {};
 }
+
 Status Verifier::step(std::vector<char>&, std::span<const char> received)
 {
   if (current_state != INITIAL) {
