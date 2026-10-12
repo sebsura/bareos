@@ -54,6 +54,7 @@
 #include "lib/util.h"
 #include "lib/version.h"
 #include "lib/bauth/cram_md5.h"
+#include "lib/bauth/oidc/verifier.h"
 
 #include <array>
 
@@ -133,6 +134,30 @@ bool AuthenticateWithFileDaemon(JobControlRecord* jcr, ClientResource* client)
 
   return true;
 }
+
+struct ConsoleInboundAuthenticator : Md5InboundAuthenticator {
+  ConsoleInboundAuthenticator(TlsResource res) : Md5InboundAuthenticator(res) {}
+
+  bool authenticate(auth::InboundArgs args) override
+  {
+    auth::Algorithms algs;
+
+    auto password = tls_settings()->password_.value;
+
+    auto& oidc = algs.add<auth::Oidc::Verifier>();
+    algs.add<auth::CramMd5::Prover>(identity(), password);
+    algs.add<auth::CramMd5::Verifier>(identity(), password);
+
+    if (!authenticate_inbound(algs.prover, algs.verifier, args)) {
+      return false;
+    }
+
+    roles = std::move(oidc.roles);
+    return true;
+  }
+
+  std::vector<std::string> roles;
+};
 
 std::unique_ptr<auth::InboundAuthenticator> DirectorAuth::get_info_for(
     global_resource::Type auth_type,
@@ -225,7 +250,7 @@ std::unique_ptr<auth::InboundAuthenticator> DirectorAuth::get_info_for(
 
       type = inbound_type::Console;
 
-      return std::make_unique<Md5InboundAuthenticator>(data.tls);
+      return std::make_unique<ConsoleInboundAuthenticator>(data.tls);
     } break;
     default: {
     }

@@ -124,7 +124,9 @@ target_sources(
           oidc.cc
 )
 
-target_link_libraries(dird_objects PUBLIC CURL::libcurl fmt::fmt)
+target_link_libraries(
+  dird_objects PUBLIC CURL::libcurl fmt::fmt BAuth::Verifier::Oidc
+)
 
 if(HAVE_PAM)
   target_sources(dird_objects PRIVATE auth_pam.cc)
