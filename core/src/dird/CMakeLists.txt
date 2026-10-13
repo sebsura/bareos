@@ -134,6 +134,10 @@ endif()
 
 target_link_libraries(dird_objects PRIVATE Bareos::Lib OpenSSL::SSL)
 
+add_executable(parse_test)
+target_sources(parse_test PRIVATE oidc_conf.cc)
+target_link_libraries(parse_test PRIVATE Bareos::Lib)
+
 add_executable(bareos-dir)
 target_sources(bareos-dir PRIVATE dird.cc)
 bareos_windows_resource(bareos-dir dirdres.rc.in)
