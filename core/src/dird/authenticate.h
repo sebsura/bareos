@@ -40,14 +40,21 @@ class UaContext;
 
 bool AuthenticateWithFileDaemon(JobControlRecord* jcr, ClientResource* client);
 
+struct ConsoleInboundAuthenticator : Md5InboundAuthenticator {
+  ConsoleInboundAuthenticator(TlsResource res) : Md5InboundAuthenticator(res) {}
+
+  bool authenticate(auth::InboundArgs args) override;
+
+  std::vector<std::string> roles;
+};
+
 struct DirectorAuth : ::ConnectionInfoProvider {
   DirectorAuth(std::shared_ptr<LoadedConfiguration> conf) : p{std::move(conf)}
   {
   }
 
-  std::unique_ptr<auth::InboundAuthenticator> get_info_for(
-      global_resource::Type type,
-      std::string_view name) override;
+  auth::InboundAuthenticator* get_info_for(global_resource::Type type,
+                                           std::string_view name) override;
 
   enum class inbound_type
   {
@@ -59,6 +66,8 @@ struct DirectorAuth : ::ConnectionInfoProvider {
   struct console_data {
     ConsoleResource* res{};
     ConsoleConnectionLease lease;
+    ConsoleInboundAuthenticator auth;
+
 
     // the default console is allowed to do everything
     bool is_default{false};
@@ -68,6 +77,7 @@ struct DirectorAuth : ::ConnectionInfoProvider {
 
   struct client_data {
     ClientResource* res;
+    Md5InboundAuthenticator auth;
   };
 
   inbound_type GetType() const { return type; }
