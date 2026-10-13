@@ -525,6 +525,7 @@ Status Verifier::step(std::vector<char>&, std::span<const char> received)
     auto payload = VerifyToken(cfg, keys, response->key);
 
     roles = std::move(payload.roles);
+    user_name = std::move(payload.user_name);
   } catch (const std::exception& ex) {
     error = ex.what();
     current_state = ERROR;

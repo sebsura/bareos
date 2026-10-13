@@ -28,6 +28,7 @@
  * This routine runs as a thread and must be thread reentrant.
  */
 
+#include "dird/dird_conf.h"
 #include "include/bareos.h"
 #include "dird/ua_server.h"
 #include "dird.h"
@@ -141,13 +142,33 @@ bool ConsoleInboundAuthenticator::authenticate(auth::InboundArgs args)
 
   auto password = tls_settings()->password_.value;
 
-  auto& oidc = algs.add<auth::Oidc::Verifier>();
   algs.add<auth::CramMd5::Prover>(identity(), password);
-  algs.add<auth::CramMd5::Verifier>(identity(), password);
+
+  auto& oidc = algs.add<auth::Oidc::Verifier>();
+  auto& cram = algs.add<auth::CramMd5::Verifier>(identity(), password);
 
   if (!authenticate_inbound(algs.prover, algs.verifier, args)) { return false; }
 
-  roles = std::move(oidc.roles);
+  if (oidc.was_used()) {
+    std::vector<ProfileResource*> profiles;
+    for (const auto& role : oidc.roles) {
+      auto* profile = dynamic_cast<ProfileResource*>(
+          config->GetResWithName(R_PROFILE, role.c_str()));
+      if (!profile) {
+        Dmsg0(50, "valid access token contains bad profile %s ---> Rejected!\n",
+              role.c_str());
+        return false;
+      }
+
+      profiles.push_back(profile);
+    }
+
+    authenticated_acls = UserAcl::from_profiles(oidc.user_name, profiles);
+  } else if (cram.was_used()) {
+    authenticated_acls = UserAcl::from_config(res);
+  } else {
+    return false;
+  }
   return true;
 }
 
@@ -240,9 +261,9 @@ auth::InboundAuthenticator* DirectorAuth::get_info_for(
         tls = res;
       }
 
-      auto& data = console.emplace(res, std::move(lease),
-                                   ConsoleInboundAuthenticator(*tls),
-                                   is_default, *tls);
+      auto& data = console.emplace(
+          res, std::move(lease),
+          ConsoleInboundAuthenticator(*tls, p.get(), res), is_default, *tls);
       type = inbound_type::Console;
 
       return &data.auth;

@@ -57,6 +57,7 @@ struct Verifier : public auth::Verifier {
 
   virtual ~Verifier() = default;
 
+  std::string user_name;
   std::vector<std::string> roles;
 
  private:

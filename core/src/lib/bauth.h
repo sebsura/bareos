@@ -45,6 +45,12 @@ struct Verifier {
   virtual const char* err() const = 0;
 
   virtual ~Verifier() = default;
+
+  void set_used() { used = true; }
+  bool was_used() const { return used; }
+
+ private:
+  bool used{false};
 };
 
 struct Prover {

@@ -725,9 +725,11 @@ bool Challenge(BareosSocket* socket,
   }();
 
   if (!verifier) {
-    Dmsg0(100, "Requested Verifier\n");
+    Dmsg0(100, "Requested Verifier not found\n");
     return false;
   }
+
+  verifier->set_used();
 
   std::string response{received};
   std::string expected_prefix{verifier->name()};

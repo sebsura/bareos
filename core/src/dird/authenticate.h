@@ -41,11 +41,24 @@ class UaContext;
 bool AuthenticateWithFileDaemon(JobControlRecord* jcr, ClientResource* client);
 
 struct ConsoleInboundAuthenticator : Md5InboundAuthenticator {
-  ConsoleInboundAuthenticator(TlsResource res) : Md5InboundAuthenticator(res) {}
+  ConsoleInboundAuthenticator(TlsResource tls_,
+                              LoadedConfiguration* config_,
+                              ConsoleResource* res_)
+      : Md5InboundAuthenticator(std::move(tls_)), config{config_}, res{res_}
+  {
+  }
 
   bool authenticate(auth::InboundArgs args) override;
 
-  std::vector<std::string> roles;
+  std::unique_ptr<UserAcl> get_authenticated_acls()
+  {
+    return std::move(authenticated_acls);
+  }
+
+ private:
+  LoadedConfiguration* config;
+  ConsoleResource* res;
+  std::unique_ptr<UserAcl> authenticated_acls;
 };
 
 struct DirectorAuth : ::ConnectionInfoProvider {
