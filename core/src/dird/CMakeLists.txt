@@ -122,6 +122,7 @@ target_sources(
           volume_key.cc
           pthread_detach_if_not_detached.cc
           oidc.cc
+          oidc_conf.cc
 )
 
 target_link_libraries(
@@ -135,8 +136,8 @@ endif()
 target_link_libraries(dird_objects PRIVATE Bareos::Lib OpenSSL::SSL)
 
 add_executable(parse_test)
-target_sources(parse_test PRIVATE oidc_conf.cc)
-target_link_libraries(parse_test PRIVATE Bareos::Lib)
+target_sources(parse_test PRIVATE oidc_conf_test.cc)
+target_link_libraries(parse_test PRIVATE dird_objects Bareos::Lib)
 
 add_executable(bareos-dir)
 target_sources(bareos-dir PRIVATE dird.cc)
