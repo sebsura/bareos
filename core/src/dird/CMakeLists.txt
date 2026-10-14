@@ -179,6 +179,7 @@ target_sources(
           ua_audit.cc
           run_conf.cc
           inc_conf.cc
+          oidc_conf.cc
 )
 bareos_windows_resource(bareos-dbcheck dbcheckres.rc.in)
 target_link_libraries(

@@ -39,6 +39,7 @@
 #include "lib/parse_conf.h"
 #include "lib/resource_item.h"
 #include "lib/tls_conf.h"
+#include "dird/auth_conf.h"
 
 template <typename T> class dlist;
 struct json_t;
@@ -187,6 +188,8 @@ class ConsoleResource
   virtual ~ConsoleResource() = default;
   AclConfig user_acl;
   bool use_pam_authentication_ = false; /**< PAM Console */
+
+  AuthList auth_list_;
 };
 
 class UserResource : public BareosResource {

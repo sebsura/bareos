@@ -154,6 +154,7 @@ enum
   CFG_TYPE_RUN = 67,              /* Schedule Run Command */
   CFG_TYPE_ACTIONONPURGE = 68,    /* Action to perform on Purge */
   CFG_TYPE_POOLTYPE = 69,         /* Pool Type */
+  CFG_TYPE_AUTH = 70,             /* Auth Config */
 
   // Director fileset options. handlers in dird_conf.
   CFG_TYPE_FNAME = 80,      /* Filename */
@@ -183,6 +184,12 @@ enum string_type : int
 {
   CFG_STR_TYPE_DEFAULT,
   CFG_STR_TYPE_LABEL_FORMAT,
+};
+
+enum auth_type : int
+{
+  CFG_AUTH_CRAM_MD5,
+  CFG_AUTH_OIDC,
 };
 
 struct DatatypeName {

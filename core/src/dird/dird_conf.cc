@@ -181,6 +181,8 @@ static const ResourceItem con_items[] = {
   { "Name", CFG_TYPE_NAME, ITEM(res_con, resource_name_), {config::Required{}}},
   { "Description", CFG_TYPE_STR, ITEM(res_con, description_), {}},
   { "Password", CFG_TYPE_AUTOPASSWORD, ITEM(res_con, password_), {config::Required{}}},
+  { "Oidc", CFG_TYPE_AUTH, ITEM(res_con, auth_list_), {config::Code{CFG_AUTH_OIDC}}},
+  { "CramMd5", CFG_TYPE_AUTH, ITEM(res_con, auth_list_), {config::Code{CFG_AUTH_CRAM_MD5}}},
   USER_ACL(res_con, user_acl.ACL_lists),
   ACL_PROFILE(res_con),
   { "UsePamAuthentication", CFG_TYPE_BOOL, ITEM(res_con, use_pam_authentication_), {config::IntroducedIn{18, 2, 4}, config::DefaultValue{"false"}, config::Description{"If set to yes, PAM will be used to authenticate the user on this console. Otherwise, only the credentials of this console resource are used for authentication."}}},
@@ -825,6 +827,12 @@ bool PrintConfigSchemaJson(PoolMem& buffer)
         json_object_set_new(json_datatype_obj,
                             DatatypeToString(datatype->number),
                             json_datatype(CFG_TYPE_POOLTYPE, PoolTypes));
+        break;
+
+      case CFG_TYPE_AUTH:
+        // json_object_set_new(json_datatype_obj,
+        //                     DatatypeToString(datatype->number),
+        //                     json_datatype(CFG_TYPE_POOLTYPE, PoolTypes));
         break;
       case CFG_TYPE_RUN:
         json_object_set_new(json_datatype_obj,
@@ -3176,6 +3184,9 @@ static void InitResourceCb(const ResourceItem* item, int pass)
         case CFG_TYPE_POOLTYPE:
           SetItemVariable<char*>(*item, strdup(item->default_value));
           break;
+        case CFG_TYPE_AUTH:
+          // nothing to do!
+          break;
         default:
           break;
       }
@@ -3246,6 +3257,9 @@ static void ParseConfigCb(lexer* lc,
       break;
     case CFG_TYPE_POOLTYPE:
       StorePooltype(lc, item, index, pass);
+      break;
+    case CFG_TYPE_AUTH:
+      StoreAuth(lc, item, index, pass);
       break;
     default:
       break;
@@ -3387,6 +3401,8 @@ static bool HasDefaultValue(const ResourceItem& item)
       is_default
           = bstrcmp(GetItemVariable<const char*>(item), item.default_value);
       Dmsg1(200, "CFG_TYPE_POOLTYPE: default: %d\n", is_default);
+      break;
+    case CFG_TYPE_AUTH:
       break;
     default:
       Dmsg2(200, "%s is UNSUPPORTED TYPE: %d\n", item.name, item.type);

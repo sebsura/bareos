@@ -414,11 +414,7 @@ bool Parse(CramMd5Config& cfg)
   return stream.done();
 }
 
-void StoreAuthenticator(lexer* lc,
-                        const ResourceItem* item,
-                        int,
-                        int pass,
-                        BareosResource** resources)
+void StoreAuth(lexer* lc, const ResourceItem* item, int, int pass)
 {
   auto block = ScanBlock(lc);
 }

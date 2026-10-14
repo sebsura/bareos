@@ -2321,6 +2321,7 @@ static DatatypeName datatype_names[] = {
     {CFG_TYPE_RUN, "SCHEDULE_RUN_COMMAND", "Schedule Run Command"},
     {CFG_TYPE_ACTIONONPURGE, "ACTION_ON_PURGE", "Action to perform on Purge"},
     {CFG_TYPE_POOLTYPE, "POOLTYPE", "Pool Type"},
+    {CFG_TYPE_AUTH, "AUTH", "Auth Config"},
 
     // Director fileset options. handlers in dird_conf.
     {CFG_TYPE_FNAME, "FILENAME", "Filename"},

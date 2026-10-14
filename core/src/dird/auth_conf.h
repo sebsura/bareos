@@ -20,7 +20,8 @@
 #ifndef BAREOS_DIRD_AUTH_CONF_H_
 #define BAREOS_DIRD_AUTH_CONF_H_
 
-#include "dird/dird_conf.h"
+#include "lib/lex.h"
+#include "lib/parse_conf.h"
 
 using u32 = uint32_t;
 
@@ -95,10 +96,8 @@ struct CramMd5Config {
 bool Parse(OidcConfig& cfg);
 bool Parse(CramMd5Config& cfg);
 
-void StoreAuthenticator(lexer* lc,
-                        const ResourceItem* item,
-                        int,
-                        int pass,
-                        BareosResource** resources);
+struct AuthList {};
+
+void StoreAuth(lexer* lc, const ResourceItem* item, int, int pass);
 
 #endif  // BAREOS_DIRD_AUTH_CONF_H_

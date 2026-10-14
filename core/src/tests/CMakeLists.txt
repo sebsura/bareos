@@ -364,6 +364,7 @@ if(NOT client-only)
         ${PROJECT_SOURCE_DIR}/src/dird/inc_conf.cc
         ${PROJECT_SOURCE_DIR}/src/dird/ua_acl.cc
         ${PROJECT_SOURCE_DIR}/src/dird/ua_audit.cc
+        ${PROJECT_SOURCE_DIR}/src/dird/oidc_conf.cc
       LINK_LIBRARIES Bareos::Lib Bareos::SQL Bareos::Findlib GTest::gtest_main
                      OpenSSL::SSL OpenSSL::Crypto
     )
