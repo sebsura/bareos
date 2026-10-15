@@ -129,10 +129,14 @@ jwt ExtractJwt(std::string_view token,
   const char* header_type{};
   const char* header_algo{};
   const char* header_key_id{};
+  const char* header_nonce{};
+  const char* header_x5t{};
 
   // we reject the key if there are any additional/unknown keys
-  if (json_unpack_ex(jheader.get(), &err, JSON_STRICT, "{s:s, s:s, s:s}", "typ",
-                     &header_type, "alg", &header_algo, "kid", &header_key_id)
+  if (json_unpack_ex(jheader.get(), &err, JSON_STRICT,
+                     "{s:s, s:s, s:s, s?s, s?s}", "typ", &header_type, "alg",
+                     &header_algo, "kid", &header_key_id, "nonce",
+                     &header_nonce, "x5t", &header_x5t)
       < 0) {
     std::string error = "jwt header error: ";
     error += err.text;
