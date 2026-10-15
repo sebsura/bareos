@@ -413,7 +413,7 @@ struct TlsWrapper : public TlsConfigProvider {
   }
 
  private:
-  auth::InboundAuthenticator* info;
+  auth::InboundAuthenticator* info{};
   global_resource::Type psk_type{};
   std::string psk_name{};
 
