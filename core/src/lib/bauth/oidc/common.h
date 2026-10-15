@@ -24,6 +24,14 @@
 
 #include "lib/bauth.h"
 #include <curl/curl.h>
+#include <jansson.h>
+
+using curl_ptr = std::unique_ptr<CURL, decltype([](CURL* curl) {
+                                   if (curl) curl_easy_cleanup(curl);
+                                 })>;
+using json_ptr = std::unique_ptr<json_t, decltype([](json_t* json) {
+                                   if (json) json_decref(json);
+                                 })>;
 
 namespace auth::Oidc {
 struct url_encoder {

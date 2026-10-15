@@ -57,17 +57,19 @@ site_metadata fetch_metadata(CURL* curl, const std::string& url)
   curl_easy_reset(curl);
 
   json_error_t err = {};
-  json_t* json = json_loadb(response.data(), response.size(), 0, &err);
-  if (!json || !json_is_object(json)) { throw std::runtime_error{"bad json"}; }
+  json_ptr json{json_loadb(response.data(), response.size(), 0, &err)};
+  if (!json || !json_is_object(json.get())) {
+    throw std::runtime_error{"bad json"};
+  }
 
   const char* token_endpoint{};
   const char* jwks_uri{};
   const char* issuer{};
   const char* device_authorization_endpoint{};
 
-  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:s, s:s}", "token_endpoint",
-                     &token_endpoint, "jwks_uri", &jwks_uri, "issuer", &issuer,
-                     "device_authorization_endpoint",
+  if (json_unpack_ex(json.get(), &err, 0, "{s:s, s:s, s:s, s:s}",
+                     "token_endpoint", &token_endpoint, "jwks_uri", &jwks_uri,
+                     "issuer", &issuer, "device_authorization_endpoint",
                      &device_authorization_endpoint)
       < 0) {
     throw std::runtime_error{std::string{"missing values in json object: "}
@@ -81,7 +83,7 @@ site_metadata fetch_metadata(CURL* curl, const std::string& url)
 std::optional<Challenge> Challenge::parse(std::span<const char> data)
 {
   json_error_t err = {};
-  json_t* json = json_loadb(data.data(), data.size(), 0, &err);
+  json_ptr json{json_loadb(data.data(), data.size(), 0, &err)};
 
   if (!json) { return std::nullopt; }
 
@@ -90,10 +92,9 @@ std::optional<Challenge> Challenge::parse(std::span<const char> data)
   const char* client_id;
   const char* scope;
 
-  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:s}", "url", &url, "client_id",
-                     &client_id, "scope", &scope)
+  if (json_unpack_ex(json.get(), &err, 0, "{s:s, s:s, s:s}", "url", &url,
+                     "client_id", &client_id, "scope", &scope)
       < 0) {
-    json_decref(json);
     return std::nullopt;
   }
 
@@ -103,14 +104,13 @@ std::optional<Challenge> Challenge::parse(std::span<const char> data)
 std::string Challenge::format()
 {
   json_error_t err = {};
-  json_t* json
-      = json_pack_ex(&err, 0, "{s:s, s:s, s:s}", "url", url.c_str(),
-                     "client_id", audience.c_str(), "scope", scope.c_str());
+  json_ptr json{json_pack_ex(&err, 0, "{s:s, s:s, s:s}", "url", url.c_str(),
+                             "client_id", audience.c_str(), "scope",
+                             scope.c_str())};
 
   if (!json) { ASSERT(false); }
 
-  auto* str = json_dumps(json, JSON_COMPACT);
-  json_decref(json);
+  auto* str = json_dumps(json.get(), JSON_COMPACT);
   std::string cpy{str};
   free(str);
 

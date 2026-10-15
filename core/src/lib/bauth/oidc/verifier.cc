@@ -126,7 +126,7 @@ jwt ExtractJwt(std::string_view token,
   std::cout << "HEADER: " << header << std::endl;
 
   json_error_t err = {};
-  json_t* jheader = json_loadb(header.data(), header.size(), 0, &err);
+  json_ptr jheader{json_loadb(header.data(), header.size(), 0, &err)};
   if (!jheader || !json_is_object(jheader)) {
     throw std::runtime_error{"bad jwt header"};
   }
@@ -134,8 +134,8 @@ jwt ExtractJwt(std::string_view token,
   const char* header_type{};
   const char* header_algo{};
   const char* header_key_id{};
-  if (json_unpack_ex(jheader, &err, 0, "{s:s, s:s, s:s}", "typ", &header_type,
-                     "alg", &header_algo, "kid", &header_key_id)
+  if (json_unpack_ex(jheader.get(), &err, 0, "{s:s, s:s, s:s}", "typ",
+                     &header_type, "alg", &header_algo, "kid", &header_key_id)
       < 0) {
     throw std::runtime_error{"missing values in jwt header"};
   }
@@ -163,7 +163,7 @@ jwt ExtractJwt(std::string_view token,
 
   std::cout << "PAYLOAD: " << payload << std::endl;
 
-  json_t* jpayload = json_loadb(payload.data(), payload.size(), 0, &err);
+  json_ptr jpayload{json_loadb(payload.data(), payload.size(), 0, &err)};
   if (!jpayload || !json_is_object(jpayload)) {
     throw std::runtime_error{"bad jwt payload"};
   }
@@ -181,7 +181,7 @@ jwt ExtractJwt(std::string_view token,
   const char* user_id{};
   const char* user_name{};
   // first parse required fields
-  if (json_unpack_ex(jpayload, &err, 0,
+  if (json_unpack_ex(jpayload.get(), &err, 0,
                      "{s:s, s:s, s:s, s:s, s:s,s:i, s:i, s:i, s:s, s:o}", "oid",
                      &user_id, "name", &user_name, "iss", &issuer, "sub",
                      &subject, "aud", &audience, "exp", &expiry, "nbf",
@@ -232,13 +232,13 @@ keyset get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
   if (res != CURLE_OK) { throw std::runtime_error{"could not fetch keys"}; }
 
   json_error_t err = {};
-  json_t* keys_json = json_loadb(response.data(), response.size(), 0, &err);
+  json_ptr keys_json{json_loadb(response.data(), response.size(), 0, &err)};
 
   if (!keys_json || !json_is_object(keys_json)) {
     throw std::runtime_error{"bad json keys"};
   }
 
-  json_t* key_array = json_object_get(keys_json, "keys");
+  json_t* key_array = json_object_get(keys_json.get(), "keys");
   if (!key_array || !json_is_array(key_array)) {
     throw std::runtime_error{"bad json key array"};
   }

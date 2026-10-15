@@ -30,13 +30,6 @@
 #include <curl/easy.h>
 #include <jansson.h>
 
-using curl_ptr
-    = std::unique_ptr<CURL,
-                      decltype([](CURL* curl) { curl_easy_cleanup(curl); })>;
-using json_ptr
-    = std::unique_ptr<json_t,
-                      decltype([](json_t* curl) { json_decref(curl); })>;
-
 namespace auth::Oidc {
 namespace {
 struct DeviceAuthRequest {
@@ -253,7 +246,7 @@ DeviceAuthRequest start_device_auth(CURL* curl,
   Dmsg0(0, "Result: %s\n", response.c_str());
 
   json_error_t err = {};
-  json_t* json = json_loadb(response.data(), response.size(), 0, &err);
+  json_ptr json{json_loadb(response.data(), response.size(), 0, &err)};
   if (!json) {
     throw std::runtime_error{std::string{"Could not parse response as json: "}
                              + err.text};
@@ -268,7 +261,7 @@ DeviceAuthRequest start_device_auth(CURL* curl,
   json_int_t poll_interval{5};  // optional - default MUST be 5 per RFC
   const char* verification_uri_complete_{nullptr};  // optional
 
-  if (json_unpack_ex(json, &err, 0, "{s:s, s:s, s:s, s:i, s:s, s?i, s?s}",
+  if (json_unpack_ex(json.get(), &err, 0, "{s:s, s:s, s:s, s:i, s:s, s?i, s?s}",
                      "user_code", &user_code, "device_code", &device_code,
                      "verification_uri", &verification_uri, "expires_in",
                      &expires_in, "message", &message, "interval",
