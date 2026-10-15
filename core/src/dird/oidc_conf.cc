@@ -435,7 +435,7 @@ void StoreAuth(lexer* lc, const ResourceItem* item, int, int pass)
 {
   auto block = ScanBlock(lc);
 
-  if (pass == 2) {
+  if (pass == 1) {
     AuthList* list = GetItemVariablePointer<AuthList*>(*item);
 
     switch (item->code) {
@@ -459,6 +459,7 @@ void StoreAuth(lexer* lc, const ResourceItem* item, int, int pass)
         auto& cfg = list->cram_md5.emplace_back();
 
         cfg.name.value = "cram md5";
+        cfg.name.set = true;
         cfg.block = std::move(block);
         if (!Parse(cfg)) {
           scan_err(lc, "Could not parse legacy auth block");
