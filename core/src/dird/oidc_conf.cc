@@ -22,6 +22,8 @@
 #include <unordered_map>
 #include <cstdint>
 #include "lib/edit.h"
+#include "lib/parse_conf.h"
+#include "lib/resource_item.h"
 #include "dird/auth_conf.h"
 
 bool token_type_from_int(int type, token_type* out)
@@ -359,6 +361,8 @@ bool Parse(OidcConfig& cfg)
       if (!ParseStringValue(stream, &cfg.name)) { return false; }
     } else if (identifier == "Url") {
       if (!ParseStringValue(stream, &cfg.url)) { return false; }
+    } else if (identifier == "Audience") {
+      if (!ParseStringValue(stream, &cfg.audience)) { return false; }
     } else if (identifier == "TokenScope") {
       if (!ParseStringValue(stream, &cfg.token_scope)) { return false; }
     } else if (identifier == "ApiScope") {
@@ -414,9 +418,59 @@ bool Parse(CramMd5Config& cfg)
   return stream.done();
 }
 
+bool Validate(const OidcConfig& cfg)
+{
+  if (cfg.name.required && !cfg.name.set) { return false; }
+  if (cfg.url.required && !cfg.url.set) { return false; }
+  if (cfg.audience.required && !cfg.audience.set) { return false; }
+  if (cfg.token_scope.required && !cfg.token_scope.set) { return false; }
+  if (cfg.api_scope.required && !cfg.api_scope.set) { return false; }
+  if (cfg.scope_name.required && !cfg.scope_name.set) { return false; }
+  if (cfg.roles_name.required && !cfg.roles_name.set) { return false; }
+
+  return true;
+}
+
 void StoreAuth(lexer* lc, const ResourceItem* item, int, int pass)
 {
   auto block = ScanBlock(lc);
+
+  if (pass == 2) {
+    AuthList* list = GetItemVariablePointer<AuthList*>(*item);
+
+    switch (item->code) {
+      case CFG_AUTH_OIDC: {
+        auto& cfg = list->oidc.emplace_back();
+
+        cfg.block = std::move(block);
+        if (!Parse(cfg)) {
+          scan_err(lc, "Could not parse oidc auth block");
+          list->oidc.pop_back();
+          return;
+        }
+
+        if (!Validate(cfg)) {
+          scan_err(lc, "Could not parse correct oidc auth block");
+          list->oidc.pop_back();
+          return;
+        }
+      } break;
+      case CFG_AUTH_CRAM_MD5: {
+        auto& cfg = list->cram_md5.emplace_back();
+
+        cfg.name.value = "cram md5";
+        cfg.block = std::move(block);
+        if (!Parse(cfg)) {
+          scan_err(lc, "Could not parse legacy auth block");
+          list->cram_md5.pop_back();
+          return;
+        }
+      } break;
+      default: {
+        scan_err(lc, "Unknown auth block.  Cannot continue.");
+      }
+    }
+  }
 }
 
 // void StoreOidc(lexer* lc, const ResourceItem* item,

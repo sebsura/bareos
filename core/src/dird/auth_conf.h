@@ -77,6 +77,7 @@ template <typename T> struct config_value {
 struct OidcConfig {
   config_value<std::string> name;
   config_value<std::string> url;
+  config_value<std::string> audience;
   config_value<std::string> token_scope;
   config_value<std::string> api_scope;
 
@@ -87,6 +88,7 @@ struct OidcConfig {
 };
 
 struct CramMd5Config {
+  config_value<std::string> name;
   config_value<std::string> password;
 
   ParsedBlock block;
@@ -96,7 +98,12 @@ struct CramMd5Config {
 bool Parse(OidcConfig& cfg);
 bool Parse(CramMd5Config& cfg);
 
-struct AuthList {};
+struct AuthList {
+  std::vector<OidcConfig> oidc;
+  std::vector<CramMd5Config> cram_md5;
+
+  bool is_configured() const { return oidc.size() + cram_md5.size() > 0; };
+};
 
 void StoreAuth(lexer* lc, const ResourceItem* item, int, int pass);
 

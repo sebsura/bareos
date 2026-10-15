@@ -144,14 +144,64 @@ bool ConsoleInboundAuthenticator::authenticate(auth::InboundArgs args)
 
   algs.add<auth::CramMd5::Prover>(identity(), password);
 
-  auto& oidc = algs.add<auth::Oidc::Verifier>();
-  auto& cram = algs.add<auth::CramMd5::Verifier>(identity(), password);
+  if (res->auth_list_.is_configured()) {
+    const AuthList& auth_list = res->auth_list_;
+
+    for (auto& oidc_conf : auth_list.oidc) {
+      ASSERT(oidc_conf.name.set);
+      ASSERT(oidc_conf.url.set);
+      ASSERT(oidc_conf.token_scope.set);
+
+      auto oidc_url = oidc_conf.url.value;
+      auto token_scope = oidc_conf.token_scope.value;
+      auto audience = oidc_conf.audience.value;
+
+
+      auto api_scope = oidc_conf.api_scope.value;
+      auto scopes_name = oidc_conf.scope_name.value;
+      auto roles_name = oidc_conf.roles_name.value;
+
+      if (!oidc_conf.api_scope.set) { api_scope = token_scope; }
+      if (!oidc_conf.scope_name.set) { scopes_name = "scp"; }
+
+      if (!oidc_conf.roles_name.set) { roles_name = "roles"; }
+
+      auth::Oidc::config conf = {
+          .oidc_url = std::move(oidc_url),
+          .audience = std::move(audience),
+          .token_scope = std::move(token_scope),
+          .api_scope = std::move(api_scope),
+          .scopes_name = std::move(scopes_name),
+          .roles_name = std::move(roles_name),
+      };
+
+      algs.add<auth::Oidc::Verifier>(std::move(conf));
+    }
+
+    for (auto& cram_conf : auth_list.cram_md5) {
+      ASSERT(cram_conf.password.set);
+      ASSERT(cram_conf.name.set);
+
+      algs.add<auth::CramMd5::Verifier>(identity(), cram_conf.password.value);
+    }
+  } else {
+    // use the default auth
+    algs.add<auth::CramMd5::Verifier>(identity(), password);
+  }
 
   if (!authenticate_inbound(algs.prover, algs.verifier, args)) { return false; }
 
-  if (oidc.was_used()) {
+  auth::Verifier* verifier_used{nullptr};
+  for (auto& verifier : algs.verifier) {
+    if (verifier->was_used()) {
+      verifier_used = verifier.get();
+      break;
+    }
+  }
+
+  if (auto* oidc = dynamic_cast<auth::Oidc::Verifier*>(verifier_used)) {
     std::vector<ProfileResource*> profiles;
-    for (const auto& role : oidc.roles) {
+    for (const auto& role : oidc->roles) {
       auto* profile = dynamic_cast<ProfileResource*>(
           config->GetResWithName(R_PROFILE, role.c_str()));
       if (!profile) {
@@ -163,8 +213,10 @@ bool ConsoleInboundAuthenticator::authenticate(auth::InboundArgs args)
       profiles.push_back(profile);
     }
 
-    authenticated_acls = UserAcl::from_profiles(oidc.user_name, profiles);
-  } else if (cram.was_used()) {
+    authenticated_acls = UserAcl::from_profiles(oidc->user_name, profiles);
+  } else if (auto* cram
+             = dynamic_cast<auth::CramMd5::Verifier*>(verifier_used)) {
+    (void)cram;
     authenticated_acls = UserAcl::from_config(res);
   } else {
     return false;

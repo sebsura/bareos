@@ -29,17 +29,13 @@ namespace auth::Oidc {
 // TODO: document that with entra id you need to set
 // api.requestedAccessTokenVersion = 2 in the manifest
 
-
 struct config {
   // we look at <openid_config_url>/.well-known/openid-configuration
   std::string oidc_url{};
   std::string audience{};
   std::string token_scope{};
-
-  // TODO: if unset, should be set to token_scope
   std::string api_scope{};
 
-  // TODO: these should maybe come with defaults
   std::string scopes_name{};
   std::string roles_name{};
 };
@@ -47,7 +43,7 @@ struct config {
 struct Verifier : public auth::Verifier {
   using Base = auth::Verifier;
 
-  Verifier() {}
+  Verifier(config conf) : cfg{std::move(conf)} {}
 
   std::string_view name() const override { return "oidc"; };
   std::vector<char> generate_challenge() override;

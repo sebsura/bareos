@@ -53,13 +53,14 @@ void PrintOidc(const OidcConfig& c)
   std::printf(
       "name        = %s\n"
       "url         = %s\n"
+      "audience    = %s\n"
       "token_scope = %s\n"
       "api_scope   = %s\n"
       "scope_name  = %s\n"
       "roles_name  = %s\n",
-      c.name.value.c_str(), c.url.value.c_str(), c.token_scope.value.c_str(),
-      c.api_scope.value.c_str(), c.scope_name.value.c_str(),
-      c.roles_name.value.c_str());
+      c.name.value.c_str(), c.url.value.c_str(), c.audience.value.c_str(),
+      c.token_scope.value.c_str(), c.api_scope.value.c_str(),
+      c.scope_name.value.c_str(), c.roles_name.value.c_str());
 }
 
 int main()
