@@ -113,9 +113,6 @@ jwt ExtractJwt(std::string_view token,
   auto header64 = to_parse.substr(0, end);
   to_parse.remove_prefix(end);
 
-  std::cout << "HEADER64: " << header64 << std::endl;
-  std::cout << "REST: " << to_parse << std::endl;
-
   std::string header;
   header.resize(header64.size());
   int actual_size = Base64ToBin(header.data(), header.size(), header64.data(),
@@ -123,8 +120,6 @@ jwt ExtractJwt(std::string_view token,
   header.resize(actual_size);
 
   // check if "alg" is "RS256"; we do not accept anything else
-  std::cout << "HEADER: " << header << std::endl;
-
   json_error_t err = {};
   json_ptr jheader{json_loadb(header.data(), header.size(), 0, &err)};
   if (!jheader || !json_is_object(jheader)) {
@@ -134,13 +129,15 @@ jwt ExtractJwt(std::string_view token,
   const char* header_type{};
   const char* header_algo{};
   const char* header_key_id{};
-  if (json_unpack_ex(jheader.get(), &err, 0, "{s:s, s:s, s:s}", "typ",
+
+  // we reject the key if there are any additional/unknown keys
+  if (json_unpack_ex(jheader.get(), &err, JSON_STRICT, "{s:s, s:s, s:s}", "typ",
                      &header_type, "alg", &header_algo, "kid", &header_key_id)
       < 0) {
-    throw std::runtime_error{"missing values in jwt header"};
+    std::string error = "jwt header error: ";
+    error += err.text;
+    throw std::runtime_error{error};
   }
-
-  // todo: check the header for any other key and reject it if its unknown
 
   if (std::string_view{"JWT"} != header_type) {
     throw std::runtime_error{"bad jwt header (bad type)"};
@@ -149,11 +146,9 @@ jwt ExtractJwt(std::string_view token,
     throw std::runtime_error{"bad jwt header (bad algo)"};
   }
 
-  std::cerr << "Want key with id " << header_key_id << std::endl;
+  Dmsg0(300, "JWT is signed by '%s'\n", header_key_id);
 
   auto payload64 = to_parse.substr(1);
-
-  std::cout << "PAYLOAD64: " << payload64 << std::endl;
 
   std::string payload;
   payload.resize(payload64.size());
@@ -161,7 +156,8 @@ jwt ExtractJwt(std::string_view token,
                             payload64.size());
   payload.resize(actual_size);
 
-  std::cout << "PAYLOAD: " << payload << std::endl;
+  Dmsg0(300, "payload size %zu (b64) -> %zu (binary)\n", payload64.size(),
+        payload.size());
 
   json_ptr jpayload{json_loadb(payload.data(), payload.size(), 0, &err)};
   if (!jpayload || !json_is_object(jpayload)) {
@@ -224,6 +220,8 @@ using keyset = std::unordered_map<std::string, rsa_key>;
 
 keyset get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
 {
+  Dmsg0(300, "fetching keys from %s\n", key_uri.c_str());
+
   curl_easy_setopt(curl, CURLOPT_URL, key_uri.c_str());
 
   std::string response;
@@ -268,18 +266,21 @@ keyset get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
 
     // we only care about signing keys
     if (std::string_view{"sig"} != key_usage) {
-      std::cerr << "Skipping key " << key_id << " (bad usage)" << std::endl;
+      Dmsg0(300, "key %s has does not have the right usage: %s ---> Skipped\n",
+            key_id, key_usage);
       continue;
     }
 
     // we only care about keys from the issuer
     if (std::string_view{key_issuer} != issuer) {
-      std::cerr << "Skipping key " << key_id << " (bad issuer)" << std::endl;
+      Dmsg0(300, "key %s has does not have the right issuer: %s ---> Skipped\n",
+            key_id, key_issuer);
       continue;
     }
 
     if (std::string_view{"RSA"} != key_type) {
-      std::cerr << "Skipping key " << key_id << " (bad key type)" << std::endl;
+      Dmsg0(300, "key %s has does not have the right type: %s ---> Skipped\n",
+            key_id, key_type);
       continue;
     }
 
@@ -291,7 +292,7 @@ keyset get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
                                    m64.data(), m64.size());
 
     if (actual_size <= 0) {
-      std::cerr << "Skipping key " << key_id << " (bad key)" << std::endl;
+      Dmsg0(300, "Could not decode modulus for key %s ---> Skipped\n", key_id);
       continue;
     }
 
@@ -304,13 +305,15 @@ keyset get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
                               e64.data(), e64.size());
 
     if (actual_size <= 0) {
-      std::cerr << "Skipping key " << key_id << " (bad key)" << std::endl;
+      Dmsg0(300, "Could not decode exponent for key %s ---> Skipped\n", key_id);
       continue;
     }
 
     rsa.exponent.resize(actual_size);
 
     assert(keys.find(key_id) == keys.end());
+
+    Dmsg0(300, "Adding key %s\n", key_id);
     keys.emplace(key_id, std::move(rsa));
   }
 
