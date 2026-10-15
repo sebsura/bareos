@@ -215,6 +215,9 @@ DeviceAuthRequest start_device_auth(CURL* curl,
                                     const std::string& scope,
                                     const site_metadata& meta)
 {
+  Dmsg0(200, "Starting device auth via %s\n",
+        meta.device_authorization_endpoint.c_str());
+
   curl_easy_setopt(curl, CURLOPT_URL,
                    meta.device_authorization_endpoint.c_str());
   std::string response;
@@ -243,7 +246,7 @@ DeviceAuthRequest start_device_auth(CURL* curl,
                                  .str()};
   }
 
-  Dmsg0(0, "Result: %s\n", response.c_str());
+  Dmsg0(200, "GET was successful\n");
 
   json_error_t err = {};
   json_ptr json{json_loadb(response.data(), response.size(), 0, &err)};
@@ -271,6 +274,8 @@ DeviceAuthRequest start_device_auth(CURL* curl,
     throw std::runtime_error{
         std::string{"missing values in device auth response: "} + err.text};
   }
+
+  Dmsg0(200, "Unpack of GET was successful\n");
 
   std::optional<std::string> verification_uri_complete;
   if (verification_uri_complete_) {
