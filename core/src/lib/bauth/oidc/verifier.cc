@@ -77,6 +77,8 @@ struct jwt_payload {
 
   /* OPTIONAL */
   std::int64_t not_before;
+
+  std::string preferred_name;
 };
 
 struct jwt {
@@ -181,13 +183,14 @@ jwt ExtractJwt(std::string_view token, const char* roles_name)
   json_int_t not_before{};
   json_int_t issued_at{};
   const char* user_name{};
+  const char* preferred_name{};
   // first parse required fields
-  if (json_unpack_ex(
-          jpayload.get(), &err, 0, "{s:s, s:s, s:s, s:s, s:i, s?i, s:i, s:o}",
-          "name", &user_name, "iss", &issuer, "sub", &subject, "aud", &audience,
-          "exp", &expiry, "nbf", &not_before, "iat", &issued_at,
-          // "jti", &id,
-          roles_name, &roles)
+  if (json_unpack_ex(jpayload.get(), &err, 0,
+                     "{s:s, s:s, s:s, s:s, s:i, s?i, s:i, s:o, s?s}", "name",
+                     &user_name, "iss", &issuer, "sub", &subject, "aud",
+                     &audience, "exp", &expiry, "nbf", &not_before, "iat",
+                     &issued_at, roles_name, &roles, "preferred_username",
+                     &preferred_name)
       < 0) {
     throw std::runtime_error{std::string{"missing values in jwt payload: "}
                              + err.text};
@@ -197,8 +200,9 @@ jwt ExtractJwt(std::string_view token, const char* roles_name)
     throw std::runtime_error{"bad roles value in jwt payload"};
   }
 
-  jwt_payload payload_jwt{issuer,    subject,   audience, expiry,
-                          issued_at, user_name, {},       not_before};
+  jwt_payload payload_jwt{issuer,    subject, audience,   expiry, issued_at,
+                          user_name, {},      not_before, ""};
+  if (preferred_name) { payload_jwt.preferred_name = preferred_name; }
 
   json_t* role{};
   json_int_t idx{};
@@ -260,7 +264,7 @@ keyset get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
     const char* key_issuer{};  // this is optional
     const char* key_modulus64{};
     const char* key_exponent64{};
-    if (json_unpack_ex(key, &err, 0, "{s:s, s:s, s:s, s:s, s:s, s:s}", "kty",
+    if (json_unpack_ex(key, &err, 0, "{s:s, s:s, s:s, s?s, s:s, s:s}", "kty",
                        &key_type, "use", &key_usage, "kid", &key_id, "issuer",
                        &key_issuer, "n", &key_modulus64, "e", &key_exponent64)
         < 0) {
@@ -275,7 +279,8 @@ keyset get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
     }
 
     // we only care about keys from the issuer
-    if (std::string_view{key_issuer} != issuer) {
+    // but it is optional, so we only check it if it actually exists
+    if (key_issuer && std::string_view{key_issuer} != issuer) {
       Dmsg0(300, "key %s has does not have the right issuer: %s ---> Skipped\n",
             key_id, key_issuer);
       continue;
@@ -486,6 +491,57 @@ std::vector<char> Verifier::generate_challenge()
   return result;
 }
 
+struct UserClaims {
+  std::string user_name;
+  std::string preferred_name;
+  std::vector<std::string> roles;
+
+  static UserClaims from_json(const config& cfg, json_t* claims)
+  {
+    auto* roles_json = json_object_get(claims, cfg.roles_name.c_str());
+    auto* user_name_json = json_object_get(claims, "name");
+    auto* preferred_json = json_object_get(claims, "preferred_username");
+
+    if (!roles_json || !json_is_array(roles_json)) {
+      throw std::runtime_error{"no or bad roles in id token"};
+    }
+
+    std::vector<std::string> roles;
+
+    json_t* role{};
+    json_int_t idx{};
+    json_array_foreach(roles_json, idx, role)
+    {
+      if (!json_is_string(role)) {
+        throw std::runtime_error{"bad role value in jwt payload"};
+      }
+
+      roles.push_back(json_string_value(role));
+    }
+
+    if (!user_name_json || !json_is_string(user_name_json)) {
+      throw std::runtime_error{"no or bad user name in id token"};
+    }
+
+    std::string user_name{json_string_value(user_name_json)};
+    std::string preferred_name;
+
+    if (preferred_json) {
+      if (!json_is_string(preferred_json)) {
+        throw std::runtime_error{"bad preferred user name in id token"};
+      }
+      preferred_name = json_string_value(preferred_json);
+    } else {
+      preferred_name = user_name;
+    }
+
+    return UserClaims{std::move(user_name), std::move(preferred_name),
+                      std::move(roles)};
+  }
+
+  bool parse(json_t* claims) {}
+};
+
 Status Verifier::step(std::vector<char>&, std::span<const char> received)
 {
   if (current_state != INITIAL) {
@@ -545,47 +601,33 @@ Status Verifier::step(std::vector<char>&, std::span<const char> received)
   }
 
   try {
-    // auto meta = fetch_metadata(curl, config_url);
-    // auto keys = get_keys(curl, meta.jwks_uri, meta.issuer);
+    auto meta = fetch_metadata(curl, config_url);
+    auto keys = get_keys(curl, meta.jwks_uri, meta.issuer);
 
-    // auto payload = VerifyToken(cfg, keys, response->key);
-    // roles = std::move(payload.roles);
-    // user_name = std::move(payload.user_name);
-
-    json_t* claims{nullptr};
-    oauth2_http_status_code_t status{};
-    if (!oauth2_token_verify(oauth_log, NULL, oauth_verify,
-                             response->key.c_str(), &claims, &status)) {
-      return Status::Error;
+    auto payload = VerifyToken(cfg, keys, response->key);
+    roles = std::move(payload.roles);
+    if (payload.preferred_name.empty()) {
+      user_name = std::move(payload.user_name);
+    } else {
+      user_name = std::move(payload.preferred_name);
     }
 
-    ASSERT(claims);
+    // json_t* claims{nullptr};
+    // oauth2_http_status_code_t status{};
+    // if (!oauth2_token_verify(oauth_log, NULL, oauth_verify,
+    //                          response->key.c_str(), &claims, &status)) {
+    //   return Status::Error;
+    // }
 
-    json_ptr destr{claims};  // make sure to free claims
+    // ASSERT(claims);
 
-    auto* roles_json = json_object_get(claims, cfg.roles_name.c_str());
-    auto* user_name_json = json_object_get(claims, "name");
+    // json_ptr destr{claims};  // make sure to free claims
 
-    if (!roles_json || !json_is_array(roles_json)) {
-      throw std::runtime_error{"no or bad roles in id token"};
-    }
+    // UserClaims user_claims = UserClaims::from_json(cfg, claims);
 
-    json_t* role{};
-    json_int_t idx{};
-    json_array_foreach(roles_json, idx, role)
-    {
-      if (!json_is_string(role)) {
-        throw std::runtime_error{"bad role value in jwt payload"};
-      }
-
-      roles.push_back(json_string_value(role));
-    }
-
-    if (!user_name_json || !json_is_string(user_name_json)) {
-      throw std::runtime_error{"no or bad user name in id token"};
-    }
-
-    user_name.assign(json_string_value(user_name_json));
+    // TODO: check what we really want to have here
+    // user_name = std::move(user_claims.preferred_name);
+    // roles = std::move(user_claims.roles);
 
   } catch (const std::exception& ex) {
     error = ex.what();
