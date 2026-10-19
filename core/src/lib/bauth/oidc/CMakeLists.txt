@@ -20,6 +20,9 @@
 find_package(CURL REQUIRED)
 find_package(Jansson 2.3 REQUIRED) # we need at least 2.3
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBOAUTH2 REQUIRED IMPORTED_TARGET liboauth2)
+
 add_library(oidc_common OBJECT)
 target_sources(oidc_common PRIVATE common.cc)
 target_link_libraries(
@@ -34,7 +37,7 @@ add_library(bauth_oidc_verifier STATIC)
 target_sources(bauth_oidc_verifier PRIVATE verifier.cc)
 target_link_libraries(
   bauth_oidc_verifier PRIVATE CURL::libcurl Bareos::Lib Jansson::Jansson
-                              oidc_common
+                              oidc_common PkgConfig::LIBOAUTH2
 )
 
 add_library(bauth_oidc_prover STATIC)

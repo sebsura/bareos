@@ -33,6 +33,12 @@
 #include <openssl/rsa.h>
 #include <openssl/core_names.h>
 
+extern "C" {
+#include <oauth2/oauth2.h>
+#include <oauth2/util.h>
+#include <oauth2/cfg.h>
+}
+
 #include <sstream>
 #include <string_view>
 
@@ -58,19 +64,19 @@ struct jwt_header {
 };
 
 struct jwt_payload {
+  /* REQUIRED */
   std::string issuer;
   std::string subject;
   std::string audience;
-  std::string scope;
   std::int64_t expiry;
-  std::int64_t not_before;
   std::int64_t issued_at;
-  std::string id;
 
-  std::string user_id;
   std::string user_name;
 
   std::vector<std::string> roles;
+
+  /* OPTIONAL */
+  std::int64_t not_before;
 };
 
 struct jwt {
@@ -102,9 +108,7 @@ std::pair<std::string, std::vector<char>> ExtractSignature(
 }
 
 // std does not include the signature
-jwt ExtractJwt(std::string_view token,
-               const char* roles_name,
-               const char* scopes_name)
+jwt ExtractJwt(std::string_view token, const char* roles_name)
 {
   auto to_parse = token;
   auto end = to_parse.find('.');
@@ -176,18 +180,14 @@ jwt ExtractJwt(std::string_view token,
   json_int_t expiry{};
   json_int_t not_before{};
   json_int_t issued_at{};
-  const char* id{"unknown"};
-  const char* scope{};
-  const char* user_id{};
   const char* user_name{};
   // first parse required fields
-  if (json_unpack_ex(jpayload.get(), &err, 0,
-                     "{s:s, s:s, s:s, s:s, s:s,s:i, s:i, s:i, s:s, s:o}", "oid",
-                     &user_id, "name", &user_name, "iss", &issuer, "sub",
-                     &subject, "aud", &audience, "exp", &expiry, "nbf",
-                     &not_before, "iat", &issued_at, scopes_name, &scope,
-                     // "jti", &id,
-                     roles_name, &roles)
+  if (json_unpack_ex(
+          jpayload.get(), &err, 0, "{s:s, s:s, s:s, s:s, s:i, s?i, s:i, s:o}",
+          "name", &user_name, "iss", &issuer, "sub", &subject, "aud", &audience,
+          "exp", &expiry, "nbf", &not_before, "iat", &issued_at,
+          // "jti", &id,
+          roles_name, &roles)
       < 0) {
     throw std::runtime_error{std::string{"missing values in jwt payload: "}
                              + err.text};
@@ -197,9 +197,8 @@ jwt ExtractJwt(std::string_view token,
     throw std::runtime_error{"bad roles value in jwt payload"};
   }
 
-  jwt_payload payload_jwt{issuer,  subject,    audience,  scope,
-                          expiry,  not_before, issued_at, id,
-                          user_id, user_name,  {}};
+  jwt_payload payload_jwt{issuer,    subject,   audience, expiry,
+                          issued_at, user_name, {},       not_before};
 
   json_t* role{};
   json_int_t idx{};
@@ -258,7 +257,7 @@ keyset get_keys(CURL* curl, const std::string& key_uri, std::string_view issuer)
     const char* key_type{};
     const char* key_usage{};
     const char* key_id{};
-    const char* key_issuer{};
+    const char* key_issuer{};  // this is optional
     const char* key_modulus64{};
     const char* key_exponent64{};
     if (json_unpack_ex(key, &err, 0, "{s:s, s:s, s:s, s:s, s:s, s:s}", "kty",
@@ -415,8 +414,7 @@ jwt_payload VerifyToken(const auth::Oidc::config& cfg,
                         std::string_view token)
 {
   auto [value, signature] = ExtractSignature(token);
-  auto [header, payload]
-      = ExtractJwt(value, cfg.roles_name.c_str(), cfg.scopes_name.c_str());
+  auto [header, payload] = ExtractJwt(value, cfg.roles_name.c_str());
 
   if (payload.issuer != cfg.oidc_url) {
     throw std::runtime_error{
@@ -426,7 +424,7 @@ jwt_payload VerifyToken(const auth::Oidc::config& cfg,
   }
 
   std::stringstream msg;
-  msg << "Checking token for " << payload.user_name << " (" << payload.user_id
+  msg << "Checking token for " << payload.user_name << " (" << payload.subject
       << ")\n"
       << "with roles:\n";
   for (auto& role : payload.roles) { msg << " - " << role << "\n"; }
@@ -445,27 +443,26 @@ jwt_payload VerifyToken(const auth::Oidc::config& cfg,
     throw std::runtime_error{"unknown key id! rejecting jwt"};
   }
 
-  static constexpr auto allowed_clock_skew = std::chrono::seconds{30};
+  auto allowed_clock_skew = cfg.allowed_clock_skew;
 
   auto now = std::chrono::system_clock::now();
-
 
   if ((now - allowed_clock_skew).time_since_epoch().count()
       < payload.issued_at) {
     throw std::runtime_error{"token does not exist yet"};
   }
 
-  if ((now + allowed_clock_skew).time_since_epoch().count()
-      < payload.not_before) {
-    throw std::runtime_error{"token not ready yet"};
+  if (payload.not_before == 0) {
+    if (cfg.require_not_before) {
+      throw std::runtime_error{"token does not have required not-before (nbf)"};
+    }
+  } else if ((now + allowed_clock_skew).time_since_epoch().count()
+             < payload.not_before) {
+    throw std::runtime_error{"token not usable yet"};
   }
 
   if (payload.audience != cfg.audience) {
     throw std::runtime_error{"this token is not for me"};
-  }
-
-  if (payload.scope != cfg.token_scope) {
-    throw std::runtime_error{"this token is for a different use"};
   }
 
   return std::move(payload);
@@ -505,6 +502,33 @@ Status Verifier::step(std::vector<char>&, std::span<const char> received)
     return Status::Error;
   }
 
+  auto* oauth_log = oauth2_log_init(OAUTH2_LOG_INFO, &oauth2_log_sink_stderr);
+  oauth2_cfg_token_verify_t* oauth_verify = NULL;
+
+  std::string config_url = cfg.oidc_url;
+  if (config_url.back() != '/') { config_url.push_back('/'); }
+
+  config_url += ".well-known/openid-configuration";
+
+  std::string options;
+  options += "verify.aud=" + cfg.audience;
+
+  if (cfg.require_not_before) { options += "&verify.nbf=required"; }
+
+  options += "&verify.iat=required";
+
+
+  char* err = oauth2_cfg_token_verify_add_options(
+      oauth_log, &oauth_verify, "metadata", config_url.c_str(),
+      options.c_str());
+
+  if (err) {
+    error = err;
+    current_state = ERROR;
+    return Status::Error;
+  }
+
+
   auto response = KeyResponse::parse(received);
   if (!response) {
     error = "could not parse keyresponse input";
@@ -520,24 +544,56 @@ Status Verifier::step(std::vector<char>&, std::span<const char> received)
     return Status::Error;
   }
 
-  std::string config_url = cfg.oidc_url;
-  if (config_url.back() != '/') { config_url.push_back('/'); }
-
-  config_url += ".well-known/openid-configuration";
-
   try {
-    auto meta = fetch_metadata(curl, config_url);
-    auto keys = get_keys(curl, meta.jwks_uri, meta.issuer);
+    // auto meta = fetch_metadata(curl, config_url);
+    // auto keys = get_keys(curl, meta.jwks_uri, meta.issuer);
 
-    auto payload = VerifyToken(cfg, keys, response->key);
+    // auto payload = VerifyToken(cfg, keys, response->key);
+    // roles = std::move(payload.roles);
+    // user_name = std::move(payload.user_name);
 
-    roles = std::move(payload.roles);
-    user_name = std::move(payload.user_name);
+    json_t* claims{nullptr};
+    oauth2_http_status_code_t status{};
+    if (!oauth2_token_verify(oauth_log, NULL, oauth_verify,
+                             response->key.c_str(), &claims, &status)) {
+      return Status::Error;
+    }
+
+    ASSERT(claims);
+
+    json_ptr destr{claims};  // make sure to free claims
+
+    auto* roles_json = json_object_get(claims, cfg.roles_name.c_str());
+    auto* user_name_json = json_object_get(claims, "name");
+
+    if (!roles_json || !json_is_array(roles_json)) {
+      throw std::runtime_error{"no or bad roles in id token"};
+    }
+
+    json_t* role{};
+    json_int_t idx{};
+    json_array_foreach(roles_json, idx, role)
+    {
+      if (!json_is_string(role)) {
+        throw std::runtime_error{"bad role value in jwt payload"};
+      }
+
+      roles.push_back(json_string_value(role));
+    }
+
+    if (!user_name_json || !json_is_string(user_name_json)) {
+      throw std::runtime_error{"no or bad user name in id token"};
+    }
+
+    user_name.assign(json_string_value(user_name_json));
+
   } catch (const std::exception& ex) {
     error = ex.what();
     current_state = ERROR;
     return Status::Error;
   }
+  oauth2_cfg_token_verify_free(oauth_log, oauth_verify);
+  oauth2_shutdown(oauth_log);
 
   current_state = CHECKED_TOKEN;
   return Status::Done;

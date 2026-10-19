@@ -24,6 +24,8 @@
 
 #include "lib/bauth.h"
 
+#include <chrono>
+
 namespace auth::Oidc {
 
 // TODO: document that with entra id you need to set
@@ -38,6 +40,11 @@ struct config {
 
   std::string scopes_name{};
   std::string roles_name{};
+
+
+  bool require_not_before{false};
+  std::chrono::steady_clock::duration allowed_clock_skew
+      = std::chrono::seconds{30};
 };
 
 struct Verifier : public auth::Verifier {
