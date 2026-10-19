@@ -406,38 +406,53 @@ bool Prover::step(std::vector<char>& to_send, std::span<const char> received)
           + 2 * 4 * size    /* for empty modules at the start of each line */
       );
 
-      url_qr_printed.push_back('\n');
-      url_qr_printed.push_back('\n');
-      url_qr_printed.push_back('\n');
-      url_qr_printed.push_back('\n');
 
-      for (int y = 0; y < size; ++y) {
-        url_qr_printed.push_back(' ');
-        url_qr_printed.push_back(' ');
-        url_qr_printed.push_back(' ');
-        url_qr_printed.push_back(' ');
-        url_qr_printed.push_back(' ');
-        url_qr_printed.push_back(' ');
-        url_qr_printed.push_back(' ');
-        url_qr_printed.push_back(' ');
-
-        for (int x = 0; x < size; ++x) {
-          if (url_qr.getModule(x, y)) {
-            url_qr_printed.push_back('#');
-            url_qr_printed.push_back('#');
-          } else {
-            url_qr_printed.push_back(' ');
-            url_qr_printed.push_back(' ');
-          }
+      for (int y = 0; y < 4; ++y) {
+        for (int x = 0; x < size + 8; ++x) {
+          url_qr_printed.push_back('#');
+          url_qr_printed.push_back('#');
         }
-
         url_qr_printed.push_back('\n');
       }
 
-      url_qr_printed.push_back('\n');
-      url_qr_printed.push_back('\n');
-      url_qr_printed.push_back('\n');
-      url_qr_printed.push_back('\n');
+      for (int y = 0; y < size; ++y) {
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+
+        for (int x = 0; x < size; ++x) {
+          if (url_qr.getModule(x, y)) {
+            url_qr_printed.push_back(' ');
+            url_qr_printed.push_back(' ');
+          } else {
+            url_qr_printed.push_back('#');
+            url_qr_printed.push_back('#');
+          }
+        }
+
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('#');
+        url_qr_printed.push_back('\n');
+      }
+
+      for (int y = 0; y < 4; ++y) {
+        for (int x = 0; x < size + 8; ++x) {
+          url_qr_printed.push_back('#');
+          url_qr_printed.push_back('#');
+        }
+        url_qr_printed.push_back('\n');
+      }
 
       printf("%s\n", url_qr_printed.c_str());
 
