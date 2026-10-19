@@ -26,6 +26,7 @@
 #include <jansson.h>
 #include "lib/base64.h"
 #include <iostream>
+#include <thread>
 
 #include <openssl/evp.h>
 #include <openssl/bn.h>
@@ -57,28 +58,24 @@ using evp_md_ctx = UNIQUE_PTR(EVP_MD_CTX);
 
 namespace auth::Oidc {
 namespace {
+
+template <typename T> void convert_json(T* result, json_t* json)
+{
+  json_dump_callback(
+      json,
+      +[](const char* buffer, size_t size, void* arg) -> int {
+        auto* output = static_cast<T*>(arg);
+        output->insert(output->end(), buffer, buffer + size);
+        return 0;
+      },
+      result, JSON_COMPACT);
+}
+
+
 // see rfc 7519
 struct jwt_header {
   std::string algorithm;
   std::string key_id;
-};
-
-struct jwt_payload {
-  /* REQUIRED */
-  std::string issuer;
-  std::string subject;
-  std::string audience;
-  std::int64_t expiry;
-  std::int64_t issued_at;
-
-  std::string user_name;
-
-  std::vector<std::string> roles;
-
-  /* OPTIONAL */
-  std::int64_t not_before;
-
-  std::string preferred_name;
 };
 
 struct jwt {
@@ -178,7 +175,8 @@ jwt ExtractJwt(std::string_view token, const char* roles_name)
   json_t* roles{};
   const char* issuer{};
   const char* subject{};
-  const char* audience{};
+  json_t* audience_json{};
+  const char* authorized_party{};
   json_int_t expiry{};
   json_int_t not_before{};
   json_int_t issued_at{};
@@ -186,11 +184,11 @@ jwt ExtractJwt(std::string_view token, const char* roles_name)
   const char* preferred_name{};
   // first parse required fields
   if (json_unpack_ex(jpayload.get(), &err, 0,
-                     "{s:s, s:s, s:s, s:s, s:i, s?i, s:i, s:o, s?s}", "name",
-                     &user_name, "iss", &issuer, "sub", &subject, "aud",
-                     &audience, "exp", &expiry, "nbf", &not_before, "iat",
+                     "{s:s, s:s, s:s, s:o, s:i, s?i, s:i, s:o, s?s, s?s}",
+                     "name", &user_name, "iss", &issuer, "sub", &subject, "aud",
+                     &audience_json, "exp", &expiry, "nbf", &not_before, "iat",
                      &issued_at, roles_name, &roles, "preferred_username",
-                     &preferred_name)
+                     &preferred_name, "azp", &authorized_party)
       < 0) {
     throw std::runtime_error{std::string{"missing values in jwt payload: "}
                              + err.text};
@@ -199,6 +197,38 @@ jwt ExtractJwt(std::string_view token, const char* roles_name)
   if (!json_is_array(roles)) {
     throw std::runtime_error{"bad roles value in jwt payload"};
   }
+
+  const char* audience = [&] {
+    if (authorized_party) {
+      std::string_view azp{authorized_party};
+
+      if (!json_is_array(audience_json)) {
+        throw std::runtime_error{
+            "'azp' is specified but 'aud' is not an array"};
+      }
+
+      // make sure azp is actually in the aud array!
+
+      json_t* aud{};
+      json_int_t idx{};
+      json_array_foreach(audience_json, idx, aud)
+      {
+        if (!json_is_string(aud)) {
+          throw std::runtime_error{"non-string value in 'aud' array"};
+        }
+
+        if (azp == json_string_value(aud)) { return authorized_party; }
+      }
+
+      throw std::runtime_error{"'azp' is not contained in the 'aud' array"};
+    } else {
+      if (!json_is_string(audience_json)) {
+        throw std::runtime_error{"'aud' is not a string, but 'azp' is unset"};
+      }
+
+      return json_string_value(audience_json);
+    }
+  }();
 
   jwt_payload payload_jwt{issuer,    subject, audience,   expiry, issued_at,
                           user_name, {},      not_before, ""};
@@ -466,30 +496,13 @@ jwt_payload VerifyToken(const auth::Oidc::config& cfg,
     throw std::runtime_error{"token not usable yet"};
   }
 
-  if (payload.audience != cfg.audience) {
+  if (payload.audience != cfg.client_id) {
     throw std::runtime_error{"this token is not for me"};
   }
 
   return std::move(payload);
 }
 };  // namespace
-
-std::vector<char> Verifier::generate_challenge()
-{
-  Challenge data{
-      cfg.oidc_url,
-      cfg.audience,
-      cfg.api_scope,
-  };
-
-  auto to_send = data.format();
-
-  std::vector<char> result;
-
-  result.insert(result.end(), to_send.begin(), to_send.end());
-
-  return result;
-}
 
 struct UserClaims {
   std::string user_name;
@@ -542,102 +555,469 @@ struct UserClaims {
   bool parse(json_t* claims) {}
 };
 
-Status Verifier::step(std::vector<char>&, std::span<const char> received)
+struct DeviceAuthRequest {
+  std::string client_id;
+
+  std::string user_code;
+  std::string device_code;
+  std::string verification_uri;
+
+  // this is an optional part of RFC 8628.  Its a verification uri that
+  // has the device code encoded inside of it.
+  std::optional<std::string> verification_uri_complete;
+  std::chrono::seconds expires_in;
+  std::chrono::seconds poll_interval;
+  std::string message;
+};
+
+DeviceAuthRequest start_device_auth(CURL* curl,
+                                    const std::string& client_id,
+                                    const std::string& scope,
+                                    const site_metadata& meta)
 {
-  if (current_state != INITIAL) {
-    if (error.empty()) error = "entered with bad state";
-    current_state = ERROR;
-    return Status::Error;
+  Dmsg0(200, "Starting device auth via %s\n",
+        meta.device_authorization_endpoint.c_str());
+
+  curl_easy_setopt(curl, CURLOPT_URL,
+                   meta.device_authorization_endpoint.c_str());
+  std::string response;
+  auto res = [&] {
+    url_encoder encoder{};
+
+    encoder.add_kv("client_id", client_id.c_str());
+
+    std::string scopes = scope;
+    // if (!refresh_scope.empty()) { scopes += " " + refresh_scope; }
+
+    encoder.add_kv("scope", scopes.c_str());
+
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoder.c_str());
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+    return curl_easy_write_into_str(curl, &response);
+  }();
+
+  curl_easy_reset(curl);
+
+  if (res != CURLE_OK) {
+    throw std::runtime_error{(std::stringstream{}
+                              << "could not start device auth: "
+                              << curl_easy_strerror(res) << " (" << res << ")")
+                                 .str()};
   }
 
-  ASSERT(error.empty());
+  Dmsg0(200, "GET was successful\n");
 
-  if (cfg.oidc_url.empty()) {
-    error = "empty oidc url";
-    current_state = ERROR;
-    return Status::Error;
+  json_error_t err = {};
+  json_ptr json{json_loadb(response.data(), response.size(), 0, &err)};
+  if (!json) {
+    throw std::runtime_error{std::string{"Could not parse response as json: "}
+                             + err.text};
   }
 
-  auto* oauth_log = oauth2_log_init(OAUTH2_LOG_INFO, &oauth2_log_sink_stderr);
-  oauth2_cfg_token_verify_t* oauth_verify = NULL;
 
+  const char* user_code;
+  const char* device_code;
+  const char* verification_uri;
+  json_int_t expires_in;
+  const char* message{""};
+  json_int_t poll_interval{5};  // optional - default MUST be 5 per RFC
+  const char* verification_uri_complete_{nullptr};  // optional
+
+  if (json_unpack_ex(json.get(), &err, 0, "{s:s, s:s, s:s, s:i, s?s, s?i, s?s}",
+                     "user_code", &user_code, "device_code", &device_code,
+                     "verification_uri", &verification_uri, "expires_in",
+                     &expires_in, "message", &message, "interval",
+                     &poll_interval, "verification_uri_complete",
+                     &verification_uri_complete_)
+      < 0) {
+    throw std::runtime_error{
+        std::string{"missing values in device auth response: "} + err.text};
+  }
+
+  Dmsg0(200, "Unpack of GET was successful\n");
+
+  std::optional<std::string> verification_uri_complete;
+  if (verification_uri_complete_) {
+    verification_uri_complete.emplace(verification_uri_complete_);
+  }
+
+  return DeviceAuthRequest{client_id,
+                           user_code,
+                           device_code,
+                           verification_uri,
+                           std::move(verification_uri_complete),
+                           std::chrono::seconds{expires_in},
+                           std::chrono::seconds{poll_interval},
+                           message};
+}
+
+CURL* AuthenticationFlow::curl(Verifier* verifier)
+{
+  return verifier->curl.get();
+}
+
+site_metadata& AuthenticationFlow::meta(Verifier* verifier)
+{
+  return verifier->meta;
+}
+
+config& AuthenticationFlow::conf(Verifier* verifier) { return verifier->cfg; }
+
+// See RFC 6749 Section 5.2 & RFC 8628 Section 3.5
+enum class FetchResult
+{
+  Ok,
+  Pending,
+  SlowDown,
+  AccessDenied,
+  Expired,
+  InvalidRequest,
+  InvalidClient,
+  InvalidGrant,
+  UnauthorizedClient,
+  UnsupportedGrantType,
+  InvalidScope,
+  Error,
+};
+
+static constexpr std::pair<FetchResult, std::string_view> error_table[] = {
+    // RFC 8628 §3.5 — device-flow-specific errors
+    {FetchResult::Pending, "authorization_pending"},
+    {FetchResult::SlowDown, "slow_down"},
+    {FetchResult::AccessDenied, "access_denied"},
+    {FetchResult::Expired, "expired_token"},
+
+    // RFC 6749 §5.2 — standard token-endpoint errors
+    {FetchResult::InvalidRequest, "invalid_request"},
+    {FetchResult::InvalidClient, "invalid_client"},
+    {FetchResult::InvalidGrant, "invalid_grant"},
+    {FetchResult::UnauthorizedClient, "unauthorized_client"},
+    {FetchResult::UnsupportedGrantType, "unsupported_grant_type"},
+    {FetchResult::InvalidScope, "invalid_scope"},
+
+    // It seems some providers deviate from the standard.
+    // We can add them below once we know of them
+};
+
+FetchResult handle_error_response(std::string_view buffer,
+                                  std::string* err_desc)
+{
+  json_error_t err = {};
+  json_ptr buffer_json{json_loadb(buffer.data(), buffer.size(), 0, &err)};
+
+  if (!buffer_json) {
+    *err_desc = "Error response was not json: ";
+    *err_desc += err.text;
+    return FetchResult::Error;
+  }
+
+  // These are required
+  const char* error;
+
+  // These are optional
+  const char* error_desc{nullptr};
+  const char* error_uri{nullptr};
+
+  if (json_unpack_ex(buffer_json.get(), &err, 0, "{s:s, s?s, s?s}", "error",
+                     &error, "error_description", &error_desc, "error_uri",
+                     &error_uri)
+      < 0) {
+    *err_desc = "Error response could not be unpacked: ";
+    *err_desc += err.text;
+    return FetchResult::Error;
+  }
+
+  auto error_code = FetchResult::Error;
+
+  Dmsg0(100, "Received error %s from token provider\n", error);
+
+  for (auto [code, name] : error_table) {
+    if (name == error) {
+      error_code = code;
+      break;
+    }
+  }
+
+  if (error_desc) {
+    err_desc->assign(error_desc);
+  } else {
+    err_desc->clear();
+  }
+
+  return error_code;
+}
+
+FetchResult handle_token_response(std::string_view buffer, std::string* token)
+{
+  json_error_t err = {};
+  json_ptr buffer_json{json_loadb(buffer.data(), buffer.size(), 0, &err)};
+
+  if (!buffer_json) {
+    *token = "Token response was not json: ";
+    *token += err.text;
+    return FetchResult::Error;
+  }
+
+  // These are required
+  const char* access_token;
+  const char* token_type;
+
+  // These are optional
+  json_int_t expires_in{0};
+  const char* refresh_token{nullptr};
+  const char* scope{nullptr};
+
+  if (json_unpack_ex(buffer_json.get(), &err, 0, "{s:s, s:s, s?i, s?s, s?s}",
+                     "id_token", &access_token, "token_type", &token_type,
+                     "expires_in", &expires_in, "refresh_token", &refresh_token,
+                     "scope", &scope)
+      < 0) {
+    *token = "Error response could not be unpacked: ";
+    *token += err.text;
+    return FetchResult::Error;
+  }
+
+  if (!Bstrcasecmp(token_type, "Bearer")) {
+    *token = "Bad token type: ";
+    *token += token_type;
+    return FetchResult::Error;
+  }
+
+  *token = access_token;
+  return FetchResult::Ok;
+}
+
+struct DeviceAuthenticationFlow : AuthenticationFlow {
+  static constexpr const char* name = "device";
+
+
+  std::chrono::seconds expires_in;
+  std::chrono::seconds poll_interval;
+  std::string client_id;
+  std::string device_code;
+
+  DeviceAuthenticationFlow(DeviceAuthRequest req)
+      : expires_in{req.expires_in}
+      , poll_interval{req.poll_interval}
+      , client_id{std::move(req.client_id)}
+      , device_code{std::move(req.device_code)}
+  {
+  }
+
+  Status step(auth::Oidc::Verifier* verifier,
+              std::vector<char>& response,
+              std::span<const char> received) override
+  {
+    switch (state) {
+      case INITIAL: {
+        std::string key_str;
+
+        bool done = false;
+
+        auto now = std::chrono::steady_clock::now;
+        auto start_time = now();
+
+        while (!done) {
+          auto delta = now() - start_time;
+
+          if (delta >= expires_in) {
+            Dmsg0(
+                100, "request expired: %zu ns vs max %zu ns\n",
+                std::chrono::duration_cast<std::chrono::nanoseconds>(delta)
+                    .count(),
+                std::chrono::duration_cast<std::chrono::nanoseconds>(expires_in)
+                    .count());
+
+            throw std::runtime_error{"Device auth expired"};
+          }
+
+          /* sleeping before fetching the token makes it more likely to
+           * get the token on the first try - if - people generally manage
+           * to login in <5 seconds. If they take 5-10 seconds instead, then
+           * its better to fetch first. */
+          std::this_thread::sleep_for(poll_interval);
+
+          switch (fetch_token(curl(verifier), meta(verifier), &key_str)) {
+            case FetchResult::Ok: {
+              Dmsg0(200, "token was fetched sucessfully\n");
+              done = true;
+            } break;
+            case FetchResult::Pending: {
+              Dmsg0(300, "token is not ready yet\n");
+            } break;
+            case FetchResult::SlowDown: {
+              Dmsg0(300, "token is not ready yet; we need to slow down\n");
+
+              // we are required by the standard to (permanently) add 5 seconds
+              poll_interval += std::chrono::seconds(5);
+            } break;
+            default: {
+              if (key_str.empty()) { key_str = "unknown error"; }
+
+              Dmsg0(100, "We received an error during token fetch: %s\n",
+                    key_str.c_str());
+
+              throw std::runtime_error{std::move(key_str)};
+            } break;
+          }
+        }
+
+        auto keys = get_keys(curl(verifier), meta(verifier).jwks_uri,
+                             meta(verifier).issuer);
+
+        verified_payload = VerifyToken(conf(verifier), keys, key_str);
+
+        return Status::Done;
+      } break;
+      default: {
+        throw std::runtime_error{
+            "entered DeviceAuthenticationFlow in unexpected state"};
+      } break;
+    }
+  }
+
+ private:
+  enum State
+  {
+    INITIAL,
+    DONE,
+  };
+
+  State state{INITIAL};
+
+
+  FetchResult fetch_token(CURL* curl,
+                          const site_metadata& meta,
+                          std::string* response)
+  {
+    curl_easy_setopt(curl, CURLOPT_URL, meta.token_endpoint.c_str());
+
+    url_encoder encoder{};
+    encoder.add_kv("client_id", client_id);
+    encoder.add_kv("device_code", device_code);
+    encoder.add_kv("grant_type",
+                   "urn:ietf:params:oauth:grant-type:device_code");
+
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, encoder.c_str());
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+    std::string buffer;
+    auto res = curl_easy_write_into_str(curl, &buffer);
+
+    if (res != CURLE_OK) {
+      Dmsg0(100, "Could not fetch from %s: %s (%d)\n",
+            meta.token_endpoint.c_str(), curl_easy_strerror(res), res);
+      curl_easy_reset(curl);
+      return FetchResult::Error;
+    }
+
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+    curl_easy_reset(curl);
+
+    if (http_code >= 400) {
+      Dmsg0(500, "Got an error response\n");
+      return handle_error_response(buffer, response);
+    } else {
+      Dmsg0(500, "Got a success response\n");
+      return handle_token_response(buffer, response);
+    }
+  }
+};
+
+std::vector<char> Verifier::generate_challenge()
+{
+  json_error_t err;
+  json_ptr chal{json_pack_ex(&err, JSON_COMPACT, "{s:[s]}",
+                             "supported_auth_flows",
+                             DeviceAuthenticationFlow::name)};
+
+  if (!chal) { return {}; }
+
+  std::vector<char> result;
+
+  convert_json(&result, chal.get());
+
+  return result;
+}
+
+
+Status Verifier::initiate_flow(std::vector<char>& response,
+                               std::span<const char> received)
+{
+  std::string_view received_view{received.begin(), received.end()};
+
+  if (received_view != DeviceAuthenticationFlow::name) {
+    return Error("client requested unknown flow");
+  }
+
+  if (cfg.oidc_url.empty()) { return Error("empty oidc url"); }
+
+  curl.reset(curl_easy_init());
+  if (!curl) { return Error("could not create curl object"); }
   std::string config_url = cfg.oidc_url;
   if (config_url.back() != '/') { config_url.push_back('/'); }
 
   config_url += ".well-known/openid-configuration";
 
-  std::string options;
-  options += "verify.aud=" + cfg.audience;
+  meta = fetch_metadata(curl.get(), config_url);
 
-  if (cfg.require_not_before) { options += "&verify.nbf=required"; }
+  auto device_auth
+      = start_device_auth(curl.get(), cfg.client_id, "openid profile", meta);
 
-  options += "&verify.iat=required";
+  json_error_t err;
 
+  json_ptr result_json{json_pack_ex(
+      &err, 0, "{s:s, s:s, s:s*}", "url", device_auth.verification_uri.c_str(),
+      "code", device_auth.user_code.c_str(), "complete_url",
+      device_auth.verification_uri_complete
+          ? device_auth.verification_uri_complete->c_str()
+          : nullptr)};
 
-  char* err = oauth2_cfg_token_verify_add_options(
-      oauth_log, &oauth_verify, "metadata", config_url.c_str(),
-      options.c_str());
+  convert_json(&response, result_json.get());
 
-  if (err) {
-    error = err;
-    current_state = ERROR;
-    return Status::Error;
-  }
+  current_flow
+      = std::make_unique<DeviceAuthenticationFlow>(std::move(device_auth));
+  current_state = FLOW_STARTED;
+  return Status::InProgress;
+}
 
-
-  auto response = KeyResponse::parse(received);
-  if (!response) {
-    error = "could not parse keyresponse input";
-    current_state = ERROR;
-    return Status::Error;
-  }
-
-  // TODO: this should be done periodically, not during verification
-  CURL* curl = curl_easy_init();
-  if (!curl) {
-    error = "could not create curl connection";
-    current_state = ERROR;
-    return Status::Error;
-  }
-
+Status Verifier::step(std::vector<char>& response,
+                      std::span<const char> received)
+{
   try {
-    auto meta = fetch_metadata(curl, config_url);
-    auto keys = get_keys(curl, meta.jwks_uri, meta.issuer);
+    switch (current_state) {
+      case INITIAL: {
+        return initiate_flow(response, received);
+      } break;
+      case FLOW_STARTED: {
+        if (!received.empty()) {
+          return Error("received unexpected input from client");
+        }
+        if (!current_flow) {
+          return Error("authentication flow was not setup");
+        }
+        auto res = current_flow->step(this, response, received);
+        if (res == Status::Done) {
+          roles = std::move(current_flow->verified_payload.roles);
+          if (current_flow->verified_payload.preferred_name.empty()) {
+            user_name = std::move(current_flow->verified_payload.user_name);
+          } else {
+            user_name
+                = std::move(current_flow->verified_payload.preferred_name);
+          }
+        }
 
-    auto payload = VerifyToken(cfg, keys, response->key);
-    roles = std::move(payload.roles);
-    if (payload.preferred_name.empty()) {
-      user_name = std::move(payload.user_name);
-    } else {
-      user_name = std::move(payload.preferred_name);
+        return res;
+      } break;
+      default: {
+        return Error("entered with bad state");
+      } break;
     }
-
-    // json_t* claims{nullptr};
-    // oauth2_http_status_code_t status{};
-    // if (!oauth2_token_verify(oauth_log, NULL, oauth_verify,
-    //                          response->key.c_str(), &claims, &status)) {
-    //   return Status::Error;
-    // }
-
-    // ASSERT(claims);
-
-    // json_ptr destr{claims};  // make sure to free claims
-
-    // UserClaims user_claims = UserClaims::from_json(cfg, claims);
-
-    // TODO: check what we really want to have here
-    // user_name = std::move(user_claims.preferred_name);
-    // roles = std::move(user_claims.roles);
-
   } catch (const std::exception& ex) {
-    error = ex.what();
-    current_state = ERROR;
-    return Status::Error;
+    return Error(ex.what());
   }
-  oauth2_cfg_token_verify_free(oauth_log, oauth_verify);
-  oauth2_shutdown(oauth_log);
-
-  current_state = CHECKED_TOKEN;
-  return Status::Done;
 }
 };  // namespace auth::Oidc

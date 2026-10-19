@@ -23,6 +23,7 @@
 #define BAREOS_LIB_BAUTH_OIDC_VERIFIER_H_
 
 #include "lib/bauth.h"
+#include "lib/bauth/oidc/common.h"
 
 #include <chrono>
 
@@ -32,19 +33,51 @@ namespace auth::Oidc {
 // api.requestedAccessTokenVersion = 2 in the manifest
 
 struct config {
-  // we look at <openid_config_url>/.well-known/openid-configuration
+  // we look at <oidc_url>/.well-known/openid-configuration
   std::string oidc_url{};
-  std::string audience{};
-  std::string token_scope{};
-  std::string api_scope{};
-
-  std::string scopes_name{};
+  std::string client_id{};
   std::string roles_name{};
 
 
   bool require_not_before{false};
   std::chrono::steady_clock::duration allowed_clock_skew
       = std::chrono::seconds{30};
+};
+
+struct Verifier;
+
+struct jwt_payload {
+  /* REQUIRED */
+  std::string issuer;
+  std::string subject;
+  std::string audience;
+  std::int64_t expiry;
+  std::int64_t issued_at;
+
+  std::string user_name;
+
+  std::vector<std::string> roles;
+
+  /* OPTIONAL */
+  std::int64_t not_before;
+
+  std::string preferred_name;
+};
+
+// each flow should actually be its own "type"
+struct AuthenticationFlow {
+  virtual auth::Status step(Verifier* verifier,
+                            std::vector<char>& response,
+                            std::span<const char> received)
+      = 0;
+  virtual ~AuthenticationFlow() = default;
+
+  jwt_payload verified_payload;
+
+ protected:
+  CURL* curl(Verifier* verifier);
+  site_metadata& meta(Verifier* verifier);
+  config& conf(Verifier* verifier);
 };
 
 struct Verifier : public auth::Verifier {
@@ -63,17 +96,40 @@ struct Verifier : public auth::Verifier {
   std::string user_name;
   std::vector<std::string> roles;
 
+  friend struct AuthenticationFlow;
+
  private:
+  auth::Status initiate_flow(std::vector<char>& response,
+                             std::span<const char> received);
+  auth::Status check_token();
+
   enum
   {
     INITIAL = 0,
+    FLOW_STARTED,
     CHECKED_TOKEN,
     ERROR,
   } current_state{INITIAL};
 
-  std::string error;
 
   config cfg;
+
+
+  std::string error;
+  site_metadata meta;
+  curl_ptr curl;
+  std::unique_ptr<AuthenticationFlow> current_flow;
+
+  Status Error(std::string message)
+  {
+    if (error.empty()) {
+      error = std::move(message);
+    } else {
+      ASSERT(current_state == ERROR);
+    }
+    current_state = ERROR;
+    return Status::Error;
+  }
 };
 };  // namespace auth::Oidc
 

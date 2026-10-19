@@ -77,11 +77,7 @@ template <typename T> struct config_value {
 struct OidcConfig {
   config_value<std::string> name;
   config_value<std::string> url;
-  config_value<std::string> audience;
-  config_value<std::string> token_scope;
-  config_value<std::string> api_scope;
-
-  config_value<std::string> scope_name;
+  config_value<std::string> client_id;
   config_value<std::string> roles_name;
 
   ParsedBlock block;

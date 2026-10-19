@@ -150,28 +150,16 @@ bool ConsoleInboundAuthenticator::authenticate(auth::InboundArgs args)
     for (auto& oidc_conf : auth_list.oidc) {
       ASSERT(oidc_conf.name.set);
       ASSERT(oidc_conf.url.set);
-      ASSERT(oidc_conf.token_scope.set);
 
       auto oidc_url = oidc_conf.url.value;
-      auto token_scope = oidc_conf.token_scope.value;
-      auto audience = oidc_conf.audience.value;
-
-
-      auto api_scope = oidc_conf.api_scope.value;
-      auto scopes_name = oidc_conf.scope_name.value;
+      auto audience = oidc_conf.client_id.value;
       auto roles_name = oidc_conf.roles_name.value;
-
-      if (!oidc_conf.api_scope.set) { api_scope = token_scope; }
-      if (!oidc_conf.scope_name.set) { scopes_name = "scp"; }
 
       if (!oidc_conf.roles_name.set) { roles_name = "roles"; }
 
       auth::Oidc::config conf = {
           .oidc_url = std::move(oidc_url),
-          .audience = std::move(audience),
-          .token_scope = std::move(token_scope),
-          .api_scope = std::move(api_scope),
-          .scopes_name = std::move(scopes_name),
+          .client_id = std::move(audience),
           .roles_name = std::move(roles_name),
       };
 

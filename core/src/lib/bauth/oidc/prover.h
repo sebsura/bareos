@@ -40,10 +40,22 @@ struct Prover : public auth::Prover {
   std::string error;
   enum
   {
-    WAITING_FOR_CHALLENGE = 0,
+    INITIAL = 0,
+    WAITING_FOR_CHALLENGE,
     RESPONSE_SENT,
     ERROR,
-  } current_state{WAITING_FOR_CHALLENGE};
+  } current_state{INITIAL};
+
+  bool Error(std::string text)
+  {
+    if (error.empty()) {
+      error = std::move(text);
+    } else {
+      ASSERT(current_state == ERROR);
+    }
+    current_state = ERROR;
+    return false;
+  }
 };
 };  // namespace auth::Oidc
 

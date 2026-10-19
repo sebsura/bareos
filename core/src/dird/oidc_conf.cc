@@ -361,14 +361,8 @@ bool Parse(OidcConfig& cfg)
       if (!ParseStringValue(stream, &cfg.name)) { return false; }
     } else if (identifier == "Url") {
       if (!ParseStringValue(stream, &cfg.url)) { return false; }
-    } else if (identifier == "Audience") {
-      if (!ParseStringValue(stream, &cfg.audience)) { return false; }
-    } else if (identifier == "TokenScope") {
-      if (!ParseStringValue(stream, &cfg.token_scope)) { return false; }
-    } else if (identifier == "ApiScope") {
-      if (!ParseStringValue(stream, &cfg.api_scope)) { return false; }
-    } else if (identifier == "ScopeName") {
-      if (!ParseStringValue(stream, &cfg.scope_name)) { return false; }
+    } else if (identifier == "ClientId") {
+      if (!ParseStringValue(stream, &cfg.client_id)) { return false; }
     } else if (identifier == "RolesName") {
       if (!ParseStringValue(stream, &cfg.roles_name)) { return false; }
     } else {
@@ -422,10 +416,7 @@ bool Validate(const OidcConfig& cfg)
 {
   if (cfg.name.required && !cfg.name.set) { return false; }
   if (cfg.url.required && !cfg.url.set) { return false; }
-  if (cfg.audience.required && !cfg.audience.set) { return false; }
-  if (cfg.token_scope.required && !cfg.token_scope.set) { return false; }
-  if (cfg.api_scope.required && !cfg.api_scope.set) { return false; }
-  if (cfg.scope_name.required && !cfg.scope_name.set) { return false; }
+  if (cfg.client_id.required && !cfg.client_id.set) { return false; }
   if (cfg.roles_name.required && !cfg.roles_name.set) { return false; }
 
   return true;

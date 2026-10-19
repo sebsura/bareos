@@ -307,94 +307,94 @@ void print_user_message(const DeviceAuthRequest& device_auth)
 bool Prover::step(std::vector<char>& to_send, std::span<const char> received)
 {
   switch (current_state) {
-    case WAITING_FOR_CHALLENGE: {
-      auto data = Challenge::parse(received);
-      if (!data) {
-        current_state = ERROR;
-        error = "Could not parse challenge";
-        return false;
+    case INITIAL: {
+      json_error_t err{};
+      json_ptr received_json{
+          json_loadb(received.data(), received.size(), 0, &err)};
+      if (!received_json) {
+        return Error(std::string{"received bad json request: "} + err.text);
       }
 
-      std::string key_str;
-      curl_ptr curl{curl_easy_init()};
+      json_t* flows_json{};
+      if (json_unpack_ex(received_json.get(), &err, 0, "{s:o}",
+                         "supported_auth_flows", &flows_json)
+          < 0) {
+        return Error(std::string{"received bad json: "} + err.text);
+      }
+      if (!json_is_array(flows_json)) {
+        return Error(std::string{
+            "received bad json request: supported_auth_flows is not an array"});
+      }
 
-      std::string metadata_url = data->url;
-      if (!metadata_url.ends_with('/')) { metadata_url.push_back('/'); }
-      metadata_url += ".well-known/openid-configuration";
+      bool device_flow_found = false;
 
-      try {
-        auto meta = fetch_metadata(curl.get(), metadata_url.c_str());
-
-        auto now = std::chrono::steady_clock::now;
-        auto start_time = now();
-        auto device_auth
-            = start_device_auth(curl.get(), data->audience, data->scope, meta);
-
-        print_user_message(device_auth);
-
-        auto poll_interval = device_auth.poll_interval;
-        bool done = false;
-        while (!done) {
-          auto delta = now() - start_time;
-
-          if (delta >= device_auth.expires_in) {
-            current_state = ERROR;
-            error = "Device auth expiered";
-            Dmsg0(100, "request expired: %zu ns vs max %zu ns\n",
-                  std::chrono::duration_cast<std::chrono::nanoseconds>(delta)
-                      .count(),
-                  std::chrono::duration_cast<std::chrono::nanoseconds>(
-                      device_auth.expires_in)
-                      .count());
-            return false;
-          }
-
-          std::this_thread::sleep_for(poll_interval);
-
-          switch (fetch_token(curl.get(), meta, device_auth, &key_str)) {
-            case FetchResult::Ok: {
-              Dmsg0(200, "token was fetched sucessfully\n");
-              done = true;
-            } break;
-            case FetchResult::Pending: {
-              Dmsg0(300, "token is not ready yet\n");
-            } break;
-            case FetchResult::SlowDown: {
-              Dmsg0(300, "token is not ready yet; we need to slow down\n");
-
-              // we are required by the standard to (permanently) add 5 seconds
-              poll_interval += std::chrono::seconds(5);
-            } break;
-            default: {
-              if (key_str.empty()) { key_str = "unknown error"; }
-              auto* err_desc = key_str.c_str();
-
-              Dmsg0(100, "We received an error during token fetch: %s\n",
-                    err_desc);
-
-              error = std::move(key_str);
-              current_state = ERROR;
-              return false;
-            } break;
-          }
+      json_int_t index{};
+      json_t* flow_json;
+      json_array_foreach(flows_json, index, flow_json)
+      {
+        if (!json_is_string(flow_json)) {
+          return Error(
+              std::string{"received bad json request: supported_auth_flows is "
+                          "not a string array"});
         }
-      } catch (const std::exception& ex) {
-        error = ex.what();
-        current_state = ERROR;
-        return false;
+
+        std::string flow{json_string_value(flow_json),
+                         json_string_length(flow_json)};
+        if (flow == "device") {
+          device_flow_found = true;
+          break;
+        }
       }
 
-      KeyResponse response{key_str};
-      auto response_str = response.format();
+      if (!device_flow_found) {
+        return Error(
+            std::string{"received bad json request: supported_auth_flows "
+                        "contains no known flows"});
+      }
 
-      to_send.assign(key_str.begin(), key_str.end());
+      std::string_view selected_flow = "device";
+      to_send.assign(selected_flow.begin(), selected_flow.end());
+
+      Dmsg0(200, "Selected oidc auth flow: %.*s\n", (int)selected_flow.size(),
+            selected_flow.data());
+
+      current_state = WAITING_FOR_CHALLENGE;
+
+      return true;
+
+    } break;
+    case WAITING_FOR_CHALLENGE: {
+      json_error_t err{};
+      json_ptr received_json{
+          json_loadb(received.data(), received.size(), 0, &err)};
+      if (!received_json) {
+        return Error(std::string{"received bad json: "} + err.text);
+      }
+
+      const char* url;
+      const char* code;
+      const char* complete_url = nullptr;
+      if (json_unpack_ex(received_json.get(), &err, 0, "{s:s, s:s, s?s}", "url",
+                         &url, "code", &code, "complete_url", &complete_url)
+          < 0) {
+        return Error(std::string{"received bad json request: "} + err.text);
+      }
+
+      if (complete_url) {
+        printf(
+            "Please visit %s to verify.\nAlternatively head to %s and enter "
+            "code %s\n",
+            complete_url, url, code);
+      } else {
+        printf("Please visit %s to verify.\nThe authorization code is %s\n",
+               url, code);
+      }
+
       current_state = RESPONSE_SENT;
       return true;
     } break;
     default: {
-      current_state = ERROR;
-      if (error.empty()) { error = "Entered step() on bad state"; };
-      return false;
+      return Error("Entered step() on bad state");
     } break;
   }
 }
