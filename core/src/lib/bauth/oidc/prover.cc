@@ -30,6 +30,8 @@
 #include <curl/easy.h>
 #include <jansson.h>
 
+#include "qrcodegen.h"
+
 namespace auth::Oidc {
 namespace {
 struct DeviceAuthRequest {
@@ -379,6 +381,66 @@ bool Prover::step(std::vector<char>& to_send, std::span<const char> received)
           < 0) {
         return Error(std::string{"received bad json request: "} + err.text);
       }
+
+      const char* url_to_use = complete_url;
+      if (!url_to_use) { url_to_use = url; }
+
+      ASSERT(url_to_use);
+
+      auto url_qr = qrcodegen::QrCode::encodeText(
+          url_to_use, qrcodegen::QrCode::Ecc::MEDIUM);
+
+      // qr codes are always quadratic
+      auto size = url_qr.getSize();
+
+      std::string url_qr_printed;
+
+      // each module is printed as a 1x2 block (so its more square in a
+      // terminal) We also leave 4 modules space around the qr code, so that it
+      // is easier to catch for qr readers.
+
+      url_qr_printed.reserve(
+          size * (size * 2) /* actual module matrix */
+          + 8               /* 8 empty lines (4 + 4) */
+          + size            /* new lines in matrix */
+          + 2 * 4 * size    /* for empty modules at the start of each line */
+      );
+
+      url_qr_printed.push_back('\n');
+      url_qr_printed.push_back('\n');
+      url_qr_printed.push_back('\n');
+      url_qr_printed.push_back('\n');
+
+      for (int y = 0; y < size; ++y) {
+        url_qr_printed.push_back(' ');
+        url_qr_printed.push_back(' ');
+        url_qr_printed.push_back(' ');
+        url_qr_printed.push_back(' ');
+        url_qr_printed.push_back(' ');
+        url_qr_printed.push_back(' ');
+        url_qr_printed.push_back(' ');
+        url_qr_printed.push_back(' ');
+
+        for (int x = 0; x < size; ++x) {
+          if (url_qr.getModule(x, y)) {
+            url_qr_printed.push_back('#');
+            url_qr_printed.push_back('#');
+          } else {
+            url_qr_printed.push_back(' ');
+            url_qr_printed.push_back(' ');
+          }
+        }
+
+        url_qr_printed.push_back('\n');
+      }
+
+      url_qr_printed.push_back('\n');
+      url_qr_printed.push_back('\n');
+      url_qr_printed.push_back('\n');
+      url_qr_printed.push_back('\n');
+
+      printf("%s\n", url_qr_printed.c_str());
+
 
       if (complete_url) {
         printf(

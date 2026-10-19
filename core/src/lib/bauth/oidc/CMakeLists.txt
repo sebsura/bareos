@@ -31,6 +31,9 @@ target_link_libraries(
   PRIVATE Jansson::Jansson
 )
 
+add_library(qrcodegen STATIC)
+target_sources(qrcodegen PRIVATE qrcodegen.cc)
+
 # these libraries are STATIC because OBJECT dependencies do not propagate, i.e.
 # if a target links verifier, then it will not get common as dependency
 add_library(bauth_oidc_verifier STATIC)
@@ -44,7 +47,7 @@ add_library(bauth_oidc_prover STATIC)
 target_sources(bauth_oidc_prover PUBLIC prover.cc)
 target_link_libraries(
   bauth_oidc_prover PUBLIC CURL::libcurl Bareos::Lib Jansson::Jansson
-                           oidc_common
+                           oidc_common qrcodegen
 )
 
 define_auth_plugin(Oidc VERIFIER bauth_oidc_verifier PROVER bauth_oidc_prover)
