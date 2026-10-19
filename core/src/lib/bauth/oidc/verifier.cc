@@ -202,25 +202,32 @@ jwt ExtractJwt(std::string_view token, const char* roles_name)
     if (authorized_party) {
       std::string_view azp{authorized_party};
 
-      if (!json_is_array(audience_json)) {
-        throw std::runtime_error{
-            "'azp' is specified but 'aud' is not an array"};
-      }
+      // make sure azp and aud are compatible!
+      if (json_is_array(audience_json)) {
+        json_t* aud{};
+        json_int_t idx{};
+        json_array_foreach(audience_json, idx, aud)
+        {
+          if (!json_is_string(aud)) {
+            throw std::runtime_error{"non-string value in 'aud' array"};
+          }
 
-      // make sure azp is actually in the aud array!
+          if (azp == json_string_value(aud)) { return authorized_party; }
+        }
+        throw std::runtime_error{"'azp' is not contained in the 'aud' array"};
 
-      json_t* aud{};
-      json_int_t idx{};
-      json_array_foreach(audience_json, idx, aud)
-      {
-        if (!json_is_string(aud)) {
-          throw std::runtime_error{"non-string value in 'aud' array"};
+      } else if (json_is_string(audience_json)) {
+        if (azp != json_string_value(audience_json)) {
+          throw std::runtime_error{
+              "'azp' and 'aud' are both strings, but are different"};
         }
 
-        if (azp == json_string_value(aud)) { return authorized_party; }
+        return authorized_party;
+      } else {
+        throw std::runtime_error{"'aud' is neither array nor string"};
       }
 
-      throw std::runtime_error{"'azp' is not contained in the 'aud' array"};
+
     } else {
       if (!json_is_string(audience_json)) {
         throw std::runtime_error{"'aud' is not a string, but 'azp' is unset"};
